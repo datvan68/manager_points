@@ -8,6 +8,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ActivityAttendance } from '../club-attendance/schemas/club-attendance.schema';
 import { Activity } from '../activities/schemas/activity.schema';
+import { Student } from '../students/schemas/student.schema';
 
 describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
   let service: ActivitySchedulesService;
@@ -66,6 +67,10 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
     }),
   };
 
+  const mockStudentModel = {
+    findOne: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -89,6 +94,10 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
         {
           provide: getModelToken(Activity.name),
           useValue: mockActivityModel,
+        },
+        {
+          provide: getModelToken(Student.name),
+          useValue: mockStudentModel,
         },
       ],
     }).compile();
@@ -411,6 +420,44 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(res.items[0].my_attendance.status).toBe('present');
       expect(res.items[0].attendance_records).toBeUndefined();
       expect(res.items[1].my_attendance).toBeNull();
+    });
+
+    it('should resolve the JWT userId to the linked student before querying attendance', async () => {
+      const userId = new Types.ObjectId();
+      const studentId = new Types.ObjectId();
+      mockActivityScheduleModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockSchedules),
+      });
+      mockStudentModel.findOne.mockImplementation((filter) => {
+        expect(filter.user_id.toString()).toBe(userId.toString());
+        return {
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue({ _id: studentId }),
+        };
+      });
+      mockActivityAttendanceModel.find.mockImplementation((filter) => {
+        expect(filter.student_id.toString()).toBe(studentId.toString());
+        return {
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{
+            _id: new Types.ObjectId(),
+            schedule_id: mockSchedules[0]._id,
+            student_id: studentId,
+            status: 'present',
+          }]),
+        };
+      });
+
+      const result = await service.findActivityTimeline(activityId, {
+        roleCode: 'STUDENT',
+        roleName: 'Student',
+        userId: userId.toString(),
+      });
+
+      expect(result.items[0].my_attendance.status).toBe('present');
     });
 
     it('should return attendance_records containing student full_name and student_code, excluding email in staff mode', async () => {

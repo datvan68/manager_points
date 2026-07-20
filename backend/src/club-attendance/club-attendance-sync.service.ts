@@ -275,20 +275,30 @@ export class ActivityAttendanceSyncService {
    */
   async revokeAcademicRecord(attendanceId: string): Promise<boolean> {
     const attendance = await this.attendanceModel.findById(attendanceId);
-    if (!attendance || !attendance.academic_record_id) {
+    if (!attendance) {
       return false;
     }
 
     // Soft-delete the academic record
-    await this.academicRecordModel.findByIdAndUpdate(
-      attendance.academic_record_id,
-      { $set: { status: 'cancelled', is_deleted: true } },
-    );
+    if (attendance.academic_record_id) {
+      await this.academicRecordModel.findByIdAndUpdate(
+        attendance.academic_record_id,
+        { $set: { status: 'cancelled', is_deleted: true } },
+      );
+    }
 
     // Clear sync reference
     attendance.synced_to_academic_record = false;
     attendance.academic_record_id = null as any;
     await attendance.save();
+
+    if (await this.activityCompletionService.hasActiveRule(attendance.activity_id, attendance.semester_id)) {
+      await this.activityCompletionService.checkAndAwardCompletion(
+        attendance.student_id.toString(),
+        attendance.activity_id.toString(),
+        attendance.semester_id.toString(),
+      );
+    }
 
     this.logger.log(`Revoked AcademicRecord for attendance ${attendanceId}`);
     return true;

@@ -148,11 +148,14 @@ export class ActivityCompletionService {
       status: { $in: ['present', 'late'] },
     }).session(session || null).exec();
 
-    if (attendanceCount >= rule.minimum_attendance) {
-      const club = await this.clubModel.findById(activityId).session(session || null).exec();
-      if (!club) {
-        throw new NotFoundException(`Không tìm thấy hoạt động với ID: ${activityId}`);
-      }
+    const earnedUnits = rule.minimum_attendance > 0
+      ? Math.floor(attendanceCount / rule.minimum_attendance)
+      : 0;
+
+    const club = await this.clubModel.findById(activityId).session(session || null).exec();
+    if (!club) {
+      throw new NotFoundException(`Không tìm thấy hoạt động với ID: ${activityId}`);
+    }
 
       for (const criterionId of rule.criterion_ids) {
         const existingAward = await this.awardModel.findOne({
@@ -161,9 +164,10 @@ export class ActivityCompletionService {
           criterion_id: criterionId,
         }).session(session || null).exec();
 
-        if (!existingAward) {
+        const baseKey = `activity-completion:${activityId}:${studentId}:${criterionId}`;
+        if (!existingAward && earnedUnits > 0) {
           let academicRecord;
-          const idempotencyKey = `activity-completion:${activityId}:${studentId}:${criterionId}`;
+          const idempotencyKey = baseKey;
 
           try {
             academicRecord = new this.academicRecordModel({
@@ -204,7 +208,40 @@ export class ActivityCompletionService {
             await newAward.save({ session });
           }
         }
+
+        const activeRecords = await (this.academicRecordModel as any).find({
+          student_id: new Types.ObjectId(studentId),
+          criterion_id: criterionId,
+          semester_id: new Types.ObjectId(semesterId),
+          source_type: 'activity_completion',
+          source_id: activityId,
+          idempotency_key: { $regex: `^${baseKey}` },
+          is_deleted: { $ne: true },
+          status: 'active',
+        }).sort({ createdAt: 1, _id: 1 }).session(session || null).exec();
+
+        for (let sequence = activeRecords.length + 1; sequence <= earnedUnits; sequence++) {
+          await (this.academicRecordModel as any).create([{
+            student_id: new Types.ObjectId(studentId),
+            criterion_id: criterionId,
+            semester_id: new Types.ObjectId(semesterId),
+            idempotency_key: `${baseKey}:sequence:${sequence}`,
+            record_title: `Hoàn thành hoạt động: ${club.name}`,
+            description: `Đạt ${sequence} đơn vị hoàn thành tại hoạt động ${club.name}`,
+            source_type: 'activity_completion', source_id: activityId,
+            record_type: 'activity', action_type: 'count', quantity: 1,
+            recorded_by_role: 'system', status: 'active', is_deleted: false,
+          }], { session });
+        }
+
+        if (activeRecords.length > earnedUnits) {
+          const surplus: any[] = activeRecords.slice(earnedUnits);
+          await this.academicRecordModel.updateMany(
+            { _id: { $in: surplus.map(record => record._id) } },
+            { $set: { status: 'inactive', is_deleted: true } },
+            { session },
+          );
+        }
       }
-    }
   }
 }

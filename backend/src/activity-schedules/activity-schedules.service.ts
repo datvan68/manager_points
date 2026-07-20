@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -33,6 +34,7 @@ import {
   isAdmin,
 } from '../auth/utils/role.util';
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
 
 @Injectable()
 export class ActivitySchedulesService {
@@ -47,6 +49,9 @@ export class ActivitySchedulesService {
     private activityAttendanceModel: Model<ActivityAttendanceDocument>,
     @InjectModel(Activity.name)
     private activityModel: Model<ActivityDocument>,
+    @Optional()
+    @InjectModel(Student.name)
+    private studentModel: Model<StudentDocument>,
   ) {}
 
   private async validateActivityStatus(activityId: string | Types.ObjectId): Promise<void> {
@@ -975,7 +980,12 @@ export class ActivitySchedulesService {
 
     let attendanceList: any[] = [];
     if (viewerMode === 'student') {
-      const studentId = requester.studentId || requester._id || requester.id;
+      let studentId = requester.studentId || requester._id;
+      const userId = requester.userId || requester.id;
+      if (!studentId && userId && this.studentModel) {
+        const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).select('_id').lean().exec();
+        studentId = student?._id?.toString();
+      }
       if (studentId) {
         attendanceList = await this.activityAttendanceModel
           .find({
