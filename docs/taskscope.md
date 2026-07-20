@@ -1,37 +1,16 @@
-Task: installable-pwa-shell | feature_development | Risk: MEDIUM
-Objective: Make the Next.js frontend installable as a branded PWA on supported mobile and desktop browsers, with a safe application-shell cache and an explicit offline fallback.
+Task: profile-menu-pwa-install-visibility | feature_development | Risk: LOW
+Objective: Hide the profile-menu PWA install action while the application is installed, and make it available again when opened outside installed mode.
 Scope:
-- `frontend/src/app/manifest.ts` :: App Router web app manifest :: define the application name, short name, Vietnamese description, `/` start URL and scope, `standalone` display mode, brand/theme colors, orientation, language, and 192 px, 512 px, and maskable icon entries.
-- `frontend/src/app/layout.tsx` :: root metadata and PWA bootstrap :: expose manifest/theme and Apple web-app metadata, reference the generated icons, and mount the client-side PWA registration/install UI without changing the existing provider hierarchy.
-- `frontend/src/components/pwa/PwaInstallPrompt.tsx` :: service-worker registration and install experience :: register `/sw.js` only in supported production-capable browsers; hide the UI when already installed or previously dismissed; invoke the Chromium `beforeinstallprompt` flow; and show concise Safari iOS Add to Home Screen instructions where the programmatic prompt is unavailable.
-- `frontend/src/components/pwa/PwaInstallPrompt.test.tsx` :: install and registration regression coverage :: mock browser PWA APIs and verify service-worker registration, Chromium prompt handling, installed-state hiding, dismissal persistence, unsupported-browser behavior, and iOS guidance.
-- `frontend/src/app/offline/page.tsx` :: offline fallback route :: provide a lightweight Vietnamese status page with retry/navigation guidance and no dependency on authenticated API data.
-- `frontend/public/sw.js` :: versioned application-shell service worker :: pre-cache only the offline page and stable PWA assets; use cache-first handling for same-origin `/_next/static/` and declared icon assets; use network-first navigation with `/offline` fallback; remove obsolete named caches on activation; and never cache API calls, authentication responses, non-GET requests, or cross-origin resources.
-- `frontend/public/icons/` :: installable application artwork :: derive square 192x192, 512x512, maskable 512x512, and 180x180 Apple touch PNGs from `frontend/src/assets/cropped-logo-nsg.png`, preserving the logo aspect ratio and adding the required maskable safe-zone padding instead of stretching or cropping the mark.
-- `frontend/next.config.js` :: service-worker response policy :: add narrowly scoped `/sw.js` headers for JavaScript content type, root service-worker scope, and revalidation/no-cache behavior so deployed clients receive worker updates promptly while preserving the existing standalone output.
-Out: Push notifications, background sync, offline mutation or business-data access, caching of `/api` or authenticated HTML/data, backend changes, dependency additions, app-store packaging, deployment/DNS/TLS changes, and unrelated files and behavior.
-Context: The frontend uses Next.js 16 App Router with standalone Docker output. Production traffic is already terminated over HTTPS by Caddy. The existing 512x512 transparent school logo is the source artwork. Installation remains browser/platform dependent: Chromium supports `beforeinstallprompt`, while Safari on iOS requires the Share > Add to Home Screen flow.
+- `frontend/src/components/layout/Header.tsx` :: profile-menu PWA action :: derive installed mode from the browser display mode, react to PWA installation, and conditionally render "Mở ứng dụng".
+- `docs/taskscope.md` :: current taskscope :: record the visibility behavior and verification.
+Out: Changes to PWA prompt handling, ConfirmModal implementation, backend/frontend startup, automatic browser installation, and unrelated files and behavior.
+Context: Browsers do not expose an uninstall event; reopening the site after uninstall runs outside standalone mode and restores the action.
 Steps:
-1. Generate the four PWA icon variants from the existing logo and add the typed App Router manifest plus root PWA/Apple metadata.
-2. Add the offline route and a conservative, versioned service worker whose cache rules exclude API, authentication, user-specific, mutation, and cross-origin traffic.
-3. Add the client-side registrar/install prompt with Chromium installation, iOS instructions, installed-state detection, and persisted dismissal behavior; mount it once in the root layout.
-4. Configure update-safe headers for `/sw.js` and add focused component tests for registration and installation states.
-5. Build and run the frontend over localhost/HTTPS, inspect the generated manifest and worker headers, then validate installability and offline fallback in supported desktop and mobile browser modes.
+1. Track installed display mode in Header and update it for installation and display-mode changes.
+2. Render the existing confirmed install action only when the app is not installed.
 Verify:
-- `frontend` :: `npm test -- src/components/pwa/PwaInstallPrompt.test.tsx` => all service-worker registration and install-UI cases pass.
-- `frontend` :: `npm run typecheck` => the manifest, metadata, PWA browser-event typings, component, and tests compile without TypeScript errors.
-- `frontend` :: `npm run build` => Next.js production build succeeds and emits the manifest, offline route, icon assets, and service worker without changing standalone output.
-- `frontend` :: serve the production build on `localhost` or the deployed HTTPS origin, then inspect `/manifest.webmanifest`, `/sw.js`, and DevTools Application > Manifest/Service Workers => manifest fields and icon sizes are valid, the worker controls the root scope, `/sw.js` is not stale-cached, and no API/auth request is stored in Cache Storage.
-- supported Chromium desktop or Android browser :: install from the in-app/browser prompt and launch from the created icon => the app opens in standalone mode at the expected origin with the branded icon.
-- Safari iOS device or simulator :: open the site and follow the displayed Share > Add to Home Screen guidance => the saved icon launches the site in standalone mode and the guidance is hidden after installation/dismissal.
-- offline browser mode after one successful online visit :: navigate or reload an uncached page => the `/offline` fallback renders while cached Next.js static assets remain available and protected application data is not presented as current.
-- repository root :: `git diff --check` and `git status --short` => no whitespace errors and only scoped implementation files plus `docs/taskscope.md` are changed by the implementation task.
+- `frontend` :: `npm run build` => Next.js production build succeeds.
+- repository root :: `git diff --check` => no whitespace errors.
 Done:
-- Supported desktop and mobile browsers recognize the HTTPS frontend as installable and create a branded home-screen/application icon.
-- Launching the installed PWA opens the existing application in standalone display mode without changing authentication, routing, or business behavior.
-- The worker updates safely, improves repeat loading of immutable application assets, shows the explicit offline fallback when navigation has no network, and does not cache API/authenticated data.
-- Targeted tests, type checking, production build, manifest/worker inspection, and platform installation checks pass.
-Gate/Stop: Stop before implementation if the product owner does not approve the manifest display name, short name, theme/background colors, or the existing school logo as install artwork; these values affect the user-visible installed application identity. Production installation verification also requires access to the deployed HTTPS origin and at least one supported browser/device.
-Rollback: Remove the manifest, PWA component/test, offline route, worker, generated icons, and `/sw.js` headers; remove the root-layout PWA references; increment or retire the worker cache name and deploy a worker that unregisters itself and deletes the scoped PWA caches before removing `/sw.js` in a later deployment.
-Dependencies: A secure production origin (already provided by Caddy), browser access to `/manifest.webmanifest`, `/sw.js`, icons, and `/_next/static/*` without authentication redirects, plus Chromium and Safari iOS coverage for final platform verification.
-Artifacts: Final scoped diff; generated icon dimension/safe-zone inspection; targeted test, type-check, and production-build logs; manifest and `/sw.js` response/header evidence; DevTools Application screenshots or equivalent evidence for installability, worker scope, cache contents, standalone launch, and offline fallback.
+- "Mở ứng dụng" is hidden in the installed app, becomes hidden immediately after installation, and is shown again when the site is opened after the app has been removed.
+Gate/Stop: None

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, LayoutGrid, User, Settings as SettingsIcon, LogOut, MapPin } from 'lucide-react';
+import { Bell, Search, LayoutGrid, User, Download, LogOut, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import logoNsg from '@/assets/cropped-logo-nsg.png';
@@ -15,6 +15,7 @@ import { studentApi } from '@/api/student-api';
 import { isAuthError } from '@/api/http-client';
 import { toast } from 'sonner';
 import StudentCongratsModalGate from './StudentCongratsModalGate';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import { useHeader } from '@/providers/header-provider';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 import { useNotificationRealtime } from '@/hooks/useNotificationRealtime';
@@ -29,6 +30,8 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const headerContext = useHeader();
     const customMappings = headerContext ? { ...headerContext.customMappings, ...propMappings } : propMappings;
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isPwaInstallConfirmOpen, setIsPwaInstallConfirmOpen] = useState(false);
+    const [isPwaInstalled, setIsPwaInstalled] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
     const { permission, granted: locationEnabled, requesting, requestPermission } = useLocationPermission();
@@ -43,6 +46,29 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const notificationRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
     useNotificationRealtime(Boolean(user));
+
+    useEffect(() => {
+        const displayModeQuery = window.matchMedia?.('(display-mode: standalone)');
+        const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+        const updatePwaInstalled = () => {
+            setIsPwaInstalled(
+                Boolean(displayModeQuery?.matches || navigatorWithStandalone.standalone),
+            );
+        };
+
+        updatePwaInstalled();
+        const handleAppInstalled = () => {
+            setIsPwaInstalled(true);
+        };
+
+        window.addEventListener('appinstalled', handleAppInstalled);
+        displayModeQuery?.addEventListener('change', updatePwaInstalled);
+
+        return () => {
+            window.removeEventListener('appinstalled', handleAppInstalled);
+            displayModeQuery?.removeEventListener('change', updatePwaInstalled);
+        };
+    }, []);
 
     // Xác định tên phân hệ hiện tại dựa trên url path
     const pathSegments = pathname.split('/').filter(segment => segment !== '');
@@ -386,10 +412,16 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                           <User size={16} className={isResolvingProfile ? "text-gray-400" : "text-[#64748B]"} />
                           {isResolvingProfile ? 'Đang tải hồ sơ...' : 'Thông tin cá nhân'}
                       </button>
-                      <button className="w-full text-left px-3 py-1.5 text-sm text-[#1E293B] hover:bg-white/60 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01]">
-                          <SettingsIcon size={16} className="text-[#64748B]" />
-                          Cài đặt
-                      </button>
+                      {!isPwaInstalled && <button
+                          onClick={() => {
+                              setIsProfileOpen(false);
+                              setIsPwaInstallConfirmOpen(true);
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-[#1E293B] hover:bg-white/60 rounded-lg flex items-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01]"
+                      >
+                          <Download size={16} className="text-[#64748B]" />
+                          Mở ứng dụng
+                      </button>}
                   </div>
                   
                   <div className="border-t border-white/50 py-1 px-1">
@@ -411,6 +443,18 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
       </header>
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
       <StudentCongratsModalGate />
+      <ConfirmModal
+        isOpen={isPwaInstallConfirmOpen}
+        onClose={() => setIsPwaInstallConfirmOpen(false)}
+        onConfirm={() => {
+          window.dispatchEvent(new Event('hssv-pwa-install-request'));
+        }}
+        title="Mở ứng dụng"
+        message="Bạn có muốn cài đặt ứng dụng này trên thiết bị không?"
+        confirmLabel="Tiếp tục"
+        cancelLabel="Hủy"
+        variant="info"
+      />
     </>
   );
 };

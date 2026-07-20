@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -24,6 +24,7 @@ function canRegisterServiceWorker() {
 
 export function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
   const [dismissed, setDismissed] = useState(true)
   const [installed, setInstalled] = useState(false)
   const [showIosInstructions, setShowIosInstructions] = useState(false)
@@ -44,21 +45,42 @@ export function PwaInstallPrompt() {
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
-      setDeferredPrompt(event as BeforeInstallPromptEvent)
+      const installPrompt = event as BeforeInstallPromptEvent
+      deferredPromptRef.current = installPrompt
+      setDeferredPrompt(installPrompt)
     }
 
     const handleAppInstalled = () => {
       setInstalled(true)
+      deferredPromptRef.current = null
       setDeferredPrompt(null)
       setShowIosInstructions(false)
     }
 
+    const handleInstallRequest = () => {
+      if (standalone) {
+        return
+      }
+
+      if (deferredPromptRef.current) {
+        void install(deferredPromptRef.current)
+        return
+      }
+
+      if (isIOS()) {
+        setDismissed(false)
+        setShowIosInstructions(true)
+      }
+    }
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.addEventListener('appinstalled', handleAppInstalled)
+    window.addEventListener('hssv-pwa-install-request', handleInstallRequest)
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       window.removeEventListener('appinstalled', handleAppInstalled)
+      window.removeEventListener('hssv-pwa-install-request', handleInstallRequest)
     }
   }, [])
 
@@ -66,16 +88,16 @@ export function PwaInstallPrompt() {
     window.localStorage.setItem(DISMISS_KEY, 'true')
     setDismissed(true)
     setShowIosInstructions(false)
+    deferredPromptRef.current = null
     setDeferredPrompt(null)
   }
 
-  const install = async () => {
-    if (!deferredPrompt) {
-      return
-    }
+  const install = async (promptEvent = deferredPromptRef.current) => {
+    if (!promptEvent) return
 
-    await deferredPrompt.prompt()
-    const choice = await deferredPrompt.userChoice
+    await promptEvent.prompt()
+    const choice = await promptEvent.userChoice
+    deferredPromptRef.current = null
     setDeferredPrompt(null)
 
     if (choice.outcome === 'dismissed') {

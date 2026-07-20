@@ -67,6 +67,20 @@ describe('PwaInstallPrompt', () => {
     })
   })
 
+  it('invokes the deferred prompt when requested from the profile menu', async () => {
+    render(<PwaInstallPrompt />)
+    let installEvent: ReturnType<typeof dispatchInstallPrompt>
+    await act(async () => {
+      installEvent = dispatchInstallPrompt()
+    })
+
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+
+    await waitFor(() => {
+      expect(installEvent!.prompt).toHaveBeenCalledOnce()
+    })
+  })
+
   it('persists dismissal and does not render the prompt again', () => {
     window.localStorage.setItem('hssv-pwa-install-prompt-dismissed', 'true')
 
@@ -93,5 +107,24 @@ describe('PwaInstallPrompt', () => {
 
     expect(await screen.findByText(/Thêm vào Màn hình chính/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cài đặt ứng dụng' })).not.toBeInTheDocument()
+  })
+
+  it('shows iOS guidance when requested from the profile menu after dismissal', async () => {
+    window.localStorage.setItem('hssv-pwa-install-prompt-dismissed', 'true')
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)')
+
+    render(<PwaInstallPrompt />)
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+
+    expect(await screen.findByText(/Thêm vào Màn hình chính/)).toBeInTheDocument()
+  })
+
+  it('does not show installation UI for a standalone application request', () => {
+    matchMedia.mockReturnValue({ matches: true })
+
+    render(<PwaInstallPrompt />)
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+
+    expect(screen.queryByLabelText('Cài đặt ứng dụng')).not.toBeInTheDocument()
   })
 })
