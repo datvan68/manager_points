@@ -45,6 +45,24 @@ echo "Pulling the approved application images..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull backend frontend
 
 echo "Deploying..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d \
+  --remove-orphans \
+  --wait \
+  --wait-timeout "${DEPLOY_WAIT_TIMEOUT:-180}"
+
+echo "Running post-deploy smoke tests..."
+COMPOSE_FILE="$COMPOSE_FILE" ENV_FILE="$ENV_FILE" ./scripts/smoke-test.sh
+
+echo "Application container memory after deployment:"
+APP_CONTAINER_IDS="$(docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q frontend backend)"
+if [ -n "$APP_CONTAINER_IDS" ]; then
+  # shellcheck disable=SC2086
+  docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.PIDs}}' $APP_CONTAINER_IDS
+fi
+
+if [ "${PRUNE_DANGLING_IMAGES:-false}" = "true" ]; then
+  echo "Removing dangling images left by successful builds..."
+  docker image prune --force --filter "dangling=true"
+fi
 
 echo "Done!"
