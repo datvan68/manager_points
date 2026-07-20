@@ -4,12 +4,28 @@ import '../globals.css'
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/providers/auth-provider'
 import { Suspense } from 'react'
+import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'HOCSINHSINHVIEN - Hệ thống quản lý',
   description: 'Hệ thống quản lý công việc và sinh viên',
+  applicationName: 'HOCSINHSINHVIEN',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'HSSV',
+  },
 }
 
 export default function RootLayout({
@@ -24,6 +40,7 @@ export default function RootLayout({
           <AuthProvider>
             {children}
             <Toaster position="top-right" richColors />
+            <PwaInstallPrompt />
           </AuthProvider>
         </Suspense>
       </body>
