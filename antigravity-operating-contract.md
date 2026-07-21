@@ -1,143 +1,98 @@
-# Antigravity Operating Contract
+Antigravity Operating Contract
 
-## 1. Authority and startup validation
+Version: 3.2.0
 
-Before planning, delegating, writing a task scope, or changing repository files, load and validate:
+1. Startup
 
-1. `.agents/Rules/global.md`
-2. `.agents/Rules/safety.md`
-3. `.agents/Workflows/orchestrator.md`
-4. `.agents/Workflows/pipeline.md`
+Load and version-check the canonical rule set once per root task. Revalidateonly when a rule hash/version, profile, role, environment, or boundary changes,or a path-specific instruction conflicts. Do not run a separate policy auditwhen versions and references are already compatible.
 
-Apply the precedence declared in `global.md`. Use a deterministic policy validation step to check version compatibility, pipeline references, role capabilities, limits, schemas, and Human Gates. Stop only for an unresolved conflict that changes safety or executable behavior, and ask one focused question with the exact conflicting fields.
+Route before detailed planning:
 
-Operate as the orchestrator. Delegate repository discovery and every execution, test, review, infrastructure, or documentation action to an authorized worker. Communicate with the user in Vietnamese unless requested otherwise. Repository artifacts, code, configuration, commands, paths, logs, and agent payloads are written in English.
+Read-only: no taskscope by default.
 
-## 2. Deterministic preflight
+Quick: small, development-only, medium risk, no gate, eligible undersafety.md.
 
-Before creating or replacing `taskscope.md`, delegate read-only discovery to the role that owns the primary artifact. The discovery artifact must record:
+Full: all other implementation or planning work.
 
-- Repository root, current branch, dirty-state summary, and full base commit SHA when Git is available.
-- Package/module ownership, affected dependency edges, generated-file rules, and current conventions.
-- Existing scripts and exact focused, affected-package, and full verification commands.
-- Target environment, external services, persistent data impact, credentials involved by name only, deployment impact, and rollback capability.
-- Candidate approved boundaries, excluded boundaries, and known paths/symbols.
-- The selected pipeline and evidence supporting the route.
+Planning-only: write the applicable scope and stop.
 
-Supported pipelines are:
+Planning does not authorize implementation.
 
-```text
-feature_development
-bug_fix
-refactor
-test_only
-explain_or_document
-devops_infra
-pr_review
-```
+2. Quick preflight
 
-Do not guess a command, path, script, dependency, convention, or runtime. Ask the user only when a required product decision or inaccessible fact materially changes the scope, risk, or expected behavior.
+The orchestrator performs one focused read-only pass and records only factsneeded to execute safely:
 
-## 3. Task-scope contract
+repository root and relevant status;
 
-Write the scope to the user-requested path or `taskscope.md` at the repository root. Planning alone does not authorize implementation.
+owning package/module and applicable local instructions;
 
-The file must contain these twelve top-level sections exactly once and in this order.
+verified target paths/symbols or valid new paths under the owner;
 
-### 1. Task Identity and Pipeline
+exact focused verification command or precise inspection;
 
-- Stable task ID, protocol/pipeline version, selected pipeline, repository reference, branch, and base commit SHA.
+boundary, expected changed files, environment, risk, and gate result.
 
-### 2. Risk Level
+Do not delegate before publishing a planning-only Quick scope. Do not require acomplete dependency graph, full repository scan, artifact/hash design,checkpoint, rollback artifact, isolated worktree, or formal review DAG when theQuick eligibility evidence does not require them.
 
-- Exactly one of `medium`, `high`, or `critical`.
-- Evidence covering environment, persistent data, security, infrastructure, deployment, reversibility, and blast radius.
+After one pass, publish Quick or promote to Full. Never extend Quick discoveryindefinitely to avoid promotion.
 
-### 3. Objective
+3. Quick taskscope contract
 
-- One measurable outcome and its user or system value.
-- Describe behavior, not an unverified implementation.
+Use exactly this compact schema and keep it at or below 220 words when practical:
 
-### 4. Scope Boundaries
+Task: <stable-id> | <pipeline> | Risk: medium | Profile: Quick
+Objective: <one measurable outcome>
+Boundary: <approved boundary> | Write: <verified write paths>
+Targets: <verified paths/symbols or new paths owned by the boundary>
+Steps: <baseline/inspect -> change -> focused verify>
+Verify: <working directory> :: <exact command or inspection> => <expected result>
+Done: <binary observable acceptance criteria>
+Gate: None
 
-- `approved_boundaries`: directories, packages, services, or resources in which discovery and mutation may occur.
-- `write_boundaries`: the narrower paths assigned to writers.
-- `known_files_and_symbols`: verified files/symbols from preflight.
-- `discovery_rule`: workers may add discovered paths inside approved boundaries to the manifest; crossing a boundary requires amendment.
-- Mark new, generated, renamed, and deleted artifacts explicitly.
+Do not restate the request or canonical rules. Additional discovered paths mayenter the manifest without rewriting the scope when they remain inside theapproved boundary, do not increase risk, and do not change excluded behavior.
 
-### 5. Out of Scope
+4. Full preflight and taskscope
 
-- Adjacent modules, behavior, environments, migrations, dependencies, refactors, deployments, and data changes that remain untouched.
+Use delegated discovery when specialized evidence, multiple modules/services,security analysis, infrastructure, external state, or parallel ownership ismaterial. Collect only evidence needed by the selected pipeline.
 
-### 6. Context and Dependencies
+Full taskscope contains these sections once and in order:
 
-- Verified architecture, public/internal interfaces, repository conventions, external services, configuration variable names, runtime constraints, and dependency edges.
-- Separate verified facts, user constraints, and unresolved product decisions.
-- Reference artifacts by URI and hash; never copy secrets or large logs.
+Task Identity and Pipeline — task/profile/version/repository/base state.
 
-### 7. Steps — PLAN, EXECUTE, VERIFY, REFINE
+Risk Level — risk evidence, environment, reversibility, blast radius.
 
-- Every action names a boundary, target, expected before/after behavior, owner role, dependency, and artifact.
-- PLAN includes discovery and baseline checks.
-- EXECUTE contains bounded mutations only.
-- VERIFY maps every acceptance criterion to a repository-supported command or observable artifact.
-- REFINE addresses only concrete verification failures and re-runs the affected verification set.
-- Review remediation is an explicit pipeline edge and respects the maximum cycle count.
+Objective — one measurable behavior and value.
 
-### 8. Acceptance Criteria
+Scope Boundaries — approved/write/excluded boundaries and known targets.
 
-- Stable IDs such as `AC-001`.
-- Binary, observable conditions covering behavior, failures, security/safety invariants, compatibility, and required verification.
-- Avoid subjective terms without a measurable definition.
+Out of Scope — adjacent behavior/resources left untouched.
 
-### 9. Verification Commands
+Context and Dependencies — verified facts, constraints, interfaces, order.
 
-- Exact working directory and copy-paste-ready, non-interactive commands derived from repository configuration.
-- Order: focused checks, affected-package checks, static checks, build/integration/full regression when required by impact or policy.
-- If automation is impossible, define an exact manual procedure, expected observation, and evidence path.
+Steps — owners, dependencies, mutations, synchronization, expected results.
 
-### 10. Safety Gates
+Acceptance Criteria — stable IDs and binary observable conditions.
 
-- Every applicable trigger from `safety.md`, the action that pauses, required approval, review artifacts, rollback evidence, and resume point.
-- Human Gates always sit outside ENG and remediation loops.
+Verification — exact working directories, commands, expected results.
 
-### 11. Artifacts and Checkpoints
+Safety Gates — trigger, artifact, approval, rollback, resume point.
 
-- Exact artifact paths/URIs, producer step, SHA-256, retention requirement, and whether the artifact is required for resume.
-- Checkpoint identity includes commit, input hash, scope version, pipeline version, step/branch state, and approval references.
+Artifacts and Checkpoints — only evidence required for review/resume.
 
-### 12. Execution Budgets
+Execution Budgets — deadlines, concurrency, retry/loop/remediation limits.
 
-- Per-step deadline, pipeline deadline, concurrency, retry limit, ENG `loop_iterations`, and review `remediation_cycles`.
-- Values must remain within `safety.md`. State `Default` when no lower override is needed.
+Use None for inapplicable values. Reference long content by URI/hash. Do notrepeat information across sections.
 
-## 4. Scope validation
+5. Validation and execution
 
-Before publishing the scope, verify:
+Before publishing either profile, verify paths/boundaries, pipeline, risk/gates,acceptance-to-verification mapping, command existence, and absence of guessedvalues. Quick validation is a direct checklist, not a separate agent or artifact.
 
-- All twelve sections exist once and in order.
-- The pipeline exists and all referenced roles possess the required capabilities.
-- Risk and Human Gates match `safety.md`.
-- Approved/write/excluded boundaries do not conflict.
-- Known file paths exist, or are marked new/generated with an existing owning boundary.
-- Every criterion maps to verification or a review artifact.
-- Commands exist in repository configuration and are valid from the declared directory.
-- Parallel writers have disjoint boundaries.
-- Budgets do not exceed safety limits.
-- No placeholder, guessed value, stale line number, raw secret, or ambiguous executable instruction remains.
+When implementation is authorized:
 
-If validation fails, correct it from repository evidence. If that is impossible, do not publish a partial scope; ask one focused question.
+Quick: send one capsule to at most one worker; it may inspect, mutate, verify,and self-review within the same boundary and response.
 
-## 5. Execution discipline
+Full: follow the pipeline DAG, isolation, checkpoints, independent review, andartifact validation required by the applicable rules.
 
-After implementation is requested:
+Amend scope only when work crosses the approved boundary, changes excludedbehavior, increases risk, or introduces a new dependency, migration, publiccontract, external effect, or authority requirement.
 
-1. Create or validate the isolated task branch/worktree.
-2. Lock mutation to approved write boundaries and record discovered paths in the manifest.
-3. Follow the selected pipeline DAG and its synchronization points.
-4. Preserve unrelated user changes.
-5. Stop before crossing a boundary, mutating stale state, resolving an unsafe conflict, or entering a Human Gate.
-6. Record commands, exit status, redacted evidence, artifact hashes, and pre-existing failures.
-7. Re-run required verification after remediation.
-8. Complete only when every required criterion passes and review approves. Otherwise report the failed criterion, evidence, iteration/cycle counts, checkpoint, and required next action.
+Complete only after required criteria and verification pass and the final diffcontains no unintended changes.

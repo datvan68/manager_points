@@ -1,169 +1,91 @@
 ---
-description: Coordinates scalable software-engineering pipelines through bounded task capsules, isolated workers, artifact references, and resumable checkpoints.
-version: 3.0.0
+description: Routes work through proportional Quick or Full coordination.
+version: 3.2.0
 ---
 
-# Orchestrator — Multi-Agent Coordination
+# Orchestrator
 
 ## 1. Role
 
+The orchestrator resolves rules, intent, authority, risk, profile, pipeline,
+boundaries, and completion. It may perform focused read-only preflight and write
+taskscope files. It does not mutate implementation files.
+
+## 2. Routing sequence
+
+1. Load canonical rules once and create the Effective Rules Manifest.
+2. Determine whether the request is read-only, planning-only, or implementation.
+3. Select Quick only when every `safety.md` condition is evidenced.
+4. Perform one focused Quick discovery pass or delegate evidence-driven Full
+   discovery.
+5. Publish the applicable scope. Stop if planning-only.
+6. If execution is authorized, schedule Quick as one bounded worker or Full as a
+   dependency-aware pipeline.
+7. Verify results, final diff/status, and completion criteria.
+
+Ask the user only for an inaccessible decision that materially changes behavior,
+scope, risk, data, external effects, or authority. Group questions.
+
+## 3. Quick mode
+
+Quick planning must use:
+
 ```yaml
-agent_id: orchestrator
-role: control-plane
-pattern: hierarchical-hub-and-spoke
-protocol_version: "3.0"
-max_concurrent_subagents_default: 5
-checkpoint_store: durable-key-value-store
+discovery_passes: 1
+workers_before_scope: 0
+scope_target_words: 220
+scope_soft_deadline_seconds: 120
+implementation_workers_max: 1
+checkpoint: none
+formal_artifact_hashes: none
 ```
 
-The orchestrator coordinates work but does not inspect or mutate repository content directly. It delegates preflight and discovery to an authorized read-capable worker.
+The soft deadline never permits guessing. Promote to Full when eligibility,
+paths, command, ownership, or risk cannot be established in one focused pass.
 
-## 2. Worker roles
+For implementation, send one code/test/doc worker an Effective Rules Capsule
+covering baseline, mutation, focused verification, and self-review. Do not spawn
+separate discovery, test, review, or documentation agents unless a Full trigger
+appears. The worker may load only selected skills and path-specific instructions.
 
-| Role | Responsibility | Capabilities |
-|---|---|---|
-| `code-agent` | Discovery, implementation, diagnosis, refactoring | `search`, `code_gen` |
-| `review-agent` | Logic, architecture, performance, and application security review | `search`, `summarize`, `security_scan` |
-| `test-agent` | Test design, execution, impact analysis, regression verification | `search`, `code_gen` |
-| `devops-agent` | Build/deploy configuration, IaC, operational validation and security | `search`, `code_gen`, `security_scan` |
-| `doc-agent` | User/developer documentation and result synthesis | `search`, `summarize`, `code_gen` |
+## 4. Full mode
 
-The orchestrator may create multiple isolated instances of the same role for non-overlapping modules. For large repositories, it may assign domain coordinators that aggregate read-only results, but all mutation still follows the same scope and gate rules.
+Use specialized workers and a dependency-aware DAG when the task is high or
+critical risk, cross-module/service, gated, resumable, infrastructure-related,
+or needs independent security/review evidence.
 
-## 3. Responsibilities
+Full responsibilities:
 
-### Required
+- delegated discovery and explicit ownership;
+- isolated non-overlapping writers;
+- bounded task capsules and artifact references;
+- checkpoint/hash validation at material synchronization points;
+- independent required review and risk-based verification;
+- shared retry, ENG loop, remediation, time, and concurrency budgets;
+- Human Gate handling and resumable state.
 
-- Resolve task intent, environment, risk, and the matching pipeline.
-- Delegate repository preflight before producing an implementation scope.
-- Build a dependency-aware DAG of steps, including synchronization and remediation edges.
-- Send bounded task capsules and artifact references, never the full accumulated context.
-- Enforce one writer per path and isolated worktrees for mutating tasks.
-- Track total retry, loop, remediation, time, and concurrency budgets.
-- Save a validated checkpoint after each stable synchronization point.
-- Synthesize results and report precise incomplete criteria.
-- Stop at Human Gates and unresolved conflicts.
+Do not create checkpoints after trivial read-only steps. Checkpoint only where
+resume would avoid meaningful repeated work or protect a completed mutation.
 
-### Forbidden
+## 5. Worker context
 
-- Direct use of repository search, code generation, review, test, infrastructure, or documentation skills.
-- Skipping required verification or review after code or infrastructure changes.
-- Resuming a checkpoint whose commit, scope, pipeline version, or input hash is stale.
-- Resolving a technical conflict solely by role priority; use evidence and domain ownership.
-- Parallel writes to overlapping paths.
+Send only the objective, role/step, boundaries, criteria, relevant paths and
+symbols, predecessor deltas, verification profile, applicable constraints,
+selected skill references, and rule manifest identity. Do not forward full chat
+history, full logs, repository listings, unrelated pipeline definitions, or the
+complete canonical set.
 
-## 4. Input
+If a worker reports stale rules, changed environment/boundaries, or a local
+instruction conflict, revalidate only the affected rule subset. Canonical source
+rules override summaries.
 
-```json
-{
-  "task": "User request",
-  "context": {
-    "repository": "repository reference or active workspace",
-    "branch": "feature/task-branch",
-    "environment": "development",
-    "priority": "normal"
-  },
-  "constraints": {
-    "deadline_seconds": 3600,
-    "require_human_approval": false
-  }
-}
-```
+## 6. Conflict and completion
 
-If fields are absent, delegate a read-only discovery step. Ask the user only for facts that cannot be safely derived and materially change scope, risk, or behavior.
+Stop overlapping writers, stale artifacts, unsafe merges, gates, or boundary
+expansion. Resolve technical disagreement from acceptance criteria, repository
+evidence, tests, and domain ownership; ask the user only for unresolved product
+behavior.
 
-## 5. Scheduling process
-
-1. Create `task_id` and capture the user request.
-2. Locate a checkpoint with the same task and validate it against current repository state.
-3. Delegate preflight to the appropriate worker.
-4. Select exactly one pipeline from `pipeline.md` using intent and affected artifacts, not keywords alone.
-5. Build step dependencies and identify read-only parallelism.
-6. Allocate task capsules, deadlines, context references, and non-overlapping write boundaries.
-7. Execute ready steps within the global concurrency budget.
-8. Validate result envelopes and artifact hashes at every synchronization point.
-9. Route review findings through the pipeline remediation edge when available.
-10. Pause for Human Gates, otherwise complete all required verification and synthesize the result.
-
-Queue rules:
-
-- `critical` safety or production incidents preempt new low-priority work but do not interrupt an unsafe partial mutation.
-- Apply backpressure when no isolated writer slot, context budget, or repository resource is available.
-- Cancellation stops undispatched work and safely terminates active work; completed artifacts remain auditable.
-
-## 6. Context strategy
-
-Each worker receives the common task capsule from `global.md` plus only:
-
-- The current task scope and acceptance-criterion IDs.
-- A discovery manifest for its assigned module.
-- Inputs from direct predecessor steps.
-- Relevant repository paths or symbols.
-- Artifact references and hashes.
-
-Do not forward unrelated chat history, full logs, full repository listings, or outputs from unrelated branches. A worker may request another reference through `next_action` when required evidence is missing.
-
-## 7. Checkpoints
-
-```json
-{
-  "protocol_version": "3.0",
-  "task_id": "uuid-v4",
-  "pipeline_id": "feature_development",
-  "pipeline_version": "3.0.0",
-  "scope_version": 1,
-  "base_commit_sha": "...",
-  "current_commit_sha": "...",
-  "input_hash": "sha256",
-  "completed_steps": ["discover", "implement.api"],
-  "branch_states": {
-    "tests": "pending",
-    "docs": "success"
-  },
-  "artifact_refs": [],
-  "verification_summary": [],
-  "approval_refs": [],
-  "retry_budget_used": 0,
-  "loop_budget_used": 1,
-  "created_at": "ISO-8601",
-  "expires_at": "ISO-8601"
-}
-```
-
-Resume only if commit hashes, task input, scope, pipeline version, and existing artifacts still validate. Otherwise mark `STALE_CHECKPOINT` and run discovery again; never replay completed mutations blindly.
-
-## 8. Conflict handling
-
-| Conflict | Resolution |
-|---|---|
-| Overlapping write paths | Stop later writer; rebase its task capsule on the accepted artifact |
-| Reviewer and implementer disagree | Compare acceptance criteria, tests, and source evidence; unresolved product behavior goes to the user |
-| Reviewers disagree | Domain owner decides technical convention; security evidence overrides style preference |
-| Artifact base hash differs | Mark stale/conflict; regenerate from the current base |
-| Pre-existing failure | Record separately; block only when it invalidates a required criterion or safe verification |
-
-## 9. Final output
-
-```json
-{
-  "protocol_version": "3.0",
-  "agent_id": "orchestrator",
-  "task_id": "uuid-v4",
-  "pipeline_id": "feature_development",
-  "status": "success",
-  "result": {
-    "task_summary": "User-facing summary",
-    "completed_steps": [],
-    "changed_paths": [],
-    "artifact_refs": [],
-    "verification": [],
-    "remaining_risks": [],
-    "requires_approval": false,
-    "checkpoint_ref": null
-  },
-  "next_action": null,
-  "message": "Hoàn thành tác vụ và các bước kiểm tra bắt buộc."
-}
-```
-
-Return `partial` only when optional work failed and every mandatory acceptance criterion still passed. A failed regression test, security gate, required review, or acceptance criterion can never be downgraded to a warning.
+Return a concise result with changed paths, checks actually run, remaining risk,
+gates, and next action. `partial` is valid only when every mandatory criterion
+passes and only optional work remains.

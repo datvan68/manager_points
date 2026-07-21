@@ -1,360 +1,130 @@
 ---
-description: Defines dependency-aware, resumable pipelines for software engineering and DevOps tasks.
-version: 3.0.0
+description: Defines proportional Quick and Full software workflows.
+version: 3.2.0
 managed_by: orchestrator
 ---
 
-# Pipeline — Processing Flows
+# Pipelines
 
-## 1. Common syntax
+## 1. Pipeline IDs
 
-```yaml
-- step_id: discover
-  agent: code-agent
-  capability: search
-  depends_on: []
-  mode: read_only
-  loop_iterations: 0
-  on_failure: stop
-  checkpoint: after
-
-- step_id: verify.parallel
-  parallel:
-    - step_id: verify.tests
-      agent: test-agent
-      write_boundaries: ["tests/**"]
-    - step_id: verify.docs
-      agent: doc-agent
-      write_boundaries: ["docs/**"]
-  sync_at: review
-
-- step_id: apply.production
-  type: human_gate
-  condition: "environment == production and apply_requested == true"
+```text
+feature_development
+bug_fix
+refactor
+test_only
+explain_or_document
+devops_infra
+pr_review
 ```
 
-Rules:
+Route by requested outcome and primary mutation. Split tasks only when
+boundaries, risk, environments, or approvals differ materially.
 
-- `loop_iterations` is `0..3`; it may never exceed `safety.md`.
-- `remediation_cycles` are pipeline-level review/fix cycles, separate from the ENG Loop, and may never exceed `safety.md`.
-- Every mutating step declares non-overlapping `write_boundaries`.
-- Every synchronization point validates artifact hashes and repository base state.
-- Required tests, review, security checks, and acceptance criteria use `on_failure: stop`.
-- Read-only work may be sharded by package/module; mutation is parallel only when paths and dependencies do not overlap.
+## 2. Profile selection
 
-## 2. Feature development
+Read-only explanation, diagnosis, and PR review do not create taskscope by
+default. DevOps/infrastructure mutation always uses Full. Other pipelines may
+use Quick only when every `safety.md` Quick condition passes.
+
+When a Quick trigger appears during execution—additional module/service,
+fourth changed file with meaningful scope impact, public contract, dependency,
+migration, persistent data, infrastructure, external effect, security-sensitive
+behavior, gate, or need for independent workers—stop mutation and promote to
+Full with the smallest scope amendment.
+
+## 3. Quick pipeline
+
+One worker performs one capsule:
 
 ```yaml
-pipeline_id: feature_development
+profile: Quick
 steps:
-  - step_id: discover
-    agent: code-agent
-    capability: search
-    action: "Build a module-scoped dependency, convention, and verification manifest."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-    checkpoint: after
-
-  - step_id: implement
-    agent: code-agent
-    capability: code_gen
-    depends_on: [discover]
-    action: "Implement only approved acceptance criteria inside the assigned write boundary."
-    loop_iterations: 3
-    on_failure: stop
-    checkpoint: after
-
-  - step_id: supporting.parallel
-    depends_on: [implement]
-    parallel:
-      - step_id: tests
-        agent: test-agent
-        capability: code_gen
-        action: "Add or update risk-based tests for changed behavior and run focused verification."
-        on_failure: stop
-      - step_id: docs
-        agent: doc-agent
-        capability: summarize
-        action: "Update documentation only when public behavior or operator/developer usage changed."
-        condition: "documentation_impact == true"
-        on_failure: stop
-    sync_at: review
-    checkpoint: after
-
-  - step_id: review
-    agent: review-agent
-    capability: [search, summarize, security_scan]
-    depends_on: [supporting.parallel]
-    action: "Review the diff against acceptance criteria, repository conventions, tests, security, and performance."
-    mode: read_only
-    loop_iterations: 0
-    verdicts: [approved, changes_requested, blocked]
-    on_changes_requested: implement
-    remediation_cycles: 2
-    on_failure: stop
-    checkpoint: after
-
-  - step_id: final_verify
-    agent: test-agent
-    capability: search
-    depends_on: [review]
-    condition: "review.verdict == approved"
-    action: "Run the complete verification set selected by impact and risk."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
+  - inspect_or_baseline
+  - mutate
+  - focused_verify
+  - self_review_diff
+workers: 1
+checkpoints: 0
+independent_review: conditional
 ```
 
-## 3. Bug fix
+Pipeline-specific requirements:
 
-```yaml
-pipeline_id: bug_fix
-steps:
-  - step_id: diagnose
-    agent: code-agent
-    capability: search
-    action: "Reproduce or establish evidence, trace the failure, and identify root cause and similar risks."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-    checkpoint: after
+| Pipeline | Quick requirement |
+| --- | --- |
+| `feature_development` | Verify changed behavior; update focused tests when behavior changes. |
+| `bug_fix` | Establish root cause; add the smallest regression protection when technically useful; verify the failure is fixed. |
+| `refactor` | Capture a passing focused baseline and prove observable behavior is preserved. |
+| `test_only` | Follow existing test conventions and run the changed test target. |
+| `explain_or_document` | Explanation stays read-only; requested docs use focused style/build checks. |
 
-  - step_id: regression_baseline
-    agent: test-agent
-    capability: code_gen
-    depends_on: [diagnose]
-    action: "Create the smallest deterministic failing regression test when technically feasible."
-    loop_iterations: 2
-    on_failure: stop
-    checkpoint: after
+Independent review becomes mandatory and the task promotes to Full when the
+change touches authentication/authorization, sensitive data, concurrency,
+public compatibility, money, persistence, or another material risk boundary.
 
-  - step_id: fix
-    agent: code-agent
-    capability: code_gen
-    depends_on: [regression_baseline]
-    action: "Fix the verified root cause without unrelated refactoring."
-    loop_iterations: 3
-    on_failure: stop
-    checkpoint: after
+## 4. Full pipelines
 
-  - step_id: regression_verify
-    agent: test-agent
-    capability: search
-    depends_on: [fix]
-    action: "Run the regression test, affected-package tests, and required static checks."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
+Use only applicable steps; do not create no-op agents or artifacts.
 
-  - step_id: review
-    agent: review-agent
-    capability: [search, summarize, security_scan]
-    depends_on: [regression_verify]
-    action: "Confirm root-cause coverage, absence of bypasses, regression protection, and security impact."
-    mode: read_only
-    loop_iterations: 0
-    on_changes_requested: fix
-    remediation_cycles: 2
-    on_failure: stop
+### Feature development
+
+```text
+discover -> implement -> tests when behavior changes
+         -> docs when public/developer usage changes
+         -> independent review -> final affected verification
 ```
 
-If a deterministic regression test is impossible, `regression_baseline` must produce a reproducible manual verification artifact approved by the reviewer. It may not silently warn and continue.
+### Bug fix
 
-## 4. Refactoring
-
-```yaml
-pipeline_id: refactor
-steps:
-  - step_id: baseline
-    agent: test-agent
-    capability: search
-    action: "Capture behavior invariants and a passing focused baseline."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: refactor
-    agent: code-agent
-    capability: code_gen
-    depends_on: [baseline]
-    action: "Apply one approved structural transformation without changing observable behavior."
-    loop_iterations: 3
-    on_failure: stop
-  - step_id: verify
-    agent: test-agent
-    capability: search
-    depends_on: [refactor]
-    action: "Re-run baseline and affected-package checks; compare public API and generated artifacts."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: review
-    agent: review-agent
-    capability: [search, summarize]
-    depends_on: [verify]
-    action: "Confirm behavior preservation and absence of unapproved scope expansion."
-    mode: read_only
-    loop_iterations: 0
-    on_changes_requested: refactor
-    remediation_cycles: 2
-    on_failure: stop
+```text
+diagnose -> regression baseline or exact manual evidence -> fix
+         -> regression/affected verification -> independent review
 ```
 
-## 5. Test-only work
+### Refactor
 
-```yaml
-pipeline_id: test_only
-steps:
-  - step_id: discover
-    agent: test-agent
-    capability: search
-    mode: read_only
-    action: "Identify changed behavior, existing test conventions, and the smallest useful test matrix."
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: write_tests
-    agent: test-agent
-    capability: code_gen
-    depends_on: [discover]
-    loop_iterations: 3
-    on_failure: stop
-  - step_id: review
-    agent: review-agent
-    capability: [search, summarize]
-    depends_on: [write_tests]
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
+```text
+baseline invariants -> transform -> affected verification -> independent review
 ```
 
-## 6. Explanation and documentation
+### Test-only
 
-```yaml
-pipeline_id: explain_or_document
-steps:
-  - step_id: inspect
-    agent: review-agent
-    capability: search
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: synthesize
-    agent: doc-agent
-    capability: [summarize, code_gen]
-    depends_on: [inspect]
-    action: "Produce evidence-linked explanation or documentation at the requested level."
-    mode: "read_only for explanation; scoped write for a requested documentation artifact"
-    loop_iterations: 2
-    on_failure: stop
+```text
+discover behavior/risk -> write tests -> run affected tests -> review test quality
 ```
 
-## 7. DevOps and infrastructure
+### Explanation or documentation
 
-```yaml
-pipeline_id: devops_infra
-steps:
-  - step_id: discover
-    agent: devops-agent
-    capability: search
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: generate
-    agent: devops-agent
-    capability: code_gen
-    depends_on: [discover]
-    action: "Generate scoped infrastructure or delivery configuration and rollback instructions."
-    loop_iterations: 3
-    on_failure: stop
-  - step_id: validate.parallel
-    depends_on: [generate]
-    parallel:
-      - step_id: architecture_review
-        agent: review-agent
-        capability: [search, summarize]
-        mode: read_only
-        on_failure: stop
-      - step_id: security_validate
-        agent: devops-agent
-        capability: [search, security_scan]
-        mode: read_only
-        on_failure: stop
-    sync_at: approval
-  - step_id: approval
-    type: human_gate
-    condition: "safety_gate_required == true"
-  - step_id: apply
-    agent: devops-agent
-    capability: code_gen
-    depends_on: [approval]
-    condition: "apply_requested == true and (safety_gate_required == false or approval.granted == true)"
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: post_apply_verify
-    agent: devops-agent
-    capability: search
-    depends_on: [apply]
-    condition: "apply.executed == true"
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
+```text
+focused inspect -> synthesize or scoped documentation write -> relevant check
 ```
 
-## 8. Pull-request review
+### DevOps and infrastructure
 
-```yaml
-pipeline_id: pr_review
-steps:
-  - step_id: classify
-    agent: code-agent
-    capability: search
-    mode: read_only
-    action: "Resolve the exact diff, base SHA, changed modules, generated files, and infrastructure impact."
-    loop_iterations: 0
-    on_failure: stop
-  - step_id: review.parallel
-    depends_on: [classify]
-    parallel_strategy: "shard by non-overlapping module; limit concurrency through safety.md"
-    workers:
-      - agent: review-agent
-        capability: [search, summarize, security_scan]
-        condition: "source_changes == true"
-      - agent: devops-agent
-        capability: [search, summarize, security_scan]
-        condition: "infrastructure_changes == true"
-      - agent: test-agent
-        capability: search
-        condition: "test_impact_analysis_required == true"
-    sync_at: synthesize
-  - step_id: synthesize
-    agent: doc-agent
-    capability: summarize
-    action: "Deduplicate evidence-linked findings and produce a prioritized verdict."
-    mode: read_only
-    loop_iterations: 0
-    on_failure: stop
+```text
+discover environment/state -> generate change -> validate/plan
+-> architecture/security review -> Human Gate when triggered -> apply if authorized
+-> post-apply verification and rollback evidence
 ```
 
-## 9. Routing
+### Pull-request review
 
-Route by requested outcome and primary artifact:
+```text
+pin base/head and scope -> review affected boundaries, sharded when useful
+-> deduplicate evidence -> prioritized verdict
+```
 
-| Intent | Pipeline |
-|---|---|
-| Add or change product behavior | `feature_development` |
-| Diagnose and fix incorrect behavior | `bug_fix` |
-| Preserve behavior while changing structure | `refactor` |
-| Add, repair, or improve tests only | `test_only` |
-| Explain code or create documentation without implementation | `explain_or_document` |
-| Change build, deployment, container, IaC, or operational configuration | `devops_infra` |
-| Review an existing diff or PR without implementing fixes | `pr_review` |
+## 5. Verification, loops, and artifacts
 
-When a request spans several outcomes, select the pipeline that owns the primary mutation and add conditional supporting steps. Split into separate tasks when write boundaries, risk, or approvals differ materially.
-
-## 10. Large-repository rules
-
-- Discovery produces a module dependency graph and verification profile before mutation.
-- Shard only independent packages or services and cap concurrency using actual repository capacity.
-- Exchange artifact references and deltas, not complete shared context.
-- Full-repository tests are not automatic for every step; run them when impact analysis, merge policy, or risk requires them.
-- A pipeline completes only after all required branches synchronize and hashes still match.
+- Run focused checks first, affected-package checks second, and broader
+  regression only when impact, repository policy, or risk requires it.
+- Required tests, security checks, acceptance criteria, and gated review use
+  stop-on-failure.
+- ENG loop is `0..3`; review remediation is `0..2`; idempotent retries are
+  `0..2`. These budgets are separate and shared across delegation.
+- Full checkpoints and hashes occur only at material synchronization/resume
+  points, not after every read-only step.
+- Store long output as an artifact and exchange references/deltas.
+- Never parallelize overlapping writes; shard only independent read-only work or
+  disjoint mutations with proven dependencies.
