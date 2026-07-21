@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -30,6 +31,8 @@ import {
   checkAnyPermission,
 } from '../auth/guards/check-permission.guard';
 import { ActivitiesService } from './activities.service';
+import { ActivitiesRealtimeService } from './activities-realtime.service';
+import type { Response } from 'express';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import {
@@ -46,7 +49,12 @@ import {
 @ApiTags('Activities')
 @Controller(['activities', 'clubs'])
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) {}
+  constructor(private readonly activitiesService: ActivitiesService, private readonly realtime: ActivitiesRealtimeService) {}
+
+  @Get('realtime')
+  @UseGuards(checkPermission('ACTIVITY_READ'))
+  @ApiBearerAuth()
+  realtimeStream(@Res() response: Response) { this.realtime.connect(response); }
 
   @Post()
   @UseGuards(checkPermission('ACTIVITY_CREATE'))

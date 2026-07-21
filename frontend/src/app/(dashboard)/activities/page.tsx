@@ -11,6 +11,7 @@ import ActivityListWorkspace from '@/components/activities/ActivityListWorkspace
 import ActivityManagementModals from '@/components/activities/ActivityManagementModals';
 import ActivityCardDesignModal from '@/components/activities/ActivityCardDesignModal';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useActivitiesRealtime } from '@/hooks/useActivitiesRealtime';
 
 export default function ActivitiesPage() {
   const router = useRouter();
@@ -65,6 +66,7 @@ export default function ActivitiesPage() {
   useEffect(() => {
     loadData();
   }, []);
+  useActivitiesRealtime(!!user, loadData);
 
   const handleCreateActivity = async (data: any) => {
     setSaving(true);

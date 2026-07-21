@@ -1,40 +1,41 @@
-Task: isolate-auth-session-per-tab | bug_fix | Risk: MEDIUM
-Objective: Allow a duplicated browser tab to log out and sign in with another account without revoking, replacing, clearing, or showing an expired-session notification in the original tab.
+Task: activities-index-and-realtime-create | bug_fix | Risk: MEDIUM
+Objective: Remove the stale completion-rule index that causes activity creation workflows to fail and make a newly created activity appear on every other authorized account's open `/activities` page without a manual refresh.
 Scope:
-- backend/src/auth/controllers/auth.controller.ts :: login, refresh, logout, and session-cookie helpers :: address the HttpOnly refresh cookie by a validated opaque browser-session ID, add an authenticated session-fork endpoint for duplicated tabs, and clear/revoke only the caller's session cookie.
-- backend/src/auth/services/auth.service.ts :: session creation and fork orchestration :: create an independent refresh session for a duplicated tab while preserving the source session and record logout against only the selected session.
-- backend/src/auth/services/token.service.ts :: refresh-token issuance and revocation :: support cloning a valid session into a separately rotatable/revocable refresh-token chain without weakening expiry, account-status, rotation-grace, reuse-detection, or revoke-all security flows.
-- backend/src/auth/test/auth.controller.spec.ts :: cookie/session routing tests :: cover validated session IDs, per-session cookie selection, fork, refresh, and logout without affecting a sibling session.
-- backend/src/auth/test/auth.service.spec.ts :: session fork/logout tests :: verify a fork creates a distinct token chain for the same account and revokes only the requested chain.
-- backend/src/auth/test/auth-security.spec.ts :: token security regression tests :: verify independent rotation/revocation plus unchanged reuse detection and security-wide revoke-all behavior.
-- backend/test/auth.e2e-spec.ts :: multi-tab authentication scenario :: prove a forked tab can log out and log in as another user while the original Admin session still refreshes successfully.
-- frontend/src/api/auth-api.ts :: tab identity and auth storage :: keep active user, access token, remember state, and opaque session ID in a tab-scoped namespace; preserve only non-session preferences globally; send the session ID on login, fork, refresh, and logout requests without exposing refresh-token values to JavaScript.
-- frontend/src/api/http-client.ts :: refresh coordination and auth events :: namespace locks, promises, and BroadcastChannel messages by session ID; ignore clear/refresh events from sibling sessions; classify an explicit logout separately from an unexpected expired session so another tab cannot trigger the line-219 `ApiError` or toast.
-- frontend/src/providers/auth-provider.tsx :: duplicated-tab bootstrap and logout :: detect a copied tab session, fork it before auth mutations, bind periodic refresh/logout to that tab's session, and update only the current tab's React auth state.
-- frontend/src/api/auth-api.test.ts :: tab-scoped client tests :: cover session-ID headers, storage isolation, duplicated-tab fork, and logout requests.
-- frontend/src/api/http-client.test.ts :: cross-tab coordination tests :: cover same-session synchronization and prove sibling-session `TOKEN_CLEARED`, refresh failure, and logout events do not clear or redirect the current tab.
-- docs/taskscope.md :: implementation contract :: capture the diagnosed cause, selected isolation model, verification, and acceptance criteria.
-Out: Simultaneous accounts within one tab, sharing credentials between different origins/browser profiles, JavaScript-readable refresh tokens, changes to access-token lifetime or remembered-session expiry, password/RBAC flows, database migrations, and unrelated files or behavior.
-Context: Tabs on the same origin currently share `refresh_token`, `user`, `remember_login`, and remembered `access_token` through cookies/localStorage. Logout in tab 2 revokes and clears the shared refresh token; tab 1 then receives 401, throws `ApiError('Phiên đăng nhập đã hết hạn')` in `http-client.ts`, broadcasts `TOKEN_CLEARED`, and redirects. Browser cookies cannot be isolated by tab, so the fix uses a non-secret per-tab session ID to select distinct HttpOnly refresh cookies/token chains. A duplicated tab initially copies `sessionStorage`; it must receive a new ID and fork the authenticated session before it can log out or switch accounts. Security operations that intentionally revoke every session (password reset/change, account lock/deactivation, role security changes, and confirmed token reuse) remain global.
+- backend/scripts/repair-activity-completion-rule-index.ts :: idempotent database repair (new) :: inspect legacy `club_id` data/indexes, refuse unsafe conflicts, rename valid legacy fields when necessary, drop `club_id_1_semester_id_1`, and create/verify the unique `{ activity_id: 1, semester_id: 1 }` index with dry-run as the default and an explicit `--execute` mode.
+- backend/scripts/migrate-unified-activities.ts :: unified-activity forward migration :: include `activity_completion_rules` field conversion and index rebuilding so a fresh migration cannot retain the legacy unique index.
+- backend/package.json :: migration commands :: expose repository-native dry-run and execute commands for the completion-rule index repair.
+- backend/src/activities/activities-realtime.service.ts :: authenticated activity event stream (new) :: provide an SSE stream with connection/heartbeat events and a minimal `activity.created` invalidation event, cleaning listeners and timers on disconnect.
+- backend/src/activities/activities.module.ts :: realtime provider registration :: register the activity realtime service in the existing module.
+- backend/src/activities/activities.controller.ts :: activity realtime endpoint :: expose the SSE stream under `/activities/realtime` with `ACTIVITY_READ` authorization.
+- backend/src/activities/activities.service.ts :: post-create notification :: emit `activity.created` only after `activity.save()` succeeds; do not publish failed or uncommitted creates.
+- backend/src/activities/activities.service.spec.ts :: creation regression tests :: verify successful creates publish exactly once and failed saves publish nothing.
+- backend/src/activities/activities-realtime.service.spec.ts :: stream lifecycle tests (new) :: cover initial connection, create events, heartbeat behavior, and listener/timer cleanup.
+- frontend/src/hooks/useActivitiesRealtime.ts :: resilient authenticated SSE client (new) :: connect with the current access token, parse activity events, reconnect with bounded exponential backoff, and abort/release timers on unmount.
+- frontend/src/app/(dashboard)/activities/page.tsx :: cross-account list synchronization :: subscribe while the page is mounted and refetch through `activityApi.getAll()` on `activity.created`, preserving the existing account-specific filtering and avoiding a full-page reload.
+- frontend/src/app/(dashboard)/activities/page.test.tsx :: page synchronization tests :: verify a create event triggers one authorized list refresh, updates visible activities, and does not leave subscriptions after unmount.
+- frontend/src/hooks/useActivitiesRealtime.test.ts :: SSE client tests (new) :: cover authenticated connection, event parsing, retry, abort, and cleanup.
+- docs/taskscope.md :: implementation contract :: record diagnosis, safety gate, verification, and acceptance criteria.
+Out: Realtime synchronization for activity edits, deletes, favorites, membership, schedules, or completion-rule changes; WebSocket infrastructure; distributed pub/sub across multiple backend replicas; unrelated database collections, pages, and behavior.
+Context: The Mongoose schema already declares `{ activity_id: 1, semester_id: 1 }`, but MongoDB still reports the legacy unique index `club_id_1_semester_id_1`. Because new documents omit `club_id`, MongoDB indexes it as `null`, so a second rule in the same semester collides on `{ club_id: null, semester_id }`. The current unified migration neither converts nor rebuilds `activity_completion_rules`. The activities page fetches only on mount/manual actions and has no realtime subscription. SSE matches existing authenticated streaming patterns in this repository; clients receive only an invalidation signal and refetch the permission-filtered REST endpoint, preventing activity data leakage through the stream.
 Steps:
-1. Add validated session-addressed refresh cookies and a fork operation that creates a distinct refresh-token chain without revoking the source chain.
-2. Make active auth storage, refresh coordination, broadcasts, logout, redirects, and notifications session-scoped in the frontend.
-3. Add unit and end-to-end regressions for duplicate-tab fork, logout, second-account login, source-session refresh, and global security revocation.
-4. Run targeted tests, type-check/build both applications, manually exercise the two-tab scenario, and review the final diff/status.
+1. Add and dry-run an idempotent repair that detects conflicting legacy/current completion-rule data before changing fields or indexes, then update the main forward migration to produce the correct rule index on future migrations.
+2. Add a permission-protected activity SSE stream and publish a create invalidation only after persistence succeeds.
+3. Subscribe from `/activities`, refetch the existing authorized list on create events, and preserve the current student/admin/teacher visibility logic.
+4. Add backend/frontend regressions, run targeted checks and builds, review the final diff, then execute the database repair only after the gate is approved.
 Verify:
-- backend :: npm test -- auth/test/auth.controller.spec.ts auth/test/auth.service.spec.ts auth/test/auth-security.spec.ts --runInBand => all session-isolation and existing auth-security unit tests pass.
-- backend :: npm run test:e2e -- auth.e2e-spec.ts --runInBand => duplicated-tab logout/account-switch scenario passes and the original session can still refresh.
+- backend :: npm run migration:activity-completion-rule-index:dry-run => reports collection documents, legacy fields, conflicting records, and current/required indexes without mutating MongoDB.
+- backend :: npm test -- activities/activities.service.spec.ts activities/activities-realtime.service.spec.ts --runInBand => create publication and SSE lifecycle tests pass.
 - backend :: npm run build => NestJS production build succeeds.
-- frontend :: npm test -- src/api/auth-api.test.ts src/api/http-client.test.ts => tab storage, request routing, and cross-session event regressions pass.
+- frontend :: npm test -- src/hooks/useActivitiesRealtime.test.ts "src/app/(dashboard)/activities/page.test.tsx" => authenticated stream and cross-account refresh regressions pass.
 - frontend :: npm run typecheck => TypeScript reports no errors.
-- repository root :: manual browser check: log in as Admin in tab 1, duplicate it, log out tab 2, sign in there as another account, wait for/force refresh in both tabs => tab 1 remains Admin without expired-session toast/redirect; tab 2 remains the second account; each tab can refresh and log out independently.
-- repository root :: manual security check: perform a global revocation condition => all related tab sessions become unauthenticated as before.
+- approved target environment :: npm run migration:activity-completion-rule-index:execute, followed by the dry-run command => the legacy index/field count is zero, the required unique index exists, and no conflicting completion rules are reported.
+- repository root :: manual two-account check: keep `/activities` open as account B, create an activity as authorized account A, and do not refresh B => B displays the new activity promptly when its permissions/status allow it; an unauthorized account still cannot obtain it through `GET /activities`.
 - repository root :: git diff --check && git status --short => no whitespace errors or unintended files.
 Done:
-- Logging out or switching accounts in a duplicated tab does not revoke, overwrite, clear, redirect, or notify the original tab, and both tabs retain independent server-refreshable sessions.
-- Explicit global security revocation still terminates every session for the affected account.
-- Refresh tokens remain HttpOnly and are never stored or returned to frontend JavaScript.
-Gate/Stop: Stop if product policy requires logout to terminate every browser session, because that conflicts with independent accounts per tab and needs an explicit product/security decision.
-Rollback: Revert the scoped frontend/backend changes together; mixed deployment is unsupported because legacy shared-cookie clients and session-addressed cookie endpoints must change atomically.
-Dependencies: Frontend and backend must deploy in the same release. Browser support must include `BroadcastChannel`, `sessionStorage`, `crypto.randomUUID` (or an existing project-compatible opaque-ID fallback), and multiple same-origin HttpOnly cookies.
-Artifacts: Final scoped diff, targeted test/build output, and manual two-tab verification notes.
+- Creating or configuring completion rules for two different activities in the same semester no longer raises `E11000` from `club_id_1_semester_id_1`, and uniqueness remains enforced per activity and semester.
+- A successfully created activity triggers one realtime invalidation and becomes visible on other connected, authorized `/activities` pages without manual refresh.
+- Failed creates emit no event, disconnected clients release resources, and all existing role-based list filtering remains authoritative.
+Gate/Stop: Before `--execute` against any shared, staging, or production database, require explicit operator approval, a current backup/recovery point, the dry-run artifact, and confirmation that no conflicting `{ activity_id, semester_id }` records exist. Stop if conflicts or mixed `club_id`/`activity_id` values cannot be resolved without a data-owner decision.
+Rollback: Revert the scoped code together. For an executed database repair, restore the pre-change database backup if rollback is required; do not recreate the defective legacy unique index on live activity-shaped documents.
+Dependencies: Frontend and backend realtime changes must deploy together. The in-process SSE broadcaster assumes one NestJS application instance; multi-replica deployment requires a shared event bus and is outside this scope.
+Artifacts: Final scoped diff, migration dry-run and approved execute logs, targeted test/build output, and two-account manual verification notes.

@@ -36,6 +36,7 @@ import {
   ActivitySchedule,
   ActivityScheduleDocument,
 } from '../activity-schedules/schemas/activity-schedule.schema';
+import { ActivitiesRealtimeService } from './activities-realtime.service';
 
 @Injectable()
 export class ActivitiesService {
@@ -53,6 +54,7 @@ export class ActivitiesService {
     @InjectModel(ActivitySchedule.name)
     private scheduleModel: Model<ActivityScheduleDocument>,
     @InjectConnection() private readonly connection: Connection,
+    private readonly realtime: ActivitiesRealtimeService,
   ) {}
 
   private async resolveStudentId(userId: string): Promise<string> {
@@ -193,7 +195,9 @@ export class ActivitiesService {
       activity_type: dto.activity_type || 'activity',
       participation_status: dto.participation_status || 'published',
     });
-    return activity.save();
+    const saved = await activity.save();
+    this.realtime.publishCreated(saved._id.toString());
+    return saved;
   }
 
   async findAll(

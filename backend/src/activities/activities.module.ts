@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ActivitiesService } from './activities.service';
+import { ActivitiesRealtimeService } from './activities-realtime.service';
 import { ActivitiesController } from './activities.controller';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
 import { ActivityMember, ActivityMemberSchema } from './schemas/activity-member.schema';
@@ -37,7 +38,7 @@ import {
     ]),
   ],
   controllers: [ActivitiesController],
-  providers: [ActivitiesService],
+  providers: [ActivitiesService, ActivitiesRealtimeService],
   exports: [ActivitiesService, MongooseModule],
 })
 export class ActivitiesModule {}
