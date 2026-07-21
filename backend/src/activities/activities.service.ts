@@ -350,7 +350,8 @@ export class ActivitiesService {
     return result[0]?.total ?? 0;
   }
 
-  async findOne(id: string): Promise<ActivityDocument> {
+  async findOne(id: string, user?: any): Promise<ActivityDocument> {
+    await this.ensureActivityReadAccess(id, user);
     const activity = await this.activityModel
       .findById(id)
       .populate('advisor_id', 'user_name email phone_number')
@@ -452,10 +453,36 @@ export class ActivitiesService {
 
   // ── Member Management ──
 
+  private getRequesterId(user?: any): string | undefined {
+    return user?.userId || user?._id || user?.id;
+  }
+
+  private isAssignedAdvisor(activity: any, user?: any): boolean {
+    const userId = this.getRequesterId(user);
+    return Boolean(userId && activity?.advisor_id && activity.advisor_id.toString() === userId.toString());
+  }
+
+  private async ensureActivityReadAccess(activityId: string, user: any): Promise<ActivityDocument> {
+    const activity = await this.activityModel.findById(activityId).exec();
+    if (!activity) throw new NotFoundException('Không tìm thấy Hoạt động');
+    if (!user || isAdminUser(user) || this.isAssignedAdvisor(activity, user) || (user?.permissions || []).includes('ACTIVITY_READ')) {
+      return activity;
+    }
+    throw new ForbiddenException('Bạn không có quyền truy cập hoạt động này');
+  }
+
+  async canAccessAsAssignedAdvisor(activityId: string, user?: any): Promise<boolean> {
+    if (!user) return false;
+    const activity = await this.activityModel.findById(activityId).select('advisor_id').lean().exec();
+    return this.isAssignedAdvisor(activity, user);
+  }
+
   async findMembers(
     activityId: string,
     query?: { status?: string; semester_id?: string },
+    user?: any,
   ): Promise<any[]> {
+    await this.ensureActivityReadAccess(activityId, user);
     const filter: any = { activity_id: new Types.ObjectId(activityId) };
     if (query?.status) filter.status = query.status;
     if (query?.semester_id)

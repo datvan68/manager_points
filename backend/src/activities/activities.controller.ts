@@ -183,11 +183,11 @@ export class ActivitiesController {
   }
 
   @Get(':id')
-  @UseGuards(checkPermission('ACTIVITY_READ'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết câu lạc bộ' })
-  findOne(@Param('id') id: string) {
-    return this.activitiesService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.activitiesService.findOne(id, req.user);
   }
 
   @Patch(':id')
@@ -209,7 +209,7 @@ export class ActivitiesController {
   // ── Member endpoints ──
 
   @Get(':id/members')
-  @UseGuards(checkPermission('ACTIVITY_READ'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách thành viên Hoạt động' })
   @ApiQuery({ name: 'status', required: false })
@@ -218,8 +218,9 @@ export class ActivitiesController {
     @Param('id') id: string,
     @Query('status') status?: string,
     @Query('semester_id') semester_id?: string,
+    @Request() req?: any,
   ) {
-    return this.activitiesService.findMembers(id, { status, semester_id });
+    return this.activitiesService.findMembers(id, { status, semester_id }, req?.user);
   }
 
   @Post(':id/members')

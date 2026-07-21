@@ -117,7 +117,9 @@ export default function ActivityDetailPage() {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = isAdminUser(user);
-  const isAdminOrAdvisor = isAdmin || isTeacherRole(user);
+  const isAssignedTeacher = isTeacherRole(user) && Boolean(activity?.advisor_id) && normalizeEntityId(activity.advisor_id) === normalizeEntityId(user?.id);
+  const isAdminOrAdvisor = isAdmin;
+  const canViewStaffTabs = isAdmin || isAssignedTeacher;
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
 
@@ -125,7 +127,7 @@ export default function ActivityDetailPage() {
     contextType: activity?.activity_type === 'club' ? 'club' : 'activity',
     contextId: activityId,
     enabled: Boolean(activityId),
-    canManage: isAdmin || members.some((member) => member.status === 'active' && member.role === 'president' && (
+    canManage: isAdmin || isAssignedTeacher || members.some((member) => member.status === 'active' && member.role === 'president' && (
       normalizeEntityId(member.student_id) === user?.studentId || normalizeEntityId(member.user_id) === user?.id
     )),
   });
@@ -338,13 +340,15 @@ export default function ActivityDetailPage() {
   });
 
   const memberStatus = studentMembership?.status || 'none';
-  const canManageAttendance = isAdmin || (memberStatus === 'active' && studentMembership?.role === 'president');
+  const canManageAttendance = isAdmin || isAssignedTeacher || (memberStatus === 'active' && studentMembership?.role === 'president');
   const canCheckInAttendance = memberStatus === 'active';
   const canAccessAttendance = canManageAttendance || canCheckInAttendance;
   const isActiveStudentMember = isStudent && memberStatus === 'active';
   const allowedStudentTabs = isStudent
     ? ['info']
-    : ['info', 'members', 'rule', 'attendance'];
+    : canViewStaffTabs
+      ? ['info', 'members', 'attendance', ...(isAdmin ? ['rule'] : [])]
+      : ['info'];
   const displayedTab = allowedStudentTabs.includes(activeTab) && (activeTab !== 'attendance' || canManageAttendance)
     ? activeTab
     : 'info';
@@ -554,7 +558,7 @@ export default function ActivityDetailPage() {
             <Compass size={14} />
             Thông tin chung
           </button>
-          {!isStudent && <button
+          {canViewStaffTabs && <button
             onClick={() => handleTabChange('members')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'members'
@@ -578,7 +582,7 @@ export default function ActivityDetailPage() {
               Điểm danh
             </button>
           )}
-          {!isStudent && <button
+          {isAdmin && <button
             onClick={() => handleTabChange('rule')}
             className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'rule'
@@ -685,7 +689,7 @@ export default function ActivityDetailPage() {
               </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={isAdminOrAdvisor} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
               </div>
             </div>
           )

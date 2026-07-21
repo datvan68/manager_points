@@ -25,6 +25,7 @@ import {
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { ActivityAttendanceModule } from '../activity-attendance/activity-attendance.module';
+import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ActivityAttendanceModule } from '../activity-attendance/activity-attend
       { name: ActivityMember.name, schema: ActivityMemberSchema },
       { name: ActivitySchedule.name, schema: ActivityScheduleSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Activity.name, schema: ActivitySchema },
     ]),
   ],
   controllers: [AttendanceSessionsController],

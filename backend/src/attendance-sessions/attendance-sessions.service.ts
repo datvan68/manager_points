@@ -3,6 +3,7 @@
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Optional,
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -32,6 +33,7 @@ import {
   ActivityScheduleDocument,
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import { ActivityAttendanceSyncService } from '../activity-attendance/activity-attendance-sync.service';
 import {
   AttendanceRealtimeEvent,
@@ -56,6 +58,9 @@ export class AttendanceSessionsService {
     @InjectModel(Student.name)
     private studentModel: Model<StudentDocument>,
     private activityAttendanceSyncService: ActivityAttendanceSyncService,
+    @Optional()
+    @InjectModel(Activity.name)
+    private activityModel?: Model<ActivityDocument>,
   ) {}
 
   // ── Open Session ──
@@ -500,6 +505,11 @@ export class AttendanceSessionsService {
   private async isManager(session: AttendanceSessionDocument | any, userId: string, roleCode?: string): Promise<boolean> {
     if (roleCode === 'ADMIN') return true;
     if (!['club', 'activity'].includes(session.context_type) || !Types.ObjectId.isValid(userId)) return false;
+    const activity = this.activityModel
+      ? await this.activityModel.findById(session.context_id).select('advisor_id').lean().exec()
+      : null;
+    const normalizedRole = roleCode?.toUpperCase();
+    if (activity?.advisor_id?.toString() === userId.toString() && (normalizedRole === 'TEACHER' || normalizedRole === 'TEACHER_ROLE')) return true;
     const requesterId = new Types.ObjectId(userId);
     const studentId = await this.resolveRequesterStudentId(requesterId);
     const membershipOwners: Array<{ user_id?: Types.ObjectId; student_id?: Types.ObjectId }> = [{ user_id: requesterId }];
@@ -528,7 +538,7 @@ export class AttendanceSessionsService {
       throw new ForbiddenException('Attendance management is not available for this context.');
     }
     const manager = await this.isManager({ context_type: contextType, context_id: new Types.ObjectId(contextId) }, userId, roleCode);
-    if (!manager) throw new ForbiddenException('Only an administrator or active president can manage attendance.');
+    if (!manager) throw new ForbiddenException('Only an administrator, assigned teacher, or active president can manage attendance.');
   }
 
   private async ensureTodaySchedule(

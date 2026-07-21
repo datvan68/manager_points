@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, MessageEvent } from '@nestjs/common';
+import { ForbiddenException, Injectable, MessageEvent, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Observable } from 'rxjs';
@@ -6,10 +6,11 @@ import {
   AttendanceRealtimeEvent,
   attendanceEventEmitter,
 } from '../system/attendance-event-emitter';
-import { isAdminUser } from '../auth/utils/role.util';
+import { isAdminUser, isTeacher } from '../auth/utils/role.util';
 import { AttendanceSession, AttendanceSessionDocument } from './schemas/attendance-session.schema';
 import { ActivityMember, ActivityMemberDocument } from '../activities/schemas/activity-member.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 
 @Injectable()
 export class AttendanceRealtimeService {
@@ -20,6 +21,9 @@ export class AttendanceRealtimeService {
     private readonly memberModel: Model<ActivityMemberDocument>,
     @InjectModel(Student.name)
     private readonly studentModel: Model<StudentDocument>,
+    @Optional()
+    @InjectModel(Activity.name)
+    private readonly activityModel?: Model<ActivityDocument>,
   ) {}
 
   async getStream(
@@ -81,6 +85,11 @@ export class AttendanceRealtimeService {
       throw new ForbiddenException('An active activity membership is required.');
     }
     const requesterId = new Types.ObjectId(userId);
+    const activity = this.activityModel
+      ? await this.activityModel.findById(contextId).select('advisor_id').lean().exec()
+      : null;
+    const assignedTeacher = isTeacher(requester) && activity?.advisor_id?.toString() === requesterId.toString();
+    if (assignedTeacher) return { manager: true, studentId: '' };
     const student = await this.studentModel
       .findOne({ user_id: requesterId })
       .select('_id')
@@ -98,7 +107,7 @@ export class AttendanceRealtimeService {
       throw new ForbiddenException('An active activity membership is required.');
     }
     return {
-      manager: member.role === 'president',
+      manager: assignedTeacher || member.role === 'president',
       studentId: member.student_id?.toString() || studentId,
     };
   }

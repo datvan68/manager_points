@@ -948,11 +948,22 @@ export class ActivitySchedulesService {
       throw new BadRequestException('Mã câu lạc bộ không hợp lệ');
     }
 
+    const requesterId = requester?.userId || requester?._id || requester?.id;
+    let isAssignedTeacher = false;
+    if (isTeacher(requester) && requesterId) {
+      const query: any = this.activityModel.findById(activityId);
+      const activity = query?.select ? await query.select('advisor_id').lean().exec() : await query;
+      if (!activity) throw new NotFoundException('Không tìm thấy hoạt động');
+      isAssignedTeacher = activity.advisor_id?.toString() === requesterId.toString();
+    }
+
     let viewerMode: 'student' | 'staff';
     if (isStudent(requester)) {
       viewerMode = 'student';
-    } else if (isAdmin(requester) || isSupervisor(requester) || isTeacher(requester)) {
+    } else if (isAdmin(requester) || isSupervisor(requester) || isAssignedTeacher) {
       viewerMode = 'staff';
+    } else if (isTeacher(requester)) {
+      viewerMode = 'student';
     } else {
       throw new ForbiddenException('Vai trò không được hỗ trợ để truy cập timeline sinh hoạt');
     }
