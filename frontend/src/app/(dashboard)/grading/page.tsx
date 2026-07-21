@@ -114,6 +114,7 @@ function GradingPage() {
   const canSelectSemester =
     canManageSemester || userRole === 'admin' || userRole === 'supervisor';
   const isAdminOrSupervisor = userRole === 'admin' || userRole === 'supervisor';
+  const isAdmin = userRole === 'admin';
   const isStudent = userRole === 'student';
   const gradingTabs = [
     ...(isStudent ? [] : [{ id: 'list', label: 'Danh sách' }]),
@@ -163,6 +164,7 @@ function GradingPage() {
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [exportScope, setExportScope] = useState<'class' | 'faculty' | 'all'>('class');
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -389,8 +391,16 @@ function GradingPage() {
   };
 
   const handleExportSummaryExcel = async () => {
-    if (!appliedSemester || !appliedClass) {
-      toast.error('Vui lòng chọn Học kỳ và Lớp học trước khi xuất Excel');
+    if (!appliedSemester) {
+      toast.error('Vui lòng chọn Học kỳ trước khi xuất Excel');
+      return;
+    }
+    if (exportScope === 'class' && !appliedClass) {
+      toast.error('Vui lòng chọn Lớp học trước khi xuất Excel');
+      return;
+    }
+    if (exportScope === 'faculty' && !appliedDepartment) {
+      toast.error('Vui lòng chọn Khoa trước khi xuất Excel');
       return;
     }
 
@@ -400,7 +410,9 @@ function GradingPage() {
       
       const blob = await summariesPointApi.exportSummaryExcel({
         semesterId: appliedSemester,
-        classId: appliedClass,
+        scope: exportScope,
+        ...(exportScope === 'class' ? { classId: appliedClass } : {}),
+        ...(exportScope === 'faculty' ? { departmentId: appliedDepartment } : {}),
         mode: 'all_filtered'
       });
 
@@ -418,8 +430,13 @@ function GradingPage() {
           .replace(/^-+|-+$/g, '');
         return normalized || fallback;
       };
-      const safeClassName = normalizeFilenamePart(currentClassName, 'LOP');
-      a.download = `PL03-TONGHOPRL-${safeClassName}.xlsx`;
+      const scopeName = exportScope === 'class'
+        ? currentClassName
+        : exportScope === 'faculty'
+          ? (apiDepartments.find((department) => department._id === appliedDepartment)?.name || 'KHOA')
+          : 'TAT-CA';
+      const safeScopeName = normalizeFilenamePart(scopeName, 'TAT-CA');
+      a.download = `PL03-TONGHOPRL-${safeScopeName}.xlsx`;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -1466,11 +1483,23 @@ function GradingPage() {
                   )}
                   <span className={isTableLoading ? "invisible" : ""}>Xác nhận</span>
                 </Button>
+                {isAdmin && (
+                  <Select value={exportScope} onValueChange={(value) => setExportScope(value as 'class' | 'faculty' | 'all')}>
+                    <SelectTrigger className="h-9 w-[132px] rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-800">
+                      <SelectValue placeholder="Phạm vi xuất" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="class">Theo lớp</SelectItem>
+                      <SelectItem value="faculty">Theo khoa</SelectItem>
+                      <SelectItem value="all">Tất cả</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
                 <Button
                   onClick={handleExportSummaryExcel}
-                  disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
+                  disabled={!appliedSemester || (exportScope === 'class' && !appliedClass) || (exportScope === 'faculty' && !appliedDepartment) || isExportingExcel || isTableLoading}
                   className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
-                  title="Xuất Excel theo lớp và học kỳ đã xác nhận"
+                  title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
                 >
                   {isExportingExcel ? (
                     <div className="absolute inset-0 flex items-center justify-center">

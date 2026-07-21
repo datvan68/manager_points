@@ -88,19 +88,27 @@ export class EvaluationDetailService {
 
   private async getSummaryScopeFilter(requester?: any) {
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
-    return teacherStudentIds
-      ? ({ student_id: { $in: teacherStudentIds } } as any)
-      : {};
+    if (teacherStudentIds) return { student_id: { $in: teacherStudentIds } } as any;
+    if (this.isStudent(requester)) {
+      const student = await this.studentModel.findOne({ user_id: requester?.userId }).select('_id').lean().exec();
+      return { student_id: student?._id || new Types.ObjectId() } as any;
+    }
+    return {};
   }
 
   private async assertCanAccessSummary(summaryId: string, requester?: any) {
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
-    if (!teacherStudentIds) return;
+    let allowedStudentIds = teacherStudentIds;
+    if (!allowedStudentIds && this.isStudent(requester)) {
+      const ownStudent = await this.studentModel.findOne({ user_id: requester?.userId }).select('_id').lean().exec();
+      allowedStudentIds = ownStudent ? [ownStudent._id] : [];
+    }
+    if (!allowedStudentIds) return;
 
     const summary = await this.summaryPointModel
       .findOne({
         _id: summaryId,
-        student_id: { $in: teacherStudentIds },
+        student_id: { $in: allowedStudentIds },
       } as any)
       .select('_id')
       .lean()

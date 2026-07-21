@@ -403,9 +403,18 @@ export class SummariesPointService {
     },
   ): Promise<any> {
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
+    const isStudentRequester = getGradingRole(requester) === 'student';
     const filter: any = teacherStudentIds
       ? { student_id: { $in: teacherStudentIds } }
       : {};
+    if (isStudentRequester) {
+      const ownStudent = await this.studentModel
+        .findOne({ user_id: requester?.userId })
+        .select('_id')
+        .lean()
+        .exec();
+      filter.student_id = ownStudent?._id || new Types.ObjectId();
+    }
 
     if (query?.semesterId) {
       if (Types.ObjectId.isValid(query.semesterId)) {
@@ -414,7 +423,7 @@ export class SummariesPointService {
         filter.semester_id = new Types.ObjectId();
       }
     }
-    if (query?.studentId) {
+    if (query?.studentId && !isStudentRequester) {
       if (Types.ObjectId.isValid(query.studentId)) {
         filter.student_id = query.studentId;
       } else {
@@ -443,7 +452,7 @@ export class SummariesPointService {
       }
     }
 
-    if (studentIdsList.length > 0) {
+    if (studentIdsList.length > 0 && !isStudentRequester) {
       const validObjectIds = studentIdsList
         .filter((id) => Types.ObjectId.isValid(id))
         .map((id) => new Types.ObjectId(id));
@@ -863,34 +872,52 @@ export class SummariesPointService {
     exportDto: ExportSummaryExcelDto,
     requester: any,
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const { semesterId, classId, studentIds, mode } = exportDto;
-
-    // Check access class
-    const classObj = await this.classModel.findById(classId).exec();
-    if (!classObj) throw new NotFoundException('Lớp học không tồn tại');
-
+    const { semesterId, classId, departmentId, studentIds, mode } = exportDto;
+    const scope = exportDto.scope || 'class';
     const role = getGradingRole(requester);
-    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
+    const isAdmin = role === 'admin';
+    let classObj: any = null;
+    let departmentObj: any = null;
 
-    if (
-      !isAdminOrSupervisor &&
-      classObj.advisor_id?.toString() !== requester?.userId
-    ) {
-      throw new ForbiddenException('Bạn không có quyền xuất dữ liệu lớp này.');
+    if (scope === 'class') {
+      classObj = await this.classModel.findById(classId).exec();
+      if (!classObj) throw new NotFoundException('Lớp học không tồn tại');
+      const isAdminOrSupervisor = isAdmin || role === 'supervisor';
+      if (!isAdminOrSupervisor && classObj.advisor_id?.toString() !== requester?.userId) {
+        throw new ForbiddenException('Bạn không có quyền xuất dữ liệu lớp này.');
+      }
+      departmentObj = classObj.dept_id
+        ? await this.departmentModel.findById(classObj.dept_id).exec()
+        : null;
+    } else {
+      if (!isAdmin) {
+        throw new ForbiddenException('Chỉ quản trị viên có quyền xuất dữ liệu theo khoa hoặc toàn hệ thống.');
+      }
+      if (scope === 'faculty') {
+        departmentObj = await this.departmentModel.findById(departmentId).exec();
+        if (!departmentObj) throw new NotFoundException('Khoa không tồn tại');
+      }
+      classObj = { class_name: scope === 'faculty' ? 'TẤT CẢ LỚP TRONG KHOA' : 'TẤT CẢ LỚP' };
     }
 
     const semesterObj = await this.semesterModel.findById(semesterId).exec();
     if (!semesterObj) throw new NotFoundException('Học kỳ không tồn tại');
-
-    const departmentObj = classObj.dept_id
-      ? await this.departmentModel.findById(classObj.dept_id).exec()
-      : null;
 
     // Build filter
     const filter: any = {
       semester_id: new Types.ObjectId(semesterId),
     };
 
+    const studentFilter: any = {};
+    if (scope === 'class') studentFilter.class_id = new Types.ObjectId(classId!);
+    if (scope === 'faculty') {
+      const facultyClasses = await this.classModel
+        .find({ dept_id: new Types.ObjectId(departmentId!) })
+        .select('_id')
+        .lean()
+        .exec();
+      studentFilter.class_id = { $in: facultyClasses.map((item: any) => item._id) };
+    }
     let studentsToFetch: any[] = [];
     if (mode === 'selected' && studentIds && studentIds.length > 0) {
       const validObjectIds: Types.ObjectId[] = [];
@@ -918,7 +945,7 @@ export class SummariesPointService {
       if (queryOr.length > 0) {
         studentsToFetch = await this.studentModel
           .find({
-            class_id: new Types.ObjectId(classId),
+            ...studentFilter,
             $or: queryOr,
           })
           .select('_id')
@@ -927,9 +954,7 @@ export class SummariesPointService {
     } else {
       // all_filtered or no studentIds
       studentsToFetch = await this.studentModel
-        .find({
-          class_id: new Types.ObjectId(classId),
-        })
+        .find(studentFilter)
         .select('_id')
         .exec();
     }
@@ -979,8 +1004,9 @@ export class SummariesPointService {
         .replace(/^-+|-+$/g, '');
       return normalized || fallback;
     };
-    const safeClassName = normalizeFilenamePart(classObj.class_name, 'LOP');
-    const filename = `PL03-TONGHOPRL-${safeClassName}.xlsx`;
+    const filenameScope = scope === 'class' ? classObj.class_name : departmentObj?.name || 'TAT-CA';
+    const safeScopeName = normalizeFilenamePart(filenameScope, 'TAT-CA');
+    const filename = `PL03-TONGHOPRL-${safeScopeName}.xlsx`;
 
     return { buffer, filename };
   }

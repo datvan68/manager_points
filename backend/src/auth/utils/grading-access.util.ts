@@ -176,7 +176,11 @@ export async function assertCanAccessStudent(
   }
 
   if (role === 'student') {
-    if (requester?.userId?.toString() !== studentId?.toString()) {
+    const student = await studentModel
+      ?.findById(studentId)
+      ?.select('user_id')
+      ?.exec();
+    if (student?.user_id?.toString() !== requester?.userId?.toString()) {
       throw new ForbiddenException({
         statusCode: 403,
         message: 'Bạn không thể thao tác điểm của sinh viên khác.',
