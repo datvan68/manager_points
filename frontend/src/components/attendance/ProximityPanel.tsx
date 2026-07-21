@@ -106,7 +106,8 @@ export default function ProximityPanel({
         <span className="text-xl font-bold text-emerald-600">{checkinCount}</span>
       </div>
 
-      {/* Recent checkins */}
+      {/* Recent checkins intentionally hidden; aggregate count remains visible. */}
+      {/*
       {checkins.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">
@@ -138,7 +139,7 @@ export default function ProximityPanel({
             ))}
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Close button */}
       {onClose && (

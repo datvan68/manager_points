@@ -1,30 +1,40 @@
-Task: activity-attendance-count-and-completion-description | bug_fix | Risk: MEDIUM
-Objective: Update the visible attendance count immediately after a successful check-in and generate activity-completion records whose descriptions state the completed session count and the attendance dates used for that completion.
+Task: activity-member-progress-management | bug_fix | Risk: MEDIUM
+Objective: Keep activity-completion academic records synchronized with rule changes, expose each member's current participation count with an admin-only reset, and remove the recent-check-in list from the Attendance tab.
 Scope:
-- frontend/src/components/activities/ActivityScheduleTimeline.tsx :: active schedule attendance summary :: for the schedule matched to the active realtime attendance session, render `session.checkin_count` as the authoritative `Đã điểm danh` count while retaining `attendance_records.length` as the fallback for schedules without an active matching session.
-- frontend/src/components/activities/ActivityScheduleTimeline.test.tsx :: realtime count regression coverage :: verify that a matching session count replaces the stale timeline count immediately and that unmatched or inactive schedule cards retain their persisted attendance totals.
-- backend/src/club-attendance/activity-completion.service.ts :: completion-record description generation :: load qualifying approved `present`/`late` attendances in deterministic chronological order, partition them by `minimum_attendance`, and write each earned record as `Hoàn thành {minimum_attendance} buổi của hoạt động {activityName}, các ngày {dd/MM/yyyy list}` using the dates belonging to that completion unit.
-- backend/test/activities.e2e-spec.ts :: completion award assertions :: verify the generated academic record contains the required session count, activity name, and chronologically ordered attendance dates without changing award idempotency.
-- docs/taskscope.md :: implementation contract :: record the scoped changes, verification, and acceptance criteria.
-Out: Realtime refresh of the expanded attendance roster; historical backfill of descriptions already stored in MongoDB; changes to attendance approval rules, completion thresholds, earned quantities, record titles, or unrelated activity UI and behavior.
-Context: The timeline card currently renders only `schedule.attendance_records.length`, which is a snapshot loaded with the page, although `useAttendanceSession` already updates the matched active session's `checkin_count` through the authenticated `attendance.checkin_created` SSE event. Completion evaluation currently counts qualifying attendance documents but does not load their dates, and its descriptions use generic text. Dates must be derived only from the approved `present`/`late` records that form each earned unit, sorted by `check_in_time`, then `recorded_at`, then `_id`, and formatted in the `Asia/Ho_Chi_Minh` calendar day.
+- backend/src/activities/schemas/activity-member.schema.ts :: completion progress state :: store a reset timestamp and monotonically increasing progress version per activity membership so reset starts a new count without deleting attendance audit data.
+- backend/src/club-attendance/club-attendance.module.ts :: completion-service models :: register the activity-member model required to resolve membership progress and reset state.
+- backend/src/club-attendance/activity-completion.service.ts :: rule reconciliation, member counts, and reset :: count only approved `present`/`late` attendances after the member's latest reset; when `criterion_ids`, `minimum_attendance`, or status changes, immediately reconcile affected members' active completion awards/academic records to the saved rule; provide an admin reset that increments the progress version, sets the reset timestamp, deactivates currently earned completion records, removes their award links, and returns a zero current count while preserving raw attendance.
+- backend/src/club-attendance/activity-completion.controller.ts :: progress read/reset endpoints :: expose member participation counts for an activity/semester and an admin-only reset endpoint; validate that the member belongs to the requested activity and semester and reject non-admin reset attempts.
+- backend/test/activities.e2e-spec.ts :: completion lifecycle regressions :: verify current counts, criterion replacement, threshold/status reconciliation, reset authorization, zero-after-reset behavior, preserved attendance history, and earning new versioned records after later qualifying attendance.
+- frontend/src/api/activity-api.ts :: member progress contract :: add the participation-count field and typed APIs for loading member counts and resetting one member's completion progress.
+- frontend/src/app/(dashboard)/activities/[activityId]/page.tsx :: member progress orchestration and proximity caller :: load counts for the activity's semester, pass them to the member table, show/reset progress only for administrators, confirm reset, refresh members/rule-derived state after success, and stop supplying recent-check-in rows to the proximity panel.
+- frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx :: activity detail regressions :: verify the page loads and refreshes member progress, wires admin reset without exposing it to non-admin viewers, and keeps the Attendance tab free of recent-check-in details.
+- frontend/src/components/activities/ActivityMemberTable.tsx :: Members tab columns/actions :: add `Số lượt tham gia`, render each member's current qualifying count, and add a Reset action under `Thao tác` only when the viewer is an administrator and the member is eligible.
+- frontend/src/components/activities/ActivityMemberTable.test.tsx :: member table regressions :: cover count rendering, admin-only Reset visibility, confirmation, pending state, callback success, and failure handling.
+- frontend/src/components/attendance/ProximityPanel.tsx :: Attendance tab proximity content :: remove the `Gần đây` heading and all recent-check-in values while retaining the live `Đã điểm danh` total and proximity controls.
+- frontend/src/components/attendance/ProximityPanel.test.tsx :: hidden recent-check-in regression :: verify the panel never renders `Gần đây`, student details, codes, or distances and still renders the aggregate count.
+- frontend/src/components/activities/ActivityDetailWorkspace.tsx :: proximity-panel caller :: stop supplying recent check-in rows after that presentation contract is removed.
+- docs/taskscope.md :: implementation contract :: record the agreed scope, verification, and acceptance criteria.
+Out: Deleting or rewriting raw attendance/check-in audit documents; bulk reset; historical migration outside records produced by the edited activity rule; changes to membership roles, attendance approval rules, or unrelated activity UI and behavior.
+Context: `Số lượt tham gia` means the current activity/semester progress used by the completion rule: approved `present`/`late` attendance since the membership's latest reset. Reset is intentionally audit-preserving. Rule reconciliation is set-based: records for removed criteria are deactivated, records for newly selected criteria are generated from currently earned units, retained criteria are recomputed for the new threshold/status, and idempotency keys include the membership progress version so post-reset awards cannot collide with prior records.
 Steps:
-1. Make the active matched schedule card consume the existing realtime session count and add component regressions for matched and fallback schedules.
-2. Replace count-only completion evaluation with a deterministic qualifying-attendance query, derive the records used by each completion unit, and generate the requested Vietnamese description for both the first and subsequent earned units.
-3. Extend the activity completion end-to-end test with fixed attendance dates and exact description assertions while preserving the existing no-duplicate checks.
-4. Run targeted frontend/backend tests, broader type/build checks, and final diff/status inspection.
+1. Add versioned reset state to memberships and centralize the qualifying-attendance query used by counts and completion evaluation.
+2. Reconcile all affected member awards/academic records after a rule update, including removed/added criteria, changed thresholds, and inactive rules.
+3. Add admin-protected count/reset endpoints and regression coverage for authorization, audit preservation, and post-reset re-earning.
+4. Wire participation counts and confirmed admin reset into the Members tab with component/page coverage.
+5. Remove the recent-check-in section from every proximity-panel caller and cover the remaining aggregate display.
+6. Run targeted backend/frontend tests, type/build checks, and final diff/status inspection.
 Verify:
-- frontend :: npm test -- src/components/activities/ActivityScheduleTimeline.test.tsx => the active matched card updates `Đã điểm danh` from realtime `checkin_count`, and persisted-count fallbacks pass.
-- frontend :: npm run typecheck => TypeScript reports no errors.
-- backend :: npm run test:e2e -- --runInBand test/activities.e2e-spec.ts => completion creation, exact description content/date order, and idempotency assertions pass.
+- backend :: npm run test:e2e -- --runInBand test/activities.e2e-spec.ts => rule edits update existing records, admins can reset, non-admins cannot, raw attendance remains, and new progress can earn records again.
 - backend :: npm run build => NestJS production build succeeds.
-- repository root :: manual check with an activity manager page and a student account: complete a QR or proximity check-in without refreshing the manager page => the matching card's `Đã điểm danh` count increments promptly.
+- frontend :: npm test -- src/components/activities/ActivityMemberTable.test.tsx src/components/attendance/ProximityPanel.test.tsx src/app/\(dashboard\)/activities/\[activityId\]/page.test.tsx => member count/reset and hidden recent-check-in regressions pass.
+- frontend :: npm run typecheck => TypeScript reports no errors.
 - repository root :: git diff --check && git status --short => no whitespace errors or unintended files.
 Done:
-- A successful check-in increments the active matched schedule's `Đã điểm danh` value through the existing realtime session event without a page refresh.
-- Every newly generated activity-completion academic record states the configured number of completed sessions, the activity name, and the chronological `dd/MM/yyyy` attendance dates used for that earned unit.
-- Multiple completion units use their own non-overlapping attendance-date groups, and existing completion-award/idempotency behavior remains intact.
-Gate/Stop: Stop if qualifying attendance records lack every usable date field (`check_in_time` and `recorded_at`), because inventing a completion date would make the academic record inaccurate; otherwise no approval gate is required.
-Rollback: Revert the scoped frontend, backend, test, and taskscope changes together. No database migration or historical record rewrite is included.
-Dependencies: The immediate count relies on the existing authenticated attendance SSE stream and its `attendance.checkin_created.checkinCount` payload. Backend e2e verification requires the repository's configured MongoDB test environment.
-Artifacts: Final scoped diff, targeted test/typecheck/build output, and the two-account manual verification result when the runtime environment is available.
+- Saving a completion rule with different criteria immediately leaves each affected member with active completion academic records only under the new criteria and with quantities/descriptions matching the current rule and progress.
+- The Members tab shows `Số lượt tham gia` for every member; only administrators see and can confirm Reset, after which that member shows 0 without raw attendance deletion and subsequent qualifying attendance starts a new progress version.
+- The Attendance tab no longer displays `Gần đây` or any associated student, code, time/distance values, while `Đã điểm danh` remains visible.
+Gate/Stop: Stop if the existing academic-record idempotency/index contract cannot support progress-version keys or if rule reconciliation cannot identify records exclusively owned by the target activity/semester; changing or deleting broader academic data requires explicit approval.
+Rollback: Revert the scoped code/tests and remove the optional membership reset fields; raw attendance remains recoverable because reset never deletes it, while any new versioned academic records must be deactivated before reverting if the feature has already been used.
+Dependencies: Existing MongoDB activity attendance, completion award, academic record, and membership collections; authenticated realtime attendance remains unchanged.
+Artifacts: Scoped diff plus targeted test, typecheck, build, and final status output.

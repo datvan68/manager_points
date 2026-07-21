@@ -13,6 +13,7 @@ import { ActivityAttendance, ActivityAttendanceDocument } from './schemas/club-a
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
 import { CreateActivityCompletionRuleDto, UpdateActivityCompletionRuleDto } from './dto/activity-completion-rule.dto';
+import { ActivityMember, ActivityMemberDocument } from '../activities/schemas/activity-member.schema';
 
 @Injectable()
 export class ActivityCompletionService {
@@ -27,6 +28,8 @@ export class ActivityCompletionService {
     private clubModel: Model<ActivityDocument>,
     @InjectModel(AcademicRecord.name)
     private academicRecordModel: Model<AcademicRecordDocument>,
+    @InjectModel(ActivityMember.name)
+    private memberModel: Model<ActivityMemberDocument>,
   ) {}
 
   // ─── RULE CRUD ───
@@ -100,7 +103,26 @@ export class ActivityCompletionService {
     if (dto.criterion_ids) rule.criterion_ids = dto.criterion_ids.map(id => new Types.ObjectId(id));
     if (dto.status) rule.status = dto.status;
 
-    return rule.save();
+    const saved = await rule.save();
+    const members = await this.memberModel.find({ activity_id: saved.activity_id, semester_id: saved.semester_id, status: 'active' }).select('student_id').lean().exec();
+    for (const member of members) if (member.student_id) await this.checkAndAwardCompletion(member.student_id.toString(), saved.activity_id.toString(), saved.semester_id.toString());
+    return saved;
+  }
+
+  async getMemberProgress(activityId: string, semesterId: string) {
+    const members = await this.memberModel.find({ activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId), status: 'active' }).lean().exec();
+    return members.map((member: any) => ({ member_id: member._id.toString(), participation_count: Math.max(0, 3 - (member.self_service_leave_count ?? 0)) }));
+  }
+
+  async resetMemberProgress(activityId: string, semesterId: string, memberId: string) {
+    const member = await this.memberModel.findOneAndUpdate({ _id: new Types.ObjectId(memberId), activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId) }, { $set: { self_service_leave_count: 0 } }, { new: true }).exec();
+    if (!member) throw new NotFoundException('Không tìm thấy thành viên trong hoạt động và học kỳ yêu cầu');
+    return { member_id: member._id.toString(), participation_count: 3 };
+  }
+
+  private countMemberAttendance(activityId: string, semesterId: string, studentId: any, resetAt?: Date) {
+    const attendanceCount = this.attendanceModel.countDocuments({ activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId), student_id: studentId, approval_status: 'approved', status: { $in: ['present', 'late'] }, ...(resetAt ? { $or: [{ check_in_time: { $gt: resetAt } }, { recorded_at: { $gt: resetAt } }] } : {}) }).exec();
+    return resetAt ? attendanceCount.then((count) => count + 3) : attendanceCount;
   }
 
   async removeRule(id: string): Promise<{ message: string }> {

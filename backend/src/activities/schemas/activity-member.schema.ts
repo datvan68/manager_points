@@ -45,6 +45,12 @@ export class ActivityMember {
 
   @Prop({ type: Number, min: 0, default: 0 })
   self_service_leave_count: number;
+
+  @Prop()
+  completion_reset_at?: Date;
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  completion_progress_version: number;
 }
 
 export const ActivityMemberSchema = SchemaFactory.createForClass(ActivityMember);

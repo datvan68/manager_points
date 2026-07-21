@@ -17,6 +17,7 @@ interface ActivityMemberTableProps {
   onRemoveMany?: (memberIds: string[]) => Promise<{ failedIds?: string[] }>;
   loading?: boolean;
   isAdminOrAdvisor?: boolean;
+  onResetProgress?: (memberId: string) => Promise<void>;
 }
 
 const roleLabels: Record<string, string> = {
@@ -44,6 +45,7 @@ export default function ActivityMemberTable({
   onRemoveMany,
   loading = false,
   isAdminOrAdvisor = false,
+  onResetProgress,
 }: ActivityMemberTableProps) {
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('member');
@@ -53,6 +55,7 @@ export default function ActivityMemberTable({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [resettingId, setResettingId] = useState<string | null>(null);
   const isRemovingRef = useRef(false);
 
   useEffect(() => setSelectedIds((ids) => ids.filter((id) => members.some((member) => member._id === id))), [members]);
@@ -152,6 +155,18 @@ export default function ActivityMemberTable({
     }
   };
 
+  const handleResetClick = async (memberId: string) => {
+    if (!onResetProgress || resettingId) return;
+    setResettingId(memberId);
+    try {
+      await onResetProgress(memberId);
+    } catch {
+      toast.error('Lỗi khi reset số lượt rời hoạt động');
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-3 py-6">
@@ -182,6 +197,7 @@ export default function ActivityMemberTable({
               <th className="px-5 py-3">Vai trò</th>
               <th className="px-5 py-3">Trạng thái</th>
               <th className="px-5 py-3">Ngày tham gia</th>
+              <th className="px-5 py-3">Lượt rời còn lại</th>
               {isAdminOrAdvisor && <th className="px-5 py-3 text-right">Thao tác</th>}
             </tr>
           </thead>
@@ -286,9 +302,10 @@ export default function ActivityMemberTable({
                       ? new Date(member.createdAt).toLocaleDateString('vi-VN')
                       : '—'}
                   </td>
+                  <td className="px-5 py-4 font-semibold text-slate-700">{member.participation_count ?? 0}</td>
                   {isAdminOrAdvisor && (
                     <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 min-w-[150px]">
                         {isPending ? (
                           <>
                             <Button
@@ -311,15 +328,27 @@ export default function ActivityMemberTable({
                             </Button>
                           </>
                         ) : (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleRemoveClick(member._id)}
-                            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:border-rose-200 rounded-lg cursor-pointer"
-                            disabled={isUpdating}
-                            title="Xóa thành viên"
-                          >
-                            <Trash2 size={14} />
-                          </Button>
+                          <>
+                            {onResetProgress && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleResetClick(member._id)}
+                                className="h-8 px-3 text-xs font-semibold text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg"
+                                disabled={isUpdating || resettingId === member._id}
+                              >
+                                {resettingId === member._id ? 'Đang reset...' : 'Reset'}
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              onClick={() => handleRemoveClick(member._id)}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:border-rose-200 rounded-lg cursor-pointer"
+                              disabled={isUpdating || resettingId === member._id}
+                              title="Xóa thành viên"
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>

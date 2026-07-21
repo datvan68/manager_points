@@ -148,6 +148,9 @@ export default function ActivityDetailPage() {
       setMembers(membersData);
       const loadedStudentMembership = membersData.find((m: any) => normalizeEntityId(m.student_id) === user?.studentId || normalizeEntityId(m.user_id) === user?.id);
       const semesterId = normalizeEntityId(actData.semester_id);
+      const memberProgress = semesterId ? await activityCompletionRuleApi.getMemberProgress(activityId, semesterId).catch(() => []) : [];
+      const progressByMember = new Map(memberProgress.map((item) => [item.member_id, item.participation_count]));
+      setMembers(membersData.map((member: ActivityMember) => ({ ...member, participation_count: progressByMember.get(member._id) ?? 0 })));
       if (isStudent && actData.activity_type === 'club' && loadedStudentMembership?.status === 'active' && semesterId) {
         const policy = await activityApi.getMyTransferPolicy({ semester_id: semesterId }).catch(() => null);
         setLeaveRemaining(policy?.self_service_leaves_remaining ?? null);
@@ -191,6 +194,14 @@ export default function ActivityDetailPage() {
       loadActivityData();
     }
   }, [activityId]);
+
+  const handleResetMemberProgress = async (memberId: string) => {
+    const semesterId = normalizeEntityId(activity?.semester_id);
+    if (!semesterId) return;
+    await activityApi.resetMemberProgress(activityId, memberId, semesterId);
+    setMembers((current) => current.map((member) => member._id === memberId ? { ...member, participation_count: 3 } : member));
+    toast.success('Đã reset số lượt tham gia');
+  };
 
   // Join activity (student)
   const handleJoinActivity = async () => {
@@ -694,6 +705,7 @@ export default function ActivityDetailPage() {
               onRemove={handleRemoveMember}
               onRemoveMany={handleRemoveMembers}
               isAdminOrAdvisor={isAdminOrAdvisor}
+              onResetProgress={isAdmin ? handleResetMemberProgress : undefined}
             />
           </div>
         )}

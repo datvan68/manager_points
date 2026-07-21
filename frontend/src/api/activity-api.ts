@@ -69,6 +69,7 @@ export interface ActivityMember {
   occupies_slot?: boolean;
   transfer?: any;
   createdAt: string;
+  participation_count?: number;
 }
 
 export interface ActivityMembershipPolicyResponse {
@@ -386,6 +387,11 @@ export const activityApi = {
     return handleResponse(res);
   },
 
+  async resetMemberProgress(activityId: string, memberId: string, semesterId: string): Promise<{ participation_count: number }> {
+    const res = await httpClient(`${API_BASE}/activity-completion-rules/activity/${activityId}/members/${memberId}/reset`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ semester_id: semesterId }) });
+    return handleResponse(res);
+  },
+
   async approveMember(activityId: string, memberId: string, data: { status: string; rejection_reason?: string }): Promise<ActivityMember> {
     const res = await httpClient(`${API_BASE}/activities/${activityId}/members/${memberId}/approve`, {
       method: 'POST',
@@ -638,6 +644,10 @@ export const activityAttendanceApi = {
 // ── Activity Completion Rule API ──
 
 export const activityCompletionRuleApi = {
+  async getMemberProgress(activityId: string, semesterId: string): Promise<Array<{ member_id: string; participation_count: number }>> {
+    const res = await httpClient(`${API_BASE}/activity-completion-rules/activity/${activityId}/progress?semester_id=${encodeURIComponent(semesterId)}`);
+    return handleResponse(res);
+  },
   async getAll(): Promise<ActivityCompletionRule[]> {
     const res = await httpClient(`${API_BASE}/activity-completion-rules`);
     return handleResponse<ActivityCompletionRule[]>(res);

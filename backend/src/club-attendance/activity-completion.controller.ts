@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { checkPermission } from '../auth/guards/check-permission.guard';
@@ -37,6 +38,18 @@ export class ActivityCompletionController {
   @ApiOperation({ summary: 'Danh sách tất cả quy tắc hoàn thành hoạt động' })
   findAllRules() {
     return this.activityCompletionService.findAllRules();
+  }
+
+  @Get('activity/:activityId/progress')
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
+  getProgress(@Param('activityId') activityId: string, @Query('semester_id') semesterId: string) {
+    return this.activityCompletionService.getMemberProgress(activityId, semesterId);
+  }
+
+  @Post('activity/:activityId/members/:memberId/reset')
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_UPDATE'))
+  resetProgress(@Param('activityId') activityId: string, @Param('memberId') memberId: string, @Body('semester_id') semesterId: string) {
+    return this.activityCompletionService.resetMemberProgress(activityId, semesterId, memberId);
   }
 
   @Get(':id')

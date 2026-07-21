@@ -31,6 +31,7 @@ import {
 } from './schemas/activity-completion-award.schema';
 import { ActivityCompletionService } from './activity-completion.service';
 import { ActivityCompletionController } from './activity-completion.controller';
+import { ActivityMember, ActivityMemberSchema } from '../activities/schemas/activity-member.schema';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ActivityCompletionController } from './activity-completion.controller';
       { name: ActivitySchedule.name, schema: ActivityScheduleSchema },
       { name: ActivityCompletionRule.name, schema: ActivityCompletionRuleSchema },
       { name: ActivityCompletionAward.name, schema: ActivityCompletionAwardSchema },
+      { name: ActivityMember.name, schema: ActivityMemberSchema },
     ]),
   ],
   controllers: [ActivityAttendanceController, ActivityCompletionController],
