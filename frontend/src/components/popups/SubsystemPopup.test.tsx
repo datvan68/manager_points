@@ -1,10 +1,12 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SubsystemPopup from './SubsystemPopup';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
 import { systemApi } from '@/api/system-api';
+
+const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
 
 // Mock auth-provider
 vi.mock('@/providers/auth-provider', () => ({
@@ -27,7 +29,7 @@ vi.mock('@/api/auth-api', () => {
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockPush,
   }),
 }));
 
@@ -121,5 +123,30 @@ describe('SubsystemPopup', () => {
 
     // verify console.error was not called for abort
     expect(mockConsoleError).not.toHaveBeenCalled();
+  });
+
+  it('shows Activities to a student despite a restrictive dynamic route mapping', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'test-student-id', roleCode: 'STUDENT', username: 'student' },
+      isLoading: false,
+      hasPermission: () => false,
+      hasAnyPermission: () => false,
+      hasAllPermissions: () => false,
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
+      { route_path: '/activities', is_active: true, permissions: ['ACTIVITY_MANAGE'] },
+    ]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    const activityCard = await screen.findByText('Hoạt động');
+    fireEvent.click(activityCard);
+
+    expect(mockPush).toHaveBeenCalledWith('/activities');
   });
 });

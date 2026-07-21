@@ -12,6 +12,7 @@ import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
 import { systemApi } from '@/api/system-api';
 import { applyModuleMaintenanceStates, notifyModuleMaintenanceUpdated, subscribeModuleMaintenanceUpdates } from '@/utils/module-maintenance.util';
+import { isStudentRole } from '@/utils/role.util';
 
 
 
@@ -166,7 +167,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   }, []);
 
   const userRole = String(user?.role || '').toLowerCase();
-  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
+  const isStudent = isStudentRole(user);
   const isTeacher = userRole.includes('teacher') || userRole.includes('advisor') || userRole.includes('giảng viên') || userRole.includes('giáo viên');
   const isAdmin = isAdminUser(user);
 
@@ -282,6 +283,10 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
   const checkModulePermission = (mod: typeof INITIAL_MODULES[0]) => {
     // 1. Admin always has full access
     if (isAdmin) return true;
+
+    // Activities are available to signed-in students regardless of an
+    // administrator-only route mapping for the management workspace.
+    if (mod.id === 'club' && isStudent) return true;
 
     // 2. Try dynamic database mapping
     const mapping = routeMappings.find(

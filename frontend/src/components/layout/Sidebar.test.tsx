@@ -1,7 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Sidebar from './Sidebar';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { authApi } from '@/api/auth-api';
+import { isStudentRole, isTeacherRole } from '@/utils/role.util';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -31,6 +34,9 @@ vi.mock('@/utils/role.util', () => ({
 vi.mock('@/api/auth-api', () => ({
   authApi: {
     getRoutePermissionsPublic: vi.fn(() => Promise.resolve([])),
+  },
+  tokenStorage: {
+    getAccessToken: vi.fn(() => ''),
   },
 }));
 
@@ -75,6 +81,13 @@ describe('Sidebar Component', () => {
     }
   };
 
+  const waitForSidebarItems = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
   it('renders correctly', () => {
     render(<Sidebar />);
     expect(getSidebarElement()).toBeTruthy();
@@ -103,6 +116,7 @@ describe('Sidebar Component', () => {
   it('opens on click of a menu item and sets a 60-second timer to close', async () => {
     render(<Sidebar />);
     await ensureCollapsed();
+    await waitForSidebarItems();
 
     const sidebar = getSidebarElement();
     expect(sidebar?.classList.contains('w-20')).toBe(true);
@@ -137,6 +151,7 @@ describe('Sidebar Component', () => {
   it('resets the 60-second timer if a menu item is clicked again before it expires', async () => {
     render(<Sidebar />);
     await ensureCollapsed();
+    await waitForSidebarItems();
 
     const sidebar = getSidebarElement();
     const homeLink = screen.getAllByTitle('Trang chủ')[0];
@@ -190,5 +205,55 @@ describe('Sidebar Component', () => {
     // Collapse by clicking the compact button again
     fireEvent.click(compactBtn as Element);
     expect(sidebar?.classList.contains('w-20')).toBe(true);
+  });
+
+  it('keeps Activities visible for a student with a restrictive route mapping', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
+      { route_path: '/activities', is_active: true, type: 'page', permissions: ['ACTIVITY_MANAGE'] },
+    ]);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
+  });
+
+  it('keeps Activities visible for a student when route mappings fail to load', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+    vi.mocked(authApi.getRoutePermissionsPublic).mockRejectedValueOnce(new Error('network unavailable'));
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
   });
 });
