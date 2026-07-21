@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ActivitySchedulesService } from './activity-schedules.service';
 import { ActivitySchedulesController } from './activity-schedules.controller';
@@ -15,7 +15,7 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import {
   ActivityAttendance,
   ActivityAttendanceSchema,
-} from '../club-attendance/schemas/club-attendance.schema';
+} from '../activity-attendance/schemas/activity-attendance.schema';
 import { ActivityMember, ActivityMemberSchema } from '../activities/schemas/activity-member.schema';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { NotificationsModule } from '../notifications/notifications.module';

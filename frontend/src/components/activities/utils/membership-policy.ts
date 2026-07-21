@@ -1,7 +1,7 @@
-export interface PolicyInput {
+﻿export interface PolicyInput {
   hasOccupiedMembership: boolean; // whether student is active/pending in another club in the semester
-  occupiedClubId?: string;
-  targetClubId: string;
+  occupiedActivityId?: string;
+  targetActivityId: string;
   targetMembershipStatus?: string; // 'pending' | 'active' | 'rejected' | 'left'
   selfServiceChangesUsed: number;
   firstScheduleStartTime?: string | null; // start time of the occupied club
@@ -19,8 +19,8 @@ export interface PolicyResult {
 export function getMembershipPolicy(input: PolicyInput): PolicyResult {
   const {
     hasOccupiedMembership,
-    occupiedClubId,
-    targetClubId,
+    occupiedActivityId,
+    targetActivityId,
     targetMembershipStatus,
     selfServiceChangesUsed,
     firstScheduleStartTime,
@@ -49,7 +49,7 @@ export function getMembershipPolicy(input: PolicyInput): PolicyResult {
   }
 
   // 2. If no occupied membership elsewhere in the semester
-  if (!hasOccupiedMembership || !occupiedClubId) {
+  if (!hasOccupiedMembership || !occupiedActivityId) {
     return {
       code: 'JOIN',
       label: 'Đăng ký tham gia',
@@ -60,7 +60,7 @@ export function getMembershipPolicy(input: PolicyInput): PolicyResult {
   }
 
   // If student already occupies a membership in the target club itself
-  if (occupiedClubId === targetClubId) {
+  if (occupiedActivityId === targetActivityId) {
     if (targetMembershipStatus === 'active') {
       return {
         code: 'PENDING', // or keep active label but disabled

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -24,7 +24,7 @@ import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 
 @ApiTags('Activity Schedules')
-@Controller(['activity-schedules', 'club-schedules'])
+@Controller('activity-schedules')
 export class ActivitySchedulesController {
   constructor(private readonly schedulesService: ActivitySchedulesService) {}
 

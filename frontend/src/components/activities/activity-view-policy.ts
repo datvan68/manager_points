@@ -1,4 +1,4 @@
-export const activityTypeLabels: Record<string, string> = {
+﻿export const activityTypeLabels: Record<string, string> = {
   'club': 'Câu lạc bộ',
   'event': 'Sự kiện',
   'activity': 'Hoạt động',
@@ -71,7 +71,7 @@ export function getActivityStatusLabel(status?: string): string {
 
 // ── Background Configuration & Templates ──
 
-import { BACKGROUND_PRESETS, getClubAccentColor } from '@/components/activities/utils/schedule-helper';
+import { BACKGROUND_PRESETS, getActivityAccentColor } from '@/components/activities/utils/activity-schedule-helper';
 import { API_ORIGIN } from '@/api/config';
 import React from 'react';
 
@@ -930,7 +930,7 @@ export const getActivityBackgroundConfig = (activity: any): BackgroundConfigResu
     ? template.bgClass 
     : (BACKGROUND_PRESETS.find((p) => p.id === preset)?.className || "bg-white/45 border-white/70");
     
-  const accentColor = bgConfig.accentColor || (template ? template.accentColor : getClubAccentColor(activity));
+  const accentColor = bgConfig.accentColor || (template ? template.accentColor : getActivityAccentColor(activity));
   
   const isCustomBg = !!(bgConfig.backgroundImageUrl || (bgConfig.useAvatarAsBackground && activity.logo_url));
   

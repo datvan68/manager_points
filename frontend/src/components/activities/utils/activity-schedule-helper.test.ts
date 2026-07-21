@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getClubScheduleSummary, getStartOfWeek, getClubCardTheme, getClubAccentColor, hexToRgba } from './schedule-helper';
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getActivityScheduleSummary, getStartOfWeek, getActivityCardTheme, getActivityAccentColor, hexToRgba } from './activity-schedule-helper';
 import { ActivitySchedule } from '@/api/activity-api';
 
-describe('schedule-helper', () => {
-  const clubId = 'club-123';
+describe('activity-schedule-helper', () => {
+  const activityId = 'club-123';
 
   const makeSchedule = (
     id: string,
@@ -13,7 +13,7 @@ describe('schedule-helper', () => {
     status = 'scheduled'
   ): ActivitySchedule => ({
     _id: id,
-    activity_id: clubId,
+    activity_id: activityId,
     title: 'Sinh hoạt định kỳ',
     schedule_type: 'weekly',
     start_time: start,
@@ -45,7 +45,7 @@ describe('schedule-helper', () => {
     });
   });
 
-  describe('getClubScheduleSummary', () => {
+  describe('getActivityScheduleSummary', () => {
     beforeEach(() => {
       // Mock system time to Tuesday, July 7, 2026 in local time
       vi.useFakeTimers();
@@ -57,7 +57,7 @@ describe('schedule-helper', () => {
     });
 
     it('should return empty array if schedules are empty', () => {
-      expect(getClubScheduleSummary([], clubId)).toEqual([]);
+      expect(getActivityScheduleSummary([], activityId)).toEqual([]);
     });
 
     it('should filter active status scheduled or ongoing', () => {
@@ -65,7 +65,7 @@ describe('schedule-helper', () => {
       const s2 = makeSchedule('s2', '2026-07-08T08:00:00', '2026-07-08T10:00:00', 'Room B', 'cancelled');
       const s3 = makeSchedule('s3', '2026-07-08T14:00:00', '2026-07-08T16:00:00', 'Room C', 'ongoing');
       
-      const summary = getClubScheduleSummary([s1, s2, s3], clubId);
+      const summary = getActivityScheduleSummary([s1, s2, s3], activityId);
       expect(summary).toHaveLength(1);
       expect(summary[0].timeRange).toBe('14:00 - 16:00');
       expect(summary[0].weekdays).toEqual(['T4']); // Wednesday
@@ -74,10 +74,10 @@ describe('schedule-helper', () => {
     it('should match schedules by populated activity_id object', () => {
       const schedule = {
         ...makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room A'),
-        activity_id: { _id: clubId, name: 'Activity' },
+        activity_id: { _id: activityId, name: 'Activity' },
       } as any;
 
-      const summary = getClubScheduleSummary([schedule], clubId);
+      const summary = getActivityScheduleSummary([schedule], activityId);
 
       expect(summary).toHaveLength(1);
       expect(summary[0].timeRange).toBe('08:00 - 10:00');
@@ -86,19 +86,19 @@ describe('schedule-helper', () => {
     it('should match schedules whose activity_id uses Mongo extended JSON', () => {
       const schedule = {
         ...makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00'),
-        activity_id: { $oid: clubId },
+        activity_id: { $oid: activityId },
       } as any;
 
-      expect(getClubScheduleSummary([schedule], clubId)).toHaveLength(1);
+      expect(getActivityScheduleSummary([schedule], activityId)).toHaveLength(1);
     });
 
     it('should match schedules whose populated activity id contains an extended JSON id', () => {
       const schedule = {
         ...makeSchedule('s2', '2026-07-06T08:00:00', '2026-07-06T10:00:00'),
-        activity_id: { _id: { $oid: clubId } },
+        activity_id: { _id: { $oid: activityId } },
       } as any;
 
-      expect(getClubScheduleSummary([schedule], clubId)).toHaveLength(1);
+      expect(getActivityScheduleSummary([schedule], activityId)).toHaveLength(1);
     });
     it('should group schedules with identical time range and sort days Monday-Sunday', () => {
       // Monday (T2): 08:00 - 10:00
@@ -108,7 +108,7 @@ describe('schedule-helper', () => {
       // Sunday (CN): 08:00 - 10:00
       const s3 = makeSchedule('s3', '2026-07-12T08:00:00', '2026-07-12T10:00:00', 'Room C');
 
-      const summary = getClubScheduleSummary([s3, s1, s2], clubId);
+      const summary = getActivityScheduleSummary([s3, s1, s2], activityId);
       
       expect(summary).toHaveLength(1);
       expect(summary[0].timeRange).toBe('08:00 - 10:00');
@@ -121,7 +121,7 @@ describe('schedule-helper', () => {
       // Monday (T2): 08:00 - 10:00
       const s2 = makeSchedule('s2', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room B');
 
-      const summary = getClubScheduleSummary([s1, s2], clubId);
+      const summary = getActivityScheduleSummary([s1, s2], activityId);
       
       expect(summary).toHaveLength(2);
       expect(summary[0].timeRange).toBe('08:00 - 10:00');
@@ -134,7 +134,7 @@ describe('schedule-helper', () => {
       const s1 = makeSchedule('s1', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room A');
       const s2 = makeSchedule('s2', '2026-07-06T08:00:00', '2026-07-06T10:00:00', 'Room B'); // Same Monday, same time
 
-      const summary = getClubScheduleSummary([s1, s2], clubId);
+      const summary = getActivityScheduleSummary([s1, s2], activityId);
       expect(summary).toHaveLength(1);
       expect(summary[0].timeRange).toBe('08:00 - 10:00');
       expect(summary[0].weekdays).toEqual(['T2']);
@@ -148,7 +148,7 @@ describe('schedule-helper', () => {
       // Friday 2 weeks later (2026-07-24)
       const s3 = makeSchedule('s3', '2026-07-24T09:00:00', '2026-07-24T11:00:00', 'Room C');
 
-      const summary = getClubScheduleSummary([s1, s2, s3], clubId);
+      const summary = getActivityScheduleSummary([s1, s2, s3], activityId);
       
       // Should group next week's Tuesday and Thursday, ignoring 2 weeks later
       expect(summary).toHaveLength(1);
@@ -157,28 +157,28 @@ describe('schedule-helper', () => {
     });
   });
 
-  describe('getClubCardTheme', () => {
+  describe('getActivityCardTheme', () => {
     it('should return category if valid, ignoring card_ui configuration', () => {
-      expect(getClubCardTheme({ category: 'academic' })).toBe('academic');
-      expect(getClubCardTheme({ card_ui: { theme: 'sports' }, category: 'academic' } as any)).toBe('academic');
-      expect(getClubCardTheme({ card_ui: { theme: 'default' }, category: 'sports' } as any)).toBe('sports');
+      expect(getActivityCardTheme({ category: 'academic' })).toBe('academic');
+      expect(getActivityCardTheme({ card_ui: { theme: 'sports' }, category: 'academic' } as any)).toBe('academic');
+      expect(getActivityCardTheme({ card_ui: { theme: 'default' }, category: 'sports' } as any)).toBe('sports');
     });
 
     it('should return other if category is invalid or missing', () => {
-      expect(getClubCardTheme({ category: 'invalid-category' })).toBe('other');
-      expect(getClubCardTheme({ category: '' })).toBe('other');
+      expect(getActivityCardTheme({ category: 'invalid-category' })).toBe('other');
+      expect(getActivityCardTheme({ category: '' })).toBe('other');
     });
   });
 
-  describe('getClubAccentColor', () => {
+  describe('getActivityAccentColor', () => {
     it('should ignore custom accent color in card_ui and return color based on category', () => {
-      expect(getClubAccentColor({ card_ui: { accent_color: '#F43F5E' }, category: 'academic' } as any)).toBe('#3B82F6');
+      expect(getActivityAccentColor({ card_ui: { accent_color: '#F43F5E' }, category: 'academic' } as any)).toBe('#3B82F6');
     });
 
     it('should return default color based on category', () => {
-      expect(getClubAccentColor({ category: 'sports' })).toBe('#10B981'); // Emerald
-      expect(getClubAccentColor({ category: 'academic' })).toBe('#3B82F6'); // Blue
-      expect(getClubAccentColor({ category: 'invalid' })).toBe('#64748B'); // Slate
+      expect(getActivityAccentColor({ category: 'sports' })).toBe('#10B981'); // Emerald
+      expect(getActivityAccentColor({ category: 'academic' })).toBe('#3B82F6'); // Blue
+      expect(getActivityAccentColor({ category: 'invalid' })).toBe('#64748B'); // Slate
     });
   });
 

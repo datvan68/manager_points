@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
@@ -11,14 +11,14 @@ import { Student } from '../src/students/schemas/student.schema';
 import { Activity } from '../src/activities/schemas/activity.schema';
 import { Semester } from '../src/semesters/schemas/semester.schema';
 import { ActivityMember } from '../src/activities/schemas/activity-member.schema';
-import { ActivityCompletionRule } from '../src/club-attendance/schemas/activity-completion-rule.schema';
-import { ActivityCompletionAward } from '../src/club-attendance/schemas/activity-completion-award.schema';
+import { ActivityCompletionRule } from '../src/activity-attendance/schemas/activity-completion-rule.schema';
+import { ActivityCompletionAward } from '../src/activity-attendance/schemas/activity-completion-award.schema';
 import { AcademicRecord } from '../src/academic-record/schemas/academic-record.schema';
 import { ActivitySchedule } from '../src/activity-schedules/schemas/activity-schedule.schema';
-import { ActivityAttendance } from '../src/club-attendance/schemas/club-attendance.schema';
+import { ActivityAttendance } from '../src/activity-attendance/schemas/activity-attendance.schema';
 import { Criterion } from '../src/criteria/schemas/criterion.schema';
 import { Category } from '../src/categories/schemas/category.schema';
-import { ActivityCompletionService } from '../src/club-attendance/activity-completion.service';
+import { ActivityCompletionService } from '../src/activity-attendance/activity-completion.service';
 import { Permission } from '../src/auth/schemas/permission.schema';
 import bcrypt from 'bcrypt';
 
@@ -27,7 +27,7 @@ describe('Activities & Completion Rules (e2e)', () => {
   let userModel: Model<User>;
   let roleModel: Model<Role>;
   let studentModel: Model<Student>;
-  let clubModel: Model<Activity>;
+  let activityModel: Model<Activity>;
   let semesterModel: Model<Semester>;
   let memberModel: Model<ActivityMember>;
   let ruleModel: Model<ActivityCompletionRule>;
@@ -69,7 +69,7 @@ describe('Activities & Completion Rules (e2e)', () => {
     userModel = moduleFixture.get<Model<User>>(getModelToken(User.name));
     roleModel = moduleFixture.get<Model<Role>>(getModelToken(Role.name));
     studentModel = moduleFixture.get<Model<Student>>(getModelToken(Student.name));
-    clubModel = moduleFixture.get<Model<Activity>>(getModelToken(Activity.name));
+    activityModel = moduleFixture.get<Model<Activity>>(getModelToken(Activity.name));
     semesterModel = moduleFixture.get<Model<Semester>>(getModelToken(Semester.name));
     memberModel = moduleFixture.get<Model<ActivityMember>>(getModelToken(ActivityMember.name));
     ruleModel = moduleFixture.get<Model<ActivityCompletionRule>>(getModelToken(ActivityCompletionRule.name));
@@ -85,7 +85,7 @@ describe('Activities & Completion Rules (e2e)', () => {
     await app.init();
 
     // 1. Clean up old test data to ensure clean state
-    await clubModel.deleteMany({ code: 'E2E-EVENT-ACT' });
+    await activityModel.deleteMany({ code: 'E2E-EVENT-ACT' });
     await studentModel.deleteMany({ student_code: '20268888' });
     await userModel.deleteMany({
       email: {
@@ -232,7 +232,7 @@ describe('Activities & Completion Rules (e2e)', () => {
       await scheduleModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
       await attendanceModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
       await memberModel.deleteMany({ activity_id: new Types.ObjectId(activityId) });
-      await clubModel.deleteMany({ _id: new Types.ObjectId(activityId) });
+      await activityModel.deleteMany({ _id: new Types.ObjectId(activityId) });
     }
     await academicRecordModel.deleteMany({ student_id: testStudentId });
     await studentModel.deleteMany({ _id: testStudentId });
@@ -363,7 +363,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.3 Attendance check-in 1
       const att1 = await request(app.getHttpServer())
-        .post('/api/club-attendance')
+        .post('/api/activity-attendance')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
           activity_id: activityId,
@@ -377,7 +377,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.4 Approve attendance 1
       await request(app.getHttpServer())
-        .post(`/api/club-attendance/${att1.body._id}/approve`)
+        .post(`/api/activity-attendance/${att1.body._id}/approve`)
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({ status: 'approved' })
         .expect(201);
@@ -391,7 +391,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.5 Attendance check-in 2
       const att2 = await request(app.getHttpServer())
-        .post('/api/club-attendance')
+        .post('/api/activity-attendance')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
           activity_id: activityId,
@@ -405,7 +405,7 @@ describe('Activities & Completion Rules (e2e)', () => {
 
       // 5.6 Approve attendance 2 (this should trigger the rule and generate AcademicRecord and Award)
       await request(app.getHttpServer())
-        .post(`/api/club-attendance/${att2.body._id}/approve`)
+        .post(`/api/activity-attendance/${att2.body._id}/approve`)
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({ status: 'approved' })
         .expect(201);

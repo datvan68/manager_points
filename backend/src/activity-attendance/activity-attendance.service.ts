@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -11,14 +11,14 @@ import { Model, Types } from 'mongoose';
 import {
   ActivityAttendance,
   ActivityAttendanceDocument,
-} from './schemas/club-attendance.schema';
+} from './schemas/activity-attendance.schema';
 import {
   CreateAttendanceDto,
   BatchAttendanceDto,
   ApproveAttendanceDto,
   QueryAttendanceDto,
 } from './dto/attendance.dto';
-import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
+import { ActivityAttendanceSyncService } from './activity-attendance-sync.service';
 
 @Injectable()
 export class ActivityAttendanceService {

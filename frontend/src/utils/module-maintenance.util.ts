@@ -1,4 +1,4 @@
-import { systemApi } from '@/api/system-api';
+﻿import { systemApi } from '@/api/system-api';
 
 export type ModuleMaintenanceStates = Record<string, boolean>;
 
@@ -13,7 +13,6 @@ export const PATH_TO_MODULE_ID: Record<string, string> = {
   '/grading': 'grading',
   '/dormitory': 'dormitory',
   '/activities': 'club',
-  '/club': 'club',
   '/permissions': 'security',
   '/system': 'config',
   '/reports': 'reports',

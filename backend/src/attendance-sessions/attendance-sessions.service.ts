@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -22,7 +22,7 @@ import { CheckinProximityDto } from './dto/checkin-proximity.dto';
 import {
   ActivityAttendance,
   ActivityAttendanceDocument,
-} from '../club-attendance/schemas/club-attendance.schema';
+} from '../activity-attendance/schemas/activity-attendance.schema';
 import {
   ActivityMember,
   ActivityMemberDocument,
@@ -32,7 +32,7 @@ import {
   ActivityScheduleDocument,
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { Student, StudentDocument } from '../students/schemas/student.schema';
-import { ActivityAttendanceSyncService } from '../club-attendance/club-attendance-sync.service';
+import { ActivityAttendanceSyncService } from '../activity-attendance/activity-attendance-sync.service';
 import {
   AttendanceRealtimeEvent,
   attendanceEventEmitter,
@@ -614,7 +614,7 @@ export class AttendanceSessionsService {
   }
 
   /**
-   * Sync a check-in to the existing club-attendance system.
+   * Sync a check-in to the existing activity-attendance system.
    * Creates a ActivityAttendance record with auto-approved status.
    */
   private async syncToActivityAttendance(

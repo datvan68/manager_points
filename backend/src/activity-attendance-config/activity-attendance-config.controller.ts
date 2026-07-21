@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -24,7 +24,7 @@ import {
 } from './dto/attendance-config.dto';
 
 @ApiTags('Activity Attendance Config')
-@Controller(['activity-attendance-config', 'club-attendance-config'])
+@Controller('activity-attendance-config')
 export class ActivityAttendanceConfigController {
   constructor(private readonly configService: ActivityAttendanceConfigService) {}
 
@@ -45,7 +45,7 @@ export class ActivityAttendanceConfigController {
     return this.configService.findAll(semesterId);
   }
 
-  @Get(['club/:activityId', 'activity/:activityId'])
+  @Get('activity/:activityId')
   @UseGuards(checkPermission('ACTIVITY_CONFIG_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cấu hình của Hoạt động/Hoạt động cụ thể (fallback sang default)' })

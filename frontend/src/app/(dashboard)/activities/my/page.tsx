@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -93,10 +93,10 @@ export default function MyActivitiesPage() {
 
       const filteredSchedules = schedulesData
         .filter((sch: any) => {
-          const schClubId = typeof sch.activity_id === 'object' ? sch.activity_id?._id : sch.activity_id;
+          const schActivityId = typeof sch.activity_id === 'object' ? sch.activity_id?._id : sch.activity_id;
           const schSemId = typeof sch.semester_id === 'object' ? sch.semester_id?._id : sch.semester_id;
           
-          return joinedActivityIds.includes(schClubId) && 
+          return joinedActivityIds.includes(schActivityId) &&
                  schSemId === selectedSemesterId &&
                  new Date(sch.start_time) >= new Date();
         })
@@ -204,8 +204,8 @@ export default function MyActivitiesPage() {
                 // Compute present/late count
                 const attendanceCount = myAttendances.filter(
                   (att) => {
-                    const attClubId = typeof att.activity_id === 'object' ? att.activity_id?._id : att.activity_id;
-                    return attClubId === actId && 
+                    const attActivityId = typeof att.activity_id === 'object' ? att.activity_id?._id : att.activity_id;
+                    return attActivityId === actId &&
                            att.approval_status === 'approved' && 
                            (att.status === 'present' || att.status === 'late');
                   }
@@ -213,9 +213,9 @@ export default function MyActivitiesPage() {
 
                 // Find completion rule
                 const rule = rules.find((r: any) => {
-                  const rClubId = typeof r.activity_id === 'object' ? r.activity_id?._id : r.activity_id;
+                  const rActivityId = typeof r.activity_id === 'object' ? r.activity_id?._id : r.activity_id;
                   const rSemId = typeof r.semester_id === 'object' ? r.semester_id?._id : r.semester_id;
-                  return rClubId === actId && rSemId === selectedSemesterId;
+                  return rActivityId === actId && rSemId === selectedSemesterId;
                 });
                 
                 const minAttendance = rule?.minimum_attendance || 0;

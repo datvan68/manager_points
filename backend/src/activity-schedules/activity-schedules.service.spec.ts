@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { ActivitySchedulesService } from './activity-schedules.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { ActivitySchedule } from './schemas/activity-schedule.schema';
@@ -6,7 +6,7 @@ import { ScheduleRegistration } from './schemas/schedule-registration.schema';
 import { Semester } from '../semesters/schemas/semester.schema';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { ActivityAttendance } from '../club-attendance/schemas/club-attendance.schema';
+import { ActivityAttendance } from '../activity-attendance/schemas/activity-attendance.schema';
 import { Activity } from '../activities/schemas/activity.schema';
 import { Student } from '../students/schemas/student.schema';
 

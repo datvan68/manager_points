@@ -1,12 +1,12 @@
-import { Module, forwardRef } from '@nestjs/common';
+﻿import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ActivityAttendanceService } from './club-attendance.service';
-import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
-import { ActivityAttendanceController } from './club-attendance.controller';
+import { ActivityAttendanceService } from './activity-attendance.service';
+import { ActivityAttendanceSyncService } from './activity-attendance-sync.service';
+import { ActivityAttendanceController } from './activity-attendance.controller';
 import {
   ActivityAttendance,
   ActivityAttendanceSchema,
-} from './schemas/club-attendance.schema';
+} from './schemas/activity-attendance.schema';
 import {
   ActivityAttendanceConfig,
   ActivityAttendanceConfigSchema,

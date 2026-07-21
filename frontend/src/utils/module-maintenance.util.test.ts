@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getModuleIdByPath, getMaintenanceStatesWithCache } from './module-maintenance.util';
 import { systemApi } from '@/api/system-api';
 
@@ -26,21 +26,21 @@ describe('module-maintenance.util', () => {
       expect(getModuleIdByPath('/activities')).toBe('club');
       expect(getModuleIdByPath('/activities/')).toBe('club');
       expect(getModuleIdByPath('/activities/123')).toBe('club');
-      expect(getModuleIdByPath('/club')).toBe('club');
+      expect(getModuleIdByPath('/activities')).toBe('club');
     });
 
     it('should normalize trailing slashes', () => {
       expect(getModuleIdByPath('/students/tasks/')).toBe('events');
       expect(getModuleIdByPath('/grading/score/')).toBe('grading');
       expect(getModuleIdByPath('/activities/')).toBe('club');
-      expect(getModuleIdByPath('/club/')).toBe('club');
+      expect(getModuleIdByPath('/activities/')).toBe('club');
     });
 
     it('should strip query parameters and hash anchors', () => {
       expect(getModuleIdByPath('/students/tasks?taskId=123&test=1')).toBe('events');
       expect(getModuleIdByPath('/grading/score?taskId=456#anchor')).toBe('grading');
       expect(getModuleIdByPath('/activities?tab=attendance')).toBe('club');
-      expect(getModuleIdByPath('/club#section-1')).toBe('club');
+      expect(getModuleIdByPath('/activities#section-1')).toBe('club');
       expect(getModuleIdByPath('/students/record/?date=today')).toBe('attendance');
     });
 

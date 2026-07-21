@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -18,7 +18,7 @@ import {
 } from './dto/activity-completion-rule.dto';
 
 @ApiTags('Activity Completion Rules')
-@Controller(['activity-completion-rules', 'club-completion-rules'])
+@Controller('activity-completion-rules')
 export class ActivityCompletionController {
   constructor(
     private readonly activityCompletionService: ActivityCompletionService,

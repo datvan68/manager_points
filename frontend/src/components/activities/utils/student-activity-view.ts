@@ -1,4 +1,4 @@
-import { ActivityMember } from '@/api/activity-api';
+﻿import { ActivityMember } from '@/api/activity-api';
 
 /**
  * Normalizes the user role string.
@@ -10,10 +10,10 @@ export function normalizeRole(role?: string): string {
 /**
  * Finds the club membership for a specific club from a list of memberships.
  */
-export function findClubMembership(memberships: any[], clubId: string): any | undefined {
+export function findActivityMembership(memberships: any[], activityId: string): any | undefined {
   return memberships.find((m) => {
-    const mClubId = m.activity_id?._id || m.activity_id;
-    return mClubId === clubId;
+    const mActivityId = m.activity_id?._id || m.activity_id;
+    return mActivityId === activityId;
   });
 }
 

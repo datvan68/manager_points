@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -47,7 +47,7 @@ import {
 } from './dto/activity-member.dto';
 
 @ApiTags('Activities')
-@Controller(['activities', 'clubs'])
+@Controller('activities')
 export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService, private readonly realtime: ActivitiesRealtimeService) {}
 
@@ -130,9 +130,6 @@ export class ActivitiesController {
     @Query('activityType') activityTypeCamel?: string,
   ) {
     let type = activityType || activityTypeCamel;
-    if (!type && req.path && req.path.includes('/clubs')) {
-      type = 'club';
-    }
     return this.activitiesService.findAll(req.user, type);
   }
 
