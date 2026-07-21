@@ -51,6 +51,7 @@ async function bootstrap() {
       { src: 'activity_membership_transfers', dest: 'club_membership_transfers' },
       { src: 'activity_schedules', dest: 'club_schedules' },
       { src: 'activity_attendance_configs', dest: 'club_attendance_configs' },
+      { src: 'activity_attendances', dest: 'club_attendances' },
     ];
 
     const allCollections = await db.listCollections().toArray();
@@ -59,7 +60,10 @@ async function bootstrap() {
     // 2. Validate target collections
     if (execute) {
       for (const mapping of collectionsToRename) {
-        if (existingCollectionNames.includes(mapping.dest)) {
+        if (
+          existingCollectionNames.includes(mapping.src) &&
+          existingCollectionNames.includes(mapping.dest)
+        ) {
           const docCount = await db.collection(mapping.dest).countDocuments();
           if (docCount > 0) {
             console.error(`[ERROR] Target collection "${mapping.dest}" already exists and contains ${docCount} documents. Stop to prevent data corruption.`);
@@ -169,7 +173,10 @@ async function bootstrap() {
     );
 
     // club_attendances: activity_id -> club_id
-    if (existingCollectionNames.includes('club_attendances')) {
+    if (
+      existingCollectionNames.includes('activity_attendances') ||
+      existingCollectionNames.includes('club_attendances')
+    ) {
       console.log('  Updating club_attendances fields back...');
       await db.collection('club_attendances').updateMany(
         { activity_id: { $exists: true } },
@@ -192,6 +199,26 @@ async function bootstrap() {
       await db.collection('attendance_sessions').updateMany(
         { context_type: 'activity' },
         { $set: { context_type: 'club' } }
+      );
+    }
+
+    if (existingCollectionNames.includes('academicrecords')) {
+      console.log('  Restoring attendance source markers...');
+      await db.collection('academicrecords').updateMany(
+        { source: 'activity_attendance' },
+        { $set: { source: 'club_attendance' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { source_type: 'activity_attendance' },
+        { $set: { source_type: 'club_attendance' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { 'payload.activity_name': { $exists: true } },
+        { $rename: { 'payload.activity_name': 'payload.club_name' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { 'payload.activity_code': { $exists: true } },
+        { $rename: { 'payload.activity_code': 'payload.club_code' } },
       );
     }
 
@@ -267,7 +294,10 @@ async function bootstrap() {
     await db.collection('club_attendance_configs').createIndex({ semester_id: 1, status: 1 });
 
     // club_attendances indexes
-    if (existingCollectionNames.includes('club_attendances')) {
+    if (
+      existingCollectionNames.includes('activity_attendances') ||
+      existingCollectionNames.includes('club_attendances')
+    ) {
       console.log('  Rebuilding club_attendances indexes back...');
       try { await db.collection('club_attendances').dropIndexes(); } catch (e) {}
       await db.collection('club_attendances').createIndex({ schedule_id: 1, student_id: 1 }, { unique: true });

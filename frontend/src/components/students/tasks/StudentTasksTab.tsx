@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -161,7 +161,7 @@ const LINKED_PAGE_NAMES: Record<string, string> = {
   '/students/record': 'Theo dõi chuyên cần',
   '/students/tasks': 'Nhiệm vụ',
   '/dormitory': 'Quản lý KTX',
-  '/club': 'Câu lạc bộ',
+  '/activities': 'Câu lạc bộ',
   '/permissions': 'Kiểm soát phân quyền',
   '/system': 'Quản trị hệ thống',
   '/reports': 'Thống kê báo cáo',

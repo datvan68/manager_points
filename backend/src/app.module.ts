@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -29,7 +29,7 @@ import { StudentTaskProgressModule } from './student-task-progress/student-task-
 import { SystemModule } from './system/system.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { ActivitySchedulesModule } from './activity-schedules/activity-schedules.module';
-import { ActivityAttendanceModule } from './club-attendance/club-attendance.module';
+import { ActivityAttendanceModule } from './activity-attendance/activity-attendance.module';
 import { ActivityAttendanceConfigModule } from './activity-attendance-config/activity-attendance-config.module';
 import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessions.module';
 import { DormitoryModule } from './dormitory/dormitory.module';

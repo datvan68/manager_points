@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -18,8 +18,8 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
-import { ActivityAttendanceService } from './club-attendance.service';
-import { ActivityAttendanceSyncService } from './club-attendance-sync.service';
+import { ActivityAttendanceService } from './activity-attendance.service';
+import { ActivityAttendanceSyncService } from './activity-attendance-sync.service';
 import {
   CreateAttendanceDto,
   BatchAttendanceDto,
@@ -29,7 +29,7 @@ import {
 } from './dto/attendance.dto';
 
 @ApiTags('Activity Attendance')
-@Controller(['club-attendance', 'activity-attendance'])
+@Controller('activity-attendance')
 export class ActivityAttendanceController {
   constructor(
     private readonly attendanceService: ActivityAttendanceService,

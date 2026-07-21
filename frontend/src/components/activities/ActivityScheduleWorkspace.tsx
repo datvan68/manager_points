@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
@@ -31,7 +31,7 @@ export interface RecurrenceConfig {
 
 export interface PendingSchedule {
   tempId: string;
-  clubId: string;
+  activityId: string;
   clubName: string;
   clubCode: string;
   clubCategory: string;
@@ -177,8 +177,8 @@ function getActivityAccentColor(item: any): AccentColor {
   }
 
   let id = '';
-  if (item.clubId) {
-    id = item.clubId;
+  if (item.activityId) {
+    id = item.activityId;
   } else if (item.activity_id) {
     const cid = item.activity_id;
     id = typeof cid === 'object' ? (cid._id || cid.code || cid.name || '') : cid;
@@ -631,7 +631,7 @@ export default function ActivityScheduleWorkspace({
   // Navigation & View states
   const [view, setView] = useState<'weekly' | 'daily'>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
-  const [filterClubId, setFilterClubId] = useState('all');
+  const [filterActivityId, setFilterActivityId] = useState('all');
   const [filterScheduleType, setFilterScheduleType] = useState('all');
   const scheduleCaptureRef = useRef<HTMLDivElement | null>(null);
   const [isCapturingSchedule, setIsCapturingSchedule] = useState(false);
@@ -675,7 +675,7 @@ export default function ActivityScheduleWorkspace({
   const [pendingUpdatePayload, setPendingUpdatePayload] = useState<any>(null);
 
   // Form states
-  const [formClubId, setFormClubId] = useState('');
+  const [formActivityId, setFormActivityId] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formLocation, setFormLocation] = useState('');
@@ -871,7 +871,7 @@ export default function ActivityScheduleWorkspace({
       const actObj = activities.find(c => c._id === selectedActivityId);
       const defaultLoc = getPreferredLocation(undefined, actObj?.classroom);
 
-      setFormClubId(selectedActivityId);
+      setFormActivityId(selectedActivityId);
       setFormTitle(`Sinh hoạt ${actObj?.name || ''}`);
       setFormDesc('');
       setFormLocation(defaultLoc);
@@ -1081,7 +1081,7 @@ export default function ActivityScheduleWorkspace({
     }).length;
 
     const pendingCount = pendingSchedules.filter(p => {
-      const matchesAct = getNormalizedId(p.clubId) === act._id;
+      const matchesAct = getNormalizedId(p.activityId) === act._id;
       return matchesAct && weekDateStrings.includes(p.dateStr);
     }).length;
 
@@ -1101,9 +1101,9 @@ export default function ActivityScheduleWorkspace({
   );
 
   // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, clubId: string) => {
+  const handleDragStart = (e: React.DragEvent, activityId: string) => {
     if (!canManage) return;
-    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'club', clubId }));
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'activity', activityId }));
   };
 
   const handleScheduleDragStart = (e: React.DragEvent, schedule: ActivitySchedule, originDateStr: string, originShift: ShiftType) => {
@@ -1113,7 +1113,7 @@ export default function ActivityScheduleWorkspace({
       JSON.stringify({
         type: 'schedule',
         scheduleId: schedule._id,
-        clubId: getNormalizedId(schedule.activity_id),
+        activityId: getNormalizedId(schedule.activity_id),
         originDateStr,
         originShift,
       })
@@ -1132,8 +1132,8 @@ export default function ActivityScheduleWorkspace({
     if (!rawData) return;
 
     let payload: {
-      type: 'club' | 'schedule' | 'pending';
-      clubId?: string;
+      type: 'activity' | 'schedule' | 'pending';
+      activityId?: string;
       scheduleId?: string;
       tempId?: string;
       originDateStr?: string;
@@ -1142,7 +1142,7 @@ export default function ActivityScheduleWorkspace({
     try {
       payload = JSON.parse(rawData);
     } catch {
-      payload = { type: 'club', clubId: rawData };
+      payload = { type: 'activity', activityId: rawData };
     }
 
     const targetDate = weekDates[dayIndex];
@@ -1248,7 +1248,7 @@ export default function ActivityScheduleWorkspace({
 
       const newPending: PendingSchedule = {
         tempId: 'temp_' + Math.random().toString(36).substring(2, 9),
-        clubId: cid,
+        activityId: cid,
         clubName: actObj?.name || 'Hoạt động',
         clubCode: actObj?.code || '',
         clubCategory: actObj?.category || '',
@@ -1265,13 +1265,13 @@ export default function ActivityScheduleWorkspace({
       handleConfigurePending(newPending, undefined, true);
       toast.success('Đã thêm lịch vào trạng thái pending');
     } else {
-      const clubId = payload.clubId || '';
-      const targetAct = activities.find(c => c._id === clubId);
+      const activityId = payload.activityId || '';
+      const targetAct = activities.find(c => c._id === activityId);
       if (!targetAct) return;
 
       const newPending: PendingSchedule = {
         tempId: 'temp_' + Math.random().toString(36).substring(2, 9),
-        clubId: clubId,
+        activityId: activityId,
         clubName: targetAct.name,
         clubCode: targetAct.code,
         clubCategory: targetAct.category,
@@ -1313,9 +1313,9 @@ export default function ActivityScheduleWorkspace({
     const originalPending = pendingSchedules.find(p => p.tempId === targetTempId) || pending;
     setActivePendingSchedule(originalPending);
 
-    const actObj = activities.find(c => c._id === pending.clubId);
+    const actObj = activities.find(c => c._id === pending.activityId);
 
-    setFormClubId(pending.clubId);
+    setFormActivityId(pending.activityId);
     setFormTitle(pending.originalData?.title || `Sinh hoạt ${pending.clubName}`);
     setFormDesc(pending.originalData?.description || '');
     setFormLocation(getPreferredLocation(pending.originalData?.location, actObj?.classroom));
@@ -1366,7 +1366,7 @@ export default function ActivityScheduleWorkspace({
     const cid = getNormalizedId(schedule.activity_id);
     const actObj = activities.find(c => c._id === cid);
 
-    setFormClubId(cid);
+    setFormActivityId(cid);
     setFormTitle(schedule.title || `Sinh hoạt ${actObj?.name || ''}`);
     setFormDesc(schedule.description || '');
     setFormLocation(getPreferredLocation(schedule.location, actObj?.classroom));
@@ -1660,15 +1660,15 @@ export default function ActivityScheduleWorkspace({
                 start: config.repeatStartDate ? new Date(config.repeatStartDate).toISOString() : undefined,
               };
 
-              const clubIdNorm = getNormalizedId(s.activity_id);
+              const activityIdNorm = getNormalizedId(s.activity_id);
               const semesterIdNorm = getNormalizedId(s.semester_id);
-              if (!clubIdNorm || !semesterIdNorm) {
+              if (!activityIdNorm || !semesterIdNorm) {
                 toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
                 return;
               }
 
               const payload = {
-                activity_id: clubIdNorm,
+                activity_id: activityIdNorm,
                 title: s.title,
                 description: s.description,
                 location: s.location,
@@ -1750,9 +1750,9 @@ export default function ActivityScheduleWorkspace({
       return;
     }
 
-    const clubIdNorm = getNormalizedId(pending.clubId);
+    const activityIdNorm = getNormalizedId(pending.activityId);
     const semesterIdNorm = getNormalizedId(selectedSemesterId);
-    if (!clubIdNorm) {
+    if (!activityIdNorm) {
       toast.error('Mã hoạt động không hợp lệ');
       return;
     }
@@ -1776,9 +1776,9 @@ export default function ActivityScheduleWorkspace({
         untilIso = validation.effectiveEndDate.toISOString();
       }
 
-      const actObj = activities.find(c => c._id === clubIdNorm);
+      const actObj = activities.find(c => c._id === activityIdNorm);
       const payload = {
-        activity_id: clubIdNorm,
+        activity_id: activityIdNorm,
         title: pending.originalData?.title || `Sinh hoạt ${pending.clubName}`,
         description: pending.originalData?.description || '',
         location: getPreferredLocation(pending.originalData?.location, actObj?.classroom),
@@ -1824,9 +1824,9 @@ export default function ActivityScheduleWorkspace({
       setSubmitting(true);
       const { scheduleId, payload } = pendingUpdatePayload;
 
-      const clubIdNorm = getNormalizedId(payload.activity_id);
+      const activityIdNorm = getNormalizedId(payload.activity_id);
       const semesterIdNorm = getNormalizedId(payload.semester_id);
-      if (!clubIdNorm || !semesterIdNorm) {
+      if (!activityIdNorm || !semesterIdNorm) {
         toast.error('Mã hoạt động hoặc mã học kỳ không hợp lệ');
         setSubmitting(false);
         return;
@@ -1834,7 +1834,7 @@ export default function ActivityScheduleWorkspace({
 
       const payloadWithScalarIds = {
         ...payload,
-        activity_id: clubIdNorm,
+        activity_id: activityIdNorm,
         semester_id: semesterIdNorm,
       };
 
@@ -1875,9 +1875,9 @@ export default function ActivityScheduleWorkspace({
       return;
     }
 
-    const clubIdNorm = getNormalizedId(formClubId);
+    const activityIdNorm = getNormalizedId(formActivityId);
     const semesterIdNorm = getNormalizedId(selectedSemesterId);
-    if (!clubIdNorm) {
+    if (!activityIdNorm) {
       toast.error('Mã hoạt động không hợp lệ');
       return;
     }
@@ -1917,7 +1917,7 @@ export default function ActivityScheduleWorkspace({
       }
 
       const payload = {
-        activity_id: clubIdNorm,
+        activity_id: activityIdNorm,
         title: formTitle,
         description: formDesc,
         location: formLocation,
@@ -1975,7 +1975,7 @@ export default function ActivityScheduleWorkspace({
     const defaultAct = activities.find(a => a._id === selectedActivityId) || activities[0];
     const defaultLoc = getPreferredLocation(undefined, defaultAct?.classroom);
 
-    setFormClubId(defaultAct?._id || '');
+    setFormActivityId(defaultAct?._id || '');
     setFormTitle(defaultAct ? `Sinh hoạt ${defaultAct.name}` : '');
     setFormDesc('');
     setFormLocation(defaultLoc);
@@ -2068,9 +2068,9 @@ export default function ActivityScheduleWorkspace({
   const filteredDailySchedules = selectedDaySchedules.filter(s => {
     const matchesType = filterScheduleType === 'all' || s.schedule_type === filterScheduleType;
     let matchesClub = true;
-    if (filterClubId !== 'all') {
-      const clubId = typeof (s.activity_id) === 'object' ? (s.activity_id)?._id : (s.activity_id);
-      matchesClub = clubId === filterClubId;
+    if (filterActivityId !== 'all') {
+      const activityId = typeof (s.activity_id) === 'object' ? (s.activity_id)?._id : (s.activity_id);
+      matchesClub = activityId === filterActivityId;
     }
     return matchesType && matchesClub;
   });
@@ -2542,8 +2542,8 @@ export default function ActivityScheduleWorkspace({
                                     const accent = getActivityAccentColor(p);
                                     const styles = accentStyles[accent];
 
-                                    const pClubIdNorm = getNormalizedId(p.clubId);
-                                    const pResolvedAct = activities.find(a => a._id === pClubIdNorm);
+                                    const pActivityIdNorm = getNormalizedId(p.activityId);
+                                    const pResolvedAct = activities.find(a => a._id === pActivityIdNorm);
                                     const pResolvedName = pResolvedAct?.name || p.originalData?.title || `Sinh hoạt ${p.clubName}`;
 
                                     return (
@@ -2635,8 +2635,8 @@ export default function ActivityScheduleWorkspace({
                                     const accent = getActivityAccentColor(schedule);
                                     const styles = accentStyles[accent];
 
-                                    const sClubIdNorm = getNormalizedId(schedule.activity_id);
-                                    const sResolvedAct = activities.find(a => a._id === sClubIdNorm);
+                                    const sActivityIdNorm = getNormalizedId(schedule.activity_id);
+                                    const sResolvedAct = activities.find(a => a._id === sActivityIdNorm);
                                     const sResolvedName = sResolvedAct?.name || schedule.title;
 
                                     return (
@@ -2815,8 +2815,8 @@ export default function ActivityScheduleWorkspace({
             <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-700 cursor-pointer transition-all border border-slate-200/50">
               <Filter size={12} className="text-slate-400" />
               <select
-                value={filterClubId}
-                onChange={(e) => setFilterClubId(e.target.value)}
+                value={filterActivityId}
+                onChange={(e) => setFilterActivityId(e.target.value)}
                 className="bg-transparent border-none outline-none cursor-pointer pr-1 text-slate-700 font-bold text-xs"
               >
                 <option value="all">Tất cả hoạt động</option>

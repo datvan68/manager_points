@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
   ActivityAttendance,
   ActivityAttendanceDocument,
-} from './schemas/club-attendance.schema';
+} from './schemas/activity-attendance.schema';
 import {
   ActivityAttendanceConfig,
   ActivityAttendanceConfigDocument,
@@ -181,12 +181,12 @@ export class ActivityAttendanceSyncService {
         status: 'active',
         is_deleted: false,
         idempotency_key: idempotencyKey,
-        source: 'club_attendance',
+        source: 'activity_attendance',
         recorded_by_role: 'system',
         record_type: 'activity',
         action_type: 'count',
         quantity: 1,
-        source_type: 'club_attendance',
+        source_type: 'activity_attendance',
         source_id: attendance._id.toString(),
         occurred_at: attendance.check_in_time || attendance.recorded_at,
         payload: {

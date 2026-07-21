@@ -1,9 +1,9 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+﻿import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type ActivityAttendanceDocument = ActivityAttendance & Document;
 
-@Schema({ timestamps: true, collection: 'club_attendances' })
+@Schema({ timestamps: true, collection: 'activity_attendances' })
 export class ActivityAttendance {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Activity', required: true })
   activity_id: Types.ObjectId;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, ClientSession } from 'mongoose';
 import {
@@ -9,7 +9,7 @@ import {
   ActivityCompletionAward,
   ActivityCompletionAwardDocument,
 } from './schemas/activity-completion-award.schema';
-import { ActivityAttendance, ActivityAttendanceDocument } from './schemas/club-attendance.schema';
+import { ActivityAttendance, ActivityAttendanceDocument } from './schemas/activity-attendance.schema';
 import { Activity, ActivityDocument } from '../activities/schemas/activity.schema';
 import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
 import { CreateActivityCompletionRuleDto, UpdateActivityCompletionRuleDto } from './dto/activity-completion-rule.dto';

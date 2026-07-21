@@ -1,4 +1,4 @@
-import { ActivitySchedule } from '@/api/activity-api';
+﻿import { ActivitySchedule } from '@/api/activity-api';
 import { format } from 'date-fns';
 
 export interface ScheduleSummaryRow {
@@ -30,16 +30,16 @@ export const getStartOfWeek = (d: Date): Date => {
 /**
  * Builds schedule summary rows grouped by matching time ranges and sorted from Monday to Sunday.
  */
-export const getClubScheduleSummary = (
+export const getActivityScheduleSummary = (
   schedules: ActivitySchedule[],
-  clubId: string
+  activityId: string
 ): ScheduleSummaryRow[] => {
   if (!schedules || schedules.length === 0) return [];
 
   // 1. Filter active schedules for this club
   const clubScheds = schedules.filter((s) => {
-    const normalizedScheduleClubId = getIdentifierValue(s.activity_id);
-    return normalizedScheduleClubId === getIdentifierValue(clubId)
+    const normalizedScheduleActivityId = getIdentifierValue(s.activity_id);
+    return normalizedScheduleActivityId === getIdentifierValue(activityId)
       && (s.status === 'scheduled' || s.status === 'ongoing');
   });
 
@@ -197,16 +197,16 @@ export const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-export const getClubCardTheme = (club: { card_ui?: { theme?: string }; category: string }): string => {
+export const getActivityCardTheme = (club: { card_ui?: { theme?: string }; category: string }): string => {
   const resolved = club.category || 'other';
   return themeColors[resolved] ? resolved : 'other';
 };
 
-export const getClubAccentColor = (club: { card_ui?: { theme?: string; accent_color?: string }; category: string; background_config?: { accentColor?: string } }): string => {
+export const getActivityAccentColor = (club: { card_ui?: { theme?: string; accent_color?: string }; category: string; background_config?: { accentColor?: string } }): string => {
   if (club.background_config?.accentColor) {
     return club.background_config.accentColor;
   }
-  const resolvedTheme = getClubCardTheme(club);
+  const resolvedTheme = getActivityCardTheme(club);
   return themeColors[resolvedTheme] || '#3B82F6';
 };
 

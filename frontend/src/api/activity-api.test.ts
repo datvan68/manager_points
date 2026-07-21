@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { activityApi, activityScheduleApi, activityCompletionRuleApi } from './activity-api';
 
 const mockFetch = vi.fn();

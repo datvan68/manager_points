@@ -1,12 +1,12 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import {
   normalizeRole,
-  findClubMembership,
+  findActivityMembership,
   isJoinedStudent,
   filterDetailTabs,
-} from './student-club-view';
+} from './student-activity-view';
 
-describe('student-club-view helpers', () => {
+describe('student-activity-view helpers', () => {
   describe('normalizeRole', () => {
     it('should return normalized lowercase role', () => {
       expect(normalizeRole('STUDENT')).toBe('student');
@@ -16,31 +16,31 @@ describe('student-club-view helpers', () => {
     });
   });
 
-  describe('findClubMembership', () => {
+  describe('findActivityMembership', () => {
     const mockMemberships = [
       { activity_id: 'club-1', status: 'active' },
       { activity_id: { _id: 'club-2' }, status: 'pending' },
     ];
 
     it('should find club membership by string ID', () => {
-      const match = findClubMembership(mockMemberships, 'club-1');
+      const match = findActivityMembership(mockMemberships, 'club-1');
       expect(match).toBeDefined();
       expect(match?.status).toBe('active');
     });
 
     it('should find club membership by populated object ID', () => {
-      const match = findClubMembership(mockMemberships, 'club-2');
+      const match = findActivityMembership(mockMemberships, 'club-2');
       expect(match).toBeDefined();
       expect(match?.status).toBe('pending');
     });
 
     it('should return undefined if no matching club ID exists', () => {
-      const match = findClubMembership(mockMemberships, 'club-3');
+      const match = findActivityMembership(mockMemberships, 'club-3');
       expect(match).toBeUndefined();
     });
 
     it('should return undefined for empty memberships list', () => {
-      const match = findClubMembership([], 'club-1');
+      const match = findActivityMembership([], 'club-1');
       expect(match).toBeUndefined();
     });
   });

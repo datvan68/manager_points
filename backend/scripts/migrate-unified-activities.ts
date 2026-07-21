@@ -51,6 +51,7 @@ async function bootstrap() {
       { src: 'club_membership_transfers', dest: 'activity_membership_transfers' },
       { src: 'club_schedules', dest: 'activity_schedules' },
       { src: 'club_attendance_configs', dest: 'activity_attendance_configs' },
+      { src: 'club_attendances', dest: 'activity_attendances' },
     ];
 
     const allCollections = await db.listCollections().toArray();
@@ -59,7 +60,10 @@ async function bootstrap() {
     // 2. Validate target collections
     if (execute) {
       for (const mapping of collectionsToRename) {
-        if (existingCollectionNames.includes(mapping.dest)) {
+        if (
+          existingCollectionNames.includes(mapping.src) &&
+          existingCollectionNames.includes(mapping.dest)
+        ) {
           const docCount = await db.collection(mapping.dest).countDocuments();
           if (docCount > 0) {
             console.error(`[ERROR] Target collection "${mapping.dest}" already exists and contains ${docCount} documents. Stop to prevent data corruption.`);
@@ -191,10 +195,13 @@ async function bootstrap() {
       { $rename: { club_id: 'activity_id' } }
     );
 
-    // club_attendances: club_id -> activity_id
-    if (existingCollectionNames.includes('club_attendances')) {
-      console.log('  Updating club_attendances fields...');
-      await db.collection('club_attendances').updateMany(
+    // activity_attendances: club_id -> activity_id
+    if (
+      existingCollectionNames.includes('club_attendances') ||
+      existingCollectionNames.includes('activity_attendances')
+    ) {
+      console.log('  Updating activity_attendances fields...');
+      await db.collection('activity_attendances').updateMany(
         { club_id: { $exists: true } },
         { $rename: { club_id: 'activity_id' } }
       );
@@ -215,6 +222,26 @@ async function bootstrap() {
       await db.collection('attendance_sessions').updateMany(
         { context_type: 'club' },
         { $set: { context_type: 'activity' } }
+      );
+    }
+
+    if (existingCollectionNames.includes('academicrecords')) {
+      console.log('  Updating attendance source markers...');
+      await db.collection('academicrecords').updateMany(
+        { source: 'club_attendance' },
+        { $set: { source: 'activity_attendance' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { source_type: 'club_attendance' },
+        { $set: { source_type: 'activity_attendance' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { 'payload.club_name': { $exists: true } },
+        { $rename: { 'payload.club_name': 'payload.activity_name' } },
+      );
+      await db.collection('academicrecords').updateMany(
+        { 'payload.club_code': { $exists: true } },
+        { $rename: { 'payload.club_code': 'payload.activity_code' } },
       );
     }
 
@@ -289,14 +316,17 @@ async function bootstrap() {
     await db.collection('activity_attendance_configs').createIndex({ activity_id: 1, semester_id: 1 }, { unique: true, sparse: true });
     await db.collection('activity_attendance_configs').createIndex({ semester_id: 1, status: 1 });
 
-    // club_attendances indexes
-    if (existingCollectionNames.includes('club_attendances')) {
-      console.log('  Rebuilding club_attendances indexes...');
-      try { await db.collection('club_attendances').dropIndexes(); } catch (e) {}
-      await db.collection('club_attendances').createIndex({ schedule_id: 1, student_id: 1 }, { unique: true });
-      await db.collection('club_attendances').createIndex({ activity_id: 1, semester_id: 1, approval_status: 1 });
-      await db.collection('club_attendances').createIndex({ student_id: 1, semester_id: 1 });
-      await db.collection('club_attendances').createIndex({ approval_status: 1 });
+    // activity_attendances indexes
+    if (
+      existingCollectionNames.includes('club_attendances') ||
+      existingCollectionNames.includes('activity_attendances')
+    ) {
+      console.log('  Rebuilding activity_attendances indexes...');
+      try { await db.collection('activity_attendances').dropIndexes(); } catch (e) {}
+      await db.collection('activity_attendances').createIndex({ schedule_id: 1, student_id: 1 }, { unique: true });
+      await db.collection('activity_attendances').createIndex({ activity_id: 1, semester_id: 1, approval_status: 1 });
+      await db.collection('activity_attendances').createIndex({ student_id: 1, semester_id: 1 });
+      await db.collection('activity_attendances').createIndex({ approval_status: 1 });
     }
 
     // 7. Update Permissions and Permission Groups

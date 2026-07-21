@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState } from 'react';
 import { Clock, MapPin, Users, Heart, AlertCircle, Palette } from 'lucide-react';
@@ -12,7 +12,7 @@ import {
   getPatternStyle,
   getStateButtonConfig
 } from './activity-view-policy';
-import { getClubScheduleSummary as getActivityScheduleSummary } from '@/components/activities/utils/schedule-helper';
+import { getActivityScheduleSummary as getActivityScheduleSummary } from '@/components/activities/utils/activity-schedule-helper';
 
 // Pet Accent Layer Component
 const PetAccentLayer = ({ type, color }: { type?: string; color: string }) => {

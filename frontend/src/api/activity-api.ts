@@ -1,4 +1,4 @@
-import { httpClient, handleResponse } from './http-client';
+﻿import { httpClient, handleResponse } from './http-client';
 import { API_BASE } from './config';
 
 // ── Types ──
@@ -13,7 +13,7 @@ export interface Activity {
   _id: string;
   name: string;
   code: string;
-  activity_type: 'club' | 'event' | 'activity' | 'festival';
+  activity_type: 'activity' | 'event' | 'activity' | 'festival';
   participation_status: 'draft' | 'published' | 'completed' | 'cancelled';
   classroom: string;
   description?: string;
@@ -534,32 +534,32 @@ export const activityScheduleApi = {
 
 export const activityAttendanceApi = {
   async getAll(params?: any): Promise<{ items: ActivityAttendance[]; total: number }> {
-    const res = await httpClient(`${API_BASE}/club-attendance${buildQuery(params)}`);
+    const res = await httpClient(`${API_BASE}/activity-attendance${buildQuery(params)}`);
     return handleResponse(res);
   },
 
   async getMyAttendance(params?: { semester_id?: string; activity_id?: string }): Promise<ActivityAttendance[]> {
-    const res = await httpClient(`${API_BASE}/club-attendance/my${buildQuery(params)}`);
+    const res = await httpClient(`${API_BASE}/activity-attendance/my${buildQuery(params)}`);
     return handleResponse<ActivityAttendance[]>(res);
   },
 
   async getPendingCount(activityId?: string): Promise<{ count: number }> {
-    const res = await httpClient(`${API_BASE}/club-attendance/pending-count${buildQuery(activityId ? { activity_id: activityId } : {})}`);
+    const res = await httpClient(`${API_BASE}/activity-attendance/pending-count${buildQuery(activityId ? { activity_id: activityId } : {})}`);
     return handleResponse(res);
   },
 
   async getSummary(activityId: string, semesterId: string): Promise<ActivityAttendanceSummary[]> {
-    const res = await httpClient(`${API_BASE}/club-attendance/summary/${activityId}${buildQuery({ semester_id: semesterId })}`);
+    const res = await httpClient(`${API_BASE}/activity-attendance/summary/${activityId}${buildQuery({ semester_id: semesterId })}`);
     return handleResponse<ActivityAttendanceSummary[]>(res);
   },
 
   async getById(id: string): Promise<ActivityAttendance> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}`);
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}`);
     return handleResponse<ActivityAttendance>(res);
   },
 
   async create(data: any): Promise<ActivityAttendance> {
-    const res = await httpClient(`${API_BASE}/club-attendance`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(data),
@@ -574,7 +574,7 @@ export const activityAttendanceApi = {
     entries: { student_id: string; status: string; note?: string }[];
   }): Promise<any> {
     const payload = normalizeActivityIdPayload(data);
-    const res = await httpClient(`${API_BASE}/club-attendance/batch`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/batch`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(payload),
@@ -583,7 +583,7 @@ export const activityAttendanceApi = {
   },
 
   async update(id: string, data: any): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}`, {
       method: 'PATCH',
       headers: jsonHeaders,
       body: JSON.stringify(data),
@@ -592,12 +592,12 @@ export const activityAttendanceApi = {
   },
 
   async delete(id: string): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}`, { method: 'DELETE' });
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}`, { method: 'DELETE' });
     return handleResponse(res);
   },
 
   async approve(id: string, data: { status: string; rejection_reason?: string }): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}/approve`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}/approve`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(data),
@@ -606,7 +606,7 @@ export const activityAttendanceApi = {
   },
 
   async reject(id: string, data: { status: string; rejection_reason?: string }): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}/reject`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}/reject`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(data),
@@ -615,7 +615,7 @@ export const activityAttendanceApi = {
   },
 
   async batchApprove(ids: string[]): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/batch-approve`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/batch-approve`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ ids }),
@@ -624,7 +624,7 @@ export const activityAttendanceApi = {
   },
 
   async batchSync(activityId: string, semesterId: string): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/sync/${activityId}${buildQuery({ semester_id: semesterId })}`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/sync/${activityId}${buildQuery({ semester_id: semesterId })}`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({}),
@@ -633,7 +633,7 @@ export const activityAttendanceApi = {
   },
 
   async retrySync(id: string): Promise<any> {
-    const res = await httpClient(`${API_BASE}/club-attendance/${id}/retry-sync`, {
+    const res = await httpClient(`${API_BASE}/activity-attendance/${id}/retry-sync`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({}),

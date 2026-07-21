@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -26,7 +26,7 @@ import {
 import {
   ActivityAttendance,
   ActivityAttendanceDocument,
-} from '../club-attendance/schemas/club-attendance.schema';
+} from '../activity-attendance/schemas/activity-attendance.schema';
 import {
   isStudent,
   isTeacher,
