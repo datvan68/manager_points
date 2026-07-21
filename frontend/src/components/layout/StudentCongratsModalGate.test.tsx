@@ -68,7 +68,7 @@ vi.mock('framer-motion', () => {
 });
 
 import { getCongratsStorageKey } from './congrats-storage';
-import StudentCongratsModalGate from './StudentCongratsModalGate';
+import StudentCongratsModalGate, { isWithinCongratsWindow } from './StudentCongratsModalGate';
 import { useAuth } from '@/providers/auth-provider';
 import { isStudentRole } from '@/utils/role.util';
 import { summariesPointApi } from '@/api/summaries-point-api';
@@ -135,6 +135,14 @@ describe('StudentCongratsModalGate storage helpers', () => {
     // Assert that sessionStorage still has key A
     expect(sessionStorage.getItem(keyA)).toBe('true');
   });
+
+  it('only accepts valid locked timestamps from the most recent 72 hours', () => {
+    const now = Date.parse('2026-06-15T12:00:00.000Z');
+    expect(isWithinCongratsWindow('2026-06-12T12:00:00.000Z', now)).toBe(true);
+    expect(isWithinCongratsWindow('2026-06-12T11:59:59.999Z', now)).toBe(false);
+    expect(isWithinCongratsWindow('2026-06-15T12:00:00.001Z', now)).toBe(false);
+    expect(isWithinCongratsWindow('not-a-date', now)).toBe(false);
+  });
 });
 
 describe('StudentCongratsModalGate Component Logic Regression', () => {
@@ -144,6 +152,8 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
   let effectCallback: (() => void | (() => void)) | null = null;
 
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
     store = {};
     const mockSessionStorage = {
       getItem: (key: string) => store[key] || null,
@@ -185,6 +195,7 @@ describe('StudentCongratsModalGate Component Logic Regression', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     mockUseStateFn = null;
     mockUseEffectFn = null;
   });
@@ -306,6 +317,8 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
   let store: Record<string, string>;
 
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
     store = {};
     const mockSessionStorage = {
       getItem: (key: string) => store[key] || null,
@@ -325,6 +338,10 @@ describe('StudentCongratsModalGate DOM Rendering', () => {
     };
     
     vi.stubGlobal('sessionStorage', mockSessionStorage);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should render congrats modal, dismiss it, and transition to Student B correctly', async () => {

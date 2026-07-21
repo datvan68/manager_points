@@ -181,7 +181,9 @@ export const summariesPointApi = {
 
   async exportSummaryExcel(payload: {
     semesterId: string;
-    classId: string;
+    classId?: string;
+    departmentId?: string;
+    scope?: 'class' | 'faculty' | 'all';
     studentIds?: string[];
     mode?: 'all_filtered' | 'selected';
   }): Promise<Blob> {

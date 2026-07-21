@@ -193,6 +193,12 @@ function resolveStudentCongratsIdentity(summary: LatestStudentSummary, user: any
   };
 }
 
+export function isWithinCongratsWindow(lockedAt?: string, nowMs = Date.now()) {
+  const lockedAtMs = Date.parse(lockedAt || '');
+  const ageMs = nowMs - lockedAtMs;
+  return Number.isFinite(lockedAtMs) && ageMs >= 0 && ageMs <= 72 * 60 * 60 * 1000;
+}
+
 
 export default function StudentCongratsModalGate() {
   const { user } = useAuth();
@@ -210,6 +216,7 @@ export default function StudentCongratsModalGate() {
           if (!userId || !summary._id) return;
 
           const lockedAt = summary.locked_at || '';
+          if (!isWithinCongratsWindow(lockedAt)) return;
           const storageKey = getCongratsStorageKey(userId, summary._id, lockedAt);
           const congratsShown = sessionStorage.getItem(storageKey);
           if (!congratsShown) {

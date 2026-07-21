@@ -83,15 +83,29 @@ describe('Grading Access and Role Normalization', () => {
 
     it('should validate assertCanAccessStudent for student self scope', async () => {
       const studentRequester = { userId: 'student_123', roleCode: 'STUDENT' };
+      const ownStudentModel = {
+        findById: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({ user_id: 'student_123' }),
+          }),
+        }),
+      };
+      const otherStudentModel = {
+        findById: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue({ user_id: 'student_456' }),
+          }),
+        }),
+      };
 
       // Self should succeed
       await expect(
-        assertCanAccessStudent(studentRequester, 'student_123', {}, {}),
+        assertCanAccessStudent(studentRequester, 'student-document-123', {}, ownStudentModel),
       ).resolves.not.toThrow();
 
       // Other student should throw ForbiddenException
       await expect(
-        assertCanAccessStudent(studentRequester, 'student_456', {}, {}),
+        assertCanAccessStudent(studentRequester, 'student-document-456', {}, otherStudentModel),
       ).rejects.toThrow(ForbiddenException);
     });
 
