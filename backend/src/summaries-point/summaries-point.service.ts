@@ -912,7 +912,7 @@ export class SummariesPointService {
     if (scope === 'class') studentFilter.class_id = new Types.ObjectId(classId!);
     if (scope === 'faculty') {
       const facultyClasses = await this.classModel
-        .find({ dept_id: new Types.ObjectId(departmentId!) })
+        .find({ dept_id: new Types.ObjectId(departmentId!) } as any)
         .select('_id')
         .lean()
         .exec();
