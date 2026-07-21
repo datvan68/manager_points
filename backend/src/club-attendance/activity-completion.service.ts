@@ -140,13 +140,15 @@ export class ActivityCompletionService {
     if (!rule) return;
 
     // Count approved attendances where status is present or late
-    const attendanceCount = await this.attendanceModel.countDocuments({
+    const attendances = await this.attendanceModel.find({
       activity_id: new Types.ObjectId(activityId),
       student_id: new Types.ObjectId(studentId),
       semester_id: new Types.ObjectId(semesterId),
       approval_status: 'approved',
       status: { $in: ['present', 'late'] },
-    }).session(session || null).exec();
+    }).sort({ check_in_time: 1, recorded_at: 1, _id: 1 }).session(session || null).exec();
+
+    const attendanceCount = attendances.length;
 
     const earnedUnits = rule.minimum_attendance > 0
       ? Math.floor(attendanceCount / rule.minimum_attendance)
@@ -176,7 +178,11 @@ export class ActivityCompletionService {
               semester_id: new Types.ObjectId(semesterId),
               idempotency_key: idempotencyKey,
               record_title: `Hoàn thành hoạt động: ${club.name}`,
-              description: `Đạt tối thiểu ${rule.minimum_attendance} buổi điểm danh tại hoạt động ${club.name}`,
+              description: this.buildCompletionDescription(
+                rule.minimum_attendance,
+                club.name,
+                attendances.slice(0, rule.minimum_attendance),
+              ),
               source_type: 'activity_completion',
               source_id: activityId,
               record_type: 'activity',
@@ -227,7 +233,14 @@ export class ActivityCompletionService {
             semester_id: new Types.ObjectId(semesterId),
             idempotency_key: `${baseKey}:sequence:${sequence}`,
             record_title: `Hoàn thành hoạt động: ${club.name}`,
-            description: `Đạt ${sequence} đơn vị hoàn thành tại hoạt động ${club.name}`,
+            description: this.buildCompletionDescription(
+              rule.minimum_attendance,
+              club.name,
+              attendances.slice(
+                (sequence - 1) * rule.minimum_attendance,
+                sequence * rule.minimum_attendance,
+              ),
+            ),
             source_type: 'activity_completion', source_id: activityId,
             record_type: 'activity', action_type: 'count', quantity: 1,
             recorded_by_role: 'system', status: 'active', is_deleted: false,
@@ -243,5 +256,26 @@ export class ActivityCompletionService {
           );
         }
       }
+  }
+
+  private buildCompletionDescription(
+    minimumAttendance: number,
+    activityName: string,
+    attendances: Array<{ check_in_time?: Date; recorded_at?: Date }>,
+  ): string {
+    const dates = attendances.map((attendance) => {
+      const date = attendance.check_in_time || attendance.recorded_at;
+      if (!date) {
+        throw new BadRequestException('Attendance record is missing a completion date.');
+      }
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(date));
+    });
+
+    return `Hoàn thành ${minimumAttendance} buổi của hoạt động ${activityName}, các ngày ${dates.join(', ')}`;
   }
 }

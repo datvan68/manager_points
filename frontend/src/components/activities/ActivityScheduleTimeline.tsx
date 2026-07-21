@@ -195,7 +195,7 @@ export default function ActivityScheduleTimeline({
                       )}
                       {showRoster && (
                         <div className="mt-2.5 flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-slate-555">Đã điểm danh: {schedule.attendance_records ? schedule.attendance_records.length : 0}</span>
+                          <span className="text-[11px] font-bold text-slate-555">Đã điểm danh: {sessionMatches && activeSession?.checkin_count != null ? activeSession.checkin_count : (schedule.attendance_records ? schedule.attendance_records.length : 0)}</span>
                           <button onClick={() => toggleExpand(schedule._id)} aria-expanded={!!expanded[schedule._id]} className="p-1 rounded-lg hover:bg-slate-100 transition-colors text-slate-500 flex items-center gap-1 cursor-pointer">
                             <span className="text-[10px] font-bold">{expanded[schedule._id] ? 'Thu gọn' : 'Chi tiết'}</span>
                             {expanded[schedule._id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

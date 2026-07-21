@@ -371,6 +371,7 @@ describe('Activities & Completion Rules (e2e)', () => {
           student_id: testStudentId.toString(),
           semester_id: testSemesterId.toString(),
           status: 'present',
+          check_in_time: '2026-07-10T15:15:00Z',
         })
         .expect(201);
 
@@ -398,6 +399,7 @@ describe('Activities & Completion Rules (e2e)', () => {
           student_id: testStudentId.toString(),
           semester_id: testSemesterId.toString(),
           status: 'present',
+          check_in_time: '2026-07-11T15:15:00Z',
         })
         .expect(201);
 
@@ -425,6 +427,9 @@ describe('Activities & Completion Rules (e2e)', () => {
       });
       expect(record).not.toBeNull();
       expect(record.status).toBe('active');
+      expect(record.description).toBe(
+        'Hoàn thành 2 buổi của hoạt động E2E Event Activity, các ngày 10/07/2026, 11/07/2026',
+      );
     });
 
     it('6. Idempotency test - calling checkAndAwardCompletion again should not duplicate AcademicRecord or Award', async () => {

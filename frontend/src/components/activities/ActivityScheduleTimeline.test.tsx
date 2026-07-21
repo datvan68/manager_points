@@ -222,6 +222,26 @@ describe('ActivityScheduleTimeline', () => {
     expect(screen.getAllByText('Đã điểm danh: 0').length).toBe(2); // Cả s2 và s3 (null)
   });
 
+  it('uses the realtime active-session count for the matching schedule', () => {
+    render(
+      <ActivityScheduleTimeline
+        schedules={[{
+          _id: 's1',
+          title: 'Live Session',
+          start_time: '2026-07-14T09:00:00Z',
+          end_time: '2026-07-14T11:00:00Z',
+          is_today: true,
+          attendance_records: [{ _id: 'persisted-1' }],
+        }]}
+        canViewAttendanceRoster
+        activeSession={{ _id: 'session-1', schedule_id: 's1', status: 'active', checkin_count: 3 }}
+      />
+    );
+
+    expect(screen.getByText('Đã điểm danh: 3')).toBeInTheDocument();
+    expect(screen.queryByText('Đã điểm danh: 1')).not.toBeInTheDocument();
+  });
+
   it('handles attendance button rendering and callback behaviors', () => {
     const onOpenAttendanceMock = vi.fn();
 
