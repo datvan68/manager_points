@@ -321,10 +321,21 @@ export class ActivitiesService {
       }
     }
 
+    const favoriteRows = await this.favoriteModel.aggregate([
+      { $match: { activity_id: { $in: activityIds } } },
+      { $group: { _id: '$activity_id', count: { $sum: 1 } } },
+    ]).exec();
+    const favoriteCounts = new Map(favoriteRows.map((row: any) => [row._id.toString(), row.count]));
+    const currentUserId = user?.userId || user?._id || user?.id;
+    const userFavoriteIds = currentUserId && Types.ObjectId.isValid(currentUserId)
+      ? new Set((await this.favoriteModel.find({ activity_id: { $in: activityIds }, user_id: new Types.ObjectId(currentUserId) }).select('activity_id').lean().exec()).map((row: any) => row.activity_id.toString()))
+      : new Set<string>();
     return activities.map((activity: any) => ({
       ...activity,
       active_members_count: countByActivityId.get(activity._id.toString()) || 0,
       membership_status: membershipStatusByActivityId.get(activity._id.toString()) || 'none',
+      favorite_count: favoriteCounts.get(activity._id.toString()) || 0,
+      is_favorited: userFavoriteIds.has(activity._id.toString()),
     }));
   }
 
@@ -465,11 +476,21 @@ export class ActivitiesService {
       to_membership_id: { $in: memberIds },
     }).lean().exec();
 
+    const studentIds = members.map((m: any) => m.student_id?._id || m.student_id).filter(Boolean);
+    const leaveRows = studentIds.length ? await this.memberModel.aggregate([
+      { $match: { student_id: { $in: studentIds.map((id: any) => new Types.ObjectId(id)) } } },
+      { $lookup: { from: 'activities', localField: 'activity_id', foreignField: '_id', as: 'activity' } },
+      { $unwind: '$activity' },
+      { $match: { 'activity.activity_type': 'club' } },
+      { $group: { _id: { student_id: '$student_id', semester_id: '$semester_id' }, total: { $sum: { $ifNull: ['$self_service_leave_count', 0] } } } },
+    ]).exec() : [];
+    const leaveByStudent = new Map(leaveRows.map((row: any) => [`${row._id.student_id.toString()}_${row._id.semester_id.toString()}`, row.total]));
     return members.map(m => {
       const t = transfers.find(tr => tr.to_membership_id.toString() === m._id.toString());
       return {
         ...m,
         transfer: t || null,
+        self_service_leaves_remaining: Math.max(0, 3 - (leaveByStudent.get(`${(m.student_id?._id || m.student_id)?.toString()}_${m.semester_id?.toString()}`) || 0)),
       };
     });
   }
@@ -1211,6 +1232,7 @@ export class ActivitiesService {
     const favoriteCount = await this.favoriteModel.countDocuments({
       activity_id: new Types.ObjectId(activityId),
     });
+    this.realtime.publishFavoriteUpdated(activityId, favoriteCount);
 
     return {
       activity_id: activityId,
@@ -1242,6 +1264,7 @@ export class ActivitiesService {
     const favoriteCount = await this.favoriteModel.countDocuments({
       activity_id: new Types.ObjectId(activityId),
     });
+    this.realtime.publishFavoriteUpdated(activityId, favoriteCount);
 
     return {
       activity_id: activityId,

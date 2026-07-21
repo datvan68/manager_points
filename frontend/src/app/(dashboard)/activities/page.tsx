@@ -66,7 +66,10 @@ export default function ActivitiesPage() {
   useEffect(() => {
     loadData();
   }, []);
-  useActivitiesRealtime(!!user, loadData);
+  const handleFavoriteUpdated = React.useCallback((payload: { activity_id: string; favorite_count: number }) => {
+    setActivities(prev => prev.map(item => item._id === payload.activity_id ? { ...item, favorite_count: payload.favorite_count } : item));
+  }, []);
+  useActivitiesRealtime(!!user, loadData, handleFavoriteUpdated);
 
   const handleCreateActivity = async (data: any) => {
     setSaving(true);
@@ -160,21 +163,21 @@ export default function ActivitiesPage() {
     if (pendingFavoriteIds[act._id]) return;
     setPendingFavoriteIds(prev => ({ ...prev, [act._id]: true }));
     const wasFavorited = act.is_favorited;
-    const prevCount = act.favorite_count || 0;
     try {
+      let result: { favorite_count: number; is_favorited: boolean };
       if (wasFavorited) {
-        await activityApi.unfavoriteActivity(act._id);
+        result = await activityApi.unfavoriteActivity(act._id);
         toast.success('Đã bỏ yêu thích');
       } else {
-        await activityApi.favoriteActivity(act._id);
+        result = await activityApi.favoriteActivity(act._id);
         toast.success('Đã thêm vào yêu thích');
       }
       setActivities(prev => prev.map(item => {
         if (item._id === act._id) {
-          const newCount = wasFavorited ? Math.max(0, prevCount - 1) : prevCount + 1;
+          const newCount = result.favorite_count;
           return {
             ...item,
-            is_favorited: !wasFavorited,
+            is_favorited: result.is_favorited,
             favorite_count: newCount
           };
         }

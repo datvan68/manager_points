@@ -302,7 +302,7 @@ export default function ActivityMemberTable({
                       ? new Date(member.createdAt).toLocaleDateString('vi-VN')
                       : '—'}
                   </td>
-                  <td className="px-5 py-4 font-semibold text-slate-700">{member.participation_count ?? 0}</td>
+                  <td className="px-5 py-4 font-semibold text-slate-700">{member.self_service_leaves_remaining ?? '—'}</td>
                   {isAdminOrAdvisor && (
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 min-w-[150px]">

@@ -70,6 +70,7 @@ export interface ActivityMember {
   transfer?: any;
   createdAt: string;
   participation_count?: number;
+  self_service_leaves_remaining?: number;
 }
 
 export interface ActivityMembershipPolicyResponse {
