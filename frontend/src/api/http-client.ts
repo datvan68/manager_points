@@ -37,10 +37,16 @@ function onRefreshFailed(error: Error) {
 }
 
 let refreshPromise: Promise<RefreshResponse> | null = null;
-const authChannel = typeof window !== 'undefined' ? new BroadcastChannel('auth_sync_channel') : null;
+const sessionId = typeof window !== 'undefined' ? sessionStorage.getItem('auth_session_id') || 'anonymous' : 'ssr';
+const authChannel = typeof window !== 'undefined' ? new BroadcastChannel(`auth_sync_channel_${sessionId}`) : null;
+
+function currentSessionId(): string {
+  return typeof window !== 'undefined' ? sessionStorage.getItem('auth_session_id') || 'anonymous' : 'ssr';
+}
 
 if (authChannel) {
   authChannel.onmessage = async (event) => {
+    if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
     const { tokenStorage } = await import('./auth-api');
     if (event.data.type === 'TOKEN_REFRESHED') {
       tokenStorage.setAccessToken(event.data.token);
@@ -64,43 +70,43 @@ if (authChannel) {
   };
 }
 
-const LOCK_KEY = 'auth_refresh_lock';
+function getLockKey(): string { return `auth_refresh_lock_${currentSessionId()}`; }
 const LOCK_TTL = 10000;
 const TAB_ID = typeof window !== 'undefined' ? Math.random().toString(36).substring(2, 15) : 'ssr';
 
 function acquireLock(): boolean {
   if (typeof window === 'undefined') return true;
-  const lockRaw = localStorage.getItem(LOCK_KEY);
+  const lockRaw = localStorage.getItem(getLockKey());
   const now = Date.now();
   if (!lockRaw) {
-    localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+    localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
     return true;
   }
   try {
     const lock = JSON.parse(lockRaw);
     if (lock.ownerId === TAB_ID) return true;
     if (now - lock.timestamp > LOCK_TTL) {
-      localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+      localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
       return true;
     }
     return false;
   } catch (e) {
-    localStorage.setItem(LOCK_KEY, JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
+    localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
     return true;
   }
 }
 
 function releaseLock() {
   if (typeof window === 'undefined') return;
-  const lockRaw = localStorage.getItem(LOCK_KEY);
+  const lockRaw = localStorage.getItem(getLockKey());
   if (!lockRaw) return;
   try {
     const lock = JSON.parse(lockRaw);
     if (lock.ownerId === TAB_ID) {
-      localStorage.removeItem(LOCK_KEY);
+      localStorage.removeItem(getLockKey());
     }
   } catch (e) {
-    localStorage.removeItem(LOCK_KEY);
+    localStorage.removeItem(getLockKey());
   }
 }
 
@@ -116,14 +122,17 @@ export async function synchronizedRefreshToken(forceSelf = false): Promise<Refre
         if (event.data.type === 'TOKEN_REFRESHED') {
           clearTimeout(timeoutId);
           authChannel?.removeEventListener('message', listener);
+          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
           resolve({ access_token: event.data.token });
         } else if (event.data.type === 'TOKEN_CLEARED') {
           clearTimeout(timeoutId);
           authChannel?.removeEventListener('message', listener);
+          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
           reject(new ApiError('Refresh failed in another tab', 401));
         } else if (event.data.type === 'REFRESH_FAILED') {
           clearTimeout(timeoutId);
           authChannel?.removeEventListener('message', listener);
+          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
           resolve(synchronizedRefreshToken(true));
         }
       };
@@ -138,18 +147,18 @@ export async function synchronizedRefreshToken(forceSelf = false): Promise<Refre
   }
   
   if (authChannel) {
-    authChannel.postMessage({ type: 'REFRESH_STARTED', ownerId: TAB_ID });
+    authChannel.postMessage({ type: 'REFRESH_STARTED', ownerId: TAB_ID, sessionId: currentSessionId() });
   }
 
   const { authApi } = await import('./auth-api');
   refreshPromise = authApi.refreshToken().then((result) => {
     if (authChannel) {
-      authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: result.access_token });
+      authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: result.access_token, sessionId: currentSessionId() });
     }
     return result;
   }).catch((err) => {
     if (authChannel) {
-      authChannel.postMessage({ type: 'REFRESH_FAILED', error: err.message });
+      authChannel.postMessage({ type: 'REFRESH_FAILED', error: err.message, sessionId: currentSessionId() });
     }
     throw err;
   }).finally(() => {
@@ -220,7 +229,7 @@ export async function httpClient(url: string, options: RequestInit = {}): Promis
         onRefreshFailed(error);
         tokenStorage.clearTokens();
         if (authChannel) {
-          authChannel.postMessage({ type: 'TOKEN_CLEARED' });
+          authChannel.postMessage({ type: 'TOKEN_CLEARED', sessionId: currentSessionId() });
         }
         if (typeof window !== 'undefined') {
           if (!sessionStorage.getItem("restore_logout_in_progress")) {

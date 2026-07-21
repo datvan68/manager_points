@@ -48,11 +48,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const authApi = {
   async login(email: string, password: string, remember: boolean = false): Promise<LoginResponse> {
+    const sessionId = tokenStorage.getSessionId();
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, remember }),
       credentials: 'include', // Important to receive the cookie
+      headers: { 'Content-Type': 'application/json', 'X-Auth-Session-Id': sessionId },
     });
     return handleResponse<LoginResponse>(res);
   },
@@ -136,8 +137,8 @@ export const authApi = {
     console.log(`[AuthApi/Refresh] Requesting ${API_BASE}/auth/refresh`);
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       credentials: 'include', // Important to send the cookie
+      headers: { 'Content-Type': 'application/json', 'X-Auth-Session-Id': tokenStorage.getSessionId() },
     });
     console.log(`[AuthApi/Refresh] Response status: ${res.status}`);
     return handleResponse<RefreshResponse>(res);
@@ -147,8 +148,23 @@ export const authApi = {
     const res = await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
+      headers: { 'X-Auth-Session-Id': tokenStorage.getSessionId() },
     });
     return handleResponse<MessageResponse>(res);
+  },
+
+  async forkSession(sessionId: string, remember: boolean): Promise<RefreshResponse> {
+    const res = await fetch(`${API_BASE}/auth/session/fork`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenStorage.getAccessToken()}`,
+        'X-Auth-Session-Id': tokenStorage.getSessionId(),
+      },
+      body: JSON.stringify({ session_id: sessionId, remember }),
+      credentials: 'include',
+    });
+    return handleResponse<RefreshResponse>(res);
   },
   
   // RBAC Management
@@ -436,36 +452,45 @@ export const authApi = {
 
 // Token helpers — supports "remember login" persistence
 export const tokenStorage = {
+  setSessionId(value: string) {
+    sessionStorage.setItem('auth_session_id', value);
+    localStorage.setItem('auth_session_id', value);
+  },
+  getSessionId(): string {
+    const key = 'auth_session_id';
+    let value = sessionStorage.getItem(key);
+    if (!value) {
+      value = localStorage.getItem('auth_session_id') || (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Math.random().toString(36).slice(2)}${Date.now()}`);
+      sessionStorage.setItem(key, value);
+      localStorage.setItem(key, value);
+    }
+    return value;
+  },
   // ─── Remember flag ────────────────────────────────
   setRemember(remember: boolean) {
-    localStorage.setItem('remember_login', remember ? 'true' : 'false');
+    sessionStorage.setItem('remember_login', remember ? 'true' : 'false');
   },
   getRemember(): boolean {
-    return localStorage.getItem('remember_login') === 'true';
+    return sessionStorage.getItem('remember_login') === 'true';
   },
 
   // ─── Access Token ─────────────────────────────────
   // remember=true  → localStorage  (persists across browser close)
   // remember=false → sessionStorage (cleared when browser closes)
   setAccessToken(access_token: string) {
-    if (this.getRemember()) {
-      localStorage.setItem('access_token', access_token);
-      sessionStorage.removeItem('access_token');
-    } else {
-      sessionStorage.setItem('access_token', access_token);
-      localStorage.removeItem('access_token');
-    }
+    sessionStorage.setItem('access_token', access_token);
   },
   getAccessToken(): string | null {
-    return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    return sessionStorage.getItem('access_token');
   },
 
   // ─── Clear All ────────────────────────────────────
   clearTokens() {
     sessionStorage.removeItem('access_token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('remember_login');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('remember_login');
+    sessionStorage.removeItem('user');
     try {
       const keysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
@@ -493,10 +518,10 @@ export const tokenStorage = {
 
   // ─── User Info ────────────────────────────────────
   setUser(user: any) {
-    localStorage.setItem('user', JSON.stringify(user));
+    sessionStorage.setItem('user', JSON.stringify(user));
   },
   getUser(): any | null {
-    const raw = localStorage.getItem('user');
+    const raw = sessionStorage.getItem('user');
     return raw ? JSON.parse(raw) : null;
   },
 };

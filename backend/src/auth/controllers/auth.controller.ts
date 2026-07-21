@@ -52,7 +52,20 @@ import {
 import { isAdminUser } from '../utils/role.util';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
+const SESSION_ID_HEADER = 'x-auth-session-id';
 const REFRESH_COOKIE_PATH = '/api/auth';
+
+function getSessionId(req: Request): string | undefined {
+  const value = req.headers?.[SESSION_ID_HEADER];
+  const id = Array.isArray(value) ? value[0] : value;
+  return typeof id === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(id)
+    ? id
+    : undefined;
+}
+
+function getRefreshCookieName(sessionId?: string): string {
+  return sessionId ? `${REFRESH_COOKIE_NAME}_${sessionId}` : REFRESH_COOKIE_NAME;
+}
 
 function getRefreshCookieOptions(maxAge?: number): CookieOptions {
   const secureEnv = process.env.AUTH_COOKIE_SECURE;
@@ -103,7 +116,7 @@ export class AuthController {
       : undefined;
 
     res.cookie(
-      REFRESH_COOKIE_NAME,
+      getRefreshCookieName(getSessionId(req)),
       result.refresh_token,
       getRefreshCookieOptions(cookieMaxAge),
     );
@@ -180,7 +193,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    const cookieName = getRefreshCookieName(getSessionId(req));
+    const token = req.cookies?.[cookieName];
 
     if (!token) {
       throw new UnauthorizedException('Phiên làm việc đã kết thúc');
@@ -196,7 +210,7 @@ export class AuthController {
 
       // Rotate Cookie
       res.cookie(
-        REFRESH_COOKIE_NAME,
+        cookieName,
         result.refresh_token,
         getRefreshCookieOptions(maxAge),
       );
@@ -204,23 +218,53 @@ export class AuthController {
       return { access_token: result.access_token };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
-        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+        res.clearCookie(cookieName, getRefreshCookieOptions());
       }
       throw error;
     }
+  }
+
+  @Post('session/fork')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fork the current browser session' })
+  async forkSession(
+    @Req() req: any,
+    @Body() body: { session_id?: string; remember?: boolean },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionId = body?.session_id;
+    if (!sessionId || !/^[A-Za-z0-9_-]{16,64}$/.test(sessionId)) {
+      throw new UnauthorizedException('Invalid auth session id');
+    }
+    const result = await this.authService.forkSession(
+      req.user.userId,
+      body.remember !== false,
+    );
+    const maxAge = result.remember
+      ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
+      : undefined;
+    res.cookie(
+      getRefreshCookieName(sessionId),
+      result.refresh_token,
+      getRefreshCookieOptions(maxAge),
+    );
+    return { access_token: result.access_token, remember: result.remember };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout and clear session' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const token = req.cookies?.[REFRESH_COOKIE_NAME];
+    const cookieName = getRefreshCookieName(getSessionId(req));
+    const token = req.cookies?.[cookieName];
     const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
     const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
     if (token) {
       await this.authService.revokeToken(token, ip);
     }
-    res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+    res.clearCookie(cookieName, getRefreshCookieOptions());
     return { message: 'Logged out successfully' };
   }
 

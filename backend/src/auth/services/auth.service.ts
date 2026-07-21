@@ -314,6 +314,23 @@ export class AuthService implements OnModuleInit {
     return this.tokenService.refreshToken(token);
   }
 
+  async forkSession(userId: string, remember: boolean) {
+    const days = remember ? 30 : 1;
+    const objectId = new Types.ObjectId(userId);
+    const access_token = this.tokenService.generateAccessToken({ user_id: userId });
+    const refresh_token = await this.tokenService.createRefreshToken(
+      objectId,
+      days,
+      remember,
+    );
+    return {
+      access_token,
+      refresh_token,
+      expires_at: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+      remember,
+    };
+  }
+
   async revokeToken(token: string, ip?: string) {
     if (ip) {
       const storedToken = await this.tokenService.findToken(token);

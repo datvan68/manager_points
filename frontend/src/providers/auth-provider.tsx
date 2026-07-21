@@ -14,6 +14,53 @@ import { toast } from "sonner";
 import { isStudentRole, isTeacherRole } from "@/utils/role.util";
 import { API_ORIGIN } from "@/api/config";
 
+const TAB_INSTANCE_ID = typeof window !== 'undefined'
+  ? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  : 'ssr';
+const tabPresenceChannel = typeof window !== 'undefined'
+  ? new BroadcastChannel('auth_tab_presence')
+  : null;
+
+if (tabPresenceChannel) {
+  tabPresenceChannel.onmessage = (event) => {
+    const currentSession = sessionStorage.getItem('auth_session_id');
+    if (event.data?.type === 'TAB_HELLO' && event.data.sessionId === currentSession && event.data.tabId !== TAB_INSTANCE_ID) {
+      tabPresenceChannel.postMessage({
+        type: 'TAB_PRESENT',
+        sessionId: currentSession,
+        tabId: TAB_INSTANCE_ID,
+      });
+    }
+  };
+}
+
+async function isolateDuplicatedTab(): Promise<void> {
+  if (!tabPresenceChannel || !tokenStorage.getAccessToken()) return;
+  const sourceSessionId = tokenStorage.getSessionId();
+  const duplicateDetected = await new Promise<boolean>((resolve) => {
+    let found = false;
+    const listener = (event: MessageEvent) => {
+      if (event.data?.type === 'TAB_PRESENT' && event.data.sessionId === sourceSessionId) {
+        found = true;
+      }
+    };
+    tabPresenceChannel.addEventListener('message', listener);
+    tabPresenceChannel.postMessage({ type: 'TAB_HELLO', sessionId: sourceSessionId, tabId: TAB_INSTANCE_ID });
+    setTimeout(() => {
+      tabPresenceChannel.removeEventListener('message', listener);
+      resolve(found);
+    }, 100);
+  });
+  if (!duplicateDetected) return;
+
+  const newSessionId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Math.random().toString(36).slice(2)}${Date.now()}`;
+  const result = await authApi.forkSession(newSessionId, tokenStorage.getRemember());
+  tokenStorage.setSessionId(newSessionId);
+  tokenStorage.setAccessToken(result.access_token);
+}
+
 interface UserInfo {
   id: string;
   user_name?: string;
@@ -180,6 +227,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkAuth = async () => {
+    try {
+      await isolateDuplicatedTab();
+    } catch (error) {
+      console.error('Failed to isolate duplicated auth tab:', error);
+    }
     const storedUser = tokenStorage.getUser();
     const token = tokenStorage.getAccessToken();
 
