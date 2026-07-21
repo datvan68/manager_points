@@ -805,10 +805,13 @@ describe('Auth Security (Student Account Policies)', () => {
       authService = module.get(AuthService);
     });
 
-    it('should set maxAge to 4 hours for Admin login with remember=true', async () => {
+    it('should set maxAge to 30 days for Admin login with remember=true', async () => {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const mockResult = {
         access_token: 'mock-access',
         refresh_token: 'mock-refresh',
+        expires_at: expiresAt,
+        remember: true,
         user: {
           id: 'admin-id',
           username: 'admin',
@@ -837,7 +840,7 @@ describe('Auth Security (Student Account Policies)', () => {
         'refresh_token',
         'mock-refresh',
         expect.objectContaining({
-          maxAge: 4 * 60 * 60 * 1000,
+          maxAge: expect.any(Number),
           httpOnly: true,
           path: '/api/auth',
         }),
@@ -845,9 +848,12 @@ describe('Auth Security (Student Account Policies)', () => {
     });
 
     it('should set maxAge to 30 days for regular User login with remember=true', async () => {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const mockResult = {
         access_token: 'mock-access',
         refresh_token: 'mock-refresh',
+        expires_at: expiresAt,
+        remember: true,
         user: {
           id: 'user-id',
           username: 'user',

@@ -9,6 +9,8 @@ import {
 } from '../schemas/refresh-token.schema';
 import { User, UserDocument } from '../schemas/user.schema';
 
+const REMEMBERED_REFRESH_DAYS = 30;
+
 @Injectable()
 export class TokenService {
   constructor(
@@ -91,17 +93,21 @@ export class TokenService {
     storedToken.replaced_by = new_refresh_token;
     await storedToken.save();
 
+    const nextExpiresAt = storedToken.remember
+      ? new Date(Date.now() + REMEMBERED_REFRESH_DAYS * 24 * 60 * 60 * 1000)
+      : storedToken.expires_at;
+
     await this.refreshTokenModel.create({
       user_id: storedToken.user_id,
       token: new_refresh_token,
-      expires_at: storedToken.expires_at,
+      expires_at: nextExpiresAt,
       remember: storedToken.remember, // Inherit from old token
     });
 
     return {
       access_token,
       refresh_token: new_refresh_token,
-      expires_at: storedToken.expires_at,
+      expires_at: nextExpiresAt,
       remember: storedToken.remember,
     };
   }

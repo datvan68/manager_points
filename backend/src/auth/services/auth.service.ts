@@ -222,9 +222,9 @@ export class AuthService implements OnModuleInit {
     await this.safeSave(user);
 
     const role = user.role as any;
-    const isAdmin = role?.name === 'Admin';
-
-    const rtExpirationDays = isAdmin ? 1 / 6 : dto.remember ? 30 : 1;
+    // Remembered sessions use the same rolling policy for every role. The
+    // short-lived access token remains independent from this refresh lifetime.
+    const rtExpirationDays = dto.remember ? 30 : 1;
 
     const payload = { user_id: user._id.toString() };
     const access_token = this.tokenService.generateAccessToken(payload);
@@ -249,6 +249,8 @@ export class AuthService implements OnModuleInit {
     return {
       access_token,
       refresh_token,
+      expires_at: new Date(Date.now() + rtExpirationDays * 24 * 60 * 60 * 1000),
+      remember: !!dto.remember,
       user: {
         id: user._id.toString(),
         username: user.user_name,

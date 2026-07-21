@@ -42,6 +42,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function isDefinitiveAuthFailure(error: unknown): boolean {
+  const status = (error as any)?.status;
+  return typeof status === "number" && [400, 401, 403].includes(status);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -123,7 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   tokenStorage.setAccessToken(result.access_token);
                   return loadUserPermissions(result.access_token, true);
                 } catch (refreshErr) {
-                  // Let it fall through to clear
+                  if (!isDefinitiveAuthFailure(refreshErr)) {
+                    return;
+                  }
                 }
               }
               tokenStorage.clearTokens();
@@ -157,7 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             tokenStorage.setAccessToken(result.access_token);
             return loadUserPermissions(result.access_token, true);
           } catch (refreshErr) {
-            // let it clear session
+            if (!isDefinitiveAuthFailure(refreshErr)) {
+              return;
+            }
           }
         }
         tokenStorage.clearTokens();
