@@ -131,7 +131,7 @@ export default function ActivityListWorkspace({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus
-                  className="w-full pl-9 pr-9 h-9 bg-white border border-slate-200/80 rounded-full text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                  className="w-full pl-9 pr-9 h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:bg-white/70 focus:outline-none focus:ring-0 focus:border-white/80 transition-all duration-150 ease-out shadow-xs"
                 />
                 <button
                   type="button"
@@ -149,7 +149,7 @@ export default function ActivityListWorkspace({
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center justify-center h-9 w-9 rounded-full border border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-150 ease-out shadow-xs cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="flex items-center justify-center h-9 w-9 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-slate-600 hover:bg-white/70 hover:scale-[1.01] hover:text-slate-900 transition-all duration-150 ease-out shadow-xs cursor-pointer shrink-0 focus:outline-none"
               title="Tìm kiếm"
             >
               <Search size={14} />
@@ -157,24 +157,27 @@ export default function ActivityListWorkspace({
           )}
 
           {/* Type Filter */}
-          <div className="relative min-w-[180px] w-full sm:w-auto">
-            <Filter size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
-            <select
-              value={filterActivityType}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFilterActivityType(val);
-                onActivityTypeChange?.(val);
+          <div className="min-w-[180px] w-full sm:w-auto">
+            <Select
+              value={filterActivityType || 'ALL'}
+              onValueChange={(val: string) => {
+                const newType = val === 'ALL' ? '' : val;
+                setFilterActivityType(newType);
+                onActivityTypeChange?.(newType);
               }}
-              className="w-full pl-9 pr-8 h-9 bg-white border border-slate-200/80 rounded-full text-xs text-slate-700 font-semibold shadow-xs cursor-pointer appearance-none transition-all duration-150 ease-out hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              <option value="">Tất cả loại hoạt động</option>
-              {activityTypes.map((k) => (
-                <option key={k} value={k}>
-                  {activityTypeLabels[k] || k}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none">
+                <SelectValue placeholder="Tất cả loại hoạt động" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tất cả loại hoạt động</SelectItem>
+                {activityTypes.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {activityTypeLabels[k] || k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -183,7 +186,7 @@ export default function ActivityListWorkspace({
           <Button
             variant="outline"
             onClick={onScheduleClick}
-            className="flex items-center gap-1.5 px-4 h-9 border border-slate-200/80 bg-white hover:bg-slate-50 rounded-full cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
             title="Lịch trình hoạt động"
             data-testid="calendar-header-button"
           >
@@ -191,33 +194,25 @@ export default function ActivityListWorkspace({
             <span>Lịch trình</span>
           </Button>
 
-          <Button
-            variant="outline"
-            onClick={onRefreshClick}
-            className="w-9 h-9 p-0 border border-slate-200/80 bg-white hover:bg-slate-50 rounded-full cursor-pointer text-slate-700 shadow-xs shrink-0 flex items-center justify-center transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            title="Tải lại dữ liệu"
-          >
-            <RefreshCw size={13} />
-          </Button>
-
           {!isStudent && (
             <Button
+              variant="outline"
               onClick={onCreateClick}
-              className="flex items-center justify-center gap-1.5 px-3.5 bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white text-xs font-bold rounded-full shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm cursor-pointer h-9 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+              className="flex items-center justify-center gap-1.5 px-3.5 bg-white/50 backdrop-blur-sm border border-white/80 hover:bg-white/70 hover:scale-[1.01] text-[#1E293B] text-xs font-bold rounded-xl shadow-xs transition-all duration-150 ease-out cursor-pointer h-9 focus:outline-none"
             >
               <Plus size={13} />
-              {activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}
+              <span>{activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}</span>
             </Button>
           )}
 
-          <div className="flex items-center gap-0.5 p-0.5 bg-white border border-slate-200/80 rounded-full shadow-xs shrink-0 h-9">
+          <div className="flex items-center gap-0.5 p-0.5 bg-white/40 border border-white/70 rounded-xl shadow-xs shrink-0 h-9">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                "p-1.5 rounded-full transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none",
                 viewMode === 'grid'
-                  ? 'bg-blue-50 text-[#1A73E8] shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#1A73E8] shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               )}
             >
               <Grid size={13} />
@@ -225,10 +220,10 @@ export default function ActivityListWorkspace({
             <button
               onClick={() => setViewMode('table')}
               className={cn(
-                "p-1.5 rounded-full transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none",
                 viewMode === 'table'
-                  ? 'bg-blue-50 text-[#1A73E8] shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#1A73E8] shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               )}
             >
               <List size={13} />
