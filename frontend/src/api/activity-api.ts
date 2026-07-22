@@ -13,7 +13,7 @@ export interface Activity {
   _id: string;
   name: string;
   code: string;
-  activity_type: 'activity' | 'event' | 'activity' | 'festival';
+  activity_type: 'activity' | 'event' | 'club' | 'festival';
   participation_status: 'draft' | 'published' | 'completed' | 'cancelled';
   classroom: string;
   description?: string;

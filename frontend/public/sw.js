@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hssv-pwa-'
-const CACHE_NAME = `${CACHE_PREFIX}v1`
+const CACHE_NAME = `${CACHE_PREFIX}v2`
 const APP_SHELL_URLS = [
   '/offline',
   '/icons/icon-192.png',

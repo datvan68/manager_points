@@ -35,11 +35,10 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
   return (
     <div 
       className={cn(
-        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10", 
+        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10 gap-0 lg:gap-[32px]", 
         className
       )}
     >
-      <div className="w-full lg:w-auto flex gap-0 lg:gap-[32px] h-full items-center">
         {tabs.map((tab) => {
           const isDropdown = tab.type === 'select-option';
           const isActive = activeTab === tab.id || (tab.options?.some(opt => opt.id === activeTab));
@@ -129,7 +128,6 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
             </button>
           );
         })}
-      </div>
     </div>
   );
 };
