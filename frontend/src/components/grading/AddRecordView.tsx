@@ -458,62 +458,62 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       exit={{ opacity: 0 }}
       className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex flex-col gap-[20px] mx-auto w-full">
+      <div className="flex flex-col gap-5 mx-auto w-full">
         {/* Page Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-          <div className="flex gap-[12px] items-center">
+          <div className="flex gap-3 items-center">
             {/* Back Button Pill Glassmorphism using Custom Button */}
             <Button
               type="button"
               variant="ghost"
               onClick={onBack}
-              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-10 h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-sm shrink-0"
+              className="backdrop-blur-md bg-white/50 border border-white/80 rounded-xl w-9 h-9 p-0 flex items-center justify-center cursor-pointer hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs shrink-0"
               title="Quay lại"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
             </Button>
 
             {/* Figma Icon Block */}
-            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-sm shrink-0 w-10 h-10">
-              <FileText className="w-4 h-4 text-[#005bbf]" />
+            <div className="hidden xs:flex backdrop-blur-md bg-white/50 border border-white/80 items-center justify-center rounded-xl shadow-xs shrink-0 w-9 h-9">
+              <FileText className="w-4 h-4 text-[#1A73E8]" />
             </div>
 
             <div className="flex flex-col items-start min-w-0">
-              <h2 className="font-bold text-[20px] lg:text-[23px] text-[#005bbf] leading-tight truncate">
+              <h2 className="font-bold text-lg lg:text-xl text-[#1A73E8] leading-tight truncate">
                 {isEditMode ? 'Chỉnh sửa Ghi nhận Rèn luyện' : 'Thêm Ghi nhận Rèn luyện'}
               </h2>
-              <p className="font-normal text-[#414754] text-[13px] lg:text-[14px] leading-relaxed">
+              <p className="font-medium text-slate-500 text-xs lg:text-[13px] leading-relaxed">
                 {isEditMode ? 'Cập nhật thông tin ghi nhận hiện tại của sinh viên' : 'Ghi nhận khen thưởng hoặc vi phạm của sinh viên'}
               </p>
             </div>
           </div>
           <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
+            <div className="bg-white/50 backdrop-blur-md border border-white/80 text-[#1A73E8] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-[#1A73E8] animate-pulse" />
               <span>Hệ thống ghi nhận</span>
             </div>
           </div>
         </div>
         {isLoadingData ? (
-          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-10 shadow-sm shadow-slate-300/40 flex flex-col items-center justify-center min-h-[250px] gap-3">
-            <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
-            <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-10 shadow-xs flex flex-col items-center justify-center min-h-[250px] gap-3">
+            <Loader2 className="w-7 h-7 text-[#1A73E8] animate-spin" />
+            <span className="text-[#1A73E8] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-[20px]">
+          <form onSubmit={handleSave} className="flex flex-col gap-5">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-[20px] w-full relative z-10">
+            <div className="grid grid-cols-12 gap-5 w-full relative z-10">
 
               {/* Left Column: Core Info (col-span-4) */}
-              <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
+              <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
-                  <div className="flex gap-[8px] items-center text-[#005bbf]">
-                    <FileText className="w-4.5 h-4.5 shrink-0" />
-                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Thông tin cơ bản</h3>
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-200/10 rounded-2xl p-5 lg:p-6 flex flex-col gap-4 w-full">
+                  <div className="flex gap-2 items-center text-[#1A73E8]">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <h3 className="font-bold text-sm lg:text-base leading-none">Thông tin cơ bản</h3>
                   </div>
 
-                  <div className="flex flex-col gap-[14px] w-full">
+                  <div className="flex flex-col gap-3.5 w-full">
                     {/* Khoa học sử dụng Select Component */}
                     <div className="flex flex-col w-full relative">
                       <Select
@@ -523,10 +523,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none focus-within:ring-0 focus-within:border-white/80 transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer w-full shadow-xs">
                           <SelectValue placeholder="Chọn Khoa..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70">
                           {departments.map(d => (
                             <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
                           ))}
@@ -546,10 +546,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none focus-within:ring-0 focus-within:border-white/80 transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer w-full shadow-xs">
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70">
                           {filteredClasses.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                           ))}
@@ -562,7 +562,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                       </Select>
                     </div>
 
-
                     {/* Tiêu chí */}
                     <div className="flex flex-col w-full relative">
                       <Select
@@ -572,10 +571,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         required
                         error={""}
                       >
-                        <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400 transition-all hover:bg-white/70 cursor-pointer w-full shadow-sm">
+                        <SelectTrigger className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none focus-within:ring-0 focus-within:border-white/80 transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer w-full shadow-xs">
                           <SelectValue placeholder="Chọn tiêu chí..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
+                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
                           {filteredCriteria.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || 0}đ)</SelectItem>
                           ))}
@@ -588,16 +587,16 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
                     {/* Ngày báo cáo */}
                     <div className="flex flex-col w-full">
-                      <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Ngày báo cáo</label>
+                      <label className="text-[12px] font-medium text-slate-600 mb-1 ml-1">Ngày báo cáo</label>
                       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/50 border border-white/80 h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
+                            className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none flex items-center justify-between hover:bg-white/70 hover:scale-[1.005] transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
-                            <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
+                            <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
@@ -621,16 +620,16 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               </div>
 
               {/* Right Column: Violations Section (col-span-8) */}
-              <div className="col-span-12 lg:col-span-8 flex flex-col gap-[20px]">
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
-                  <div className="flex gap-[8px] items-center text-[#005bbf]">
-                    <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
-                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi nhận sinh viên</h3>
+              <div className="col-span-12 lg:col-span-8 flex flex-col gap-5">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-200/10 rounded-2xl p-5 lg:p-6 flex flex-col gap-4 w-full">
+                  <div className="flex gap-2 items-center text-[#1A73E8]">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <h3 className="font-bold text-sm lg:text-base leading-none">Ghi nhận sinh viên</h3>
                   </div>
 
                   {/* Entry Form: Kính mờ gọn gàng */}
-                  <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-[14px] w-full relative z-20">
-                    <div className="grid grid-cols-12 gap-[12px] w-full">
+                  <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-3.5 w-full relative z-20">
+                    <div className="grid grid-cols-12 gap-3 w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
                         <Select
@@ -641,7 +640,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           error={""}
                         >
                           <SelectTrigger
-                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans"
+                            className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[12.5px] text-[#1E293B] font-medium outline-none w-full shadow-xs transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer font-sans"
                             disabled={!classId}
                           >
                             <SelectValue placeholder={classId ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
@@ -649,7 +648,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <SelectContent 
                             lazyLoad 
                             onLoadMore={handleLoadMoreStudents}
-                            className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60"
+                            className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70"
                           >
                             {classStudents.map(s => (
                               <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
@@ -671,7 +670,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         value={violationNote}
                         onChange={(e) => setViolationNote(e.target.value)}
                         placeholder="VD: Vi phạm lần đầu..."
-                        className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
+                        className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[12.5px] text-[#1E293B] placeholder:text-slate-400 hover:bg-white/70 focus-visible:bg-white/70 focus-visible:border-white/80 transition-all duration-150 ease-out shadow-xs"
                         containerClassName="col-span-12 md:col-span-6 w-full"
                       />
 
@@ -680,7 +679,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <Button
                             type="button"
                             onClick={handleAddViolationToList}
-                            className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-10 px-6 rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none text-[12px] min-w-[120px]"
+                            className="bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white font-bold h-9 px-5 rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] text-xs min-w-[120px]"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Thêm vào danh sách</span>
@@ -691,21 +690,21 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   </div>
 
                   {isEditMode ? (
-                    <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-3 text-[12px] text-blue-700 shadow-sm">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-3 text-xs text-blue-700 shadow-xs">
                       Bạn đang chỉnh sửa một bản ghi duy nhất. Các thay đổi sẽ được lưu bằng API cập nhật và không tạo thêm bản ghi mới.
                     </div>
                   ) : (
-                    <div className="w-full overflow-hidden border border-white/60 rounded-xl shadow-sm bg-white/15">
+                    <div className="w-full overflow-hidden border border-white/70 rounded-xl shadow-xs bg-white/20 backdrop-blur-sm">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-white/50 backdrop-blur-sm border-b border-white/60">
+                      <thead className="bg-white/50 backdrop-blur-md border-b border-white/70">
                         <tr>
-                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Họ tên & MSSV</th>
-                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tiêu chí ghi nhận</th>
-                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider">Ghi chú</th>
-                          <th className="px-[20px] py-[10px] text-[11px] font-bold text-slate-600 uppercase tracking-wider text-center w-[80px]">Hành động</th>
+                          <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider">Họ tên & MSSV</th>
+                          <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tiêu chí ghi nhận</th>
+                          <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider">Ghi chú</th>
+                          <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider text-center w-[80px]">Hành động</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/10">
+                      <tbody className="divide-y divide-white/20">
                         {addedViolations.map((violation, idx) => {
                           const criterion = criteria.find(c => c._id === violation.evaluation_detail_id);
                           const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
@@ -718,30 +717,30 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out">
-                              <td className="px-[20px] py-[12px] font-semibold text-slate-800 text-[13px]">
+                            <tr key={idx} className="hover:bg-white/60 transition-all duration-150 ease-out">
+                              <td className="px-4 py-3 font-semibold text-slate-800 text-[13px]">
                                 <div className="flex flex-col">
                                   <span>{violation.student_name}</span>
                                   <span className="text-slate-400 text-[10.5px] font-medium">MSSV: {violation.student_code}</span>
                                 </div>
                               </td>
-                              <td className="px-[20px] py-[12px]">
-                                <span className={`font-bold rounded-xl px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
+                              <td className="px-4 py-3">
+                                <span className={`font-bold rounded-xl px-2.5 py-0.5 text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
                                   {violation.criterion_name}
                                 </span>
                               </td>
-                              <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>
+                              <td className="px-4 py-3 font-normal text-slate-600 text-[13px] max-w-[200px] truncate" title={violation.class_note}>
                                 {violation.class_note}
                               </td>
-                              <td className="px-[20px] py-[12px] text-center">
+                              <td className="px-4 py-3 text-center">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
+                                  className="w-7 h-7 rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.01] bg-white/50 border border-white/80 shadow-xs outline-none cursor-pointer mx-auto"
                                   title="Xóa ghi nhận"
                                 >
-                                  <Trash2 className="w-[14px] h-[16px]" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </td>
                             </tr>
@@ -750,7 +749,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
                         {addedViolations.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-[20px] py-[24px] text-center text-[13px] text-slate-500 italic bg-white/10">
+                            <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-500 italic bg-white/10">
                               Chưa có ghi nhận sinh viên trong danh sách tạm.
                             </td>
                           </tr>
@@ -761,9 +760,9 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   )}
 
                   {/* Hiển thị sĩ số/tổng hợp xem nhanh */}
-                  <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
+                  <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-xs font-bold text-slate-500 px-2 mt-1">
                     <div className="flex items-center gap-2">
-                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                      <Users className="w-3.5 h-3.5 text-[#1A73E8]" />
                       <span>Tổng số SV ghi nhận: <strong className="text-slate-800">
                         {isStudentsLoading ? (
                           <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-slate-400 align-middle ml-1" />
@@ -780,18 +779,18 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             </div>
 
             {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[18px] flex items-center justify-between gap-4 w-full relative z-0">
-              <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-200/10 rounded-2xl p-4 flex items-center justify-between gap-4 w-full relative z-0">
+              <div className="hidden sm:flex items-center text-xs text-slate-500 font-medium italic">
                 Hãy kiểm tra kỹ thông tin rèn luyện trước khi lưu.
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-[12px] items-center justify-end w-full sm:w-auto ml-auto">
+              <div className="flex gap-3 items-center justify-end w-full sm:w-auto ml-auto">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={onBack}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
+                  className="border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl px-6 text-slate-700 font-bold text-xs h-9 transition-all duration-150 ease-out shadow-xs"
                 >
                   Hủy bỏ
                 </Button>
@@ -799,7 +798,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-xl shadow-sm hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-10 disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white font-bold px-7 rounded-xl shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-2 text-xs h-9 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
                     <>
