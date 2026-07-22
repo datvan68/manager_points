@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import dynamic from 'next/dynamic';
 const SemesterModal = dynamic(() => import('@/components/grading/SemesterModal'), { ssr: false });
 const GradingPdfTemplate = dynamic(() => import('@/components/grading/GradingPdfTemplate'), { ssr: false });
@@ -126,7 +127,7 @@ function GradingPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(40);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
@@ -165,6 +166,7 @@ function GradingPage() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [exportScope, setExportScope] = useState<'class' | 'faculty' | 'all'>('class');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -1483,38 +1485,137 @@ function GradingPage() {
                   )}
                   <span className={isTableLoading ? "invisible" : ""}>Xác nhận</span>
                 </Button>
-                {isAdmin && (
-                  <Select value={exportScope} onValueChange={(value) => setExportScope(value as 'class' | 'faculty' | 'all')}>
-                    <SelectTrigger className="h-9 w-[132px] rounded-xl border-emerald-500/40 bg-emerald-500/10 text-emerald-800">
-                      <SelectValue placeholder="Phạm vi xuất" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="class">Theo lớp</SelectItem>
-                      <SelectItem value="faculty">Theo khoa</SelectItem>
-                      <SelectItem value="all">Tất cả</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {isAdmin ? (
+                  <Popover open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        disabled={!appliedSemester || isExportingExcel || isTableLoading}
+                        className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                        title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
+                      >
+                        {isExportingExcel ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          </div>
+                        ) : (
+                          <FileSpreadsheet size={16} className="shrink-0" />
+                        )}
+                        <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
+                          {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      sideOffset={8}
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                      className="w-[320px] sm:w-[340px] rounded-2xl bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] border border-white/80 shadow-2xl p-4 font-sans z-[100] outline-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none"
+                    >
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/60">
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="text-sm font-bold text-[#1E293B]">Phạm vi xuất file Excel</span>
+                      </div>
+
+                      <div className="space-y-3 my-1">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Phạm vi</label>
+                          <Select value={exportScope} onValueChange={(val: string) => setExportScope(val as 'class' | 'faculty' | 'all')}>
+                            <SelectTrigger className="h-9 bg-white/70 border border-white/90 rounded-xl text-[12.5px] font-semibold text-[#1E293B] focus-within:ring-2 focus-within:ring-emerald-500/30 transition-all shadow-none w-full outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none">
+                              <SelectValue placeholder="Chọn phạm vi" />
+                            </SelectTrigger>
+                            <SelectContent disablePortal>
+                              <SelectItem value="class">Theo Lớp học đã chọn</SelectItem>
+                              <SelectItem value="faculty">Theo Khoa đã chọn</SelectItem>
+                              <SelectItem value="all">Tất cả (Toàn hệ thống)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="rounded-xl bg-white/60 border border-white/80 p-2.5 space-y-1.5 text-[11.5px] text-slate-600">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-500">Học kỳ:</span>
+                            <span className="font-bold text-slate-800 truncate max-w-[170px]">{currentSemesterName || 'Chưa chọn'}</span>
+                          </div>
+                          {exportScope === 'class' && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-500">Lớp học:</span>
+                              <span className="font-bold text-slate-800 truncate max-w-[170px]">{currentClassName || 'Chưa chọn'}</span>
+                            </div>
+                          )}
+                          {exportScope === 'faculty' && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-500">Khoa:</span>
+                              <span className="font-bold text-slate-800 truncate max-w-[170px]">
+                                {apiDepartments.find(d => d._id === appliedDepartment)?.name || 'Chưa chọn'}
+                              </span>
+                            </div>
+                          )}
+                          {exportScope === 'all' && (
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-500">Phạm vi:</span>
+                              <span className="font-bold text-emerald-700">Toàn bộ sinh viên</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {exportScope === 'class' && !appliedClass && (
+                          <p className="text-[10.5px] text-amber-600 font-medium">
+                            ⚠️ Cần chọn Lớp học ở bộ lọc chính trước.
+                          </p>
+                        )}
+                        {exportScope === 'faculty' && !appliedDepartment && (
+                          <p className="text-[10.5px] text-amber-600 font-medium">
+                            ⚠️ Cần chọn Khoa ở bộ lọc chính trước.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-2.5 flex justify-end gap-1.5 pt-2 border-t border-white/60">
+                        <button
+                          type="button"
+                          onClick={() => setIsExportModalOpen(false)}
+                          className="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-[#64748B] hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer border border-slate-200 bg-white"
+                        >
+                          Hủy
+                        </button>
+                        <Button
+                          onClick={async () => {
+                            setIsExportModalOpen(false);
+                            await handleExportSummaryExcel();
+                          }}
+                          disabled={!appliedSemester || (exportScope === 'class' && !appliedClass) || (exportScope === 'faculty' && !appliedDepartment) || isExportingExcel}
+                          className="h-7 px-3 rounded-lg text-[11px] font-bold transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Xác nhận xuất
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Button
+                    onClick={handleExportSummaryExcel}
+                    disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
+                    className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                    title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
+                  >
+                    {isExportingExcel ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    ) : (
+                      <FileSpreadsheet size={16} className="shrink-0" />
+                    )}
+                    <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
+                      {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
+                    </span>
+                  </Button>
                 )}
-                <Button
-                  onClick={handleExportSummaryExcel}
-                  disabled={!appliedSemester || (exportScope === 'class' && !appliedClass) || (exportScope === 'faculty' && !appliedDepartment) || isExportingExcel || isTableLoading}
-                  className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
-                  title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
-                >
-                  {isExportingExcel ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <svg className="animate-spin h-4 w-4 text-emerald-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    </div>
-                  ) : (
-                    <FileSpreadsheet size={16} className="shrink-0" />
-                  )}
-                  <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
-                    {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
-                  </span>
-                </Button>
               </div>
             </motion.div>
 
@@ -1637,7 +1738,7 @@ function GradingPage() {
                         }}
                         label="sinh viên"
                         isLoading={isFetching}
-                        pageSizeOptions={[5, 10, 20, 50, 100]}
+                        pageSizeOptions={[5, 10, 20, 40, 50, 100]}
                         onPageSizeChange={(size) => {
                           setPageSize(size);
                           setCurrentPage(1);
@@ -1977,6 +2078,8 @@ function GradingPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+
     </>
   );
 }

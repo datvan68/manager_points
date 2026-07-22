@@ -1466,6 +1466,86 @@ describe('SummariesPointService', () => {
         $or: expect.any(Array),
       });
     });
+
+    it('should throw ForbiddenException if non-admin attempts faculty or all scope export', async () => {
+      const dtoFaculty = {
+        semesterId: validSemId,
+        departmentId: '507f1f77bcf86cd799439099',
+        scope: 'faculty' as const,
+        mode: 'all_filtered' as const,
+      };
+
+      await expect(
+        service.generateSummaryExcel(dtoFaculty, {
+          userId: 'u1',
+          roleName: 'Teacher',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      const dtoAll = {
+        semesterId: validSemId,
+        scope: 'all' as const,
+        mode: 'all_filtered' as const,
+      };
+
+      await expect(
+        service.generateSummaryExcel(dtoAll, {
+          userId: 'u1',
+          roleName: 'Teacher',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow admin to export with scope faculty and scope all', async () => {
+      mockDepartmentModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: '507f1f77bcf86cd799439099',
+          name: 'CNTT',
+        }),
+      });
+      mockClassModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: validClassId }]),
+      });
+      mockSemesterModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: validSemId, semester_name: 'HK1' }),
+      });
+      mockStudentModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: validStu1 }]),
+      });
+      mockSummaryPointModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: 'sum1', total_score: 90 }]),
+      });
+
+      const dtoFaculty = {
+        semesterId: validSemId,
+        departmentId: '507f1f77bcf86cd799439099',
+        scope: 'faculty' as const,
+        mode: 'all_filtered' as const,
+      };
+      const resFaculty = await service.generateSummaryExcel(dtoFaculty, {
+        userId: 'u1',
+        roleName: 'Admin',
+      });
+      expect(resFaculty.buffer).toBeInstanceOf(Buffer);
+
+      const dtoAll = {
+        semesterId: validSemId,
+        scope: 'all' as const,
+        mode: 'all_filtered' as const,
+      };
+      const resAll = await service.generateSummaryExcel(dtoAll, {
+        userId: 'u1',
+        roleName: 'Admin',
+      });
+      expect(resAll.buffer).toBeInstanceOf(Buffer);
+    });
   });
 
   describe('update', () => {

@@ -168,7 +168,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "relative flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:border-[#1A73E8]/50 transition-all cursor-text",
+          "relative flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:border-[#1A73E8]/50 transition-all cursor-text outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0",
           error && "border-red-500 focus-within:ring-red-500/20 focus-within:border-red-500",
           className
         )}
@@ -176,7 +176,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
       >
         <input
           type="text"
-          className="w-full bg-transparent border-none outline-none text-sm text-[#1E293B] placeholder-slate-400 focus:ring-0"
+          className="w-full bg-transparent border-none outline-none text-sm text-[#1E293B] placeholder-slate-400 focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           placeholder={placeholder}
           value={open ? searchQuery : (selectedLabel || "")}
           onChange={(e) => {
