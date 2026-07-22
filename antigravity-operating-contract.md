@@ -91,7 +91,9 @@ When implementation is authorized:
 
 Quick: send one capsule to at most one worker; it may inspect, mutate, verify,and self-review within the same boundary and response.
 
-Full: follow the pipeline DAG, isolation, checkpoints, independent review, andartifact validation required by the applicable rules.
+Full: follow the pipeline DAG, current-worktree ownership controls, checkpoints,
+independent review, and artifact validation required by the applicable rules.
+Do not create or switch branches/worktrees unless the user explicitly asks.
 
 Amend scope only when work crosses the approved boundary, changes excludedbehavior, increases risk, or introduces a new dependency, migration, publiccontract, external effect, or authority requirement.
 

@@ -12,8 +12,10 @@ No lower-priority rule may override this file.
 ## 1. Boundaries and secrets
 
 Read only repository, approved temporary-workspace, and explicitly authorized
-external resources required by the task. Write only inside `write_boundaries`,
-approved task artifact directories, or an approved isolated worktree.
+external resources required by the task. Write only inside `write_boundaries`
+or approved task artifact directories in the current repository worktree.
+Use the currently checked-out branch, including `main`, by default. Do not
+create or switch to another branch/worktree unless the user explicitly asks.
 
 Never read or write protected system paths, private keys, credential stores, or
 runtime secret files unless a platform capability and the explicit task both
@@ -61,12 +63,15 @@ the task to Full; it does not permit guessing.
 ## 4. Isolation, concurrency, and checkpoints
 
 - One writer per path is mandatory.
-- Preserve unrelated dirty-worktree changes.
-- An isolated branch/worktree is mandatory for Full mutation, concurrent
-  workers, overlapping dirty changes, protected-branch work, or when repository
-  policy requires it.
-- A single Quick worker may use the current development worktree after checking
-  status and confirming no overlap with unrelated changes.
+- Quick and Full mutation use the current repository worktree after checking
+  branch, status, and base commit. A protected branch or Full profile alone does
+  not require another branch/worktree.
+- Preserve unrelated dirty-worktree changes and serialize overlapping writes.
+  If dirty changes overlap the requested paths, stop and report the conflict
+  instead of creating another worktree automatically.
+- Create or switch to an isolated branch/worktree only when the user explicitly
+  requests it. Git history remains the recovery and review mechanism for direct
+  work on the current branch.
 - Full or resumable work records base/current commit identifiers and validates
   artifact hashes at synchronization points.
 - Quick work does not create checkpoints or artifact hashes unless needed for

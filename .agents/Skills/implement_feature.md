@@ -73,7 +73,9 @@ Return the common result envelope with:
 }
 ```
 
-Do not embed complete files in the result envelope. Save edits in the isolated worktree and return paths/diff references.
+Do not embed complete files in the result envelope. Save edits in the current
+repository worktree and return paths/diff references. Do not create or switch
+branches/worktrees unless the user explicitly asks.
 
 ## Workflow
 

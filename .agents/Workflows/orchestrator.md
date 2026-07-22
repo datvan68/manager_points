@@ -57,7 +57,8 @@ or needs independent security/review evidence.
 Full responsibilities:
 
 - delegated discovery and explicit ownership;
-- isolated non-overlapping writers;
+- coordinated non-overlapping writers in the current repository worktree, with
+  no automatic branch/worktree creation;
 - bounded task capsules and artifact references;
 - checkpoint/hash validation at material synchronization points;
 - independent required review and risk-based verification;

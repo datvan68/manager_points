@@ -15,7 +15,7 @@ required_pipeline: refactor
 
 ## Preconditions
 
-- A stable base commit and isolated write boundary exist.
+- A stable base commit and explicit write boundary exist in the current repository worktree.
 - Observable invariants and relevant public contracts are documented.
 - Focused baseline verification passes, or pre-existing failures are captured and do not invalidate the invariant.
 - The scope separates refactoring from bug fixes and feature changes.
