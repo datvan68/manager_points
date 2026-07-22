@@ -123,6 +123,39 @@ describe('pl03-summary-excel.service', () => {
     expect(sheet.getCell('G53').value).toBe(40); // Total 40
   });
 
+  it('should include each student class and department for wide-scope exports', async () => {
+    const buffer = await generatePl03Excel(
+      [
+        {
+          student_id: {
+            full_name: 'Nguyen Van A',
+            student_code: 'SV001',
+            class_id: {
+              class_name: 'CNTT1',
+              dept_id: { name: 'KHOA CNTT' },
+            },
+          },
+          total_score: 90,
+          status: 'locked',
+        },
+      ],
+      { class_name: 'TAT CA LOP' },
+      semesterInfo,
+      { name: 'KHOA CNTT' },
+      'all',
+    );
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet('TT40');
+
+    expect(sheet.getCell('H10').value).toBe('LỚP');
+    expect(sheet.getCell('I10').value).toBe('KHOA');
+    expect(sheet.getCell('H11').value).toBe('CNTT1');
+    expect(sheet.getCell('I11').value).toBe('KHOA CNTT');
+    expect(sheet.getCell('I49').value).toBe(1);
+  });
+
   it('should map all grade tiers correctly', async () => {
     const scores = [90, 89, 80, 79, 70, 69, 50, 49];
     const expectedGrades = [

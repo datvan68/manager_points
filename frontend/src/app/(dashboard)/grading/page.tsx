@@ -1348,7 +1348,7 @@ function GradingPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="hidden lg:flex relative z-20 w-full max-w-full min-w-0 flex-nowrap items-center gap-3 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-4 shrink-0 min-h-[68px] shadow-sm shadow-slate-300/40 overflow-x-auto custom-scrollbar"
+              className="hidden lg:flex relative z-20 w-full max-w-full min-w-0 flex-nowrap items-center gap-3 shrink-0 min-h-[48px] overflow-x-hidden"
             >
               <div className={`${isSearchExpanded ? 'min-w-0 flex-1 basis-[240px]' : 'w-9 h-9 shrink-0'} relative transition-all duration-300 ease-in-out`}>
                 {!isSearchExpanded ? (
@@ -1473,7 +1473,7 @@ function GradingPage() {
                 <Button
                   onClick={handleConfirmFilter}
                   disabled={!selectedClass || isTableLoading}
-                  className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center rounded-xl border border-blue-500/40 bg-blue-500/15 backdrop-blur-md text-blue-700 font-medium shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:bg-blue-500/25 hover:border-blue-500/60 hover:shadow-md hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                  className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-[#1E293B] font-medium shadow-sm transition-all duration-150 ease-out hover:bg-white/70 hover:border-white hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
                 >
                   {isTableLoading && (
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -1490,8 +1490,9 @@ function GradingPage() {
                     <PopoverTrigger asChild>
                       <Button
                         disabled={!appliedSemester || isExportingExcel || isTableLoading}
-                        className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                        className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-[#1E293B] font-medium shadow-sm transition-all duration-150 ease-out hover:bg-white/70 hover:border-white hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
                         title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
+                        aria-label={isExportingExcel ? "Đang xuất Excel" : "Xuất Excel"}
                       >
                         {isExportingExcel ? (
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -1501,11 +1502,8 @@ function GradingPage() {
                             </svg>
                           </div>
                         ) : (
-                          <FileSpreadsheet size={16} className="shrink-0" />
+                          <FileDown size={16} className="shrink-0" aria-hidden="true" />
                         )}
-                        <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
-                          {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
-                        </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -1587,7 +1585,7 @@ function GradingPage() {
                             await handleExportSummaryExcel();
                           }}
                           disabled={!appliedSemester || (exportScope === 'class' && !appliedClass) || (exportScope === 'faculty' && !appliedDepartment) || isExportingExcel}
-                          className="h-7 px-3 rounded-lg text-[11px] font-bold transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="h-8 px-3 rounded-xl text-[11px] font-bold transition-all duration-150 ease-out hover:bg-white/70 hover:shadow-md flex items-center justify-center bg-white/50 border border-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Xác nhận xuất
                         </Button>
@@ -1598,8 +1596,9 @@ function GradingPage() {
                   <Button
                     onClick={handleExportSummaryExcel}
                     disabled={!appliedSemester || !appliedClass || isExportingExcel || isTableLoading}
-                    className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 backdrop-blur-md text-emerald-700 font-medium shadow-sm shadow-emerald-500/20 transition-all duration-150 ease-out hover:bg-emerald-500/25 hover:border-emerald-500/60 hover:shadow-md hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
+                    className="relative h-9 min-w-0 whitespace-nowrap inline-flex items-center justify-center gap-2 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-[#1E293B] font-medium shadow-sm transition-all duration-150 ease-out hover:bg-white/70 hover:border-white hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 px-3 sm:px-4"
                     title="Xuất Excel theo phạm vi và học kỳ đã xác nhận"
+                    aria-label={isExportingExcel ? "Đang xuất Excel" : "Xuất Excel"}
                   >
                     {isExportingExcel ? (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -1609,18 +1608,15 @@ function GradingPage() {
                         </svg>
                       </div>
                     ) : (
-                      <FileSpreadsheet size={16} className="shrink-0" />
+                      <FileDown size={16} className="shrink-0" aria-hidden="true" />
                     )}
-                    <span className={isExportingExcel ? "invisible hidden sm:inline" : "hidden sm:inline"}>
-                      {isExportingExcel ? 'Đang xuất...' : 'Xuất Excel'}
-                    </span>
                   </Button>
                 )}
               </div>
             </motion.div>
 
             {/* Mobile/Tablet Filters Row (Visible only on < lg screens) */}
-            <div className="flex lg:hidden items-center gap-2 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-3 shadow-sm shadow-slate-300/40 shrink-0 w-full">
+            <div className="flex lg:hidden items-center gap-2 shrink-0 w-full">
               {/* Search Bar (Real-time client-side search) */}
               <div className="flex-1 relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -2057,12 +2053,12 @@ function GradingPage() {
                 setIsFilterDialogOpen(false);
               }}
               disabled={!selectedClass || isTableLoading}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center relative ${
-                !selectedClass 
-                  ? "opacity-50 cursor-not-allowed bg-slate-300 hover:bg-slate-300 text-slate-500" 
-                  : isTableLoading 
-                  ? "opacity-80 cursor-not-allowed text-transparent" 
-                  : "bg-[#1A73E8] hover:bg-[#155dfc] text-white shadow-sm shadow-blue-500/10"
+              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all duration-150 ease-out hover:bg-white/70 hover:shadow-md flex items-center justify-center relative bg-white/50 border border-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm ${
+                !selectedClass
+                  ? "opacity-50 cursor-not-allowed"
+                  : isTableLoading
+                  ? "opacity-80 cursor-not-allowed text-transparent"
+                  : ""
               }`}
             >
               {isTableLoading && (

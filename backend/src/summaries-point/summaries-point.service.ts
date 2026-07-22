@@ -971,7 +971,15 @@ export class SummariesPointService {
         .find(filter)
         .populate({
           path: 'student_id',
-          select: 'full_name student_code',
+          select: 'full_name student_code class_id',
+          populate: {
+            path: 'class_id',
+            select: 'class_name dept_id',
+            populate: {
+              path: 'dept_id',
+              select: 'name',
+            },
+          },
         })
         .lean()
         .exec();
@@ -990,6 +998,7 @@ export class SummariesPointService {
       classObj,
       semesterObj,
       departmentObj,
+      scope,
     );
 
     // Sanitize filename

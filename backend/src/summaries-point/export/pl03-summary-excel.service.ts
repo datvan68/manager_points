@@ -5,9 +5,13 @@ export async function generatePl03Excel(
   classInfo: any,
   semesterInfo: any,
   departmentInfo: any,
+  scope: 'class' | 'faculty' | 'all' = 'class',
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('TT40');
+  const isWideScope = scope !== 'class';
+  const lastColumn = isWideScope ? 'I' : 'G';
+  const totalColumns = isWideScope ? 9 : 7;
 
   // --- Page setup ---
   sheet.pageSetup.margins = {
@@ -28,6 +32,12 @@ export async function generatePl03Excel(
     { width: 12 }, // E - DIEM
     { width: 18 }, // F - XEP LOAI
     { width: 15 }, // G - GHI CHU
+    ...(isWideScope
+      ? [
+          { width: 18 }, // H - LOP
+          { width: 20 }, // I - KHOA
+        ]
+      : []),
   ];
 
   // --- Header section ---
@@ -50,12 +60,12 @@ export async function generatePl03Excel(
   sheet.getCell('A4').font = { name: 'Times New Roman', size: 12, bold: true };
   sheet.getCell('A4').alignment = { horizontal: 'center' };
 
-  sheet.mergeCells('D3:G3');
+  sheet.mergeCells(`D3:${lastColumn}3`);
   sheet.getCell('D3').value = 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM';
   sheet.getCell('D3').font = { name: 'Times New Roman', size: 12, bold: true };
   sheet.getCell('D3').alignment = { horizontal: 'center' };
 
-  sheet.mergeCells('D4:G4');
+  sheet.mergeCells(`D4:${lastColumn}4`);
   sheet.getCell('D4').value = 'Độc lập - Tự do - Hạnh phúc';
   sheet.getCell('D4').font = {
     name: 'Times New Roman',
@@ -76,13 +86,13 @@ export async function generatePl03Excel(
   };
   sheet.getCell('A5').alignment = { horizontal: 'center' };
 
-  sheet.mergeCells('A7:G7');
+  sheet.mergeCells(`A7:${lastColumn}7`);
   sheet.getCell('A7').value =
     'BẢNG TỔNG HỢP KẾT QUẢ RÈN LUYỆN HỌC SINH SINH VIÊN';
   sheet.getCell('A7').font = { name: 'Times New Roman', size: 14, bold: true };
   sheet.getCell('A7').alignment = { horizontal: 'center' };
 
-  sheet.mergeCells('A8:G8');
+  sheet.mergeCells(`A8:${lastColumn}8`);
   sheet.getCell('A8').value =
     `LỚP: ${classInfo?.class_name || '.............'} HỌC KỲ: ${semesterInfo?.semester_name || '.............'} - NĂM HỌC ${semesterInfo?.year || '.............'}`;
   sheet.getCell('A8').font = { name: 'Times New Roman', size: 12, bold: true };
@@ -101,6 +111,12 @@ export async function generatePl03Excel(
     { cell: 'E10', value: 'ĐIỂM RÈN LUYỆN (bằng số)' },
     { cell: 'F10', value: 'XẾP LOẠI RÈN LUYỆN' },
     { cell: 'G10', value: 'GHI CHÚ' },
+    ...(isWideScope
+      ? [
+          { cell: 'H10', value: 'LỚP' },
+          { cell: 'I10', value: 'KHOA' },
+        ]
+      : []),
   ];
 
   headers.forEach((h) => {
@@ -151,6 +167,8 @@ export async function generatePl03Excel(
     let diem: number | string = '';
     let xepLoai = '';
     let ghiChu = '';
+    let className = '';
+    let departmentName = '';
 
     if (summary) {
       tt = (i + 1).toString();
@@ -165,6 +183,8 @@ export async function generatePl03Excel(
       }
 
       mssv = summary.student_id?.student_code || '';
+      className = summary.student_id?.class_id?.class_name || '';
+      departmentName = summary.student_id?.class_id?.dept_id?.name || '';
       diem = summary.total_score ?? 0;
 
       // Calculate grade
@@ -198,8 +218,12 @@ export async function generatePl03Excel(
     row.getCell(5).value = diem;
     row.getCell(6).value = xepLoai;
     row.getCell(7).value = ghiChu;
+    if (isWideScope) {
+      row.getCell(8).value = className;
+      row.getCell(9).value = departmentName;
+    }
 
-    for (let col = 1; col <= 7; col++) {
+    for (let col = 1; col <= totalColumns; col++) {
       const cell = row.getCell(col);
       cell.font = { name: 'Times New Roman', size: 11 };
       cell.border = {
@@ -238,7 +262,7 @@ export async function generatePl03Excel(
   const startStatRow = currentRow;
 
   // Header Stat
-  sheet.mergeCells(`A${startStatRow}:G${startStatRow}`);
+  sheet.mergeCells(`A${startStatRow}:${lastColumn}${startStatRow}`);
   const statHeaderCell = sheet.getCell(`A${startStatRow}`);
   statHeaderCell.value = 'Tổng hợp kết quả rèn luyện';
   statHeaderCell.font = {
@@ -262,7 +286,7 @@ export async function generatePl03Excel(
   sheet.getCell(`D${xepLoaiRow}`).value = 'KHÁ';
   sheet.getCell(`E${xepLoaiRow}`).value = 'TB';
   sheet.getCell(`F${xepLoaiRow}`).value = 'YẾU';
-  sheet.getCell(`G${xepLoaiRow}`).value = 'TỔNG SỐ';
+  sheet.getCell(`${lastColumn}${xepLoaiRow}`).value = 'TỔNG SỐ';
 
   // So luong Row
   const slRow = startStatRow + 2;
@@ -272,7 +296,7 @@ export async function generatePl03Excel(
   sheet.getCell(`D${slRow}`).value = stats.KHA;
   sheet.getCell(`E${slRow}`).value = stats.TB;
   sheet.getCell(`F${slRow}`).value = stats.YEU;
-  sheet.getCell(`G${slRow}`).value = totalStudents;
+  sheet.getCell(`${lastColumn}${slRow}`).value = totalStudents;
 
   // Ti le Row
   const percentRow = startStatRow + 3;
@@ -285,13 +309,13 @@ export async function generatePl03Excel(
   sheet.getCell(`D${percentRow}`).value = getPercent(stats.KHA);
   sheet.getCell(`E${percentRow}`).value = getPercent(stats.TB);
   sheet.getCell(`F${percentRow}`).value = getPercent(stats.YEU);
-  sheet.getCell(`G${percentRow}`).value = totalStudents > 0 ? 1 : 0;
+  sheet.getCell(`${lastColumn}${percentRow}`).value = totalStudents > 0 ? 1 : 0;
 
   // Format stats block
   for (let r = startStatRow; r <= percentRow; r++) {
     const row = sheet.getRow(r);
     row.height = 20;
-    for (let c = 1; c <= 7; c++) {
+    for (let c = 1; c <= totalColumns; c++) {
       const cell = row.getCell(c);
       if (r > startStatRow) {
         cell.border = {
@@ -318,14 +342,16 @@ export async function generatePl03Excel(
   const signRow1 = percentRow + 3;
   const signRow2 = signRow1 + 1;
 
-  sheet.mergeCells(`A${signRow1}:D${signRow1}`);
+  const signatureLeftEnd = isWideScope ? 'F' : 'D';
+  const signatureRightStart = isWideScope ? 'G' : 'E';
+  sheet.mergeCells(`A${signRow1}:${signatureLeftEnd}${signRow1}`);
   const truongKhoaCell = sheet.getCell(`A${signRow1}`);
   truongKhoaCell.value = 'TRƯỞNG KHOA';
   truongKhoaCell.font = { name: 'Times New Roman', size: 12, bold: true };
   truongKhoaCell.alignment = { horizontal: 'center' };
 
-  sheet.mergeCells(`E${signRow1}:G${signRow1}`);
-  const gvcnCell = sheet.getCell(`E${signRow1}`);
+  sheet.mergeCells(`${signatureRightStart}${signRow1}:${lastColumn}${signRow1}`);
+  const gvcnCell = sheet.getCell(`${signatureRightStart}${signRow1}`);
   gvcnCell.value = 'GVCN/CVHT';
   gvcnCell.font = { name: 'Times New Roman', size: 12, bold: true };
   gvcnCell.alignment = { horizontal: 'center' };
