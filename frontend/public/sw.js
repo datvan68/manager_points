@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hssv-pwa-'
-const CACHE_NAME = `${CACHE_PREFIX}v2`
+const CACHE_NAME = `${CACHE_PREFIX}v3`
 const APP_SHELL_URLS = [
   '/offline',
   '/icons/icon-192.png',
@@ -71,7 +71,14 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')) {
+  // Next.js owns the cache policy for its content-addressed production assets.
+  // Intercepting these requests also caches stable Turbopack development URLs,
+  // which can leave the browser with chunks from an outdated module graph.
+  if (url.pathname.startsWith('/_next/static/')) {
+    return
+  }
+
+  if (url.pathname.startsWith('/icons/')) {
     event.respondWith(cacheFirst(request))
   }
 })
