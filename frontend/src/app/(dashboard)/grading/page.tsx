@@ -1368,7 +1368,7 @@ function GradingPage() {
                     <input
                       type="text"
                       placeholder="Tìm kiếm tên sinh viên hoặc MSSV..."
-                      className="w-full bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl pl-10 pr-10 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none"
+                      className="w-full bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl pl-10 pr-10 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-0 focus:ring-transparent focus:border-white/80 transition-all duration-150 ease-out outline-none"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       autoFocus
@@ -1398,7 +1398,7 @@ function GradingPage() {
                     disabled={!canSelectSemester}
                   >
                     <SelectTrigger
-                      className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75"
+                      className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75"
                       title={canSelectSemester ? 'Chọn học kỳ' : 'Chỉ Admin/Supervisor được chọn học kỳ'}
                     >
                       <SelectValue placeholder="-- Chọn học kỳ --" />
@@ -1429,7 +1429,7 @@ function GradingPage() {
                   value={selectedDepartment}
                   onValueChange={(val: string) => { setSelectedDepartment(val); setSelectedClass(''); }}
                 >
-                  <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none">
+                  <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none">
                     <SelectValue placeholder="-- Chọn khoa --" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1448,7 +1448,7 @@ function GradingPage() {
                   onValueChange={(val: string) => setSelectedClass(val)}
                 >
                   <SelectTrigger
-                    className={`h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none ${!selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
+                    className={`h-9 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none ${!selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
                       }`}
                   >
                     <SelectValue placeholder={selectedDepartment ? "Chọn lớp" : "Chọn khoa trước"} />
@@ -1625,7 +1625,7 @@ function GradingPage() {
                 <input
                   type="text"
                   placeholder="Tìm kiếm tên hoặc MSSV..."
-                  className="w-full bg-white/50 border border-white/80 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out outline-none h-10"
+                  className="w-full bg-white/50 border border-white/80 rounded-xl pl-9 pr-4 py-2 text-[13px] font-medium placeholder:text-slate-400 focus:bg-white/70 focus:ring-0 focus:ring-transparent focus:border-white/80 transition-all duration-150 ease-out outline-none h-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -1970,7 +1970,7 @@ function GradingPage() {
                 disabled={!canSelectSemester}
               >
                 <SelectTrigger
-                  className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75 w-full"
+                  className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none disabled:cursor-not-allowed disabled:opacity-75 w-full"
                 >
                   <SelectValue placeholder="-- Chọn học kỳ --" />
                 </SelectTrigger>
@@ -1993,7 +1993,7 @@ function GradingPage() {
                   setSelectedClass(''); 
                 }}
               >
-                <SelectTrigger className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none w-full">
+                <SelectTrigger className="h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none w-full">
                   <SelectValue placeholder="-- Chọn khoa --" />
                 </SelectTrigger>
                 <SelectContent disablePortal>
@@ -2013,7 +2013,7 @@ function GradingPage() {
                 onValueChange={(val: string) => setSelectedClass(val)}
               >
                 <SelectTrigger
-                  className={`h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 transition-all duration-150 ease-out shadow-none w-full ${
+                  className={`h-9 bg-white/60 border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:ring-transparent focus-within:border-white/80 transition-all duration-150 ease-out shadow-none w-full ${
                     !selectedDepartment ? "pointer-events-none opacity-50 bg-slate-100/80 text-slate-400" : ""
                   }`}
                 >
