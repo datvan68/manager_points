@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { Clock, MapPin, Users, Heart, AlertCircle, Palette } from 'lucide-react';
@@ -251,7 +251,7 @@ export default function ActivityCard({
           if (isMounted) setLoadingSchedule(false);
         });
     } else if (fetchViaGetAll) {
-      activityScheduleApi.getAll({ activity_id: activity._id, limit: 100 })
+      Promise.resolve(activityScheduleApi.getAll({ activity_id: activity._id, limit: 100 }))
         .then((res: any) => {
           if (isMounted) {
             const schedulePayload = res?.data ?? res;

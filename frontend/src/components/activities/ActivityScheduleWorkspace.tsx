@@ -2203,13 +2203,13 @@ export default function ActivityScheduleWorkspace({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Week Navigator & Toolbar */}
-      <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-center justify-between bg-white/45 backdrop-blur-md p-2 rounded-xl border border-white/70 shadow-sm shadow-slate-300/40">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 py-0.5 w-full">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 px-2.5 h-8 bg-white/50 backdrop-blur-sm border border-white/75 rounded-xl shadow-xs shrink-0">
+          <div className="flex items-center gap-2 px-3.5 h-9 bg-white border border-slate-200/80 rounded-full shadow-xs shrink-0">
             <Calendar size={13} className="text-[#1A73E8]" />
-            <h3 className="text-xs font-bold text-[#1E293B] font-sans">
+            <h3 className="text-xs font-semibold text-slate-700 font-sans">
               {getHeaderDateRangeString()}
               <span className="sr-only">
                 Tuần {weekOffset === 0 ? 'hiện tại' : weekOffset > 0 ? `+${weekOffset}` : weekOffset}
@@ -2237,23 +2237,20 @@ export default function ActivityScheduleWorkspace({
             );
 
             let statusLabel = 'Tuần bình thường';
-            let badgeColor = 'bg-slate-500/10 text-[#64748B] border-slate-500/20';
+            let badgeColor = 'bg-slate-100 text-slate-600 border-slate-200';
 
             if (isCurrentWeek && isSourceWeek) {
               statusLabel = 'Tuần hiện tại & Tuần nguồn';
-              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
+              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-xs font-bold';
             } else if (isCurrentWeek) {
               statusLabel = 'Tuần hiện tại';
-              badgeColor = 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20';
+              badgeColor = 'bg-blue-50 text-[#1A73E8] border-blue-200';
             } else if (isSourceWeek) {
               statusLabel = 'Tuần nguồn';
-              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-sm shadow-purple-500/10 font-bold';
-            } else if (false) {
-              statusLabel = 'Tuần nguồn lặp';
-              badgeColor = 'bg-purple-500/10 text-purple-700 border-purple-500/20';
+              badgeColor = 'bg-purple-600 text-white border-purple-700 shadow-xs font-bold';
             } else if (containsRepeated) {
               statusLabel = 'Tuần lặp lại';
-              badgeColor = 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+              badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
             const relevantRecurrence = repeatedSchedulesInWeek.find(s => !!s.recurrence_id && s.recurrence?.source_week_start_date);
@@ -2262,12 +2259,12 @@ export default function ActivityScheduleWorkspace({
               : null;
 
             return (
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold h-8">
-                <span className={cn("px-2.5 py-0.5 rounded-full border text-[10px] uppercase font-black tracking-wide", badgeColor)}>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold h-9">
+                <span className={cn("px-3 py-1 rounded-full border text-[10px] uppercase font-black tracking-wide bg-white shadow-xs", badgeColor)}>
                   {statusLabel}
                 </span>
                 {sourceWeekRangeStr && (
-                  <span className="text-slate-400 font-bold border-l border-slate-200/80 pl-2">
+                  <span className="text-slate-400 font-bold border-l border-slate-200 pl-2">
                     Nguồn: {sourceWeekRangeStr}
                   </span>
                 )}
@@ -2275,7 +2272,7 @@ export default function ActivityScheduleWorkspace({
                   <button
                     type="button"
                     onClick={() => setWeekOffset(preRecurrenceWeekOffset)}
-                    className="ml-1 px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
+                    className="ml-1 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-full transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-xs"
                   >
                     Quay lại tuần ban đầu
                   </button>
@@ -2287,14 +2284,14 @@ export default function ActivityScheduleWorkspace({
 
         <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto justify-start sm:justify-end">
           {/* Week Nav controls */}
-          <div className="flex p-0.5 bg-white/40 border border-white/70 rounded-xl shadow-xs items-center gap-1 h-8 shrink-0">
-            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-white/70 hover:scale-[1.01] rounded-lg text-[#64748B] hover:text-[#1E293B] transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
+          <div className="flex px-1 bg-white border border-slate-200/80 rounded-full shadow-xs items-center gap-1 h-9 shrink-0">
+            <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-1 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-900 transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
               <ChevronLeft size={13} />
             </button>
             <button
               onClick={() => setWeekOffset(0)}
               disabled={weekOffset === 0}
-              className="px-2 h-7 flex items-center text-xs font-bold text-[#1E293B] hover:bg-white/60 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all duration-150 ease-out cursor-pointer font-sans"
+              className="px-2.5 h-7 flex items-center text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-full transition-all duration-150 ease-out cursor-pointer font-sans"
             >
               Hiện tại
             </button>
@@ -2321,25 +2318,25 @@ export default function ActivityScheduleWorkspace({
                 <button
                   onClick={handleGoToSource}
                   disabled={isAlreadySource}
-                  className="px-2 h-7 flex items-center text-xs font-bold text-[#1A73E8] hover:bg-white/60 disabled:opacity-50 disabled:hover:bg-transparent rounded-lg transition-all duration-150 ease-out border-l border-white/75 pl-2 cursor-pointer"
+                  className="px-2 h-7 flex items-center text-xs font-bold text-[#1A73E8] hover:bg-slate-100 disabled:opacity-50 disabled:hover:bg-transparent rounded-full transition-all duration-150 ease-out border-l border-slate-200 pl-2 cursor-pointer"
                 >
                   Về tuần nguồn
                 </button>
               );
             })()}
 
-            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-white/70 hover:scale-[1.01] rounded-lg text-[#64748B] hover:text-[#1E293B] transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
+            <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-1 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-900 transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center">
               <ChevronRight size={13} />
             </button>
           </div>
 
           {/* View selector: Tuần vs Ngày */}
-          <div className="flex p-0.5 bg-white/40 border border-white/70 rounded-xl shrink-0 h-8 items-center">
+          <div className="flex p-0.5 bg-white border border-slate-200/80 rounded-full shadow-xs shrink-0 h-9 items-center">
             <button
               onClick={() => setView('weekly')}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-lg cursor-pointer transition-all duration-150 ease-out h-7",
-                view === 'weekly' ? 'bg-white text-[#1A73E8] shadow-xs' : 'text-[#64748B] hover:text-[#1E293B]'
+                "flex items-center gap-1.5 px-3 text-xs font-semibold rounded-full cursor-pointer transition-all duration-150 ease-out h-8",
+                view === 'weekly' ? 'bg-blue-50 text-[#1A73E8] font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
               )}
             >
               <Grid size={13} /> Lịch Tuần
@@ -2347,8 +2344,8 @@ export default function ActivityScheduleWorkspace({
             <button
               onClick={() => { setView('daily'); handleSelectDate(weekDates[0]); }}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 text-xs font-bold rounded-lg cursor-pointer transition-all duration-150 ease-out h-7",
-                view === 'daily' ? 'bg-white text-[#1A73E8] shadow-xs' : 'text-[#64748B] hover:text-[#1E293B]'
+                "flex items-center gap-1.5 px-3 text-xs font-semibold rounded-full cursor-pointer transition-all duration-150 ease-out h-8",
+                view === 'daily' ? 'bg-blue-50 text-[#1A73E8] font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
               )}
             >
               <List size={13} /> Lịch Ngày
@@ -2360,10 +2357,10 @@ export default function ActivityScheduleWorkspace({
             <>
               <button
                 onClick={() => handleOpenRecurrenceModal('default', defaultRecurrence)}
-                className="flex items-center gap-1.5 px-2.5 h-8 border border-white/70 hover:bg-white/70 bg-white/40 text-[#1E293B] rounded-xl cursor-pointer text-xs font-bold shadow-xs shrink-0 transition-all duration-150 ease-out hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+                className="flex items-center gap-1.5 px-3.5 h-9 border border-slate-200/80 hover:bg-slate-50 bg-white text-slate-700 rounded-full cursor-pointer text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
                 title="Cấu hình chuỗi lịch lặp lại cho tuần hiện tại"
               >
-                <RotateCw size={13} className="text-[#64748B]" />
+                <RotateCw size={13} className="text-slate-500" />
                 <span>Cấu hình chuỗi lặp</span>
               </button>
               {cancellableRecurrenceSchedule && (
@@ -2371,7 +2368,7 @@ export default function ActivityScheduleWorkspace({
                   type="button"
                   onClick={() => handleCancelRecurrence(cancellableRecurrenceSchedule, 'entire')}
                   disabled={cancellingRecurrence}
-                  className="flex items-center gap-1.5 px-2.5 h-8 border border-amber-200 hover:bg-amber-50 bg-white/40 text-amber-700 rounded-xl cursor-pointer text-xs font-bold shadow-xs shrink-0 transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  className="flex items-center gap-1.5 px-3.5 h-9 border border-amber-200 hover:bg-amber-50 bg-white text-amber-700 rounded-full cursor-pointer text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   title="Huỷ chuỗi lặp"
                 >
                   <RotateCw size={13} />
@@ -2386,11 +2383,11 @@ export default function ActivityScheduleWorkspace({
             type="button"
             onClick={handleCaptureWeeklySchedule}
             disabled={isCapturingSchedule}
-            className="w-8 h-8 border border-white/70 hover:bg-white/70 bg-white/40 rounded-xl flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all duration-150 ease-out hover:scale-[1.01] text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+            className="w-9 h-9 border border-slate-200/80 hover:bg-slate-50 bg-white rounded-full flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-all duration-150 ease-out text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
             aria-label="Sao chép ảnh lịch tuần"
             title="Sao chép ảnh lịch tuần"
           >
-            <Camera size={13} className={isCapturingSchedule ? 'animate-pulse' : undefined} />
+            <Camera size={14} className={isCapturingSchedule ? 'animate-pulse' : undefined} />
           </button>
         </div>
       </div>

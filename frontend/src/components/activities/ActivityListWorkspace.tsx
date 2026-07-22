@@ -116,22 +116,22 @@ export default function ActivityListWorkspace({
   }, [search, filterActivityType, activityType, activities]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Controls Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-white/45 backdrop-blur-md p-2 rounded-xl border border-white/70 shadow-sm shadow-slate-300/40">
-        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto flex-1">
-          {/* Search trigger */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 py-0.5 w-full">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto flex-1">
+          {/* Search trigger / input */}
           {isSearchOpen ? (
             <div className="relative flex-1 md:max-w-md flex items-center gap-2">
               <div className="relative flex-1">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Tìm theo tên hoặc mã hoạt động..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus
-                  className="w-full pl-8 pr-8 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out shadow-xs focus:visible"
+                  className="w-full pl-9 pr-9 h-9 bg-white border border-slate-200/80 rounded-full text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs"
                 />
                 <button
                   type="button"
@@ -139,7 +139,7 @@ export default function ActivityListWorkspace({
                     setIsSearchOpen(false);
                     setSearch('');
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors w-7 h-7 flex items-center justify-center cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors w-6 h-6 flex items-center justify-center cursor-pointer"
                 >
                   <X size={13} />
                 </button>
@@ -149,44 +149,41 @@ export default function ActivityListWorkspace({
             <button
               type="button"
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center justify-center h-8 w-8 rounded-xl border border-white/70 bg-white/40 text-[#64748B] hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+              className="flex items-center justify-center h-9 w-9 rounded-full border border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-150 ease-out shadow-xs cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               title="Tìm kiếm"
             >
-              <Search size={13} />
+              <Search size={14} />
             </button>
           )}
 
           {/* Type Filter */}
           <div className="relative min-w-[180px] w-full sm:w-auto">
-            <Filter size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
-            <Select
+            <Filter size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+            <select
               value={filterActivityType}
-              onValueChange={(val: string) => {
+              onChange={(e) => {
+                const val = e.target.value;
                 setFilterActivityType(val);
                 onActivityTypeChange?.(val);
               }}
+              className="w-full pl-9 pr-8 h-9 bg-white border border-slate-200/80 rounded-full text-xs text-slate-700 font-semibold shadow-xs cursor-pointer appearance-none transition-all duration-150 ease-out hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             >
-              <SelectTrigger className="w-full pl-8 pr-4 h-8 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-xs text-[#1E293B] shadow-xs cursor-pointer">
-                <SelectValue placeholder="Tất cả loại hoạt động" />
-              </SelectTrigger>
-              <SelectContent>
-              <SelectItem value="">Tất cả loại hoạt động</SelectItem>
+              <option value="">Tất cả loại hoạt động</option>
               {activityTypes.map((k) => (
-                <SelectItem key={k} value={k}>
+                <option key={k} value={k}>
                   {activityTypeLabels[k] || k}
-                </SelectItem>
+                </option>
               ))}
-              </SelectContent>
-            </Select>
+            </select>
           </div>
         </div>
 
         {/* Action Button & View Toggle */}
-        {!isStudent && <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
+        <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
           <Button
             variant="outline"
             onClick={onScheduleClick}
-            className="flex items-center gap-1.5 px-3 h-8 border border-white/70 bg-white/40 hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-bold text-[#1E293B] shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+            className="flex items-center gap-1.5 px-4 h-9 border border-slate-200/80 bg-white hover:bg-slate-50 rounded-full cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             title="Lịch trình hoạt động"
             data-testid="calendar-header-button"
           >
@@ -197,7 +194,7 @@ export default function ActivityListWorkspace({
           <Button
             variant="outline"
             onClick={onRefreshClick}
-            className="w-8 h-8 p-0 border border-white/70 bg-white/40 hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-[#1E293B] shadow-xs shrink-0 flex items-center justify-center transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+            className="w-9 h-9 p-0 border border-slate-200/80 bg-white hover:bg-slate-50 rounded-full cursor-pointer text-slate-700 shadow-xs shrink-0 flex items-center justify-center transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             title="Tải lại dữ liệu"
           >
             <RefreshCw size={13} />
@@ -206,21 +203,21 @@ export default function ActivityListWorkspace({
           {!isStudent && (
             <Button
               onClick={onCreateClick}
-              className="flex items-center justify-center gap-1.5 px-3 bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white text-xs font-bold rounded-xl shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm cursor-pointer h-8 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50"
+              className="flex items-center justify-center gap-1.5 px-3.5 bg-[#1A73E8] border border-[#1A73E8]/80 hover:bg-[#1A73E8]/90 text-white text-xs font-bold rounded-full shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm cursor-pointer h-9 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
             >
               <Plus size={13} />
               {activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}
             </Button>
           )}
 
-          <div className="flex items-center gap-1 p-0.5 bg-white/40 border border-white/70 rounded-xl shrink-0">
+          <div className="flex items-center gap-0.5 p-0.5 bg-white border border-slate-200/80 rounded-full shadow-xs shrink-0 h-9">
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50",
+                "p-1.5 rounded-full transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20",
                 viewMode === 'grid'
-                  ? 'bg-white text-[#1A73E8] shadow-sm'
-                  : 'text-[#64748B] hover:text-[#1E293B] hover:bg-white/40'
+                  ? 'bg-blue-50 text-[#1A73E8] shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
               )}
             >
               <Grid size={13} />
@@ -228,16 +225,16 @@ export default function ActivityListWorkspace({
             <button
               onClick={() => setViewMode('table')}
               className={cn(
-                "p-1.5 rounded-lg transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50",
+                "p-1.5 rounded-full transition-all duration-150 ease-out cursor-pointer w-7 h-7 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20",
                 viewMode === 'table'
-                  ? 'bg-white text-[#1A73E8] shadow-sm'
-                  : 'text-[#64748B] hover:text-[#1E293B] hover:bg-white/40'
+                  ? 'bg-blue-50 text-[#1A73E8] shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
               )}
             >
               <List size={13} />
             </button>
           </div>
-        </div>}
+        </div>
       </div>
 
 

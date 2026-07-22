@@ -251,7 +251,7 @@ export default function ActivitiesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full custom-scrollbar">
+    <div className="p-4 sm:p-5 space-y-3 overflow-y-auto h-full custom-scrollbar">
       <ActivityListWorkspace
         activities={activities}
         activityType={activityType}
