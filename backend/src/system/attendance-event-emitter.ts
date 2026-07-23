@@ -21,6 +21,11 @@ export interface AttendanceRealtimeEvent {
     checked_in_at: Date;
     distance_meters?: number;
   };
+  activityId?: string;
+  scheduleId?: string;
+  classId?: string;
+  studentId?: string;
+  attendance?: Record<string, unknown>;
 }
 
 export const attendanceEventEmitter = new EventEmitter();

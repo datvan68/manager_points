@@ -13,6 +13,7 @@ interface AttendanceMethodSelectorProps {
     qr_refresh_interval?: number;
   }) => Promise<void>;
   loading?: boolean;
+  allowedMethods?: Array<'qr' | 'proximity'>;
 }
 
 const RADIUS_OPTIONS = [
@@ -31,6 +32,7 @@ const QR_INTERVAL_OPTIONS = [
 export default function AttendanceMethodSelector({
   onSelect,
   loading = false,
+  allowedMethods = ['qr', 'proximity'],
 }: AttendanceMethodSelectorProps) {
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'proximity' | null>(null);
   const [radius, setRadius] = useState(100);
@@ -95,7 +97,7 @@ export default function AttendanceMethodSelector({
       {/* Method cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* QR Code */}
-        <div
+        {allowedMethods.includes('qr') && <div
           role="button"
           tabIndex={0}
           onClick={handleQrSelect}
@@ -140,10 +142,10 @@ export default function AttendanceMethodSelector({
               </button>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Proximity */}
-        <div
+        {allowedMethods.includes('proximity') && <div
           role="button"
           tabIndex={0}
           onClick={handleProximitySelect}
@@ -188,7 +190,7 @@ export default function AttendanceMethodSelector({
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* GPS notice */}

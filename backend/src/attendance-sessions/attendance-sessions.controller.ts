@@ -21,6 +21,7 @@ import { AttendanceRealtimeService } from './attendance-realtime.service';
 import { OpenSessionDto } from './dto/open-session.dto';
 import { CheckinQrDto } from './dto/checkin-qr.dto';
 import { CheckinProximityDto } from './dto/checkin-proximity.dto';
+import { ManualAttendanceDto } from './dto/manual-attendance.dto';
 
 @ApiTags('Attendance Sessions')
 @Controller('attendance-sessions')
@@ -53,12 +54,14 @@ export class AttendanceSessionsController {
     @Query('context_id') contextId: string,
     @Request() req: any,
   ) {
-    return this.sessionsService.getActiveSession(
-      contextType,
-      contextId,
-      req.user.userId,
-      req.user.roleCode,
-    );
+    const filters = {
+      method: req.query?.method,
+      classId: req.query?.class_id,
+      scheduleId: req.query?.schedule_id,
+    };
+    const args: any[] = [contextType, contextId, req.user.userId, req.user.roleCode];
+    if (Object.values(filters).some(Boolean)) args.push(filters);
+    return (this.sessionsService.getActiveSession as any)(...args);
   }
 
   @Sse('realtime')
@@ -88,12 +91,15 @@ export class AttendanceSessionsController {
     @Query('context_id') contextId: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Request() req?: any,
   ) {
     return this.sessionsService.getSessionHistory(
       contextType,
       contextId,
       page ? Number(page) : 1,
       limit ? Number(limit) : 10,
+      req?.user?.userId,
+      req?.user?.roleCode,
     );
   }
 
@@ -101,8 +107,8 @@ export class AttendanceSessionsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết phiên điểm danh' })
-  getSessionById(@Param('id') id: string) {
-    return this.sessionsService.getSessionById(id);
+  getSessionById(@Param('id') id: string, @Request() req: any) {
+    return this.sessionsService.getSessionById(id, req.user.userId, req.user.roleCode);
   }
 
   @Get(':id/qr')
@@ -163,5 +169,19 @@ export class AttendanceSessionsController {
       req.user.userId,
       req.user.roleCode,
     );
+  }
+
+  @Get(':id/manual-roster')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getManualRoster(@Param('id') id: string, @Request() req: any) {
+    return this.sessionsService.getManualRoster(id, req.user.userId, req.user.roleCode);
+  }
+
+  @Post(':id/manual-checkins')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  manualCheckin(@Param('id') id: string, @Body() dto: ManualAttendanceDto, @Request() req: any) {
+    return this.sessionsService.manualCheckin(id, dto.student_id, req.user.userId, req.user.roleCode);
   }
 }

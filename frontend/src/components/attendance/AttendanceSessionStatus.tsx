@@ -5,7 +5,7 @@ import { QrCode, MapPin, Clock, XCircle } from 'lucide-react';
 
 interface AttendanceSessionStatusProps {
   status: 'active' | 'closed' | 'expired' | null;
-  method?: 'qr' | 'proximity' | 'manual';
+  method?: 'qr' | 'proximity' | 'manual' | 'manual_class';
   checkinCount?: number;
   openedAt?: string;
   compact?: boolean;

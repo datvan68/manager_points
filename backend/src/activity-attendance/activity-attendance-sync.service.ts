@@ -19,6 +19,7 @@ import {
   ActivityScheduleDocument,
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { ActivityCompletionService } from './activity-completion.service';
+import { Interval } from '@nestjs/schedule';
 
 /**
  * Service responsible for syncing approved club attendance records
@@ -29,6 +30,8 @@ import { ActivityCompletionService } from './activity-completion.service';
 @Injectable()
 export class ActivityAttendanceSyncService {
   private readonly logger = new Logger(ActivityAttendanceSyncService.name);
+  private readonly queued = new Set<string>();
+  private catchUpRunning = false;
 
   constructor(
     @InjectModel(ActivityAttendance.name)
@@ -43,6 +46,42 @@ export class ActivityAttendanceSyncService {
     private scheduleModel: Model<ActivityScheduleDocument>,
     private activityCompletionService: ActivityCompletionService,
   ) {}
+
+  /**
+   * Keep manual click latency independent from training-point work. The persistent
+   * unsynced flag is the retry queue; this in-memory kick only reduces latency.
+   */
+  enqueueAttendanceSync(attendanceId: string): void {
+    if (this.queued.has(attendanceId)) return;
+    this.queued.add(attendanceId);
+    setImmediate(() => {
+      void this.syncAttendanceToAcademicRecord(attendanceId)
+        .catch(error => this.logger.error(`Queued attendance sync failed: ${error.message}`))
+        .finally(() => this.queued.delete(attendanceId));
+    });
+  }
+
+  @Interval(60_000)
+  async retryUnsyncedApprovedAttendance(): Promise<void> {
+    if (this.catchUpRunning) return;
+    this.catchUpRunning = true;
+    try {
+      const pending = await this.attendanceModel.find({
+        approval_status: 'approved',
+        status: { $in: ['present', 'late'] },
+        synced_to_academic_record: false,
+      }).select('_id').sort({ recorded_at: 1 }).limit(50).lean();
+      for (const attendance of pending) {
+        try {
+          await this.syncAttendanceToAcademicRecord(attendance._id.toString());
+        } catch (error: any) {
+          this.logger.error(`Attendance catch-up failed for ${attendance._id}: ${error.message}`);
+        }
+      }
+    } finally {
+      this.catchUpRunning = false;
+    }
+  }
 
   /**
    * Sync a single approved attendance record to AcademicRecord.

@@ -29,10 +29,13 @@ export class AttendanceSession {
   // ── Session config ──
   @Prop({
     type: String,
-    enum: ['qr', 'proximity', 'manual'],
+    enum: ['qr', 'proximity', 'manual_class'],
     required: true,
   })
   method: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })
+  class_id?: Types.ObjectId;
 
   @Prop({
     type: String,
@@ -105,3 +108,11 @@ AttendanceSessionSchema.index(
 AttendanceSessionSchema.index({ qr_token: 1 }, { sparse: true });
 AttendanceSessionSchema.index({ status: 1, auto_close_at: 1 });
 AttendanceSessionSchema.index({ schedule_id: 1 }, { sparse: true });
+AttendanceSessionSchema.index(
+  { context_id: 1, schedule_id: 1, class_id: 1 },
+  { unique: true, partialFilterExpression: { status: 'active', method: 'manual_class' } },
+);
+AttendanceSessionSchema.index(
+  { context_id: 1, schedule_id: 1 },
+  { unique: true, partialFilterExpression: { status: 'active', method: { $in: ['qr', 'proximity'] } } },
+);

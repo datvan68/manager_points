@@ -20,6 +20,10 @@ import {
   ActivitySchedule,
   ActivityScheduleSchema,
 } from '../activity-schedules/schemas/activity-schedule.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
+import { ActivityAttendanceGrant, ActivityAttendanceGrantSchema } from './schemas/activity-attendance-grant.schema';
+import { ActivityAttendanceGrantsService } from './activity-attendance-grants.service';
+import { ActivityAttendanceGrantsController } from './activity-attendance-grants.controller';
 
 @Module({
   imports: [
@@ -35,10 +39,12 @@ import {
         schema: ActivityMembershipTransferSchema,
       },
       { name: ActivitySchedule.name, schema: ActivityScheduleSchema },
+      { name: Class.name, schema: ClassSchema },
+      { name: ActivityAttendanceGrant.name, schema: ActivityAttendanceGrantSchema },
     ]),
   ],
-  controllers: [ActivitiesController],
-  providers: [ActivitiesService, ActivitiesRealtimeService],
-  exports: [ActivitiesService, MongooseModule],
+  controllers: [ActivitiesController, ActivityAttendanceGrantsController],
+  providers: [ActivitiesService, ActivitiesRealtimeService, ActivityAttendanceGrantsService],
+  exports: [ActivitiesService, ActivityAttendanceGrantsService, MongooseModule],
 })
 export class ActivitiesModule {}

@@ -33,10 +33,15 @@ export class OpenSessionDto {
 
   @ApiProperty({
     description: 'Attendance method',
-    enum: ['qr', 'proximity'],
+    enum: ['qr', 'proximity', 'manual_class'],
   })
-  @IsEnum(['qr', 'proximity'])
+  @IsEnum(['qr', 'proximity', 'manual_class'])
   method: string;
+
+  @ApiPropertyOptional({ description: 'Required homeroom class for manual attendance' })
+  @IsOptional()
+  @IsMongoId()
+  class_id?: string;
 
   // ── QR options ──
   @ApiPropertyOptional({

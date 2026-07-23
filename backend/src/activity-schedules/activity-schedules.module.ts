@@ -22,6 +22,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ActivityScheduleActiveNotificationService } from './activity-schedule-active-notification.service';
 
 import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { Activity, ActivitySchema } from '../activities/schemas/activity.schema'
       { name: ActivityMember.name, schema: ActivityMemberSchema },
       { name: Student.name, schema: StudentSchema },
       { name: Activity.name, schema: ActivitySchema },
+      { name: Class.name, schema: ClassSchema },
     ]),
   ],
   controllers: [ActivitySchedulesController],

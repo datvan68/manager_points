@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { attendanceSessionApi, type AttendanceSessionData, type AttendanceCheckinData, type QrData } from '@/api/activity-api';
+import {
+  activityAttendanceGrantApi,
+  attendanceSessionApi,
+  type ActivityAttendance,
+  type ActivityAttendanceCapabilities,
+  type AttendanceSessionData,
+  type AttendanceCheckinData,
+  type ManualAttendanceRoster,
+  type QrData,
+} from '@/api/activity-api';
 import { useAttendanceRealtime, type AttendanceRealtimeEvent } from './useAttendanceRealtime';
 
 interface UseAttendanceSessionOptions {
@@ -9,6 +18,7 @@ interface UseAttendanceSessionOptions {
   contextId: string;
   enabled?: boolean;
   canManage?: boolean;
+  activityId?: string;
 }
 
 interface AttendanceSessionState {
@@ -19,12 +29,17 @@ interface AttendanceSessionState {
   error: string | null;
   checkinStatus: 'idle' | 'checking' | 'success' | 'error';
   checkinError: string | null;
+  capabilities: ActivityAttendanceCapabilities | null;
+  manualRoster: ManualAttendanceRoster | null;
+  manualPending: Record<string, boolean>;
+  manualErrors: Record<string, string>;
 }
 
-export function useAttendanceSession({ contextType, contextId, enabled = true, canManage = false }: UseAttendanceSessionOptions) {
+export function useAttendanceSession({ contextType, contextId, enabled = true, canManage = false, activityId = contextId }: UseAttendanceSessionOptions) {
   const [state, setState] = useState<AttendanceSessionState>({
     session: null, checkins: [], qrData: null, loading: false, error: null,
-    checkinStatus: 'idle', checkinError: null,
+    checkinStatus: 'idle', checkinError: null, capabilities: null, manualRoster: null,
+    manualPending: {}, manualErrors: {},
   });
   const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -51,6 +66,31 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
     }
   }, [contextId, contextType, enabled, fetchCheckins]);
 
+  const fetchCapabilities = useCallback(async () => {
+    if (!enabled || !activityId) return null;
+    try {
+      const capabilities = await activityAttendanceGrantApi.getCapabilities(activityId);
+      setState((previous) => ({ ...previous, capabilities }));
+      return capabilities;
+    } catch {
+      setState((previous) => ({ ...previous, capabilities: null }));
+      return null;
+    }
+  }, [activityId, enabled]);
+
+  const fetchManualRoster = useCallback(async (sessionId?: string) => {
+    const id = sessionId || state.session?._id;
+    if (!id) return null;
+    try {
+      const manualRoster = await attendanceSessionApi.getManualRoster(id);
+      setState((previous) => ({ ...previous, manualRoster }));
+      return manualRoster;
+    } catch (error: any) {
+      setState((previous) => ({ ...previous, error: error.message || 'Không thể tải danh sách lớp' }));
+      return null;
+    }
+  }, [state.session?._id]);
+
   const fetchQrData = useCallback(async (sessionId: string) => {
     if (!canManage) return null;
     try {
@@ -61,6 +101,11 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
   }, [canManage]);
 
   const applyRealtimeEvent = useCallback((event: AttendanceRealtimeEvent) => {
+    const realtime = event as AttendanceRealtimeEvent & {
+      scheduleId?: string;
+      studentId?: string;
+      attendance?: ActivityAttendance;
+    };
     if (event.type === 'attendance.session_opened' && event.session) {
       setState((previous) => ({ ...previous, session: event.session as unknown as AttendanceSessionData, checkins: [], qrData: null }));
       return;
@@ -70,6 +115,19 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
       return;
     }
     if (event.type === 'attendance.checkin_created') {
+      setState((previous) => {
+        if (!realtime.attendance || !previous.manualRoster || !previous.session) return previous;
+        if (realtime.scheduleId !== String(previous.session.schedule_id)) return previous;
+        return {
+          ...previous,
+          manualRoster: {
+            ...previous.manualRoster,
+            students: previous.manualRoster.students.map((student) =>
+              student._id === realtime.studentId ? { ...student, attendance: realtime.attendance! } : student,
+            ),
+          },
+        };
+      });
       if (canManage && event.sessionId) void fetchCheckins(event.sessionId);
       setState((previous) => {
         const checkin = event.checkin as unknown as AttendanceCheckinData | undefined;
@@ -88,7 +146,12 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
 
   const { status: realtimeStatus } = useAttendanceRealtime({ contextType, contextId, enabled, onEvent: applyRealtimeEvent });
 
-  useEffect(() => { void fetchActiveSession(); }, [fetchActiveSession]);
+  useEffect(() => { void fetchActiveSession(); void fetchCapabilities(); }, [fetchActiveSession, fetchCapabilities]);
+  useEffect(() => {
+    if (state.session?.method === 'manual_class' && state.session.status === 'active') {
+      void fetchManualRoster(state.session._id);
+    }
+  }, [state.session?._id, state.session?.method, state.session?.status, fetchManualRoster]);
   useEffect(() => {
     if (realtimeStatus === 'connected') void fetchActiveSession();
   }, [realtimeStatus, fetchActiveSession]);
@@ -105,13 +168,14 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
     try {
       setState((previous) => ({ ...previous, loading: true, error: null }));
       const session = await attendanceSessionApi.openSession({ context_type: contextType, context_id: contextId, ...params });
-      setState((previous) => ({ ...previous, session, loading: false, checkins: [] }));
+      setState((previous) => ({ ...previous, session, loading: false, checkins: [], manualRoster: null }));
+      if (session.method === 'manual_class') await fetchManualRoster(session._id);
       return session;
     } catch (error: any) {
       setState((previous) => ({ ...previous, loading: false, error: error.message || 'Không thể mở phiên điểm danh' }));
       throw error;
     }
-  }, [contextId, contextType]);
+  }, [contextId, contextType, fetchManualRoster]);
 
   const closeSession = useCallback(async () => {
     if (!state.session) return;
@@ -145,5 +209,52 @@ export function useAttendanceSession({ contextType, contextId, enabled = true, c
   }, [state.session]);
 
   const resetCheckinStatus = useCallback(() => setState((previous) => ({ ...previous, checkinStatus: 'idle', checkinError: null })), []);
-  return { ...state, realtimeStatus, openSession, closeSession, checkinQr, checkinProximity, resetCheckinStatus, refreshSession: fetchActiveSession, refreshCheckins: () => state.session ? fetchCheckins(state.session._id) : Promise.resolve() };
+  const manualCheckin = useCallback(async (studentId: string) => {
+    if (!state.session) throw new Error('Không có phiên điểm danh');
+    setState((previous) => ({
+      ...previous,
+      manualPending: { ...previous.manualPending, [studentId]: true },
+      manualErrors: { ...previous.manualErrors, [studentId]: '' },
+      manualRoster: previous.manualRoster ? {
+        ...previous.manualRoster,
+        students: previous.manualRoster.students.map((student) =>
+          student._id === studentId
+            ? { ...student, attendance: student.attendance || ({ _id: `optimistic-${studentId}`, student_id: studentId, schedule_id: state.session!.schedule_id, status: 'present', approval_status: 'approved' } as ActivityAttendance) }
+            : student,
+        ),
+      } : null,
+    }));
+    try {
+      const attendance = await attendanceSessionApi.manualCheckin(state.session._id, studentId);
+      setState((previous) => ({
+        ...previous,
+        manualPending: { ...previous.manualPending, [studentId]: false },
+        manualRoster: previous.manualRoster ? {
+          ...previous.manualRoster,
+          students: previous.manualRoster.students.map((student) => student._id === studentId ? { ...student, attendance } : student),
+        } : null,
+      }));
+      return attendance;
+    } catch (error: any) {
+      setState((previous) => ({
+        ...previous,
+        manualPending: { ...previous.manualPending, [studentId]: false },
+        manualErrors: { ...previous.manualErrors, [studentId]: error.message || 'Điểm danh thất bại' },
+        manualRoster: previous.manualRoster ? {
+          ...previous.manualRoster,
+          students: previous.manualRoster.students.map((student) =>
+            student._id === studentId && student.attendance?._id === `optimistic-${studentId}` ? { ...student, attendance: null } : student,
+          ),
+        } : null,
+      }));
+      throw error;
+    }
+  }, [state.session]);
+
+  return {
+    ...state, realtimeStatus, openSession, closeSession, checkinQr, checkinProximity, manualCheckin,
+    resetCheckinStatus, refreshCapabilities: fetchCapabilities, refreshManualRoster: fetchManualRoster,
+    refreshSession: fetchActiveSession,
+    refreshCheckins: () => state.session ? fetchCheckins(state.session._id) : Promise.resolve(),
+  };
 }

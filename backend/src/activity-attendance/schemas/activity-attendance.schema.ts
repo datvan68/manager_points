@@ -39,6 +39,12 @@ export class ActivityAttendance {
   @Prop()
   check_out_time: Date;
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Class' })
+  class_id?: Types.ObjectId;
+
+  @Prop({ enum: ['qr', 'proximity', 'manual_class'] })
+  attendance_method?: string;
+
   @Prop({ trim: true })
   note: string;
 

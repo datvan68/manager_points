@@ -1012,7 +1012,8 @@ export class ActivitySchedulesService {
         .find({
           schedule_id: { $in: scheduleIds },
         })
-        .populate('student_id', 'full_name student_code')
+        .populate({ path: 'student_id', select: 'full_name student_code class_id', populate: { path: 'class_id', select: 'class_name' } })
+        .populate('class_id', 'class_name')
         .lean()
         .exec();
     }
@@ -1062,6 +1063,9 @@ export class ActivitySchedulesService {
             full_name: rec.student_id.full_name,
             student_code: rec.student_id.student_code,
           } : null,
+          class_id: rec.class_id?._id || rec.class_id || rec.student_id?.class_id?._id || rec.student_id?.class_id || null,
+          class_name: rec.class_id?.class_name || rec.student_id?.class_id?.class_name || null,
+          attendance_method: rec.attendance_method || null,
           status: rec.status,
           check_in_time: rec.check_in_time,
           check_out_time: rec.check_out_time,

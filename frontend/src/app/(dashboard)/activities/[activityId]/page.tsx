@@ -37,6 +37,8 @@ import QrScannerModal from '@/components/attendance/QrScannerModal';
 import ProximityPanel from '@/components/attendance/ProximityPanel';
 import ProximityCheckinModal from '@/components/attendance/ProximityCheckinModal';
 import ProximityCheckinButton from '@/components/attendance/ProximityCheckinButton';
+import AttendanceGrantManager from '@/components/attendance/AttendanceGrantManager';
+import ManualAttendanceGrid from '@/components/attendance/ManualAttendanceGrid';
 
 const categoryLabels: Record<string, string> = {
   academic: 'Học thuật',
@@ -82,6 +84,7 @@ export default function ActivityDetailPage() {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [members, setMembers] = useState<ActivityMember[]>([]);
   const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
+  const [timelineViewerMode, setTimelineViewerMode] = useState<'student' | 'staff' | null>(null);
   const [completionRule, setCompletionRule] = useState<ActivityCompletionRule | null>(null);
   const [criteriaById, setCriteriaById] = useState<Record<string, string>>({});
   const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
@@ -127,6 +130,7 @@ export default function ActivityDetailPage() {
     contextType: activity?.activity_type === 'club' ? 'club' : 'activity',
     contextId: activityId,
     enabled: Boolean(activityId),
+    activityId,
     canManage: isAdmin || isAssignedTeacher || members.some((member) => member.status === 'active' && member.role === 'president' && (
       normalizeEntityId(member.student_id) === user?.studentId || normalizeEntityId(member.user_id) === user?.id
     )),
@@ -172,6 +176,7 @@ export default function ActivityDetailPage() {
         ? schedulesResponse 
         : schedulesResponse?.items || [];
       setSchedules(timelineItems);
+      setTimelineViewerMode(Array.isArray(schedulesResponse) ? null : schedulesResponse?.viewer_mode || null);
       setActiveSemester(
         (Array.isArray(semesters) ? semesters : []).find((semester) => semester?.status === 'active') || null
       );
@@ -342,7 +347,10 @@ export default function ActivityDetailPage() {
   });
 
   const memberStatus = studentMembership?.status || 'none';
-  const canManageAttendance = isAdmin || isAssignedTeacher || (memberStatus === 'active' && studentMembership?.role === 'president');
+  const isPresident = memberStatus === 'active' && studentMembership?.role === 'president';
+  const delegatedMethods = attendance.capabilities?.effective_methods || [];
+  const canManageAttendance = isAdmin || isAssignedTeacher || isPresident || delegatedMethods.length > 0;
+  const canAdministerAttendanceGrants = attendance.capabilities?.can_administer_grants === true;
   const canCheckInAttendance = memberStatus === 'active' || (isStudent && activity?.settings?.require_registration_for_attendance === false);
   const canAccessAttendance = canManageAttendance || canCheckInAttendance;
   const isActiveStudentMember = isStudent && memberStatus === 'active';
@@ -661,7 +669,7 @@ export default function ActivityDetailPage() {
             <div className="space-y-6">
               {isAssignedTeacher && <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs || timelineViewerMode === 'staff'} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
               </div>}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
@@ -695,7 +703,7 @@ export default function ActivityDetailPage() {
               </div>
               {!isAssignedTeacher && <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={canCheckInAttendance} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={canCheckInAttendance} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs || timelineViewerMode === 'staff'} canViewOwnAttendance={canCheckInAttendance} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={canCheckInAttendance} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
               </div>}
             </div>
           )
@@ -784,6 +792,8 @@ export default function ActivityDetailPage() {
               canCheckInAttendance={canCheckInAttendance}
               currentStudentId={normalizeEntityId(studentMembership?.student_id) || user?.studentId || ''}
               attendance={attendance}
+              canAdministerGrants={canAdministerAttendanceGrants}
+              allowedMethods={isPresident && !isAdmin && !isAssignedTeacher ? ['qr', 'proximity'] : delegatedMethods}
               onAttendanceCompleted={loadActivityData}
             />
           </div>
@@ -866,6 +876,8 @@ function ActivityAttendanceTab({
   canCheckInAttendance,
   currentStudentId,
   attendance,
+  canAdministerGrants,
+  allowedMethods,
   onAttendanceCompleted,
 }: {
   activityId: string;
@@ -879,11 +891,14 @@ function ActivityAttendanceTab({
   canCheckInAttendance: boolean;
   currentStudentId: string;
   attendance: ReturnType<typeof useAttendanceSession>;
+  canAdministerGrants: boolean;
+  allowedMethods: Array<'qr' | 'proximity' | 'manual_class'>;
   onAttendanceCompleted: () => Promise<void>;
 }) {
   const hasActiveSession = attendance.session?.status === 'active';
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
+  const isManualSession = hasActiveSession && attendance.session?.method === 'manual_class';
   const hasCurrentMemberCheckedIn = attendance.checkinStatus === 'success' || attendance.checkins.some(
     (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
   );
@@ -898,7 +913,8 @@ function ActivityAttendanceTab({
   );
 
   const handleOpenSession = async (params: {
-    method: 'qr' | 'proximity';
+    method: 'qr' | 'proximity' | 'manual_class';
+    class_id?: string;
     latitude?: number;
     longitude?: number;
     radius_meters?: number;
@@ -930,6 +946,7 @@ function ActivityAttendanceTab({
 
   return (
     <div className="space-y-6">
+      {canAdministerGrants && <AttendanceGrantManager activityId={activityId} />}
       {/* Session Status Bar */}
       {hasActiveSession && attendance.session && (
         <AttendanceSessionStatus
@@ -956,6 +973,13 @@ function ActivityAttendanceTab({
             >
               <Radio size={15} /> Mở điểm danh
             </button>
+            {allowedMethods.includes('manual_class') && attendance.capabilities?.classes.map((ownedClass) => (
+              <button key={ownedClass._id} onClick={() => void handleOpenSession({ method: 'manual_class', class_id: ownedClass._id })}
+                disabled={!todaySchedule || attendance.loading}
+                className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-bold text-white disabled:opacity-50">
+                Điểm danh lớp {ownedClass.class_name}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -974,6 +998,7 @@ function ActivityAttendanceTab({
           <AttendanceMethodSelector
             onSelect={handleOpenSession}
             loading={attendance.loading}
+            allowedMethods={allowedMethods.filter((method): method is 'qr' | 'proximity' => method !== 'manual_class')}
           />
           <button
             onClick={() => setShowMethodSelector(false)}
@@ -1011,6 +1036,15 @@ function ActivityAttendanceTab({
             sessionTitle={attendance.session.title}
           />
         </div>
+      )}
+
+      {isManualSession && attendance.manualRoster && (
+        <ManualAttendanceGrid
+          roster={attendance.manualRoster}
+          pending={attendance.manualPending}
+          errors={attendance.manualErrors}
+          onCheckin={attendance.manualCheckin}
+        />
       )}
 
       {/* Student Proximity check-in */}

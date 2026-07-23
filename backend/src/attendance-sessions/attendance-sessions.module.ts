@@ -26,10 +26,12 @@ import {
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { ActivityAttendanceModule } from '../activity-attendance/activity-attendance.module';
 import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
+import { ActivitiesModule } from '../activities/activities.module';
 
 @Module({
   imports: [
     ActivityAttendanceModule,
+    ActivitiesModule,
     MongooseModule.forFeature([
       { name: AttendanceSession.name, schema: AttendanceSessionSchema },
       { name: AttendanceCheckin.name, schema: AttendanceCheckinSchema },

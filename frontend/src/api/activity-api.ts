@@ -694,7 +694,8 @@ export interface AttendanceSessionData {
   context_id: string;
   schedule_id?: string;
   semester_id: string;
-  method: 'qr' | 'proximity' | 'manual';
+  class_id?: string;
+  method: 'qr' | 'proximity' | 'manual_class';
   status: 'active' | 'closed' | 'expired';
   qr_token?: string;
   qr_token_expires_at?: string;
@@ -719,7 +720,7 @@ export interface AttendanceCheckinData {
   _id: string;
   session_id: string;
   student_id: any;
-  method: 'qr' | 'proximity';
+  method: 'qr' | 'proximity' | 'manual_class';
   status: string;
   checked_in_at: string;
   latitude?: number;
@@ -737,13 +738,48 @@ export interface QrData {
   checkin_count: number;
 }
 
+export type ActivityAttendanceMethod = 'qr' | 'proximity' | 'manual_class';
+
+export interface ActivityAttendanceCapabilities {
+  can_administer_grants: boolean;
+  grant_status: 'inherent' | 'active' | 'none' | 'revoked';
+  effective_methods: ActivityAttendanceMethod[];
+  classes: Array<{ _id: string; class_name: string; class_year?: string }>;
+}
+
+export interface ActivityAttendanceGrant {
+  _id: string;
+  teacher_id: { _id: string; user_name?: string; email?: string } | string;
+  allowed_methods: ActivityAttendanceMethod[];
+  status: 'active' | 'revoked';
+}
+
+export interface ActivityAttendanceGrantCandidate {
+  _id: string;
+  class_name: string;
+  advisor_id: { _id: string; user_name?: string; email?: string };
+}
+
+export interface ManualAttendanceRoster {
+  class_id: string;
+  total: number;
+  students: Array<{
+    _id: string;
+    full_name: string;
+    student_code: string;
+    status?: string;
+    attendance: ActivityAttendance | null;
+  }>;
+}
+
 export const attendanceSessionApi = {
   async openSession(data: {
     context_type: string;
     context_id: string;
     schedule_id?: string;
     semester_id: string;
-    method: 'qr' | 'proximity';
+    method: ActivityAttendanceMethod;
+    class_id?: string;
     latitude?: number;
     longitude?: number;
     radius_meters?: number;
@@ -819,6 +855,20 @@ export const attendanceSessionApi = {
     return handleResponse<AttendanceCheckinData[]>(res);
   },
 
+  async getManualRoster(sessionId: string): Promise<ManualAttendanceRoster> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${sessionId}/manual-roster`);
+    return handleResponse<ManualAttendanceRoster>(res);
+  },
+
+  async manualCheckin(sessionId: string, studentId: string): Promise<ActivityAttendance> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${sessionId}/manual-checkins`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ student_id: studentId }),
+    });
+    return handleResponse<ActivityAttendance>(res);
+  },
+
   async getSessionHistory(params: {
     context_type: string;
     context_id: string;
@@ -829,6 +879,33 @@ export const attendanceSessionApi = {
       `${API_BASE}/attendance-sessions/history${buildQuery(params)}`,
     );
     return handleResponse(res);
+  },
+};
+
+export const activityAttendanceGrantApi = {
+  async getCapabilities(activityId: string): Promise<ActivityAttendanceCapabilities> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/attendance/capabilities`);
+    return handleResponse<ActivityAttendanceCapabilities>(res);
+  },
+  async getCandidates(activityId: string): Promise<ActivityAttendanceGrantCandidate[]> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/attendance/grant-candidates`);
+    return handleResponse<ActivityAttendanceGrantCandidate[]>(res);
+  },
+  async getGrants(activityId: string): Promise<ActivityAttendanceGrant[]> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/attendance/grants`);
+    return handleResponse<ActivityAttendanceGrant[]>(res);
+  },
+  async upsertGrant(activityId: string, teacherId: string, allowedMethods: ActivityAttendanceMethod[]): Promise<ActivityAttendanceGrant> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/attendance/grants`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ teacher_id: teacherId, allowed_methods: allowedMethods }),
+    });
+    return handleResponse<ActivityAttendanceGrant>(res);
+  },
+  async revokeGrant(activityId: string, teacherId: string): Promise<ActivityAttendanceGrant> {
+    const res = await httpClient(`${API_BASE}/activities/${activityId}/attendance/grants/${teacherId}`, { method: 'DELETE' });
+    return handleResponse<ActivityAttendanceGrant>(res);
   },
 };
 
