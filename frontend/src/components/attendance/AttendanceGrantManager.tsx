@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   activityAttendanceGrantApi,
   type ActivityAttendanceGrant,
@@ -49,9 +50,6 @@ function normalizeCandidate(candidate: ActivityAttendanceGrantCandidate): Teache
 export default function AttendanceGrantManager({ activityId }: { activityId: string }) {
   const [candidates, setCandidates] = useState<ActivityAttendanceGrantCandidate[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
-  const [query, setQuery] = useState('');
-  const [selectorOpen, setSelectorOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [displayed, setDisplayed] = useState<Record<string, ActivityAttendanceMethod[]>>({});
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -93,10 +91,6 @@ export default function AttendanceGrantManager({ activityId }: { activityId: str
     });
     return [...unique.values()];
   }, [candidates]);
-  const filteredOptions = options.filter((option) =>
-    `${option.name} ${option.detail}`.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi')),
-  );
-  const selectedOption = options.find((option) => option.id === selectedTeacherId);
 
   const persist = async (id: string) => {
     if (savingRef.current[id]) return;
@@ -152,82 +146,18 @@ export default function AttendanceGrantManager({ activityId }: { activityId: str
         <h3 className="text-sm font-black text-slate-800">Phân quyền điểm danh</h3>
         <p className="text-xs text-slate-500">Chọn một giáo viên và bật từng phương thức cần cho phép.</p>
       </div>
-      <label className="block text-xs font-bold text-slate-700">
-        Giáo viên
-        <input
-          role="combobox"
-          aria-label="Giáo viên"
-          aria-autocomplete="list"
-          aria-controls="attendance-teacher-options"
-          aria-expanded={selectorOpen}
-          aria-activedescendant={selectorOpen && filteredOptions[highlightedIndex]
-            ? `attendance-teacher-${filteredOptions[highlightedIndex].id}`
-            : undefined}
-          value={selectorOpen ? query : selectedOption?.name || ''}
-          onFocus={() => {
-            setQuery('');
-            setHighlightedIndex(0);
-            setSelectorOpen(true);
-          }}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setHighlightedIndex(0);
-            setSelectorOpen(true);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') {
-              event.preventDefault();
-              setSelectorOpen(true);
-              setHighlightedIndex((current) => Math.min(current + 1, filteredOptions.length - 1));
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault();
-              setHighlightedIndex((current) => Math.max(current - 1, 0));
-            } else if (event.key === 'Enter' && selectorOpen && filteredOptions[highlightedIndex]) {
-              event.preventDefault();
-              setSelectedTeacherId(filteredOptions[highlightedIndex].id);
-              setQuery('');
-              setSelectorOpen(false);
-            } else if (event.key === 'Escape') {
-              setQuery('');
-              setSelectorOpen(false);
-            }
-          }}
-          placeholder="Tìm giáo viên"
-          className="mt-1 max-h-56 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-        />
-      </label>
-      {selectorOpen && (
-        <div
-          id="attendance-teacher-options"
-          role="listbox"
-          aria-label="Kết quả giáo viên"
-          className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1"
-        >
-          {filteredOptions.map((option) => (
-            <button
-              key={option.id}
-              id={`attendance-teacher-${option.id}`}
-              type="button"
-              role="option"
-              aria-selected={option.id === selectedTeacherId}
-              onMouseEnter={() => setHighlightedIndex(filteredOptions.indexOf(option))}
-              onClick={() => {
-                setSelectedTeacherId(option.id);
-                setQuery('');
-                setHighlightedIndex(0);
-                setSelectorOpen(false);
-              }}
-              className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-100 ${
-                filteredOptions[highlightedIndex]?.id === option.id ? 'bg-slate-100' : ''
-              }`}
-            >
-              <span className="font-semibold">{option.name}</span>
-              {option.detail && <span className="ml-2 text-xs text-slate-500">{option.detail}</span>}
-            </button>
+      <Select value={selectedTeacherId} onValueChange={(val: string) => setSelectedTeacherId(val)}>
+        <SelectTrigger className="w-full bg-white border border-slate-200 rounded-lg text-sm" aria-label="Giáo viên">
+          <SelectValue placeholder="Chọn giáo viên" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.name}{option.detail ? ` (${option.detail})` : ''}
+            </SelectItem>
           ))}
-          {!filteredOptions.length && <p className="px-3 py-2 text-xs text-slate-500">Không tìm thấy giáo viên</p>}
-        </div>
-      )}
+        </SelectContent>
+      </Select>
       {selectedTeacherId && (
         <div role="group" className="flex flex-wrap gap-2" aria-label="Phương thức điểm danh">
           {methods.map((method) => {

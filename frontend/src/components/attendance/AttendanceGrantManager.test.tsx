@@ -28,8 +28,10 @@ const teacherTwo = {
 };
 
 async function selectTeacher(name = 'Cô An') {
-  fireEvent.focus(screen.getByRole('combobox', { name: 'Giáo viên' }));
-  fireEvent.click(await screen.findByRole('option', { name }));
+  const input = screen.getByPlaceholderText('Chọn giáo viên');
+  fireEvent.click(input);
+  const option = await screen.findByText((content) => content.includes(name));
+  fireEvent.click(option);
 }
 
 describe('AttendanceGrantManager', () => {
@@ -42,7 +44,7 @@ describe('AttendanceGrantManager', () => {
   it('shows one teacher selector and exactly three accessible method buttons using effective state', async () => {
     render(<AttendanceGrantManager activityId="activity-1" />);
 
-    await screen.findByRole('combobox', { name: 'Giáo viên' });
+    await screen.findByPlaceholderText('Chọn giáo viên');
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     await selectTeacher();
 
@@ -106,7 +108,7 @@ describe('AttendanceGrantManager', () => {
   it('restores confirmed state and keeps selection when persistence fails', async () => {
     vi.mocked(activityAttendanceGrantApi.upsertGrant).mockRejectedValue(new Error('Mất kết nối'));
     render(<AttendanceGrantManager activityId="activity-1" />);
-    const select = await screen.findByRole('combobox');
+    const select = await screen.findByPlaceholderText('Chọn giáo viên');
     await selectTeacher();
     expect(screen.getByRole('button', { name: 'Lớp thủ công' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Lớp thủ công' }));
@@ -121,14 +123,12 @@ describe('AttendanceGrantManager', () => {
     vi.mocked(activityAttendanceGrantApi.getCandidates).mockResolvedValue([teacher as any, teacherTwo as any]);
     render(<AttendanceGrantManager activityId="activity-1" />);
 
-    const input = await screen.findByRole('combobox');
-    fireEvent.focus(input);
+    const input = await screen.findByPlaceholderText('Chọn giáo viên');
+    fireEvent.click(input);
     fireEvent.change(input, { target: { value: 'Bình' } });
 
-    const listbox = screen.getByRole('listbox', { name: 'Kết quả giáo viên' });
-    expect(listbox).toHaveClass('overflow-y-auto');
-    expect(screen.getByRole('option', { name: 'Thầy Bình' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Cô An' })).not.toBeInTheDocument();
+    expect(screen.getByText((c) => c.includes('Thầy Bình'))).toBeInTheDocument();
+    expect(screen.queryByText((c) => c.includes('Cô An'))).not.toBeInTheDocument();
   });
 
   it('keeps pending and errors scoped to their teacher during concurrent saves', async () => {

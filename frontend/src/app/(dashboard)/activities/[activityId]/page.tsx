@@ -24,6 +24,7 @@ import {
   ClipboardCheck, Radio, QrCode, Camera, UserPlus, LogOut, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getImageUrl } from '@/components/activities/activity-view-policy';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmModal from '@/components/modals/ConfirmModal';
@@ -919,6 +920,10 @@ function ActivityAttendanceTab({
   onAttendanceCompleted: () => Promise<void>;
 }) {
   const hasActiveSession = attendance.session?.status === 'active';
+  const hasAnyActiveManualSession = Object.values(attendance.manualLanes || {}).some(
+    (lane) => lane?.session?.status === 'active',
+  );
+  const isAnySessionActive = hasActiveSession || hasAnyActiveManualSession;
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
   const selfServiceMethods = allowedMethods.filter((method): method is 'qr' | 'proximity' => method !== 'manual_class');
@@ -933,7 +938,7 @@ function ActivityAttendanceTab({
 
   useEffect(() => {
     if (!classPickerOpen || !isAdmin) return;
-    void classApi.getClasses().then((classes) => setAdminClasses(classes)).catch(() => toast.error('KhĂ´ng thá»ƒ táº£i danh sĂ¡ch lá»›p'));
+    void classApi.getClasses().then((classes) => setAdminClasses(classes)).catch(() => toast.error('Không thể tải danh sách lớp'));
   }, [classPickerOpen, isAdmin]);
 
   const handleOpenSession = async (params: {
@@ -954,7 +959,7 @@ function ActivityAttendanceTab({
         }
         if (!isManualClassChooser) {
           const classes = attendance.capabilities?.classes || [];
-          if (classes.length !== 1) throw new Error(classes.length === 0 ? 'KhĂ´ng tĂ¬m tháº¥y lá»›p Ä‘Æ°á»£c phĂ©p.' : 'KhĂ´ng thá»ƒ tá»± chá»n giá»¯a nhiá»u lá»›p.');
+          if (classes.length !== 1) throw new Error(classes.length === 0 ? 'Không tìm thấy lớp được phép.' : 'Không thể tự chọn giữa nhiều lớp.');
           params.class_id = classes[0]._id;
         }
         if (params.class_id) {
@@ -1009,7 +1014,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* No active session */}
-      {!hasActiveSession && !showMethodSelector && canManageAttendance && allowedMethods.length > 0 && (
+      {!isAnySessionActive && !showMethodSelector && canManageAttendance && allowedMethods.length > 0 && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center">
           <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 mx-auto border border-blue-500/20 shadow-sm">
             <ClipboardCheck size={32} />
@@ -1030,7 +1035,7 @@ function ActivityAttendanceTab({
         </div>
       )}
 
-      {!hasActiveSession && !showMethodSelector && !canManageAttendance && canCheckInAttendance && (
+      {!isAnySessionActive && !showMethodSelector && !canManageAttendance && canCheckInAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center">
           <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-4 mx-auto border border-slate-200 shadow-sm">
             <ClipboardCheck size={32} />
@@ -1041,7 +1046,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Method Selector Modal */}
-      {!hasActiveSession && showMethodSelector && canManageAttendance && (
+      {!isAnySessionActive && showMethodSelector && canManageAttendance && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-6 shadow-sm">
           <AttendanceMethodSelector
             onSelect={handleOpenSession}
@@ -1060,13 +1065,21 @@ function ActivityAttendanceTab({
       {classPickerOpen && allowedMethods.includes('manual_class') && (
         <section className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm space-y-4">
           <h3 className="text-sm font-extrabold text-slate-800">Chọn lớp điểm danh</h3>
-          <select aria-label="Lớp điểm danh" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            <option value="">Chọn lớp</option>
-            {manualClasses.map((item) => <option key={item._id} value={item._id}>{item.class_name}</option>)}
-          </select>
+          <Select value={selectedClassId} onValueChange={(value) => setSelectedClassId(value)}>
+            <SelectTrigger className="w-full bg-white border border-slate-200 rounded-xl text-sm" aria-label="Lớp điểm danh">
+              <SelectValue placeholder="Chọn lớp" />
+            </SelectTrigger>
+            <SelectContent>
+              {manualClasses.map((item) => (
+                <SelectItem key={item._id} value={item._id}>
+                  {item.class_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="flex gap-3">
-            <button onClick={() => void handleOpenSession({ method: 'manual_class', class_id: selectedClassId })} disabled={!selectedClassId || !todaySchedule} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">Mở phiên</button>
-            <button onClick={() => { setClassPickerOpen(false); setSelectedClassId(''); }} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600">Hủy</button>
+            <button onClick={() => void handleOpenSession({ method: 'manual_class', class_id: selectedClassId })} disabled={!selectedClassId || !todaySchedule} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50 cursor-pointer">Mở phiên</button>
+            <button onClick={() => { setClassPickerOpen(false); setSelectedClassId(''); }} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 cursor-pointer">Hủy</button>
           </div>
         </section>
       )}
