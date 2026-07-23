@@ -356,9 +356,12 @@ export default function ActivityDetailPage() {
   const isActiveStudentMember = isStudent && memberStatus === 'active';
   const allowedStudentTabs = isStudent
     ? ['info']
-    : canViewStaffTabs
-      ? ['info', 'members', 'attendance', ...(isAdmin ? ['rule'] : [])]
-      : ['info'];
+    : [
+        'info',
+        ...(canViewStaffTabs ? ['members'] : []),
+        ...(canManageAttendance ? ['attendance'] : []),
+        ...(isAdmin ? ['rule'] : []),
+      ];
   const displayedTab = allowedStudentTabs.includes(activeTab) && (activeTab !== 'attendance' || canManageAttendance)
     ? activeTab
     : 'info';
@@ -793,7 +796,7 @@ export default function ActivityDetailPage() {
               currentStudentId={normalizeEntityId(studentMembership?.student_id) || user?.studentId || ''}
               attendance={attendance}
               canAdministerGrants={canAdministerAttendanceGrants}
-              allowedMethods={isPresident && !isAdmin && !isAssignedTeacher ? ['qr', 'proximity'] : delegatedMethods}
+              allowedMethods={isAdmin ? ['qr', 'proximity', 'manual_class'] : isPresident && !isAssignedTeacher ? ['qr', 'proximity'] : delegatedMethods}
               onAttendanceCompleted={loadActivityData}
             />
           </div>
@@ -899,6 +902,7 @@ function ActivityAttendanceTab({
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
   const isManualSession = hasActiveSession && attendance.session?.method === 'manual_class';
+  const selfServiceMethods = allowedMethods.filter((method): method is 'qr' | 'proximity' => method !== 'manual_class');
   const hasCurrentMemberCheckedIn = attendance.checkinStatus === 'success' || attendance.checkins.some(
     (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
   );
@@ -945,8 +949,8 @@ function ActivityAttendanceTab({
   };
 
   return (
-    <div className="space-y-6">
-      {canAdministerGrants && <AttendanceGrantManager activityId={activityId} />}
+    <div className={`grid gap-6 ${canAdministerGrants ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''}`}>
+      <div className="min-w-0 space-y-6">
       {/* Session Status Bar */}
       {hasActiveSession && attendance.session && (
         <AttendanceSessionStatus
@@ -966,13 +970,13 @@ function ActivityAttendanceTab({
             Mở phiên điểm danh bằng QR Code hoặc GPS Proximity để sinh viên tự điểm danh qua thiết bị.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto">
-            <button
+            {selfServiceMethods.length > 0 && <button
               onClick={() => setShowMethodSelector(true)}
               disabled={!todaySchedule}
               className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Radio size={15} /> Mở điểm danh
-            </button>
+            </button>}
             {allowedMethods.includes('manual_class') && attendance.capabilities?.classes.map((ownedClass) => (
               <button key={ownedClass._id} onClick={() => void handleOpenSession({ method: 'manual_class', class_id: ownedClass._id })}
                 disabled={!todaySchedule || attendance.loading}
@@ -998,7 +1002,7 @@ function ActivityAttendanceTab({
           <AttendanceMethodSelector
             onSelect={handleOpenSession}
             loading={attendance.loading}
-            allowedMethods={allowedMethods.filter((method): method is 'qr' | 'proximity' => method !== 'manual_class')}
+            allowedMethods={selfServiceMethods}
           />
           <button
             onClick={() => setShowMethodSelector(false)}
@@ -1010,7 +1014,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Active QR Session */}
-      {isQrSession && attendance.qrData && canManageAttendance && (
+      {isQrSession && attendance.qrData && canManageAttendance && allowedMethods.includes('qr') && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <QrDisplayPanel
             token={attendance.qrData.token}
@@ -1024,7 +1028,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* Active Proximity Session */}
-      {isProximitySession && attendance.session && canManageAttendance && (
+      {isProximitySession && attendance.session && canManageAttendance && allowedMethods.includes('proximity') && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
           <ProximityPanel
             latitude={attendance.session.latitude!}
@@ -1038,7 +1042,7 @@ function ActivityAttendanceTab({
         </div>
       )}
 
-      {isManualSession && attendance.manualRoster && (
+      {isManualSession && attendance.manualRoster && allowedMethods.includes('manual_class') && (
         <ManualAttendanceGrid
           roster={attendance.manualRoster}
           pending={attendance.manualPending}
@@ -1136,6 +1140,12 @@ function ActivityAttendanceTab({
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600 font-medium">
           {attendance.error}
         </div>
+      )}
+      </div>
+      {canAdministerGrants && (
+        <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <AttendanceGrantManager activityId={activityId} />
+        </aside>
       )}
     </div>
   );

@@ -138,6 +138,10 @@ vi.mock('@/components/attendance/QrScannerModal', () => ({
   ),
 }));
 
+vi.mock('@/components/attendance/AttendanceGrantManager', () => ({
+  default: () => <div>Attendance permission manager</div>,
+}));
+
 // 7. Import after mocks
 import { activityApi, activityScheduleApi, activityCompletionRuleApi } from '@/api/activity-api';
 import { criteriaApi } from '@/api/criteria-api';
@@ -1263,5 +1267,58 @@ describe('ActivityDetailPage', () => {
     const schedule = screen.getByText('Lịch trình & dòng thời gian');
     const description = screen.getByText('Giới thiệu hoạt động');
     expect(schedule.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('lets a delegated teacher open Attendance with only own-class manual controls', async () => {
+    mockAuth.isAdmin = false;
+    mockAuth.user = { id: 'teacher-user', role: { role_code: 'TEACHER' }, roleCode: 'TEACHER' } as any;
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.state = {
+      session: null,
+      capabilities: {
+        effective_methods: ['manual_class'],
+        can_administer_grants: false,
+        classes: [{ _id: 'class-1', class_name: '12A1' }],
+      },
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Delegated Teacher Activity', code: 'TEACHER_ATTENDANCE',
+      activity_type: 'event', participation_status: 'published',
+      semester_id: { _id: 'sem1' }, settings: {},
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    expect(await screen.findByText('Delegated Teacher Activity')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /12A1/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Má»Ÿ Ä‘iá»ƒm danh/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Attendance permission manager')).not.toBeInTheDocument();
+  });
+
+  it('places attendance permissions in a desktop sidebar after primary session content', async () => {
+    mockAuth.isAdmin = true;
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.state = {
+      session: null,
+      capabilities: { effective_methods: [], can_administer_grants: true, classes: [] },
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Admin Attendance Activity', code: 'ADMIN_ATTENDANCE',
+      activity_type: 'event', participation_status: 'published',
+      semester_id: { _id: 'sem1' }, settings: {},
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    const permissions = await screen.findByText('Attendance permission manager');
+    expect(permissions.parentElement?.tagName).toBe('ASIDE');
+    expect(permissions.parentElement).toHaveClass('lg:sticky');
+    expect(screen.getByText('Admin Attendance Activity').compareDocumentPosition(permissions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
