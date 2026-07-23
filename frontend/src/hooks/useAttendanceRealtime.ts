@@ -8,8 +8,14 @@ export interface AttendanceRealtimeEvent {
   type: string;
   sessionId?: string;
   checkinCount?: number;
+  openedBy?: string;
+  method?: string;
+  classId?: string;
+  scheduleId?: string;
+  studentId?: string;
   session?: Record<string, unknown>;
   checkin?: Record<string, unknown>;
+  attendance?: Record<string, unknown>;
 }
 
 interface Options {

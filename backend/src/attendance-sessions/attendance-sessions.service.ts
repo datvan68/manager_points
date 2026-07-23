@@ -80,14 +80,18 @@ export class AttendanceSessionsService {
       await this.ensureAttendanceOperator(dto.context_type, dto.context_id, userId, roleCode, dto.method);
     }
     await this.ensureTodaySchedule(dto.context_type, dto.context_id, dto.schedule_id);
-    // Manual sessions are isolated by schedule and class; self-check-in remains shared.
+    // Manual sessions are isolated by opener, schedule, and class; self-check-in remains shared.
     const existing = await this.sessionModel.findOne({
       context_type: dto.context_type,
       context_id: new Types.ObjectId(dto.context_id),
       schedule_id: new Types.ObjectId(dto.schedule_id),
       status: 'active',
       ...(dto.method === 'manual_class'
-        ? { method: 'manual_class', class_id: new Types.ObjectId(dto.class_id!) }
+        ? {
+            method: 'manual_class',
+            class_id: new Types.ObjectId(dto.class_id!),
+            opened_by: new Types.ObjectId(userId),
+          }
         : { method: { $in: ['qr', 'proximity'] } }),
     });
     if (existing) {
@@ -157,7 +161,7 @@ export class AttendanceSessionsService {
     this.logger.log(
       `Session opened: ${saved._id} (${dto.method}) for ${dto.context_type}:${dto.context_id}`,
     );
-    this.emitEvent({ type: 'attendance.session_opened', contextType: saved.context_type, contextId: saved.context_id.toString(), sessionId: saved._id.toString(), checkinCount: saved.checkin_count, session: this.toPublicSession(saved) });
+    this.emitLifecycleEvent('attendance.session_opened', saved);
 
     return saved;
   }
@@ -177,6 +181,7 @@ export class AttendanceSessionsService {
       throw new BadRequestException('Phiên điểm danh đã đóng');
     }
     if (session.method === 'manual_class') {
+      this.assertManualSessionOwner(session, userId);
       await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, session.method);
       await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
     } else {
@@ -186,7 +191,7 @@ export class AttendanceSessionsService {
     session.status = 'closed';
     session.closed_at = new Date();
     const saved = await session.save();
-    this.emitEvent({ type: 'attendance.session_closed', contextType: saved.context_type, contextId: saved.context_id.toString(), sessionId: saved._id.toString(), checkinCount: saved.checkin_count, session: this.toPublicSession(saved) });
+    this.emitLifecycleEvent('attendance.session_closed', saved);
     return saved;
   }
 
@@ -403,6 +408,9 @@ export class AttendanceSessionsService {
     if (filters.method === 'manual_class' && !filters.classId) {
       throw new BadRequestException('class_id is required when querying a manual session.');
     }
+    if (filters.method === 'manual_class') {
+      query.opened_by = new Types.ObjectId(userId);
+    }
     const session = await this.sessionModel
       .findOne(query)
       .populate('opened_by', 'user_name')
@@ -431,6 +439,9 @@ export class AttendanceSessionsService {
     if (!session) {
       throw new NotFoundException('Không tìm thấy phiên điểm danh');
     }
+    if (session.method === 'manual_class') {
+      this.assertManualSessionOwner(session, userId);
+    }
     await this.authorizeSessionRead(session, userId, roleCode);
     return session;
   }
@@ -447,6 +458,7 @@ export class AttendanceSessionsService {
       throw new NotFoundException('Không tìm thấy phiên điểm danh');
     }
     if (session.method === 'manual_class') {
+      this.assertManualSessionOwner(session, userId);
       await this.authorizeSessionRead(session, userId, roleCode);
       return [];
     }
@@ -644,6 +656,24 @@ export class AttendanceSessionsService {
     attendanceEventEmitter.emit('attendance_event', event);
   }
 
+  private emitLifecycleEvent(
+    type: 'attendance.session_opened' | 'attendance.session_closed',
+    session: AttendanceSessionDocument,
+  ): void {
+    this.emitEvent({
+      type,
+      contextType: session.context_type,
+      contextId: session.context_id.toString(),
+      sessionId: session._id.toString(),
+      checkinCount: session.checkin_count,
+      session: this.toPublicSession(session),
+      method: session.method,
+      scheduleId: session.schedule_id?.toString(),
+      classId: session.class_id?.toString(),
+      openedBy: session.opened_by?.toString(),
+    });
+  }
+
   private toPublicSession(session: AttendanceSessionDocument | any): Record<string, unknown> {
     return {
       _id: session._id.toString(), context_type: session.context_type,
@@ -654,6 +684,8 @@ export class AttendanceSessionsService {
       latitude: session.latitude, longitude: session.longitude,
       radius_meters: session.radius_meters, title: session.title,
       checkin_count: session.checkin_count,
+      opened_by: session.opened_by?._id?.toString?.()
+        ?? session.opened_by?.toString?.(),
     };
   }
 
@@ -681,6 +713,17 @@ export class AttendanceSessionsService {
   private assertObjectId(value: string, field: string): void {
     if (!value || !Types.ObjectId.isValid(value)) {
       throw new BadRequestException(`${field} must be a valid ObjectId.`);
+    }
+  }
+
+  private assertManualSessionOwner(
+    session: AttendanceSessionDocument | any,
+    userId: string,
+  ): void {
+    const ownerId = session.opened_by?._id?.toString?.()
+      ?? session.opened_by?.toString?.();
+    if (!ownerId || ownerId !== userId) {
+      throw new ForbiddenException('Only the opener can control this manual attendance session.');
     }
   }
 
@@ -715,6 +758,7 @@ export class AttendanceSessionsService {
     if (!session || session.method !== 'manual_class' || session.status !== 'active') {
       throw new NotFoundException('Active manual attendance session not found.');
     }
+    this.assertManualSessionOwner(session, userId);
     await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
     await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
     const [students, attendances, total] = await Promise.all([
@@ -743,6 +787,7 @@ export class AttendanceSessionsService {
     if (!session || session.method !== 'manual_class' || session.status !== 'active') {
       throw new NotFoundException('Active manual attendance session not found.');
     }
+    this.assertManualSessionOwner(session, userId);
     await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
     await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
     const student = await this.studentModel.findOne({ _id: new Types.ObjectId(studentId), class_id: session.class_id })
@@ -784,6 +829,7 @@ export class AttendanceSessionsService {
       contextId: session.context_id.toString(), activityId: session.context_id.toString(),
       scheduleId: session.schedule_id.toString(), sessionId: session._id.toString(),
       classId: session.class_id!.toString(), studentId: student._id.toString(),
+      method: 'manual_class', openedBy: session.opened_by.toString(),
       checkinCount: count, attendance: canonical,
     });
     this.activityAttendanceSyncService.enqueueAttendanceSync(canonical._id);

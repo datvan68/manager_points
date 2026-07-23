@@ -63,6 +63,16 @@ const normalizeEntityId = (value: any) => {
   return value || '';
 };
 
+const getTodaySchedule = (schedules: ActivitySchedule[]) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const today = formatter.format(new Date());
+  return schedules.find((schedule) =>
+    schedule?.status !== 'cancelled' && formatter.format(new Date(schedule.start_time)) === today,
+  );
+};
+
 const getCriterionLabel = (criterion: any, criteriaById: Record<string, string>) => {
   const id = normalizeEntityId(criterion);
 
@@ -125,12 +135,15 @@ export default function ActivityDetailPage() {
   const canViewStaffTabs = isAdmin || isAssignedTeacher;
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
+  const todayScheduleId = getTodaySchedule(schedules)?._id;
 
   const attendance = useAttendanceSession({
     contextType: activity?.activity_type === 'club' ? 'club' : 'activity',
     contextId: activityId,
     enabled: Boolean(activityId),
     activityId,
+    currentUserId: normalizeEntityId(user?.id),
+    manualScheduleId: todayScheduleId,
     canManage: isAdmin || isAssignedTeacher || members.some((member) => member.status === 'active' && member.role === 'president' && (
       normalizeEntityId(member.student_id) === user?.studentId || normalizeEntityId(member.user_id) === user?.id
     )),
@@ -901,20 +914,11 @@ function ActivityAttendanceTab({
   const hasActiveSession = attendance.session?.status === 'active';
   const isQrSession = hasActiveSession && attendance.session?.method === 'qr';
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
-  const isManualSession = hasActiveSession && attendance.session?.method === 'manual_class';
   const selfServiceMethods = allowedMethods.filter((method): method is 'qr' | 'proximity' => method !== 'manual_class');
   const hasCurrentMemberCheckedIn = attendance.checkinStatus === 'success' || attendance.checkins.some(
     (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
   );
-  const todayInHoChiMinh = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-  const todaySchedule = schedules.find((schedule) =>
-    schedule?.status !== 'cancelled'
-    && new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(new Date(schedule.start_time)) === todayInHoChiMinh,
-  );
+  const todaySchedule = getTodaySchedule(schedules);
 
   const handleOpenSession = async (params: {
     method: 'qr' | 'proximity' | 'manual_class';
@@ -962,7 +966,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* No active session */}
-      {!hasActiveSession && !showMethodSelector && canManageAttendance && (
+      {!hasActiveSession && !showMethodSelector && canManageAttendance && selfServiceMethods.length > 0 && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center max-w-lg mx-auto">
           <ClipboardCheck size={44} className="text-blue-500 mb-4 mx-auto" />
           <h3 className="text-base font-extrabold text-slate-800">Điểm danh hoạt động</h3>
@@ -977,13 +981,6 @@ function ActivityAttendanceTab({
             >
               <Radio size={15} /> Mở điểm danh
             </button>}
-            {allowedMethods.includes('manual_class') && attendance.capabilities?.classes.map((ownedClass) => (
-              <button key={ownedClass._id} onClick={() => void handleOpenSession({ method: 'manual_class', class_id: ownedClass._id })}
-                disabled={!todaySchedule || attendance.loading}
-                className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-bold text-white disabled:opacity-50">
-                Điểm danh lớp {ownedClass.class_name}
-              </button>
-            ))}
           </div>
         </div>
       )}
@@ -1013,6 +1010,54 @@ function ActivityAttendanceTab({
         </div>
       )}
 
+      {/* Owner-scoped manual lanes remain independent from QR/proximity and from each other. */}
+      {allowedMethods.includes('manual_class') && attendance.capabilities?.classes.map((ownedClass) => {
+        const lane = attendance.manualLanes?.[ownedClass._id];
+        const activeManualSession = lane?.session?.status === 'active';
+        return (
+          <section key={ownedClass._id} className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-800">Lớp {ownedClass.class_name}</h3>
+                <p className="text-[11px] font-semibold text-slate-500">
+                  {activeManualSession ? 'Phiên của bạn đang hoạt động' : 'Chưa có phiên của bạn trong hôm nay'}
+                </p>
+              </div>
+              {activeManualSession ? (
+                <button
+                  onClick={() => void attendance.closeManualSession(ownedClass._id)}
+                  disabled={lane.loading}
+                  className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  Đóng phiên lớp
+                </button>
+              ) : !lane || lane.loading ? (
+                <span className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-500">
+                  Đang tải...
+                </span>
+              ) : (
+                <button
+                  onClick={() => void handleOpenSession({ method: 'manual_class', class_id: ownedClass._id })}
+                  disabled={!todaySchedule}
+                  className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  Điểm danh lớp {ownedClass.class_name}
+                </button>
+              )}
+            </div>
+            {lane?.error && <p className="text-xs font-semibold text-rose-600">{lane.error}</p>}
+            {activeManualSession && lane.roster && (
+              <ManualAttendanceGrid
+                roster={lane.roster}
+                pending={lane.pending}
+                errors={lane.errors}
+                onCheckin={(studentId) => attendance.manualCheckin(ownedClass._id, studentId)}
+              />
+            )}
+          </section>
+        );
+      })}
+
       {/* Active QR Session */}
       {isQrSession && attendance.qrData && canManageAttendance && allowedMethods.includes('qr') && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl shadow-sm overflow-hidden">
@@ -1040,15 +1085,6 @@ function ActivityAttendanceTab({
             sessionTitle={attendance.session.title}
           />
         </div>
-      )}
-
-      {isManualSession && attendance.manualRoster && allowedMethods.includes('manual_class') && (
-        <ManualAttendanceGrid
-          roster={attendance.manualRoster}
-          pending={attendance.manualPending}
-          errors={attendance.manualErrors}
-          onCheckin={attendance.manualCheckin}
-        />
       )}
 
       {/* Student Proximity check-in */}

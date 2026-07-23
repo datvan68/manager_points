@@ -703,7 +703,7 @@ export interface AttendanceSessionData {
   latitude?: number;
   longitude?: number;
   radius_meters?: number;
-  opened_by: any;
+  opened_by: string | { _id: string; user_name?: string };
   opened_at: string;
   closed_at?: string;
   auto_close_at?: string;
@@ -811,6 +811,9 @@ export const attendanceSessionApi = {
   async getActiveSession(params: {
     context_type: string;
     context_id: string;
+    method?: ActivityAttendanceMethod;
+    class_id?: string;
+    schedule_id?: string;
   }): Promise<AttendanceSessionData | null> {
     const res = await httpClient(
       `${API_BASE}/attendance-sessions/active${buildQuery(params)}`,

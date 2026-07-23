@@ -40,6 +40,14 @@ export class AttendanceRealtimeService {
       const listener = (event: AttendanceRealtimeEvent) => {
         if (event.contextType !== contextType || event.contextId !== contextId) return;
 
+        if (
+          event.method === 'manual_class'
+          && ['attendance.session_opened', 'attendance.session_closed'].includes(event.type)
+          && event.openedBy !== access.userId
+        ) {
+          return;
+        }
+
         if (event.type === 'attendance.checkin_created') {
           if (access.manager) {
             subscriber.next({ data: event });
@@ -59,6 +67,10 @@ export class AttendanceRealtimeService {
             sessionId: event.sessionId,
             checkinCount: event.checkinCount,
             session: event.session,
+            method: event.method,
+            scheduleId: event.scheduleId,
+            classId: event.classId,
+            openedBy: event.openedBy,
           },
         });
       };
@@ -78,18 +90,22 @@ export class AttendanceRealtimeService {
     if (!Types.ObjectId.isValid(contextId)) {
       throw new ForbiddenException('Invalid attendance context.');
     }
-    if (isAdminUser(requester)) return { manager: true, studentId: '' };
-
     const userId = requester?.userId || requester?._id || requester?.id;
     if (!userId || !Types.ObjectId.isValid(userId)) {
       throw new ForbiddenException('An active activity membership is required.');
+    }
+    const normalizedUserId = userId.toString();
+    if (isAdminUser(requester)) {
+      return { manager: true, studentId: '', userId: normalizedUserId };
     }
     const requesterId = new Types.ObjectId(userId);
     const activity = this.activityModel
       ? await this.activityModel.findById(contextId).select('advisor_id').lean().exec()
       : null;
     const assignedTeacher = isTeacher(requester) && activity?.advisor_id?.toString() === requesterId.toString();
-    if (assignedTeacher) return { manager: true, studentId: '' };
+    if (assignedTeacher) {
+      return { manager: true, studentId: '', userId: normalizedUserId };
+    }
     const student = await this.studentModel
       .findOne({ user_id: requesterId })
       .select('_id')
@@ -109,6 +125,7 @@ export class AttendanceRealtimeService {
     return {
       manager: assignedTeacher || member.role === 'president',
       studentId: member.student_id?.toString() || studentId,
+      userId: normalizedUserId,
     };
   }
 }

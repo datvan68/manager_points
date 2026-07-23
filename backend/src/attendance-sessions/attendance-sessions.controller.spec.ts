@@ -9,7 +9,10 @@ describe('AttendanceSessionsController', () => {
     checkinQr: jest.fn(),
     checkinProximity: jest.fn(),
   };
-  const controller = new AttendanceSessionsController(sessionsService as any);
+  const controller = new AttendanceSessionsController(
+    sessionsService as any,
+    {} as any,
+  );
   const req = {
     user: { userId: 'user-1', roleCode: 'STUDENT' },
     headers: { 'user-agent': 'jest' },
@@ -30,5 +33,30 @@ describe('AttendanceSessionsController', () => {
     expect(sessionsService.getCheckins).toHaveBeenCalledWith('session-1', 'user-1', 'STUDENT');
     expect(sessionsService.checkinQr).toHaveBeenCalledWith(qrDto, 'user-1', 'STUDENT', 'jest');
     expect(sessionsService.checkinProximity).toHaveBeenCalledWith(proximityDto, 'user-1', 'STUDENT', 'jest');
+  });
+
+  it('passes manual session identity filters while retaining the authenticated owner', () => {
+    const manualReq = {
+      ...req,
+      query: {
+        method: 'manual_class',
+        class_id: 'class-1',
+        schedule_id: 'schedule-1',
+      },
+    };
+
+    controller.getActiveSession('activity', 'activity-1', manualReq);
+
+    expect(sessionsService.getActiveSession).toHaveBeenCalledWith(
+      'activity',
+      'activity-1',
+      'user-1',
+      'STUDENT',
+      {
+        method: 'manual_class',
+        classId: 'class-1',
+        scheduleId: 'schedule-1',
+      },
+    );
   });
 });

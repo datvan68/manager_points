@@ -109,8 +109,12 @@ AttendanceSessionSchema.index({ qr_token: 1 }, { sparse: true });
 AttendanceSessionSchema.index({ status: 1, auto_close_at: 1 });
 AttendanceSessionSchema.index({ schedule_id: 1 }, { sparse: true });
 AttendanceSessionSchema.index(
-  { context_id: 1, schedule_id: 1, class_id: 1 },
-  { unique: true, partialFilterExpression: { status: 'active', method: 'manual_class' } },
+  { context_id: 1, schedule_id: 1, class_id: 1, opened_by: 1 },
+  {
+    name: 'manual_active_session_per_owner',
+    unique: true,
+    partialFilterExpression: { status: 'active', method: 'manual_class' },
+  },
 );
 AttendanceSessionSchema.index(
   { context_id: 1, schedule_id: 1 },

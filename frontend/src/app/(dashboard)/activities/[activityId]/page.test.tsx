@@ -7,6 +7,9 @@ const mockSearchParamsGet = vi.fn().mockReturnValue(null);
 const attendanceMocks = vi.hoisted(() => ({
   checkinQr: vi.fn(),
   checkinProximity: vi.fn(),
+  openSession: vi.fn(),
+  closeManualSession: vi.fn(),
+  manualCheckin: vi.fn(),
   resetCheckinStatus: vi.fn(),
   state: {} as Record<string, unknown>,
 }));
@@ -114,8 +117,11 @@ vi.mock('@/hooks/useAttendanceSession', () => ({
     checkinError: null,
     checkinQr: attendanceMocks.checkinQr,
     checkinProximity: attendanceMocks.checkinProximity,
+    manualLanes: {},
     resetCheckinStatus: attendanceMocks.resetCheckinStatus,
-    openSession: vi.fn(),
+    openSession: attendanceMocks.openSession,
+    closeManualSession: attendanceMocks.closeManualSession,
+    manualCheckin: attendanceMocks.manualCheckin,
     closeSession: vi.fn(),
     ...attendanceMocks.state,
   }),
@@ -162,6 +168,9 @@ describe('ActivityDetailPage', () => {
     mockSearchParamsGet.mockReturnValue(null);
     attendanceMocks.checkinQr.mockReset();
     attendanceMocks.checkinProximity.mockReset();
+    attendanceMocks.openSession.mockReset();
+    attendanceMocks.closeManualSession.mockReset();
+    attendanceMocks.manualCheckin.mockReset();
     attendanceMocks.resetCheckinStatus.mockReset();
     attendanceMocks.state = {};
     vi.mocked(semesterApi.getSemesters).mockResolvedValue([]);
@@ -1280,6 +1289,11 @@ describe('ActivityDetailPage', () => {
         can_administer_grants: false,
         classes: [{ _id: 'class-1', class_name: '12A1' }],
       },
+      manualLanes: {
+        'class-1': {
+          session: null, roster: null, loading: false, error: null, pending: {}, errors: {},
+        },
+      },
     };
     vi.mocked(activityApi.getById).mockResolvedValue({
       _id: 'act1', name: 'Delegated Teacher Activity', code: 'TEACHER_ATTENDANCE',
@@ -1296,6 +1310,72 @@ describe('ActivityDetailPage', () => {
     expect(screen.getByRole('button', { name: /12A1/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Má»Ÿ Ä‘iá»ƒm danh/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Attendance permission manager')).not.toBeInTheDocument();
+  });
+
+  it('resumes the owner manual lane while keeping self-service and other class lanes independent', async () => {
+    mockAuth.isAdmin = false;
+    mockAuth.user = { id: 'teacher-user', role: { role_code: 'TEACHER' }, roleCode: 'TEACHER' } as any;
+    mockSearchParamsGet.mockReturnValue('attendance');
+    attendanceMocks.state = {
+      session: {
+        _id: 'qr-session', status: 'active', method: 'qr', checkin_count: 0,
+        opened_at: new Date().toISOString(),
+      },
+      capabilities: {
+        effective_methods: ['qr', 'manual_class'],
+        can_administer_grants: false,
+        classes: [
+          { _id: 'class-1', class_name: '12A1' },
+          { _id: 'class-2', class_name: '12A2' },
+        ],
+      },
+      manualLanes: {
+        'class-1': {
+          session: {
+            _id: 'owner-manual-session', status: 'active', method: 'manual_class',
+            class_id: 'class-1', schedule_id: 'schedule-today',
+          },
+          roster: { class_id: 'class-1', total: 0, students: [] },
+          loading: false, error: null, pending: {}, errors: {},
+        },
+        'class-2': {
+          session: null, roster: null, loading: false, error: null, pending: {}, errors: {},
+        },
+      },
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue({
+      _id: 'act1', name: 'Owner Lane Activity', code: 'OWNER_LANES',
+      activity_type: 'event', participation_status: 'published',
+      semester_id: { _id: 'sem1' }, settings: {},
+    } as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({
+      items: [{
+        _id: 'schedule-today',
+        title: 'Today',
+        status: 'scheduled',
+        start_time: new Date().toISOString(),
+        end_time: new Date(Date.now() + 3_600_000).toISOString(),
+      }],
+    } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    const closeManual = await screen.findByRole('button', { name: 'Đóng phiên lớp' });
+    const openOtherClass = screen.getByRole('button', { name: 'Điểm danh lớp 12A2' });
+    expect(screen.getByText('Phiên của bạn đang hoạt động')).toBeInTheDocument();
+
+    fireEvent.click(closeManual);
+    fireEvent.click(openOtherClass);
+
+    expect(attendanceMocks.closeManualSession).toHaveBeenCalledWith('class-1');
+    expect(attendanceMocks.openSession).toHaveBeenCalledWith(expect.objectContaining({
+      method: 'manual_class',
+      class_id: 'class-2',
+      schedule_id: 'schedule-today',
+      semester_id: 'sem1',
+    }));
   });
 
   it('places attendance permissions in a desktop sidebar after primary session content', async () => {

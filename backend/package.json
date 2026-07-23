@@ -28,6 +28,8 @@
     "migration:activity-naming:execute": "ts-node scripts/migrate-unified-activities.ts --execute",
     "migration:activity-completion-rule-index:dry-run": "ts-node scripts/repair-activity-completion-rule-index.ts",
     "migration:activity-completion-rule-index:execute": "ts-node scripts/repair-activity-completion-rule-index.ts --execute",
+    "migration:attendance-session-owner-index:dry-run": "ts-node scripts/migrate-attendance-session-owner-index.ts",
+    "migration:attendance-session-owner-index:execute": "ts-node scripts/migrate-attendance-session-owner-index.ts --execute",
     "migration:activities:rollback:dry-run": "ts-node scripts/rollback-unified-activities.ts",
     "migration:activities:rollback:execute": "ts-node scripts/rollback-unified-activities.ts --execute"
   },

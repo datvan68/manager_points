@@ -24,6 +24,8 @@ export interface AttendanceRealtimeEvent {
   activityId?: string;
   scheduleId?: string;
   classId?: string;
+  openedBy?: string;
+  method?: string;
   studentId?: string;
   attendance?: Record<string, unknown>;
 }
