@@ -12,6 +12,7 @@ import {
   ActivityCompletionRule
 } from '@/api/activity-api';
 import { semesterApi, Semester } from '@/api/semester-api';
+import { classApi } from '@/api/class-api';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { criteriaApi } from '@/api/criteria-api';
 import { isTeacherRole, isStudentRole } from '@/utils/role.util';
@@ -131,7 +132,7 @@ export default function ActivityDetailPage() {
 
   const isAdmin = isAdminUser(user);
   const isAssignedTeacher = isTeacherRole(user) && Boolean(activity?.advisor_id) && normalizeEntityId(activity.advisor_id) === normalizeEntityId(user?.id);
-  const isAdminOrAdvisor = isAdmin;
+  const isAdminOrAdvisor = isAdmin || isAssignedTeacher;
   const canViewStaffTabs = isAdmin || isAssignedTeacher;
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
@@ -810,6 +811,8 @@ export default function ActivityDetailPage() {
               attendance={attendance}
               canAdministerGrants={canAdministerAttendanceGrants}
               allowedMethods={isAdmin ? ['qr', 'proximity', 'manual_class'] : isPresident && !isAssignedTeacher ? ['qr', 'proximity'] : delegatedMethods}
+              isManualClassChooser={isAdminOrAdvisor}
+              isAdmin={isAdmin}
               onAttendanceCompleted={loadActivityData}
             />
           </div>
@@ -894,6 +897,8 @@ function ActivityAttendanceTab({
   attendance,
   canAdministerGrants,
   allowedMethods,
+  isManualClassChooser,
+  isAdmin,
   onAttendanceCompleted,
 }: {
   activityId: string;
@@ -909,6 +914,8 @@ function ActivityAttendanceTab({
   attendance: ReturnType<typeof useAttendanceSession>;
   canAdministerGrants: boolean;
   allowedMethods: Array<'qr' | 'proximity' | 'manual_class'>;
+  isManualClassChooser: boolean;
+  isAdmin: boolean;
   onAttendanceCompleted: () => Promise<void>;
 }) {
   const hasActiveSession = attendance.session?.status === 'active';
@@ -919,6 +926,15 @@ function ActivityAttendanceTab({
     (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
   );
   const todaySchedule = getTodaySchedule(schedules);
+  const [classPickerOpen, setClassPickerOpen] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [adminClasses, setAdminClasses] = useState<Array<{ _id: string; class_name: string }>>([]);
+  const manualClasses = isAdmin ? adminClasses : (attendance.capabilities?.classes || []);
+
+  useEffect(() => {
+    if (!classPickerOpen || !isAdmin) return;
+    void classApi.getClasses().then((classes) => setAdminClasses(classes)).catch(() => toast.error('KhĂ´ng thá»ƒ táº£i danh sĂ¡ch lá»›p'));
+  }, [classPickerOpen, isAdmin]);
 
   const handleOpenSession = async (params: {
     method: 'qr' | 'proximity' | 'manual_class';
@@ -931,6 +947,11 @@ function ActivityAttendanceTab({
     try {
       if (!todaySchedule?._id) throw new Error('No non-cancelled schedule is available today.');
       if (params.method === 'manual_class') {
+        if (!isManualClassChooser) {
+          const classes = attendance.capabilities?.classes || [];
+          if (classes.length !== 1) throw new Error(classes.length === 0 ? 'KhĂ´ng tĂ¬m tháº¥y lá»›p Ä‘Æ°á»£c phĂ©p.' : 'KhĂ´ng thá»ƒ tá»± chá»n giá»¯a nhiá»u lá»›p.');
+          params.class_id = classes[0]._id;
+        }
         if (params.class_id) {
           await attendance.openSession({
             ...params,
@@ -1029,10 +1050,25 @@ function ActivityAttendanceTab({
         </div>
       )}
 
+      {classPickerOpen && allowedMethods.includes('manual_class') && (
+        <section className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm space-y-4">
+          <h3 className="text-sm font-extrabold text-slate-800">Chá»n lá»›p Ä‘iá»ƒm danh</h3>
+          <select aria-label="Lá»›p Ä‘iá»ƒm danh" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="">Chá»n lá»›p</option>
+            {manualClasses.map((item) => <option key={item._id} value={item._id}>{item.class_name}</option>)}
+          </select>
+          <div className="flex gap-3">
+            <button onClick={() => void handleOpenSession({ method: 'manual_class', class_id: selectedClassId })} disabled={!selectedClassId || !todaySchedule} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">Mở phiên</button>
+            <button onClick={() => { setClassPickerOpen(false); setSelectedClassId(''); }} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600">Hủy</button>
+          </div>
+        </section>
+      )}
+
       {/* Owner-scoped manual lanes remain independent from QR/proximity and from each other. */}
       {allowedMethods.includes('manual_class') && attendance.capabilities?.classes.map((ownedClass) => {
         const lane = attendance.manualLanes?.[ownedClass._id];
         const activeManualSession = lane?.session?.status === 'active';
+        if (!activeManualSession) return null;
         return (
           <section key={ownedClass._id} className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

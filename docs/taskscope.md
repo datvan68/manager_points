@@ -1,111 +1,80 @@
 # Task Identity and Pipeline
 
-- Task: `activity-attendance-owner-isolation`
-- Pipeline: `bug_fix`
+- Task: `activity-attendance-manual-class-entry`
+- Pipeline: `feature_development`
 - Profile: Full
-- Rule manifest: canonical rules `3.2.0`
+- Rules: `3.2.0`
 - Repository: `D:\PROJECT\manager_points`
-- Base: branch `main`, commit `57014a9878621831ea29b50b094cbe151791f387`
-- Planning state: `docs/taskscope.md` was the only dirty path and its replacement was explicitly approved.
+- Base: branch `main`, commit `e330f9dc`; `docs/taskscope.md` is the only dirty path and is the authorized planning artifact.
 
 # Risk Level
 
 - Risk: high.
-- Environment: development implementation; production migration is separately gated.
-- Evidence: the change affects concurrent session identity, MongoDB unique indexes, authorization, and realtime delivery.
-- Blast radius: activity attendance sessions only. QR/proximity behavior and canonical attendance results must remain unchanged.
+- Environment: development.
+- Evidence: role-dependent attendance entry affects which class ID is submitted. Existing server authorization remains authoritative.
+- Blast radius: activity detail Attendance tab and focused frontend tests.
 
 # Objective
 
-Make every `manual_class` attendance session independent per opener while preserving one canonical attendance result per student and schedule. A teacher must resume their own active class session after reload, and opening it must not activate or transfer session controls in another teacher's or Admin's UI.
+In `activities/[activityId] > Điểm danh`, remove the persistent unopened class cards. Clicking `Theo lớp` opens the teacher’s class session immediately, while Admin or the assigned activity advisor must select an authorized class first.
 
 # Scope Boundaries
 
-- Approved:
-  - `backend/src/attendance-sessions/**`
-  - `backend/src/system/attendance-event-emitter.ts`
-  - `backend/scripts/**`
-  - `frontend/src/api/activity-api.ts`
-  - `frontend/src/hooks/useAttendanceSession.ts`
-  - `frontend/src/hooks/useAttendanceRealtime.ts`
-  - `frontend/src/app/(dashboard)/activities/[activityId]/**`
-- Expected writes:
-  - attendance session service/schema/realtime service and focused specs;
-  - a dry-run-first attendance-session index migration script;
-  - frontend attendance API, session/realtime hooks, activity detail page, and focused tests.
-- Known targets:
-  - `AttendanceSessionsService.openSession/getActiveSession/closeSession/getManualRoster/manualCheckin`
-  - manual-session partial unique index
-  - `AttendanceRealtimeService`
-  - `attendanceSessionApi.getActiveSession`
-  - `useAttendanceSession.applyRealtimeEvent/fetchActiveSession`
-  - `ActivityAttendanceTab`
+- Approved/write:
+  - `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
+  - `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
+- Conditional write only if the existing selector contract cannot support the flow:
+  - `frontend/src/components/attendance/AttendanceMethodSelector.tsx`
+  - `frontend/src/components/attendance/AttendanceMethodSelector.test.tsx`
+- Known targets: `ActivityAttendanceTab`, `handleOpenSession`, manual-lane rendering, role/capability-derived class selection.
 
 # Out of Scope
 
-- QR/proximity session identity, student QR/GPS UX, attendance grants, scoring, activity membership, and unrelated activity-detail layout.
-- Changing canonical `ActivityAttendance` idempotency by schedule and student.
-- Executing a database migration or deployment without approval.
+- Attendance grants, backend authorization, session ownership/uniqueness, QR/GPS, scoring, realtime protocol, and unrelated activity layout.
+- Showing classes that the current backend does not authorize.
 
 # Context and Dependencies
 
-- Current manual uniqueness is `(context_id, schedule_id, class_id)` and intentionally omits `opened_by`.
-- The unfiltered active-session lookup excludes `manual_class`, causing reload to return no session before a duplicate-open rejection.
-- Realtime session lifecycle is broadcast by activity context, so another authorized account adopts the opened session in local state.
-- This scope supersedes the earlier shared-session/realtime-convergence behavior from commit `d85526ac`.
-- Backend filtered active lookup already accepts `method`, `class_id`, and `schedule_id`; frontend does not currently send them.
+- `AttendanceMethodSelector` already emits `manual_class`.
+- `capabilities.classes` supplies classes owned by the requester; Admin can use the existing `classApi.getClasses()` list while backend checks remain authoritative.
+- An assigned activity advisor is a chooser even when their account role is `TEACHER`; a delegated/non-advisor teacher uses the direct-open flow.
+- Direct open requires exactly one authorized teacher class. Zero or ambiguous classes must show a clear error instead of guessing.
+- Active manual sessions must retain close controls and `ManualAttendanceGrid`; only unopened class cards are removed.
 
 # Steps
 
-1. Establish regression baselines for owner isolation, reload hydration, duplicate handling, and QR/proximity preservation.
-2. Change manual active identity and its partial unique index to include `opened_by`; add a dry-run-first migration that reports existing indexes and conflicting active records before replacement.
-3. Enforce owner-scoped manual lookup and session-control operations. Admin may continue receiving canonical attendance/reporting updates but must not control another opener's manual session.
-4. Include owner/method/class/schedule scope in lifecycle events and restrict manual open/close lifecycle delivery to the owner; keep shared QR/proximity lifecycle behavior.
-5. Extend the frontend active-session query contract and model separate self-service and owner/class manual session lanes.
-6. Hydrate each manual lane with `method=manual_class`, `class_id`, and today's `schedule_id`; reconcile a same-owner duplicate response by refetching the existing session.
-7. Filter realtime events before mutating a lane. Render resume/close/roster state for the owner's active class session without blocking independent lanes.
-8. Run focused backend/frontend tests, migration dry-run against an approved non-production database, then final diff/status review.
+1. Add focused regressions for delegated teacher, Admin, and assigned-advisor flows.
+2. Replace unopened manual class lanes with one `Theo lớp` action.
+3. Resolve a delegated teacher’s single owned class and open it immediately with today’s schedule.
+4. For Admin/assigned advisor, show a class picker, validate selection, then open the selected class session.
+5. Render only active manual session content, preserving close, roster, loading, error, and reload behavior.
+6. Run focused tests, typecheck, independent role/authorization-boundary review, and final diff inspection.
 
 # Acceptance Criteria
 
-- AC1: Teacher A opens a manual session for a class; Admin and Teacher B do not enter that session or receive its controls.
-- AC2: Reloading Teacher A's page restores the same active manual session and roster; the UI does not offer a second open action for that lane.
-- AC3: A repeated same-owner open is idempotently reconciled or rejected without losing the recoverable active session.
-- AC4: Different authorized openers may hold independent manual sessions for the same activity, schedule, and class.
-- AC5: Only the opener can hydrate, close, or mutate their manual session; Admin retains reporting visibility without session takeover.
-- AC6: Attendance writes remain idempotent per schedule/student across concurrent manual sessions.
-- AC7: QR/proximity active lookup, lifecycle broadcasting, check-in, and uniqueness remain unchanged.
+- AC1: No “Lớp … / Chưa có phiên…” cards appear before a manual session is opened.
+- AC2: A delegated teacher clicks `Theo lớp` once and the request contains their sole authorized `class_id` without a second selection step.
+- AC3: Admin and the assigned activity advisor cannot open `manual_class` until selecting an authorized class.
+- AC4: The selected class ID and today’s schedule ID are submitted; canceling the picker opens nothing.
+- AC5: Missing today schedule, zero classes, or ambiguous teacher ownership produces a visible error and no request.
+- AC6: An active manual session still shows its class roster and close action; QR/GPS behavior is unchanged.
 
 # Verification
 
-- AC1–AC7 backend:
-  - `D:\PROJECT\manager_points\backend :: npm test -- --runInBand attendance-sessions/attendance-sessions.service.spec.ts attendance-sessions/attendance-sessions.controller.spec.ts attendance-sessions/attendance-realtime.service.spec.ts`
-  - Expected: owner, concurrent-session, authorization, realtime, and QR/GPS regressions pass.
-- AC1–AC3 and AC7 frontend:
-  - `D:\PROJECT\manager_points\frontend :: npm test -- "src/hooks/useAttendanceSession.test.tsx" "src/app/(dashboard)/activities/[activityId]/page.test.tsx"`
-  - Expected: filtered hydration, realtime isolation, reload resume, and activity-tab regressions pass.
-- Migration safety:
-  - `D:\PROJECT\manager_points\backend :: <repository-native dry-run command added by the implementation>`
-  - Expected: exact old/new index plan and conflict count are reported with no mutation.
-- Final:
-  - `D:\PROJECT\manager_points :: git diff --check`
-  - Expected: clean scoped diff with no unintended paths.
+- AC1–AC6: `D:\PROJECT\manager_points\frontend :: npm test -- "src/app/(dashboard)/activities/[activityId]/page.test.tsx" "src/components/attendance/AttendanceMethodSelector.test.tsx"` => focused attendance UI tests pass.
+- Static: `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no TypeScript errors.
+- Final: `D:\PROJECT\manager_points :: git diff --check` and `git diff -- docs/taskscope.md frontend/src/app/(dashboard)/activities/[activityId]` => scoped, whitespace-clean diff with no unrelated changes.
 
 # Safety Gates
 
-- Gate: explicit approval before executing the MongoDB index migration in staging or production.
-- Approval artifact: dry-run output, conflicting-record report, old/new index definitions, database/environment identity, backup confirmation, and rollback procedure.
-- Rollback: stop new session creation, close/reconcile extra owner-specific active sessions, then restore the prior shared manual-session index and application version.
-- Resume point: execute the reviewed migration, verify indexes, then run post-migration owner-isolation smoke tests.
+- Gate: None. No deployment, migration, persistent-data mutation, or authorization expansion is authorized.
 
 # Artifacts and Checkpoints
 
-- Checkpoint 1: passing regression baseline plus pinned base commit.
-- Checkpoint 2: reviewed code diff and migration dry-run artifact/hash before the Human Gate.
-- Checkpoint 3: post-migration index listing and smoke-test evidence.
+- Required artifact: focused test output and final diff.
+- Checkpoint: implementation diff before independent review.
 
 # Execution Budgets
 
-- One writer per path; serialize schema, service, migration, and frontend contract changes.
-- Maximum retries: 2; engineering loops: 3; review remediation cycles: 2.
-- Independent review is required for authorization, concurrency, realtime, and migration behavior.
+- One writer per path; maximum retries 2, engineering loops 3, review remediation cycles 2.
+- Stop and amend scope if backend/API authorization or additional modules must change.

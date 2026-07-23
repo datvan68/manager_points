@@ -1307,7 +1307,7 @@ describe('ActivityDetailPage', () => {
     render(<ActivityDetailPage />);
 
     expect(await screen.findByText('Delegated Teacher Activity')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /12A1/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Lớp 12A1/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Má»Ÿ Ä‘iá»ƒm danh/ })).not.toBeInTheDocument();
     expect(screen.queryByText('Attendance permission manager')).not.toBeInTheDocument();
   });
