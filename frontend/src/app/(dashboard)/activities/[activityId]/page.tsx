@@ -150,7 +150,9 @@ export default function ActivityDetailPage() {
       setMembers(membersData);
       const loadedStudentMembership = membersData.find((m: any) => normalizeEntityId(m.student_id) === user?.studentId || normalizeEntityId(m.user_id) === user?.id);
       const semesterId = normalizeEntityId(actData.semester_id);
-      const memberProgress = semesterId ? await activityCompletionRuleApi.getMemberProgress(activityId, semesterId).catch(() => []) : [];
+      const memberProgress = semesterId
+        ? (await Promise.resolve(activityCompletionRuleApi.getMemberProgress?.(activityId, semesterId)).catch(() => [])) ?? []
+        : [];
       const progressByMember = new Map(memberProgress.map((item) => [item.member_id, item.participation_count]));
       setMembers(membersData.map((member: ActivityMember) => ({ ...member, participation_count: progressByMember.get(member._id) ?? 0 })));
       if (isStudent && actData.activity_type === 'club' && loadedStudentMembership?.status === 'active' && semesterId) {
@@ -657,6 +659,10 @@ export default function ActivityDetailPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {isAssignedTeacher && <div className="space-y-4">
+                <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
+              </div>}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <div className="bg-white/50 backdrop-blur-md border border-white/60 p-5 rounded-2xl space-y-3">
@@ -687,10 +693,10 @@ export default function ActivityDetailPage() {
                   </div>
                 </div>
               </div>
-              <div className="space-y-4">
+              {!isAssignedTeacher && <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
                 <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
-              </div>
+              </div>}
             </div>
           )
         )}

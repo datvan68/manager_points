@@ -16,6 +16,7 @@ import { User } from '../auth/schemas/user.schema';
 import { Role } from '../auth/schemas/role.schema';
 import { ActivityMembershipTransfer } from './schemas/activity-membership-transfer.schema';
 import { ActivitySchedule } from '../activity-schedules/schemas/activity-schedule.schema';
+import { ActivitiesRealtimeService } from './activities-realtime.service';
 
 describe('ActivitiesService - Membership Policy & Auditing', () => {
   let service: ActivitiesService;
@@ -112,12 +113,18 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
         ActivitiesService,
         { provide: getModelToken(Activity.name), useValue: MockActivityModel },
         { provide: getModelToken(ActivityMember.name), useValue: MockActivityMemberModel },
-        { provide: getModelToken(ActivityFavorite.name), useValue: {} },
+        { provide: getModelToken(ActivityFavorite.name), useValue: {
+          aggregate: jest.fn().mockReturnValue(mockQuery([])),
+        } },
         { provide: getModelToken(Student.name), useValue: MockStudentModel },
         { provide: getModelToken(User.name), useValue: MockUserModel },
         { provide: getModelToken(Role.name), useValue: {} },
         { provide: getModelToken(ActivityMembershipTransfer.name), useValue: MockTransferModel },
         { provide: getModelToken(ActivitySchedule.name), useValue: MockScheduleModel },
+        { provide: ActivitiesRealtimeService, useValue: {
+          publishCreated: jest.fn(),
+          publishFavoriteUpdated: jest.fn(),
+        } },
         { provide: getConnectionToken(), useValue: mockConnection },
       ],
     }).compile();
@@ -184,8 +191,8 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
       const result = await service.findAll();
 
       expect(result).toEqual([
-        { ...activityWithMembers, active_members_count: 2, membership_status: 'none' },
-        { ...emptyActivity, active_members_count: 0, membership_status: 'none' },
+        { ...activityWithMembers, active_members_count: 2, membership_status: 'none', favorite_count: 0, is_favorited: false },
+        { ...emptyActivity, active_members_count: 0, membership_status: 'none', favorite_count: 0, is_favorited: false },
       ]);
       expect(MockActivityMemberModel.aggregate).toHaveBeenCalledTimes(1);
       expect(MockActivityMemberModel.countDocuments).not.toHaveBeenCalled();
@@ -238,6 +245,30 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
           },
         },
       ]);
+    });
+
+    it('should restrict teachers to activities assigned to them', async () => {
+      const teacherId = new Types.ObjectId();
+      MockActivityModel.find.mockReturnValue(makeActivityFindQuery([]));
+
+      await service.findAll({ id: teacherId.toString(), role: { role_code: 'TEACHER' } });
+
+      expect(MockActivityModel.find).toHaveBeenCalledWith({ advisor_id: teacherId });
+    });
+
+    it('should compose teacher assignment visibility with activity type filtering', async () => {
+      const teacherId = new Types.ObjectId();
+      MockActivityModel.find.mockReturnValue(makeActivityFindQuery([]));
+
+      await service.findAll(
+        { id: teacherId.toString(), role: { role_code: 'TEACHER' } },
+        'club',
+      );
+
+      expect(MockActivityModel.find).toHaveBeenCalledWith({
+        activity_type: 'club',
+        advisor_id: teacherId,
+      });
     });
   });
   describe('resolveStudentId', () => {

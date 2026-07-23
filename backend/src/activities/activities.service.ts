@@ -27,7 +27,7 @@ import {
   LeaveActivityDto,
   AdminTransferActivityDto,
 } from './dto/activity-member.dto';
-import { isAdminUser } from '../auth/utils/role.util';
+import { isAdminUser, isTeacher } from '../auth/utils/role.util';
 import {
   ActivityMembershipTransfer,
   ActivityMembershipTransferDocument,
@@ -210,11 +210,17 @@ export class ActivitiesService {
     }
 
     if (user && !isAdminUser(user)) {
-      // Non-admin: show active clubs or clubs they advise
-      query.$or = [
-        { status: 'active' },
-        { advisor_id: new Types.ObjectId(user._id || user.id) },
-      ];
+      const requesterId = user.userId || user._id || user.id;
+      const roleCode = user.roleCode || user.role?.role_code;
+      if (isTeacher(user) || roleCode === 'TEACHER') {
+        query.advisor_id = new Types.ObjectId(requesterId);
+      } else {
+        // Non-admin, non-teacher users retain the active-or-advised policy.
+        query.$or = [
+          { status: 'active' },
+          { advisor_id: new Types.ObjectId(requesterId) },
+        ];
+      }
     }
 
     const activities = await this.activityModel

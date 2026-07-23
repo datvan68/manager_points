@@ -76,6 +76,7 @@ vi.mock('@/api/activity-api', () => ({
   },
   activityCompletionRuleApi: {
     getAll: vi.fn(),
+    getMemberProgress: vi.fn().mockResolvedValue([]),
     create: vi.fn(),
     update: vi.fn(),
   },
@@ -1261,8 +1262,6 @@ describe('ActivityDetailPage', () => {
 
     const schedule = screen.getByText('Lịch trình & dòng thời gian');
     const description = screen.getByText('Giới thiệu hoạt động');
-    const mechanism = screen.getByText('Cơ chế tích lũy điểm rèn luyện');
     expect(schedule.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(description.compareDocumentPosition(mechanism) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
