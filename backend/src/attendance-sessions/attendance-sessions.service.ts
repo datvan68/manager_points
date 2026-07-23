@@ -803,9 +803,6 @@ export class AttendanceSessionsService {
     const attendanceInsert = {
           activity_id: session.context_id, schedule_id: session.schedule_id,
           student_id: student._id, semester_id: session.semester_id,
-          status: 'present', check_in_time: now, recorded_by: new Types.ObjectId(userId),
-          recorded_by_role: 'teacher', recorded_at: now, approval_status: 'approved',
-          approved_by: new Types.ObjectId(userId), approved_at: now,
           attendance_method: 'manual_class', class_id: session.class_id,
           note: 'Manual homeroom attendance',
     };
@@ -824,7 +821,7 @@ export class AttendanceSessionsService {
       attendance = await this.clubAttendanceModel.findOneAndUpdate(
         { ...attendanceFilter, activity_id: session.context_id, class_id: session.class_id, attendance_method: 'manual_class' },
         { $set: reactivation, $setOnInsert: attendanceInsert },
-        { new: true, upsert: true, setDefaultsOnInsert: true },
+        { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true },
       ).lean().exec();
     } catch (error: any) {
       if (error?.code !== 11000) throw error;

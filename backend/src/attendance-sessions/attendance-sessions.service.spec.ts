@@ -210,6 +210,18 @@ describe('AttendanceSessionsService', () => {
       'TEACHER',
     );
 
+    const [, update, options] = clubAttendanceModel.findOneAndUpdate.mock.calls[0];
+    const overlappingUpdatePaths = Object.keys(update.$set)
+      .filter((path) => Object.prototype.hasOwnProperty.call(update.$setOnInsert, path));
+    expect(overlappingUpdatePaths).toEqual([]);
+    expect(update.$set).toEqual(expect.objectContaining({ status: 'present' }));
+    expect(update.$setOnInsert).not.toHaveProperty('status');
+    expect(options).toEqual(expect.objectContaining({
+      returnDocument: 'after',
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }));
+    expect(options).not.toHaveProperty('new');
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({
       type: 'attendance.checkin_created',
       method: 'manual_class',
