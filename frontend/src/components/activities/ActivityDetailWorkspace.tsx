@@ -470,13 +470,19 @@ function ActivityAttendanceTab({
   const isProximitySession = hasActiveSession && attendance.session?.method === 'proximity';
 
   const handleOpenSession = async (params: {
-    method: 'qr' | 'proximity';
+    method: 'qr' | 'proximity' | 'manual_class';
+    class_id?: string;
     latitude?: number;
     longitude?: number;
     radius_meters?: number;
     qr_refresh_interval?: number;
   }) => {
     try {
+      if (params.method === 'manual_class') {
+        setShowMethodSelector(false);
+        toast.info('Vui lòng chọn lớp học để điểm danh');
+        return;
+      }
       await attendance.openSession({
         ...params,
         semester_id: activity.semester_id?._id || activity.semester_id || '',
@@ -512,13 +518,15 @@ function ActivityAttendanceTab({
 
       {/* No active session */}
       {!hasActiveSession && !showMethodSelector && (
-        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center max-w-lg mx-auto">
-          <ClipboardCheck size={44} className="text-blue-500 mb-4 mx-auto" />
+        <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 mx-auto border border-blue-500/20 shadow-sm">
+            <ClipboardCheck size={32} />
+          </div>
           <h3 className="text-base font-extrabold text-slate-800">Điểm danh hoạt động</h3>
-          <p className="text-xs text-slate-450 mt-1.5 mb-6 max-w-sm leading-relaxed font-semibold mx-auto">
-            Mở phiên điểm danh bằng QR Code hoặc GPS Proximity để sinh viên tự điểm danh qua thiết bị.
+          <p className="text-xs text-slate-500 mt-2 mb-6 max-w-md leading-relaxed font-semibold mx-auto">
+            Hỗ trợ 3 phương thức điểm danh: <strong>QR Code</strong>, <strong>Phạm vi GPS</strong> và <strong>Theo lớp phụ trách</strong>.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto justify-center">
             <button
               onClick={() => setShowMethodSelector(true)}
               className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
