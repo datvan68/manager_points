@@ -1,15 +1,73 @@
-Task: `activity-create-modal-usability` | `bug_fix` | Risk: medium | Profile: Quick
+## Task Identity and Pipeline
 
-Objective: Make the “Create new activity” popup usable and context-aware: the advisor list scrolls, club-only fields stay club-only, unnecessary registration controls disappear, and selected media is previewed.
+Task: `activity-create-schedule-highlight`
 
-Boundary: `frontend/src/components/**` | Write: `frontend/src/components/activities/ActivityForm.tsx`, `frontend/src/components/ui/select.tsx` only if the shared dropdown needs a bounded scrolling fix, and `frontend/src/components/activities/ActivityForm.test.tsx`.
+Profile: Full
 
-Targets: advisor `SelectContent`; `activity_type`/`category` controls; create-mode `president_id`; advanced-settings visibility; logo/cover file state and preview lifecycle.
+Pipeline: `bug_fix`
 
-Steps: Reproduce/inspect popup behavior -> make the advisor menu wheel/touch scroll within a capped viewport -> show “Category” only for `club` and normalize non-club category to the existing API-safe value -> omit President from create UI/payload while preserving edit behavior -> hide the entire advanced section when registration is not required -> render logo and cover previews immediately after valid file selection and release object URLs -> add focused regressions -> inspect final diff.
+Repository: `D:\PROJECT\manager_points`
 
-Verify: `D:\PROJECT\manager_points\frontend` :: `npm test -- src/components/activities/ActivityForm.test.tsx` => all five popup behaviors pass; `npm run typecheck` => no affected TypeScript errors; repository root :: `git diff --check` => clean diff.
+Base branch/commit: `main` / `6a419a9e261ec0e45bcf1d3813b3fb8bcecce5e4`
 
-Done: Advisor options are scrollable; Category appears only for Club; create mode has no President field or payload value; “No registration required” hides Advanced settings; valid logo/cover files show distinct previews; edit/API behavior outside these rules is unchanged.
+## Risk Level
 
-Gate: None
+Risk: medium. Development-only frontend behavior, reversible through Git, with no persistent-data, API, deployment, or external-system change. Full profile is used because the navigation and scheduler regressions require four owned source/test files.
+
+## Objective
+
+After an activity is created, open the schedule workspace without the “Lên lịch sinh hoạt mới” dialog and visually guide the user to the newly created activity until it is placed on the schedule.
+
+## Scope Boundaries
+
+Approved boundary: `frontend/src/app/(dashboard)/activities/**`, `frontend/src/components/activities/**`.
+
+Write:
+
+- `frontend/src/app/(dashboard)/activities/page.tsx`
+- `frontend/src/app/(dashboard)/activities/page.test.tsx`
+- `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`
+- `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`
+
+Targets: create-success route, `initialActivityId`, `sourceActivities.isScheduled`, source activity-card classes, and focused navigation/drag-drop regressions.
+
+## Out of Scope
+
+Backend/API contracts, activity creation payloads, schedule persistence rules, other schedule-entry dialogs, unrelated activity-card designs, and deployment.
+
+## Context and Dependencies
+
+Create success currently routes with `activityId` and `openCreate=1`; the latter auto-opens the schedule form. The workspace already receives the created activity ID and computes `isScheduled` from saved plus pending schedules for the displayed week. That existing state is the stop condition for the highlight.
+
+## Steps
+
+1. Update create-success navigation to retain `activityId` but omit the auto-create flag.
+2. Mark only the matching, unscheduled source card with a blinking yellow border/ring.
+3. Remove the highlight as soon as drag/drop creates a pending schedule placement; keep normal scheduled-card behavior unchanged.
+4. Update focused tests for navigation, initial highlight, and highlight removal.
+5. Perform independent diff review and affected verification.
+
+## Acceptance Criteria
+
+- AC-1: Successful activity creation navigates to `/activities/schedule?activityId=<created-id>` and does not open “Lên lịch sinh hoạt mới”.
+- AC-2: The matching new activity under “Kéo hoạt động xếp lịch” has a visible blinking yellow border while unscheduled.
+- AC-3: The highlight is absent once that activity is placed into the schedule, including the immediate pending state.
+- AC-4: Other activity cards and existing scheduling flows are unchanged.
+
+## Verification
+
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/activities/page.test.tsx" "src/components/activities/ActivityScheduleWorkspace.test.tsx"` => AC-1 through AC-4 pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no affected TypeScript errors.
+- `D:\PROJECT\manager_points` :: `git diff --check` => clean diff.
+
+## Safety Gates
+
+None.
+
+## Artifacts and Checkpoints
+
+Task scope and final Git diff only; no checkpoint or artifact hash is required before implementation.
+
+## Execution Budgets
+
+One implementation worker and one independent read-only review step; one writer per path; up to three implementation/verification iterations and two review-remediation cycles.

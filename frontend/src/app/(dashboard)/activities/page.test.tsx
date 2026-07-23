@@ -126,7 +126,7 @@ describe('ActivitiesPage', () => {
     });
   });
 
-  it('navigates to schedule route with openCreate=1 on successful create', async () => {
+  it('navigates to schedule route without opening the create schedule dialog after a successful create', async () => {
     vi.mocked(activityApi.getAll).mockResolvedValue([]);
     vi.mocked(activityApi.create).mockResolvedValue({ _id: 'created-id-xyz', name: 'New Activity' } as any);
 
@@ -147,7 +147,7 @@ describe('ActivitiesPage', () => {
     // Assert navigation is triggered
     await waitFor(() => {
       expect(activityApi.create).toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith('/activities/schedule?activityId=created-id-xyz&openCreate=1');
+      expect(mockPush).toHaveBeenCalledWith('/activities/schedule?activityId=created-id-xyz');
     });
   });
 

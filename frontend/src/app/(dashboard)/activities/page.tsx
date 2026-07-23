@@ -77,7 +77,7 @@ export default function ActivitiesPage() {
       const createdActivity = await activityApi.create(data);
       toast.success('Tạo hoạt động thành công');
       setShowCreateModal(false);
-      router.push(`/activities/schedule?activityId=${createdActivity._id}&openCreate=1`);
+      router.push(`/activities/schedule?activityId=${createdActivity._id}`);
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi tạo hoạt động');
     } finally {

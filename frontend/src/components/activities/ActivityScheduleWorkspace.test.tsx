@@ -144,6 +144,32 @@ describe('ActivityScheduleWorkspace', () => {
     });
   });
 
+  it('highlights the newly created activity until it is dropped into the schedule', async () => {
+    const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
+
+    const sourceActivity = await screen.findByTestId('source-activity-60c72b2f9b1e8a001c8e4a50');
+    expect(sourceActivity).toHaveClass('border-amber-400', 'animate-pulse');
+
+    const dataTransfer = {
+      data: {} as Record<string, string>,
+      setData(type: string, value: string) { this.data[type] = value; },
+      getData(type: string) { return this.data[type]; },
+    };
+    const dragStartEvent = createEvent.dragStart(sourceActivity);
+    Object.defineProperty(dragStartEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(sourceActivity, dragStartEvent);
+
+    const dropTarget = container.querySelector('[data-schedule-cell]');
+    expect(dropTarget).not.toBeNull();
+    const dropEvent = createEvent.drop(dropTarget!);
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(dropTarget!, dropEvent);
+
+    await waitFor(() => {
+      expect(sourceActivity).not.toHaveClass('border-amber-400', 'animate-pulse');
+    });
+  });
+
   it('triggers advanced recurrence configuration modal', async () => {
     const today = new Date();
     const startStr = today.toISOString();

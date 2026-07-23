@@ -2421,11 +2421,13 @@ export default function ActivityScheduleWorkspace({
                 filteredSourceActivities.map((act) => (
                   <div
                     key={act._id}
+                    data-testid={`source-activity-${act._id}`}
                     draggable={canManage}
                     onDragStart={(e) => handleDragStart(e, act._id)}
                     className={cn(
                       "p-3 border rounded-xl bg-slate-50 transition-all select-none group relative",
-                      canManage ? "cursor-grab active:cursor-grabbing border-slate-200 hover:border-blue-300 hover:shadow-sm" : "opacity-80 border-slate-100"
+                      canManage ? "cursor-grab active:cursor-grabbing border-slate-200 hover:border-blue-300 hover:shadow-sm" : "opacity-80 border-slate-100",
+                      act._id === initialActivityId && !act.isScheduled && "border-amber-400 ring-2 ring-amber-300 animate-pulse"
                     )}
                   >
                     <p className="text-xs font-extrabold text-slate-700 line-clamp-1 leading-snug">{act.name}</p>
