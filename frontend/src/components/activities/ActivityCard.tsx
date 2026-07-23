@@ -483,20 +483,30 @@ export default function ActivityCard({
               : 'none';
             const btnConfig = getStateButtonConfig(activity, status as any);
 
-            if (status === 'none') {
+            const requiresRegistration = activity.settings?.require_registration_for_attendance !== false;
+
+            if (status === 'none' && requiresRegistration) {
               return (
                 <Button
+                  variant="outline"
                   disabled={joinPending}
                   onClick={(e) => {
                     e.stopPropagation();
                     onJoinClick(activity);
                   }}
-                  className={cn("h-7 px-2.5 text-[10px] font-black cursor-pointer shadow-sm border-0 disabled:opacity-50 disabled:cursor-not-allowed", btnConfig.bgClass, btnConfig.textClass)}
+                  className={cn(
+                    "h-8 px-3.5 border rounded-xl backdrop-blur-sm text-xs font-semibold shadow-xs cursor-pointer transition-all duration-150 ease-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
+                    isDark
+                      ? "border-white/30 bg-white/15 text-white hover:bg-white/25"
+                      : "border-white/80 bg-white/50 text-slate-700 hover:bg-white/70 hover:scale-[1.01] hover:text-slate-900"
+                  )}
                 >
                   {joinPending ? "Đang xử lý..." : "Đăng ký"}
                 </Button>
               );
             }
+
+            if (status === 'none') return null;
 
             if (status === 'pending') {
               return (

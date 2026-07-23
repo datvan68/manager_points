@@ -71,6 +71,8 @@ describe('ActivityCard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityScheduleApi.getAll).mockResolvedValue({ items: [], total: 0 } as any);
   });
 
   it('renders configured background and details correctly', () => {
@@ -377,8 +379,9 @@ describe('ActivityCard', () => {
       />
     );
 
-    const joinBtn = screen.getAllByRole('button').at(-1)!;
+    const joinBtn = screen.getByRole('button', { name: 'Đăng ký' });
     expect(joinBtn).toBeInTheDocument();
+    expect(joinBtn).toHaveClass('backdrop-blur-sm', 'border-white/80', 'bg-white/50');
     fireEvent.click(joinBtn);
     expect(onJoinClick).toHaveBeenCalledTimes(1);
     expect(onJoinClick).toHaveBeenCalledWith(activityWithNone);
@@ -402,11 +405,31 @@ describe('ActivityCard', () => {
       />
     );
 
-    const joinBtn = screen.getAllByRole('button').at(-1)!;
+    const joinBtn = screen.getByRole('button', { name: 'Đang xử lý...' });
     expect(joinBtn).toBeInTheDocument();
     expect(joinBtn).toBeDisabled();
 
     fireEvent.click(joinBtn);
+    expect(onJoinClick).not.toHaveBeenCalled();
+  });
+
+  it('does not render the registration action when attendance does not require registration', () => {
+    render(
+      <ActivityCard
+        activity={{
+          ...mockActivity,
+          settings: { require_registration_for_attendance: false },
+        }}
+        onJoinClick={onJoinClick}
+        onFavoriteClick={onFavoriteClick}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        canManage={false}
+        onNavigateToDetail={onNavigateToDetail}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Đăng ký' })).not.toBeInTheDocument();
     expect(onJoinClick).not.toHaveBeenCalled();
   });
 });

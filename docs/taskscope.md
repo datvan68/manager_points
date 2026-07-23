@@ -1,73 +1,15 @@
-## Task Identity and Pipeline
+Task: `activity-card-registration-action` | `bug_fix` | Risk: medium | Profile: Quick
 
-Task: `activity-create-schedule-highlight`
+Objective: Make the activity-card registration action follow the activity’s registration requirement and visually match the activity-list control-bar buttons.
 
-Profile: Full
+Boundary: `frontend/src/components/activities/**` | Write: `frontend/src/components/activities/ActivityCard.tsx`, `frontend/src/components/activities/ActivityCard.test.tsx`.
 
-Pipeline: `bug_fix`
+Targets: `ActivityCard` membership action branch for `membership_status === 'none'`; `activity.settings.require_registration_for_attendance`; registration-button classes; the glass/outlined control-button treatment in `ActivityListWorkspace.tsx` as a read-only design reference.
 
-Repository: `D:\PROJECT\manager_points`
+Steps: Baseline the current student registration action -> suppress it only when `require_registration_for_attendance === false` while preserving legacy `undefined` behavior -> replace the solid registration-button treatment with the menu/control-bar visual language at card scale, including hover, disabled, focus, and dark/light-card readability -> add focused rendering and interaction regressions -> inspect the final diff.
 
-Base branch/commit: `main` / `6a419a9e261ec0e45bcf1d3813b3fb8bcecce5e4`
+Verify: `D:\PROJECT\manager_points\frontend` :: `npm test -- src/components/activities/ActivityCard.test.tsx` => required-registration cards retain a working registration action, no-registration cards have no registration button, and pending state remains disabled; `npm run typecheck` => no affected TypeScript errors; repository root :: `git diff --check` => clean diff.
 
-## Risk Level
+Done: Student cards with “No registration required” do not render “Đăng ký”; required or legacy cards keep the action; its appearance matches the activity menu’s translucent outlined buttons without changing membership callbacks, other membership states, table view, or detail-page behavior.
 
-Risk: medium. Development-only frontend behavior, reversible through Git, with no persistent-data, API, deployment, or external-system change. Full profile is used because the navigation and scheduler regressions require four owned source/test files.
-
-## Objective
-
-After an activity is created, open the schedule workspace without the “Lên lịch sinh hoạt mới” dialog and visually guide the user to the newly created activity until it is placed on the schedule.
-
-## Scope Boundaries
-
-Approved boundary: `frontend/src/app/(dashboard)/activities/**`, `frontend/src/components/activities/**`.
-
-Write:
-
-- `frontend/src/app/(dashboard)/activities/page.tsx`
-- `frontend/src/app/(dashboard)/activities/page.test.tsx`
-- `frontend/src/components/activities/ActivityScheduleWorkspace.tsx`
-- `frontend/src/components/activities/ActivityScheduleWorkspace.test.tsx`
-
-Targets: create-success route, `initialActivityId`, `sourceActivities.isScheduled`, source activity-card classes, and focused navigation/drag-drop regressions.
-
-## Out of Scope
-
-Backend/API contracts, activity creation payloads, schedule persistence rules, other schedule-entry dialogs, unrelated activity-card designs, and deployment.
-
-## Context and Dependencies
-
-Create success currently routes with `activityId` and `openCreate=1`; the latter auto-opens the schedule form. The workspace already receives the created activity ID and computes `isScheduled` from saved plus pending schedules for the displayed week. That existing state is the stop condition for the highlight.
-
-## Steps
-
-1. Update create-success navigation to retain `activityId` but omit the auto-create flag.
-2. Mark only the matching, unscheduled source card with a blinking yellow border/ring.
-3. Remove the highlight as soon as drag/drop creates a pending schedule placement; keep normal scheduled-card behavior unchanged.
-4. Update focused tests for navigation, initial highlight, and highlight removal.
-5. Perform independent diff review and affected verification.
-
-## Acceptance Criteria
-
-- AC-1: Successful activity creation navigates to `/activities/schedule?activityId=<created-id>` and does not open “Lên lịch sinh hoạt mới”.
-- AC-2: The matching new activity under “Kéo hoạt động xếp lịch” has a visible blinking yellow border while unscheduled.
-- AC-3: The highlight is absent once that activity is placed into the schedule, including the immediate pending state.
-- AC-4: Other activity cards and existing scheduling flows are unchanged.
-
-## Verification
-
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/activities/page.test.tsx" "src/components/activities/ActivityScheduleWorkspace.test.tsx"` => AC-1 through AC-4 pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no affected TypeScript errors.
-- `D:\PROJECT\manager_points` :: `git diff --check` => clean diff.
-
-## Safety Gates
-
-None.
-
-## Artifacts and Checkpoints
-
-Task scope and final Git diff only; no checkpoint or artifact hash is required before implementation.
-
-## Execution Budgets
-
-One implementation worker and one independent read-only review step; one writer per path; up to three implementation/verification iterations and two review-remediation cycles.
+Gate: None
