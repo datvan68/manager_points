@@ -148,7 +148,7 @@ describe('ActivityScheduleWorkspace', () => {
     const { container } = render(<ActivityScheduleWorkspace initialActivityId="60c72b2f9b1e8a001c8e4a50" />);
 
     const sourceActivity = await screen.findByTestId('source-activity-60c72b2f9b1e8a001c8e4a50');
-    expect(sourceActivity).toHaveClass('border-amber-400', 'animate-pulse');
+    expect(sourceActivity).toHaveClass('border-amber-300', 'animate-pulse');
 
     const dataTransfer = {
       data: {} as Record<string, string>,
@@ -166,7 +166,7 @@ describe('ActivityScheduleWorkspace', () => {
     fireEvent(dropTarget!, dropEvent);
 
     await waitFor(() => {
-      expect(sourceActivity).not.toHaveClass('border-amber-400', 'animate-pulse');
+      expect(sourceActivity).not.toHaveClass('border-amber-300', 'animate-pulse');
     });
   });
 
