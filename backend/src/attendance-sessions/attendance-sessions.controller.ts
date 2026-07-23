@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Post,
   Body,
@@ -183,5 +184,12 @@ export class AttendanceSessionsController {
   @ApiBearerAuth()
   manualCheckin(@Param('id') id: string, @Body() dto: ManualAttendanceDto, @Request() req: any) {
     return this.sessionsService.manualCheckin(id, dto.student_id, req.user.userId, req.user.roleCode);
+  }
+
+  @Delete(':id/manual-checkins/:studentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  cancelManualCheckin(@Param('id') id: string, @Param('studentId') studentId: string, @Request() req: any) {
+    return this.sessionsService.cancelManualCheckin(id, studentId, req.user.userId, req.user.roleCode);
   }
 }

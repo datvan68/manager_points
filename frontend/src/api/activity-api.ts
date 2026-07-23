@@ -881,6 +881,13 @@ export const attendanceSessionApi = {
     return handleResponse<ActivityAttendance>(res);
   },
 
+  async cancelManualCheckin(sessionId: string, studentId: string): Promise<ActivityAttendance> {
+    const res = await httpClient(`${API_BASE}/attendance-sessions/${sessionId}/manual-checkins/${studentId}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<ActivityAttendance>(res);
+  },
+
   async getSessionHistory(params: {
     context_type: string;
     context_id: string;

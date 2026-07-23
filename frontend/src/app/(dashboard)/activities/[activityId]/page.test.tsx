@@ -1363,19 +1363,12 @@ describe('ActivityDetailPage', () => {
     render(<ActivityDetailPage />);
 
     const closeManual = await screen.findByRole('button', { name: 'Đóng phiên lớp' });
-    const openOtherClass = screen.getByRole('button', { name: 'Điểm danh lớp 12A2' });
     expect(screen.getByText('Phiên của bạn đang hoạt động')).toBeInTheDocument();
 
     fireEvent.click(closeManual);
-    fireEvent.click(openOtherClass);
+    expect(screen.queryByRole('button', { name: /12A2/ })).not.toBeInTheDocument();
 
     expect(attendanceMocks.closeManualSession).toHaveBeenCalledWith('class-1');
-    expect(attendanceMocks.openSession).toHaveBeenCalledWith(expect.objectContaining({
-      method: 'manual_class',
-      class_id: 'class-2',
-      schedule_id: 'schedule-today',
-      semester_id: 'sem1',
-    }));
   });
 
   it('places attendance permissions in a desktop sidebar after primary session content', async () => {

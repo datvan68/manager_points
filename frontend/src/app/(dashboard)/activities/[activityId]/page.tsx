@@ -947,12 +947,19 @@ function ActivityAttendanceTab({
     try {
       if (!todaySchedule?._id) throw new Error('No non-cancelled schedule is available today.');
       if (params.method === 'manual_class') {
+        if (isManualClassChooser && !params.class_id) {
+          setShowMethodSelector(false);
+          setClassPickerOpen(true);
+          return;
+        }
         if (!isManualClassChooser) {
           const classes = attendance.capabilities?.classes || [];
           if (classes.length !== 1) throw new Error(classes.length === 0 ? 'KhĂ´ng tĂ¬m tháº¥y lá»›p Ä‘Æ°á»£c phĂ©p.' : 'KhĂ´ng thá»ƒ tá»± chá»n giá»¯a nhiá»u lá»›p.');
           params.class_id = classes[0]._id;
         }
         if (params.class_id) {
+          setClassPickerOpen(false);
+          setSelectedClassId('');
           await attendance.openSession({
             ...params,
             schedule_id: todaySchedule._id,
@@ -1052,9 +1059,9 @@ function ActivityAttendanceTab({
 
       {classPickerOpen && allowedMethods.includes('manual_class') && (
         <section className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-5 shadow-sm space-y-4">
-          <h3 className="text-sm font-extrabold text-slate-800">Chá»n lá»›p Ä‘iá»ƒm danh</h3>
-          <select aria-label="Lá»›p Ä‘iá»ƒm danh" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            <option value="">Chá»n lá»›p</option>
+          <h3 className="text-sm font-extrabold text-slate-800">Chọn lớp điểm danh</h3>
+          <select aria-label="Lớp điểm danh" value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="">Chọn lớp</option>
             {manualClasses.map((item) => <option key={item._id} value={item._id}>{item.class_name}</option>)}
           </select>
           <div className="flex gap-3">

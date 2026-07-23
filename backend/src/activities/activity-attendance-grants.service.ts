@@ -132,7 +132,8 @@ export class ActivityAttendanceGrantsService {
     const activity = await this.activity(activityId);
     const requesterId = this.userId(user);
     const canAdminister = isAdminUser(user) || activity.advisor_id?.toString() === requesterId;
-    const classes = await this.classModel.find({ advisor_id: new Types.ObjectId(requesterId) } as any)
+    const classFilter: any = canAdminister ? {} : { advisor_id: new Types.ObjectId(requesterId) };
+    const classes = await this.classModel.find(classFilter)
       .select('class_name class_year').sort({ class_name: 1 }).lean().exec();
     const grant: any = canAdminister ? null : await this.grantModel.findOne({
       activity_id: new Types.ObjectId(activityId), teacher_id: new Types.ObjectId(requesterId),

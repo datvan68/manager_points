@@ -524,6 +524,11 @@ export function useAttendanceSession({
   const manualCheckin = useCallback(async (classId: string, studentId: string) => {
     const active = state.manualLanes[classId]?.session;
     if (!active) throw new Error('No active class attendance session');
+    const currentStudent = state.manualLanes[classId]?.roster?.students.find((student) => student._id === studentId);
+    const isAttended = Boolean(
+      currentStudent?.attendance?.approval_status === 'approved'
+      && ['present', 'late'].includes(currentStudent.attendance.status),
+    );
     updateManualLane(classId, (lane) => ({
       ...lane,
       pending: { ...lane.pending, [studentId]: true },
@@ -534,27 +539,29 @@ export function useAttendanceSession({
           student._id === studentId
             ? {
                 ...student,
-                attendance: student.attendance || ({
+                attendance: isAttended ? null : (student.attendance || ({
                   _id: `optimistic-${studentId}`,
                   student_id: studentId,
                   schedule_id: active.schedule_id,
                   status: 'present',
                   approval_status: 'approved',
-                } as ActivityAttendance),
+                } as ActivityAttendance)),
               }
             : student,
         ),
       } : null,
     }));
     try {
-      const attendance = await attendanceSessionApi.manualCheckin(active._id, studentId);
+      const attendance = isAttended
+        ? await attendanceSessionApi.cancelManualCheckin(active._id, studentId)
+        : await attendanceSessionApi.manualCheckin(active._id, studentId);
       updateManualLane(classId, (lane) => ({
         ...lane,
         pending: { ...lane.pending, [studentId]: false },
         roster: lane.roster ? {
           ...lane.roster,
           students: lane.roster.students.map((student) =>
-            student._id === studentId ? { ...student, attendance } : student,
+            student._id === studentId ? { ...student, attendance: isAttended ? null : attendance } : student,
           ),
         } : null,
       }));
@@ -567,9 +574,9 @@ export function useAttendanceSession({
         roster: lane.roster ? {
           ...lane.roster,
           students: lane.roster.students.map((student) =>
-            student._id === studentId && student.attendance?._id === `optimistic-${studentId}`
-              ? { ...student, attendance: null }
-              : student,
+              student._id === studentId
+                ? { ...student, attendance: isAttended ? currentStudent?.attendance || null : null }
+                : student,
           ),
         } : null,
       }));

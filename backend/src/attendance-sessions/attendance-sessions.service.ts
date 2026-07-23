@@ -764,7 +764,12 @@ export class AttendanceSessionsService {
     const [students, attendances, total] = await Promise.all([
       this.studentModel.find({ class_id: session.class_id })
         .select('full_name student_code status class_id').sort({ student_code: 1 }).limit(500).lean().exec(),
-      this.clubAttendanceModel.find({ schedule_id: session.schedule_id, class_id: session.class_id }).lean().exec(),
+      this.clubAttendanceModel.find({
+        schedule_id: session.schedule_id,
+        class_id: session.class_id,
+        approval_status: 'approved',
+        status: { $in: ['present', 'late'] },
+      }).lean().exec(),
       this.studentModel.countDocuments({ class_id: session.class_id }),
     ]);
     const byStudent = new Map(attendances.map((item: any) => [item.student_id.toString(), item]));
@@ -805,9 +810,20 @@ export class AttendanceSessionsService {
           note: 'Manual homeroom attendance',
     };
     let attendance: any;
+    const reactivation = {
+        status: 'present',
+        check_in_time: now,
+        recorded_by: new Types.ObjectId(userId),
+        recorded_by_role: 'teacher',
+        recorded_at: now,
+        approval_status: 'approved',
+        approved_by: new Types.ObjectId(userId),
+        approved_at: now,
+    };
     try {
       attendance = await this.clubAttendanceModel.findOneAndUpdate(
-        attendanceFilter, { $setOnInsert: attendanceInsert },
+        { ...attendanceFilter, activity_id: session.context_id, class_id: session.class_id, attendance_method: 'manual_class' },
+        { $set: reactivation, $setOnInsert: attendanceInsert },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       ).lean().exec();
     } catch (error: any) {
@@ -815,8 +831,13 @@ export class AttendanceSessionsService {
       attendance = await this.clubAttendanceModel.findOne(attendanceFilter).lean().exec();
       if (!attendance) throw error;
     }
-    const count = await this.clubAttendanceModel.countDocuments({ schedule_id: session.schedule_id, approval_status: 'approved' });
-    await this.sessionModel.updateOne({ _id: session._id }, { $max: { checkin_count: count } }).exec();
+    const count = await this.clubAttendanceModel.countDocuments({
+      schedule_id: session.schedule_id,
+      class_id: session.class_id,
+      approval_status: 'approved',
+      status: { $in: ['present', 'late'] },
+    });
+    await this.sessionModel.updateOne({ _id: session._id }, { $set: { checkin_count: count } }).exec();
     const canonical = {
       ...attendance,
       _id: (attendance as any)._id.toString(),
@@ -833,6 +854,57 @@ export class AttendanceSessionsService {
       checkinCount: count, attendance: canonical,
     });
     this.activityAttendanceSyncService.enqueueAttendanceSync(canonical._id);
+    return canonical;
+  }
+
+  async cancelManualCheckin(sessionId: string, studentId: string, userId: string, roleCode?: string) {
+    this.assertValidRequester(userId);
+    this.assertObjectId(sessionId, 'session_id');
+    this.assertObjectId(studentId, 'student_id');
+    const session = await this.sessionModel.findById(sessionId).exec();
+    if (!session || session.method !== 'manual_class' || session.status !== 'active') {
+      throw new NotFoundException('Active manual attendance session not found.');
+    }
+    this.assertManualSessionOwner(session, userId);
+    await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
+    await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
+    const student = await this.studentModel.findOne({ _id: new Types.ObjectId(studentId), class_id: session.class_id })
+      .select('_id class_id').lean().exec();
+    if (!student) throw new ForbiddenException('Student does not belong to the selected class.');
+    const attendance: any = await this.clubAttendanceModel.findOne({
+      schedule_id: session.schedule_id,
+      student_id: student._id,
+      activity_id: session.context_id,
+      class_id: session.class_id,
+      attendance_method: 'manual_class',
+    }).exec();
+    if (!attendance) throw new NotFoundException('Manual attendance record not found.');
+    attendance.approval_status = 'rejected';
+    attendance.status = 'absent';
+    await attendance.save();
+    await this.activityAttendanceSyncService.revokeAcademicRecord(attendance._id.toString());
+    const count = await this.clubAttendanceModel.countDocuments({
+      schedule_id: session.schedule_id,
+      class_id: session.class_id,
+      approval_status: 'approved',
+      status: { $in: ['present', 'late'] },
+    });
+    await this.sessionModel.updateOne({ _id: session._id }, { $set: { checkin_count: count } }).exec();
+    const canonical = {
+      ...attendance.toObject(),
+      _id: attendance._id.toString(),
+      student_id: student._id.toString(),
+      schedule_id: session.schedule_id.toString(),
+      class_id: session.class_id!.toString(),
+    };
+    this.emitEvent({
+      type: 'attendance.checkin_created', contextType: session.context_type,
+      contextId: session.context_id.toString(), activityId: session.context_id.toString(),
+      scheduleId: session.schedule_id.toString(), sessionId: session._id.toString(),
+      classId: session.class_id!.toString(), studentId: student._id.toString(),
+      method: 'manual_class', openedBy: session.opened_by.toString(),
+      checkinCount: count, attendance: canonical,
+    });
     return canonical;
   }
 
