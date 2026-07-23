@@ -6,6 +6,9 @@ export type ActivityDocument = Activity & Document;
 @Schema({ _id: false })
 export class ActivitySettings {
   @Prop({ default: true })
+  require_registration_for_attendance: boolean;
+
+  @Prop({ default: true })
   allow_self_registration: boolean;
 
   @Prop({ default: true })

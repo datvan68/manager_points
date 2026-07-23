@@ -343,7 +343,7 @@ export default function ActivityDetailPage() {
 
   const memberStatus = studentMembership?.status || 'none';
   const canManageAttendance = isAdmin || isAssignedTeacher || (memberStatus === 'active' && studentMembership?.role === 'president');
-  const canCheckInAttendance = memberStatus === 'active';
+  const canCheckInAttendance = memberStatus === 'active' || (isStudent && activity?.settings?.require_registration_for_attendance === false);
   const canAccessAttendance = canManageAttendance || canCheckInAttendance;
   const isActiveStudentMember = isStudent && memberStatus === 'active';
   const allowedStudentTabs = isStudent
@@ -695,7 +695,7 @@ export default function ActivityDetailPage() {
               </div>
               {!isAssignedTeacher && <div className="space-y-4">
                 <div className="flex items-center justify-between"><h2 className="text-sm font-bold text-slate-700">Lịch trình & dòng thời gian</h2></div>
-                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={isStudent && memberStatus === 'active'} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={isStudent && memberStatus === 'active'} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
+                <ActivityScheduleTimeline schedules={schedules} defaultClassroom={activity.classroom} canViewAttendanceRoster={canViewStaffTabs} canViewOwnAttendance={canCheckInAttendance} isAdminOrAdvisor={isAdminOrAdvisor} isStudent={canCheckInAttendance} onOpenAttendance={handleScheduleAttendance} activeSession={attendance.session} ownCheckinCompleted={attendance.checkinStatus === 'success'} />
               </div>}
             </div>
           )

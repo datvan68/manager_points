@@ -31,6 +31,7 @@ export interface Activity {
   activity_end_date?: string;
   semester_id?: any;
   settings: {
+    require_registration_for_attendance?: boolean;
     allow_self_registration: boolean;
     require_approval: boolean;
     attendance_point_enabled: boolean;

@@ -484,6 +484,13 @@ export class AttendanceSessionsService {
 
     const requesterId = new Types.ObjectId(userId);
     const studentId = await this.resolveRequesterStudentId(requesterId);
+    const activity = this.activityModel && ['activity', 'club'].includes(session.context_type)
+      ? await this.activityModel.findById(session.context_id).select('settings.require_registration_for_attendance').lean().exec()
+      : null;
+    if (roleCode === 'STUDENT' && activity?.settings?.require_registration_for_attendance === false) {
+      if (!studentId) throw new ForbiddenException('A linked student profile is required.');
+      return studentId;
+    }
     const membershipOwners: Array<{ user_id?: Types.ObjectId; student_id?: Types.ObjectId }> = [{ user_id: requesterId }];
     if (studentId) membershipOwners.push({ student_id: new Types.ObjectId(studentId) });
     const member = await this.clubMemberModel.findOne({

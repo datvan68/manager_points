@@ -42,6 +42,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     logo_url: initialData?.logo_url || '',
     cover_url: initialData?.cover_url || '',
     settings: {
+      require_registration_for_attendance: initialData?.settings?.require_registration_for_attendance ?? true,
       allow_self_registration: initialData?.settings?.allow_self_registration ?? true,
       require_approval: initialData?.settings?.require_approval ?? true,
       attendance_point_enabled: initialData?.settings?.attendance_point_enabled ?? false,
@@ -210,6 +211,18 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
           </div>
 
           <div className="space-y-3">
+            <div className="p-2 rounded-xl border border-blue-100 bg-blue-50/40">
+              <div className="text-[12px] font-bold text-[#1E293B]">Cách điểm danh</div>
+              <div className="text-[10px] text-[#64748B] font-semibold mb-2">Chọn một trong hai hình thức áp dụng cho hoạt động</div>
+              <label className="flex items-center gap-2 text-[11px] font-semibold">
+                <input type="radio" name="settings.require_registration_for_attendance" value="true" checked={formData.settings.require_registration_for_attendance} onChange={() => setFormData(prev => ({ ...prev, settings: { ...prev.settings, require_registration_for_attendance: true } }))} />
+                Yêu cầu đăng ký trước khi điểm danh
+              </label>
+              <label className="flex items-center gap-2 text-[11px] font-semibold mt-1">
+                <input type="radio" name="settings.require_registration_for_attendance" value="false" checked={!formData.settings.require_registration_for_attendance} onChange={() => setFormData(prev => ({ ...prev, settings: { ...prev.settings, require_registration_for_attendance: false } }))} />
+                Không cần đăng ký, vào hoạt động để điểm danh
+              </label>
+            </div>
             <Input
               label="Tên hoạt động"
               required

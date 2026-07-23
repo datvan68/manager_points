@@ -14,6 +14,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class ActivitySettingsDto {
+  @ApiPropertyOptional({ description: 'Require an active registration before attendance', default: true })
+  @IsOptional()
+  @IsBoolean()
+  require_registration_for_attendance?: boolean;
+
   @ApiPropertyOptional({
     description: 'Allow students to self-register',
     default: true,
