@@ -301,10 +301,12 @@ export const SelectContent = React.forwardRef<any, any>(
       >
         <div 
           className={cn(
-            "p-1 overflow-y-auto",
+            "p-1 overflow-y-auto overscroll-contain touch-pan-y",
             lazyLoad ? "max-h-[160px]" : "max-h-[220px]"
           )}
           onScroll={handleScroll}
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
         >
           {hasItems || !searchQuery ? (
             lazyLoad ? filteredChildren.slice(0, visibleCount) : filteredChildren

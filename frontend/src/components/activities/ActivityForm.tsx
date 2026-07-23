@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Activity, activityApi } from '@/api/activity-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -61,6 +61,32 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState('');
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreviewUrl('');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(logoFile);
+    setLogoPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [logoFile]);
+
+  useEffect(() => {
+    if (!coverFile) {
+      setCoverPreviewUrl('');
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(coverFile);
+    setCoverPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [coverFile]);
 
   const getDateLabel = () => {
     if (formData.activity_start_date && formData.activity_end_date) {
@@ -152,6 +178,18 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     setSubmitError('');
     (kind === 'logo' ? setLogoFile : setCoverFile)(file);
   };
+
+  const clearSelectedMedia = (kind: 'logo' | 'cover') => {
+    if (kind === 'logo') {
+      setLogoFile(null);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    } else {
+      setCoverFile(null);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+    setSubmitError('');
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving || uploading) return;
@@ -181,6 +219,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       ...formData,
       ...mediaUrls,
       participation_status: isCreateMode ? 'published' : formData.participation_status,
+      category: formData.activity_type === 'club' ? formData.category : 'other',
       max_members: formData.max_members ? Number(formData.max_members) : undefined,
       founded_date: formData.founded_date ? new Date(formData.founded_date) : undefined,
       activity_start_date: formData.activity_start_date ? new Date(formData.activity_start_date) : undefined,
@@ -194,8 +233,12 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       }
     };
 
-    if (isCreateMode && !formData.president_id) delete payload.president_id;
-    onSubmit(payload);
+    if (isCreateMode) {
+      const { president_id: _presidentId, ...createPayload } = payload;
+      onSubmit(createPayload);
+    } else {
+      onSubmit(payload);
+    }
     setUploading(false);
   };
 
@@ -247,7 +290,11 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
 
               <Select
                 value={formData.activity_type}
-                onValueChange={(val: any) => setFormData(prev => ({ ...prev, activity_type: val }))}
+                onValueChange={(val: any) => setFormData(prev => ({
+                  ...prev,
+                  activity_type: val,
+                  category: val === 'club' ? prev.category : 'other',
+                }))}
                 label="Thể loại"
               >
                 <SelectTrigger className="h-10">
@@ -263,6 +310,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
             </div>
 
             <div className="grid grid-cols-2 gap-3">
+              {formData.activity_type === 'club' && (
               <Select
                 value={formData.category}
                 onValueChange={(val: any) => setFormData(prev => ({ ...prev, category: val }))}
@@ -280,6 +328,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                   <SelectItem value="other">Khác</SelectItem>
                 </SelectContent>
               </Select>
+              )}
 
               {!isCreateMode && <Select
                 value={formData.participation_status}
@@ -357,7 +406,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
               </SelectContent>
             </Select>
 
-            <Select
+            {!isCreateMode && <Select
               value={formData.president_id}
               onValueChange={(val: string) => setFormData(prev => ({ ...prev, president_id: val }))}
               label="Chủ nhiệm sinh viên (President)"
@@ -372,7 +421,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select>}
 
             {!isCreateMode && <Select
               value={formData.semester_id}
@@ -425,9 +474,29 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
             </div>
 
             {isCreateMode ? (
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('logo')} />
-                <Input label="Ảnh bìa" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('cover')} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Input ref={logoInputRef} label="Logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('logo')} />
+                  {logoPreviewUrl && (
+                    <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-white/70 bg-slate-50 p-2">
+                      <img src={logoPreviewUrl} alt="Logo preview" className="h-full w-full object-contain" />
+                      <button type="button" aria-label="Remove selected logo" onClick={() => clearSelectedMedia('logo')} className="absolute right-2 top-2 rounded-full bg-slate-900/75 p-1 text-white shadow-sm transition-colors hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500/50">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Input ref={coverInputRef} label="Ảnh bìa" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange('cover')} />
+                  {coverPreviewUrl && (
+                    <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-white/70 bg-slate-50 p-2">
+                      <img src={coverPreviewUrl} alt="Cover image preview" className="h-full w-full object-contain" />
+                      <button type="button" aria-label="Remove selected cover image" onClick={() => clearSelectedMedia('cover')} className="absolute right-2 top-2 rounded-full bg-slate-900/75 p-1 text-white shadow-sm transition-colors hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500/50">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : <div className="grid grid-cols-2 gap-3">
               <Input
@@ -453,7 +522,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       </div>
 
       {/* Advanced Settings Section */}
-      <div className="bg-white/45 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 space-y-3.5">
+      {formData.settings.require_registration_for_attendance && <div className="bg-white/45 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 space-y-3.5">
         <div className="flex items-center gap-2 border-b border-white/50 pb-2.5 mb-1">
           <Settings2 className="text-[#1A73E8]" size={16} />
           <h3 className="text-[12.5px] font-black text-[#1E293B] uppercase tracking-wider">Cấu hình nâng cao</h3>
@@ -549,7 +618,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Form Actions */}
       {submitError && <p role="alert" className="text-sm font-medium text-red-600">{submitError}</p>}
