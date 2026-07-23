@@ -1,5 +1,5 @@
 ﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { activityApi, activityScheduleApi, activityCompletionRuleApi } from './activity-api';
+import { activityApi, activityScheduleApi, activityCompletionRuleApi, activityAttendanceGrantApi } from './activity-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -39,6 +39,30 @@ describe('activityApi & activityScheduleApi & activityCompletionRuleApi', () => 
       expect(url).toContain('/api/activities');
       expect(options?.method).toBe('POST');
       expect(res.name).toBe('New Activity');
+    });
+  });
+
+  describe('activityAttendanceGrantApi', () => {
+    it('persists an explicit empty method override with PUT', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify({
+          _id: 'grant-1',
+          teacher_id: 'teacher-1',
+          allowed_methods: [],
+          status: 'active',
+        })),
+      });
+
+      await activityAttendanceGrantApi.upsertGrant('activity-1', 'teacher-1', []);
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toContain('/api/activities/activity-1/attendance/grants');
+      expect(options?.method).toBe('PUT');
+      expect(JSON.parse(options?.body as string)).toEqual({
+        teacher_id: 'teacher-1',
+        allowed_methods: [],
+      });
     });
   });
 

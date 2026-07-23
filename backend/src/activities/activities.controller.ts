@@ -121,7 +121,7 @@ export class ActivitiesController {
   }
 
   @Get()
-  @UseGuards(checkPermission('ACTIVITY_READ'))
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách tất cả câu lạc bộ' })
   findAll(

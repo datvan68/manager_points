@@ -51,7 +51,11 @@ export default function ActivitiesPage() {
       if (isStudent) {
         const activeClub = activitiesList.find((item) => item.activity_type === 'club' && item.membership_status === 'active');
         setActivities(activeClub
-          ? activitiesList.filter((item) => item.activity_type !== 'club' || item._id === activeClub._id)
+          ? activitiesList.filter((item) =>
+              item.activity_type !== 'club'
+              || item._id === activeClub._id
+              || item.settings?.require_registration_for_attendance === false,
+            )
           : activitiesList);
       } else {
         setActivities(activitiesList);

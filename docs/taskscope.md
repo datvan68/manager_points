@@ -1,153 +1,163 @@
 # Task Identity and Pipeline
 
-Task: `delegated-concurrent-activity-attendance`
+Task: `activity-visibility-attendance-permission-selector`
 
 Profile: Full
 
 Pipeline: `feature_development`
 
-Rule manifest: `3.2.0`
+Rule manifest: `3.2.0` (`safety.md` SHA-256 `6A3F283B...A772`, `global.md` `67806F70...A43F`, operating contract `51F3677C...1790`, orchestrator `B782109E...716`, pipeline `0419C072...41F3`).
 
 Repository: `D:\PROJECT\manager_points`
 
-Base state: branch `main`, commit `db7ac45f1228e641ff314c3fd33756717d0cb34d`, clean worktree at planning preflight.
+Base state: branch `main`, commit `d85526acd0d6c221fff6f46888b8328e139f79c5`. At preflight, the only worktree change was the requested `docs/taskscope.md`, whose previous tracked scope had been removed and whose working-tree file was empty.
+
+Authority: planning only. This scope does not authorize implementation, migration, deployment, or production mutation.
 
 # Risk Level
 
 Risk: high.
 
-This change crosses frontend and backend modules, introduces activity-scoped authorization and additive persistent schemas, permits concurrent writes by multiple teachers, affects realtime attendance state, and feeds approved attendance into training-point synchronization. Development changes are Git-reversible. Production deployment, database backfill, or index application is excluded without a Human Gate.
+The change crosses frontend and backend activity modules, changes an authenticated read boundary, and changes server-authoritative attendance permissions persisted per activity and teacher. Incorrect implementation could expose inactive activities or member rosters, grant a non-teacher attendance access, or let UI state diverge from backend enforcement. Development code is Git-reversible. No data backfill is intended.
 
 # Objective
 
-Allow an Admin or the activity’s single assigned advisor to grant selected homeroom teachers one or more attendance methods (`qr`, `proximity`, `manual_class`) for that activity. Authorized teachers can open permitted sessions, manually mark their own class through a realtime student-card grid, and work concurrently without blocking other classes. Admins receive the current attendance roster immediately in “Schedule & timeline”, including each student’s class, without full-page reloads or white flashes.
+Make every authenticated account able to see and open an activity card when `settings.require_registration_for_attendance` is `false`, subject to the existing public lifecycle rules. In the Attendance tab, replace the per-teacher card/checkbox grant layout with one teacher selector and three independently confirmed buttons for QR, GPS, and manual-class attendance. An active TEACHER account with no explicit per-activity override receives `manual_class` by default from the backend.
 
 # Scope Boundaries
 
-Approved boundaries:
+Approved backend boundaries:
 
 - `backend/src/activities/**`
-- `backend/src/attendance-sessions/**`
-- `backend/src/activity-attendance/**`
-- `backend/src/activity-schedules/**`
-- `backend/src/system/attendance-event-emitter.ts`
-- `frontend/src/api/activity-api.ts`
-- `frontend/src/api/activity-api.test.ts`
-- `frontend/src/hooks/useAttendanceSession.ts`
-- `frontend/src/hooks/useAttendanceSession.test.ts` (new)
-- `frontend/src/components/attendance/**`
-- `frontend/src/components/activities/ActivityScheduleTimeline.tsx`
-- `frontend/src/components/activities/ActivityScheduleTimeline.test.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
+- `backend/src/attendance-sessions/**` for permission-regression tests or a required server-authoritative integration adjustment only
+- `backend/test/activities.e2e-spec.ts`
+- Read-only dependencies: `backend/src/auth/schemas/user.schema.ts`, `backend/src/auth/schemas/role.schema.ts`, `backend/src/auth/strategies/jwt.strategy.ts`, and `backend/src/classes/schemas/class.schema.ts`
 
 Known backend write targets:
 
-- `activities.controller.ts`, `activities.service.ts`, `activities.module.ts`, and their existing specs.
-- New activity attendance-grant schema/DTO owned by `backend/src/activities/**`.
-- `attendance-sessions.controller.ts`, `attendance-sessions.service.ts`, `attendance-sessions.module.ts`, `dto/open-session.dto.ts`, session/check-in schemas, new manual-attendance DTOs, and existing specs.
-- `activity-attendance/schemas/activity-attendance.schema.ts`, `activity-attendance-sync.service.ts`, and a focused sync spec if none exists.
-- `activity-schedules.service.ts` and `activity-schedules.service.spec.ts`.
+- `backend/src/activities/activities.controller.ts`
+- `backend/src/activities/activities.service.ts`
+- `backend/src/activities/activity-attendance-grants.service.ts`
+- `backend/src/activities/dto/activity-attendance-grant.dto.ts`
+- `backend/src/activities/schemas/activity-attendance-grant.schema.ts` only if the explicit empty override cannot be represented without an additive schema change
+- `backend/src/activities/activities.controller.spec.ts`
+- `backend/src/activities/activities.service.spec.ts`
+- `backend/src/activities/activity-attendance-grants.service.spec.ts` (new)
+- `backend/src/attendance-sessions/attendance-sessions.service.spec.ts`
 
-Known frontend write targets:
+Approved frontend boundaries:
 
-- Attendance API contracts, session hook, method selector, activity detail attendance workspace, and timeline.
-- New focused grant-manager and manual-class grid components/tests under `frontend/src/components/attendance/**`.
+- `frontend/src/api/activity-api.ts`
+- `frontend/src/api/activity-api.test.ts`
+- `frontend/src/app/(dashboard)/activities/page.tsx`
+- `frontend/src/app/(dashboard)/activities/page.test.tsx`
+- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
+- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
+- `frontend/src/components/activities/ActivityListWorkspace.tsx`
+- `frontend/src/components/activities/ActivityListWorkspace.test.tsx`
+- `frontend/src/components/activities/ActivityCard.tsx`
+- `frontend/src/components/activities/ActivityCard.test.tsx`
+- `frontend/src/components/attendance/AttendanceGrantManager.tsx`
+- `frontend/src/components/attendance/AttendanceGrantManager.test.tsx` (new)
+- `frontend/src/hooks/useAttendanceSession.ts`
+- `frontend/src/hooks/useAttendanceSession.test.ts` (new if page coverage cannot prove capability-driven manager behavior)
+
+Excluded boundaries: production data, deployment configuration, global role/permission definitions, unrelated activity forms, schedule creation, training-point rules, and non-activity attendance contexts.
 
 # Out of Scope
 
-- Adding another `activity.advisor_id` or changing the single-advisor rule.
-- Granting delegated teachers activity editing, member administration, schedule editing, grant administration, or access to another teacher’s class.
-- Changing student QR/GPS self-check-in behavior, activity registration rules, completion rules, or unrelated activity pages.
-- Replacing the existing SSE transport or adding Redis/Bull/external infrastructure.
-- Production migration, backfill, deployment, or historical class reconstruction where no reliable class can be resolved.
+- Anonymous/public access; “all accounts” means authenticated application accounts.
+- Showing inactive, soft-deleted, cancelled, or draft activities to ordinary accounts when existing lifecycle policy hides them.
+- Relaxing member-roster, member-management, schedule-management, activity-edit, or activity-delete authorization.
+- Changing the single `activity.advisor_id` rule.
+- Giving a teacher access to another teacher’s homeroom class.
+- Redesigning QR/GPS check-in, the manual student grid, attendance concurrency, SSE transport, or training-point synchronization.
+- Creating one default grant document for every teacher/activity pair.
+- Adding a package, external queue, database backfill, or production index operation.
 
 # Context and Dependencies
 
-- `Activity.advisor_id` currently identifies one assigned teacher. Admin and that teacher must be the only grant administrators; an activity president must not manage grants.
-- `ClassesService` and `StudentsService` already scope ordinary teacher reads by `Class.advisor_id`. A dedicated grant-candidate endpoint is still required because an assigned activity advisor cannot use the ordinary teacher-scoped class list to discover other homeroom teachers.
-- `AttendanceMethodSelector` currently supports only `qr` and `proximity`.
-- The attendance-session schema contains an unused `manual` value, while the open-session DTO and attendance-checkin schema reject it. Normalize the new method to `manual_class` across schema, DTO, API, events, and UI.
-- Active sessions are currently exclusive per activity context. Manual sessions must instead be isolated by activity schedule and class, while QR/Proximity remain one shared active self-check-in session per activity schedule.
-- `ActivityAttendance` already has a unique `(schedule_id, student_id)` index. Manual writes must use an atomic idempotent upsert against this invariant, not a read-then-create race or the current sequential batch loop.
-- Existing SSE sends attendance session/check-in events. Extend the existing event contract and client merge path; do not reload the activity page after a click.
-- Approved attendance currently invokes training-point synchronization. The click response and realtime event must not wait for heavy synchronization; reuse the existing idempotent sync state/service and provide retryable catch-up for unsynced approved records.
-- The staff timeline already fetches attendance with the initial timeline call, but records contain only student name/code and the UI remains collapsed. Persist an optional attendance `class_id` snapshot, return class ID/name in the staff response, and fall back to the student’s current class for legacy records.
-- The activity page currently treats only Admin, assigned advisor, and active president as attendance managers. Delegated capabilities must come from a server-authoritative endpoint, not a role-only frontend condition.
-- Existing dependencies (`Mongoose`, Nest scheduling, SSE, React, and `@tanstack/react-virtual`) are sufficient; no new package is approved.
+- `GET /activities` currently uses `checkPermission('ACTIVITY_READ')`; an authenticated account without that permission cannot reach `ActivitiesService.findAll`.
+- `ActivitiesService.findAll` currently restricts TEACHER accounts to their own `advisor_id` and has no `require_registration_for_attendance=false` visibility branch.
+- `findOne` calls `ensureActivityReadAccess`, and that helper is also used by `findMembers`. Open-activity detail access must be separated from roster authorization so the visibility exception does not expose members.
+- The frontend activities page additionally hides other clubs after a student has one active club. This client filter currently hides no-registration clubs and must retain them.
+- `ActivityCard` already hides its registration button for a no-registration activity. Table/list behavior and visibility tests must remain consistent with that setting.
+- The existing grant model is unique by `(activity_id, teacher_id)`, stores `allowed_methods`, status, and audit actors/timestamps. Existing explicit records remain authoritative.
+- The current candidate endpoint returns class rows, so one teacher can appear more than once and a non-TEACHER class advisor can pass the present eligibility check. The revised contract must derive candidates from active User records whose populated role code is exactly `TEACHER`, returning one option per account; class names may be supplemental display data.
+- Default permission semantics are: no explicit record => `['manual_class']` for an active TEACHER; active explicit record => exactly its stored method set, including an explicit empty set; revoked record => no delegated methods. Admin and the assigned activity advisor retain inherent QR, GPS, and manual-class access.
+- A default is overridable. This preserves the three-button control: Admin/advisor may turn manual-class off for a selected teacher, and that explicit choice must not be replaced by the implicit default.
+- A teacher may show `manual_class` as confirmed by default without owning a class, but opening or writing a manual-class session still requires `assertOwnClass`; the capability response returns no selectable classes in that case.
+- Server capabilities and method assertions are authoritative. The frontend must not infer a default from a local role string.
+- Existing QR/GPS/manual session paths already delegate to `assertMethod`; affected tests must prove direct API calls cannot bypass the selected method state.
+- No new dependency is required.
 
 # Steps
 
-1. Backend grant ownership: add an auditable, unique activity/teacher grant model with `allowed_methods`, active/revoked state, grant/revoke actor and timestamps. Add candidate/list/upsert/revoke endpoints. Enforce Admin-or-assigned-advisor administration and return only homeroom teachers as candidates.
-2. Backend capabilities: add a server-authoritative activity attendance-capabilities response containing effective methods, grant status, grant-administration permission, and the current teacher’s homeroom classes. The assigned advisor and Admin retain current methods; delegated teachers receive exactly the active grant methods.
-3. Session contract: add `manual_class` plus required `class_id`; validate the activity, today’s non-cancelled schedule, active grant, permitted method, class ownership, and revocation state on every open/read/write/close action.
-4. Concurrency: allow one active manual session per `(activity, schedule, class)` and multiple distinct classes concurrently. Keep one global QR/Proximity session per `(activity, schedule)`. Add database-supported uniqueness or an equivalent atomic invariant and deterministic conflict responses.
-5. Optimized roster: add one authorized manual-roster endpoint returning the selected class, all class students with status metadata, and their attendance state for the schedule in bounded queries. Do not issue one query per student. Use pagination/virtualization metadata if the complete roster exceeds the UI render window.
-6. Atomic manual marking: add a manual check-in endpoint that atomically records `present`, auto-approves it, stores `attendance_method=manual_class` and the class snapshot, tolerates duplicate retries, updates counts, emits realtime only after persistence, and returns the canonical record.
-7. Synchronization: remove training-point synchronization from the manual click critical path. Queue or schedule idempotent processing using existing sync markers/service, retry unsynced approved records, and prove a retry cannot award points twice.
-8. Realtime: extend the existing activity attendance SSE payload with activity, schedule, session, class, student, canonical attendance, and count identifiers. Merge by `(schedule_id, student_id)` in every teacher/admin client; reconnect/refetch must reconcile rather than duplicate.
-9. Timeline: fetch the Admin-visible roster with the initial activity timeline load, include class snapshot/name and attendance method, and render the current/selected schedule’s “Attendance list” immediately. Historical lists may stay collapsed/virtualized but must use already cached or paginated data without an N+1 request pattern.
-10. Grant UI: add an Admin/assigned-advisor panel to select a homeroom teacher and one or more methods, inspect current grants, update methods, and revoke access. Do not expose this panel to delegated teachers or presidents.
-11. Delegated UI: show only methods returned by capabilities. For `manual_class`, select among the teacher’s own classes and render every roster member as a stable card with avatar, name, student code, student status, and attendance state.
-12. Interaction quality: apply an optimistic checked state only to the clicked card, keep previous data during background reconciliation, disable duplicate clicks per student, use first-load skeletons instead of replacing populated content, and surface per-card failures without clearing the grid.
-13. Regression and load coverage: add authorization, revocation, concurrent-session, atomic duplicate, realtime merge, class snapshot, timeline eager-load, optimistic UI, background refetch, and legacy QR/GPS tests.
-14. Independent review: review authorization boundaries, IDOR resistance, concurrent index/upsert behavior, sync idempotency, personal-data exposure, query counts, final diff, and schema compatibility before broad verification.
+1. Define a visibility predicate for a lifecycle-visible activity with `require_registration_for_attendance=false`. Apply it to the authenticated list query and activity-detail read path while preserving the stricter roster/member helper.
+2. Replace the list route’s unconditional `ACTIVITY_READ` gate with authenticated access plus service-level role/permission filtering. Preserve all existing list access for Admin, assigned advisors, and authorized roles; add only the no-registration exception for other authenticated accounts.
+3. Update the frontend student/other-role list filter so no-registration activities are never removed by the single-active-club presentation rule. Keep search/type grouping and lifecycle behavior unchanged.
+4. Replace class-row grant candidates with unique active TEACHER accounts, validate the target’s database role again on every grant mutation, and optionally return class summary labels without using class ownership as proof of teacher role.
+5. Implement the implicit `manual_class` default and explicit-override semantics consistently in candidate state, grant listing, capabilities, `assertMethod`, upsert, and revoke behavior. Support an explicit empty method set without materializing defaults or requiring a backfill.
+6. Keep Admin/assigned-advisor grant administration and inherent methods unchanged. Reject grant mutation by delegated teachers, presidents, students, and other roles.
+7. Change the grant UI to one searchable, scrollable teacher select. After selection, render exactly three buttons: `QR`, `GPS`, and `Lớp thủ công`.
+8. Make each method button an accessible toggle with `aria-pressed`, clear confirmed/unconfirmed styling, and immediate persistence of the complete canonical method set. Serialize mutations per selected teacher, reconcile from the server response, prevent stale double-click overwrites, and restore the last confirmed state with an inline error on failure.
+9. Use capability `effective_methods` as the source for the teacher’s Attendance-tab methods and manager data path. Remove local method defaults while preserving the separately defined president behavior.
+10. Add authorization, visibility, default/override, role-validation, selector, toggle, pending/error, and API contract tests. Repair only scoped stale test setup required to execute those tests.
+11. Perform independent authorization/privacy review, then run focused tests, affected builds/static checks, and final diff/status validation.
 
 # Acceptance Criteria
 
-- `AUTH-1`: An activity still has exactly one `advisor_id`.
-- `AUTH-2`: Only Admin or that assigned advisor can list candidates and create, change, or revoke attendance grants.
-- `AUTH-3`: A delegated teacher sees and can open exactly the granted methods; an ungranted or revoked method is rejected by the backend even if called directly.
-- `AUTH-4`: `manual_class` access is limited to classes whose current `advisor_id` is the requesting teacher, and only students belonging to that class can be marked.
-- `AUTH-5`: Presidents retain existing attendance behavior but cannot administer grants or use delegated class access.
-- `SESSION-1`: Two teachers can hold active manual sessions for different classes on the same activity schedule concurrently.
-- `SESSION-2`: A duplicate manual session for the same activity/schedule/class and conflicting global QR/GPS sessions return deterministic conflicts without duplicate active sessions.
-- `ATT-1`: One card click creates or idempotently returns one auto-approved `present` attendance record and stores method plus class snapshot.
-- `ATT-2`: Simultaneous/retried clicks for the same schedule/student never create duplicate attendance or duplicate training points.
-- `ATT-3`: The manual response and realtime event are not blocked by training-point synchronization; failed sync remains retryable and idempotent.
-- `RT-1`: The initiating teacher, other authorized teachers, Admin timeline, session count, and roster converge in realtime without full-page reload.
-- `UI-1`: The manual grid exposes the complete selected-class roster, with stable cards and student status, while only the affected card enters loading/error/success state.
-- `UI-2`: Background refresh keeps existing content visible; no populated activity, timeline, or roster area flashes white.
-- `TL-1`: On initial Admin render, the current/selected schedule’s “Attendance list” is populated and visible without a user-triggered fetch.
-- `TL-2`: Every Admin attendance row shows student name, student code, class name, attendance status/method, and check-in time.
-- `TL-3`: Historical attendance retains its stored class after a later student transfer; legacy records use the current-class fallback without failing.
-- `PERF-1`: Roster/timeline loading uses bounded aggregate/populate queries with no per-student request/query loop.
-- `REG-1`: Existing QR, GPS, student membership checks, advisor access, and legacy timeline responses remain compatible.
+- `VIS-1`: Every authenticated role receives each lifecycle-visible activity whose `require_registration_for_attendance` value is `false`, even when the requester is not its advisor/member and lacks `ACTIVITY_READ`.
+- `VIS-2`: A student with an active club still sees every lifecycle-visible no-registration activity card, including another club.
+- `VIS-3`: The same requester can open the no-registration activity detail, but cannot read its member roster or use staff management endpoints without the pre-existing authorization.
+- `VIS-4`: The exception does not expose inactive, soft-deleted, cancelled, or draft activities beyond existing policy and does not broaden registration-required activity visibility.
+- `GRANT-1`: The grant selector contains each active TEACHER account once and excludes student, admin-only, inactive/locked, and non-TEACHER class-advisor accounts.
+- `GRANT-2`: Only Admin or the activity’s assigned advisor can view administrative grant state and mutate the three attendance permissions.
+- `GRANT-3`: With no explicit grant record, a TEACHER capability response and server method assertion allow `manual_class` and deny QR/GPS.
+- `GRANT-4`: An active explicit override, including an empty set, is authoritative; a revoked override grants no delegated method. Existing explicit grants are not silently rewritten.
+- `GRANT-5`: Manual-class session opening and marking remain limited to a class currently advised by the requesting teacher.
+- `UI-1`: “Phân quyền điểm danh” shows one teacher select and exactly three method buttons, not per-teacher cards or checkboxes.
+- `UI-2`: Selecting a teacher displays the backend-effective state; manual-class is confirmed for a teacher with no explicit override.
+- `UI-3`: Pressing one method button persists the full next method set once, shows pending state, reconciles the response, and cannot lose an adjacent rapid update.
+- `UI-4`: A failed mutation retains the prior confirmed state and exposes an accessible error without clearing the teacher selection.
+- `AUTH-1`: A direct API call cannot grant a method to a non-TEACHER or use a method absent from the backend-effective set.
+- `REG-1`: Existing advisor/Admin inherent access, explicit grants, president policy, registration-required cards, QR/GPS operation, manual own-class checks, and activity realtime refresh remain compatible.
 
 # Verification
 
 Backend focused tests:
 
 ```text
-D:\PROJECT\manager_points\backend :: npm test -- --runInBand activities/activities.service.spec.ts activities/activities.controller.spec.ts attendance-sessions/attendance-sessions.service.spec.ts attendance-sessions/attendance-sessions.controller.spec.ts attendance-sessions/attendance-realtime.service.spec.ts activity-schedules/activity-schedules.service.spec.ts activity-attendance/activity-attendance-sync.service.spec.ts
+D:\PROJECT\manager_points\backend :: npm test -- --runInBand activities/activities.service.spec.ts activities/activities.controller.spec.ts activities/activity-attendance-grants.service.spec.ts attendance-sessions/attendance-sessions.service.spec.ts attendance-sessions/attendance-sessions.controller.spec.ts
 ```
 
-Expected: grant authorization/revocation, manual method validation, concurrent class sessions, global-session conflicts, idempotent manual upserts, class snapshots, eager staff timeline data, realtime payloads, and sync retries pass.
+Expected: visibility and privacy matrix, active-TEACHER validation, implicit manual default, explicit empty/revoked overrides, direct method enforcement, and existing session behavior pass. The preflight baseline had five existing failures in `activities.controller.spec.ts` because its test module omitted `ActivitiesRealtimeService`; the scoped verification must update that stale mock setup before results can be considered green.
 
-Backend affected package:
+Backend integration and build:
 
 ```text
+D:\PROJECT\manager_points\backend :: npm run test:e2e -- --runInBand activities.e2e-spec.ts
 D:\PROJECT\manager_points\backend :: npm run build
 ```
 
-Expected: Nest/TypeScript build succeeds with schemas, DTOs, modules, controllers, and services wired.
+Expected: authenticated no-permission role can list/open only eligible no-registration activities, protected member access remains denied, and Nest/TypeScript build succeeds. If the configured test database is unavailable, record the environmental failure and retain the unit authorization matrix; do not point the test at production data.
 
 Frontend focused tests:
 
 ```text
-D:\PROJECT\manager_points\frontend :: npm test -- src/api/activity-api.test.ts src/hooks/useAttendanceSession.test.ts src/components/attendance/AttendanceMethodSelector.test.tsx src/components/attendance/ActivityAttendanceGrantManager.test.tsx src/components/attendance/ManualClassAttendancePanel.test.tsx src/components/activities/ActivityScheduleTimeline.test.tsx "src/app/(dashboard)/activities/[activityId]/page.test.tsx"
+D:\PROJECT\manager_points\frontend :: npm test -- "src/components/attendance/AttendanceGrantManager.test.tsx" "src/api/activity-api.test.ts" "src/app/(dashboard)/activities/page.test.tsx" "src/app/(dashboard)/activities/[activityId]/page.test.tsx"
 ```
 
-Expected: method filtering, grant management, class selection, complete grid, per-card optimistic/realtime reconciliation, revocation, no-flicker refresh, and immediate Admin timeline roster pass.
+Expected: role/card visibility, teacher selection, the three buttons, default manual state, serialized mutation, server reconciliation, capability-driven method display, and error handling pass.
 
-Frontend affected package:
+Frontend affected checks:
 
 ```text
-D:\PROJECT\manager_points\frontend :: npm run typecheck
+D:\PROJECT\manager_points\frontend :: npm run typecheck -- --incremental false
 D:\PROJECT\manager_points\frontend :: npm run build
 ```
 
-Expected: no affected TypeScript or Next.js build failures.
+Expected: no scoped TypeScript or Next.js build failure. Preflight typecheck already had unrelated failures in grading, permissions, students, system, and `MaintenanceGuard`; distinguish those exact pre-existing failures from introduced failures rather than editing them outside scope.
 
 Final repository checks:
 
@@ -156,26 +166,26 @@ D:\PROJECT\manager_points :: git diff --check
 D:\PROJECT\manager_points :: git status --short
 ```
 
-Expected: clean diff formatting; only approved paths are changed and unrelated user work is preserved.
+Expected: clean diff formatting, only approved paths changed, and unrelated user work preserved.
 
 # Safety Gates
 
-- No gate is required to implement and verify the development-only code.
-- Human approval is required before applying a database migration/backfill, creating production indexes, deploying, or mutating production data.
-- The additive grant collection and optional class/method fields should avoid mandatory backfill. If implementation proves a backfill or external queue/infrastructure dependency necessary, stop at the reviewed migration/architecture artifact and request a scope amendment plus approval.
-- Rollback before deployment: revert the scoped code and indexes; legacy QR/GPS data remains readable because new attendance fields are optional and legacy class fallback is defined.
+- No Human Gate is required for development implementation and test-only data in the repository’s isolated test environment.
+- Human approval is required before production deployment, persistent-data migration/backfill, production index application, or mutation of production data.
+- The planned implicit default and explicit empty override require no backfill. If implementation proves that a schema migration, bulk grant creation, role/permission mutation, or new infrastructure is necessary, stop with a reviewed design and request a scope amendment plus the applicable approval.
+- Rollback before deployment: revert the scoped code. Existing grant documents remain readable because their method arrays and statuses stay authoritative.
 
 # Artifacts and Checkpoints
 
-- `CP-0`: base commit `db7ac45f1228e641ff314c3fd33756717d0cb34d` and approved scope.
-- `CP-1`: reviewed backend grant/session/API contract, schema/index plan, focused test results, and hash of the backend diff before frontend integration.
-- `CP-2`: frontend integration results, concurrency/realtime evidence, final diff hash, and independent review findings.
-- Store long test/load output outside `taskscope.md`; reference only concise command results and hashes in the execution report.
+- `CP-0`: base commit `d85526acd0d6c221fff6f46888b8328e139f79c5`, rule manifest `3.2.0`, and this approved planning artifact.
+- `CP-1`: reviewed backend visibility predicate, normalized grant contract, authorization matrix, focused test result, and backend diff hash.
+- `CP-2`: frontend selector/toggle integration, focused test/static-check results, independent review findings, and final diff hash.
+- Store long test/build output outside `taskscope.md`; execution reporting references only commands actually run, concise failures, and artifact hashes.
 
 # Execution Budgets
 
-- One writer per path; serialize shared API/schema ownership.
-- Backend contract and authorization precede frontend integration; disjoint tests/UI may proceed only after `CP-1`.
+- One writer per path; serialize backend API/type ownership before frontend integration.
+- Backend visibility and grant contracts precede UI mutation. Read-only review may run independently after the implementation checkpoint.
 - Maximum three implementation/verification loops, two review-remediation cycles, and two retries for idempotent commands.
 - Default step deadline: 600 seconds; maximum bounded step deadline: 1,800 seconds.
-- Stop for schema expansion, new dependency/infrastructure, migration/backfill, production action, authorization ambiguity, or unrelated dirty-path overlap.
+- Stop for broader lifecycle changes, member-data exposure, role/permission mutation, new dependency/infrastructure, migration/backfill, production action, authorization ambiguity, or unrelated dirty-path overlap.

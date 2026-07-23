@@ -253,7 +253,16 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
 
       await service.findAll({ id: teacherId.toString(), role: { role_code: 'TEACHER' } });
 
-      expect(MockActivityModel.find).toHaveBeenCalledWith({ advisor_id: teacherId });
+      expect(MockActivityModel.find).toHaveBeenCalledWith({
+        $or: [
+          { advisor_id: teacherId },
+          {
+            status: 'active',
+            participation_status: 'published',
+            'settings.require_registration_for_attendance': false,
+          },
+        ],
+      });
     });
 
     it('should compose teacher assignment visibility with activity type filtering', async () => {
@@ -267,8 +276,74 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
 
       expect(MockActivityModel.find).toHaveBeenCalledWith({
         activity_type: 'club',
-        advisor_id: teacherId,
+        $or: [
+          { advisor_id: teacherId },
+          {
+            status: 'active',
+            participation_status: 'published',
+            'settings.require_registration_for_attendance': false,
+          },
+        ],
       });
+    });
+
+    it('limits a requester without ACTIVITY_READ to advised or lifecycle-visible no-registration activities', async () => {
+      const requesterId = new Types.ObjectId();
+      MockActivityModel.find.mockReturnValue(makeActivityFindQuery([]));
+
+      await service.findAll({ id: requesterId.toString(), roleCode: 'STUDENT', permissions: [] });
+
+      expect(MockActivityModel.find).toHaveBeenCalledWith({
+        $or: [
+          { advisor_id: requesterId },
+          {
+            status: 'active',
+            participation_status: 'published',
+            'settings.require_registration_for_attendance': false,
+          },
+        ],
+      });
+    });
+  });
+
+  describe('no-registration detail privacy', () => {
+    const requester = { id: new Types.ObjectId().toString(), permissions: [] };
+
+    it('allows detail only when the activity is active, published, and no-registration', async () => {
+      MockActivityModel.findById.mockReturnValue(mockQuery({
+        status: 'active',
+        participation_status: 'published',
+        settings: { require_registration_for_attendance: false },
+      }));
+
+      await expect(service['ensureActivityDetailReadAccess'](new Types.ObjectId().toString(), requester))
+        .resolves.toBeDefined();
+    });
+
+    it.each([
+      ['inactive', 'inactive', 'published'],
+      ['draft', 'active', 'draft'],
+      ['cancelled', 'active', 'cancelled'],
+    ])('denies %s no-registration detail', async (_label, status, participationStatus) => {
+      MockActivityModel.findById.mockReturnValue(mockQuery({
+        status,
+        participation_status: participationStatus,
+        settings: { require_registration_for_attendance: false },
+      }));
+
+      await expect(service['ensureActivityDetailReadAccess'](new Types.ObjectId().toString(), requester))
+        .rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('does not extend the detail exception to member roster access', async () => {
+      MockActivityModel.findById.mockReturnValue(mockQuery({
+        status: 'active',
+        participation_status: 'published',
+        settings: { require_registration_for_attendance: false },
+      }));
+
+      await expect(service.findMembers(new Types.ObjectId().toString(), {}, requester))
+        .rejects.toBeInstanceOf(ForbiddenException);
     });
   });
   describe('resolveStudentId', () => {

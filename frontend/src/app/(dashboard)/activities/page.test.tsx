@@ -3,6 +3,14 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 const mockPush = vi.fn();
+const mockAuthState = vi.hoisted(() => ({
+  user: {
+    id: 'user1',
+    studentId: 'student1',
+    role: { role_code: 'TEACHER' },
+  } as any,
+  admin: true,
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
@@ -30,14 +38,10 @@ vi.mock('@/components/activities/ActivityCardDesignModal', () => ({
 
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: () => ({
-    user: {
-      id: 'user1',
-      studentId: 'student1',
-      role: { role_code: 'TEACHER' },
-    },
+    user: mockAuthState.user,
     isLoading: false,
   }),
-  isAdminUser: () => true,
+  isAdminUser: () => mockAuthState.admin,
 }));
 
 vi.mock('@/api/auth-api', () => ({
@@ -95,6 +99,48 @@ import { semesterApi } from '@/api/semester-api';
 describe('ActivitiesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthState.admin = true;
+    mockAuthState.user = {
+      id: 'user1',
+      studentId: 'student1',
+      role: { role_code: 'TEACHER' },
+    };
+  });
+
+  it('keeps no-registration clubs visible for a student with another active club', async () => {
+    mockAuthState.admin = false;
+    mockAuthState.user = {
+      id: 'student-user',
+      studentId: 'student-1',
+      role: { role_code: 'STUDENT' },
+    };
+    vi.mocked(activityApi.getAll).mockResolvedValue([
+      {
+        _id: 'joined-club',
+        name: 'Joined Club',
+        activity_type: 'club',
+        membership_status: 'active',
+        settings: { require_registration_for_attendance: true },
+      },
+      {
+        _id: 'open-club',
+        name: 'Open Club',
+        activity_type: 'club',
+        settings: { require_registration_for_attendance: false },
+      },
+      {
+        _id: 'closed-club',
+        name: 'Closed Club',
+        activity_type: 'club',
+        settings: { require_registration_for_attendance: true },
+      },
+    ] as any);
+
+    render(<ActivitiesPage />);
+
+    expect(await screen.findByText('Joined Club')).toBeInTheDocument();
+    expect(screen.getByText('Open Club')).toBeInTheDocument();
+    expect(screen.queryByText('Closed Club')).not.toBeInTheDocument();
   });
 
   it('should render page with mock activities list', async () => {

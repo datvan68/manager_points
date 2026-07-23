@@ -3,6 +3,7 @@ import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
+import { ActivitiesRealtimeService } from './activities-realtime.service';
 
 describe('ActivitiesController', () => {
   let controller: ActivitiesController;
@@ -33,6 +34,10 @@ describe('ActivitiesController', () => {
         {
           provide: ActivitiesService,
           useValue: mockActivitiesService,
+        },
+        {
+          provide: ActivitiesRealtimeService,
+          useValue: { connect: jest.fn() },
         },
       ],
     })

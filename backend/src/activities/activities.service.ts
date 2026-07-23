@@ -212,8 +212,16 @@ export class ActivitiesService {
     if (user && !isAdminUser(user)) {
       const requesterId = user.userId || user._id || user.id;
       const roleCode = user.roleCode || user.role?.role_code;
+      const hasReadPermission = (user.permissions || []).includes('ACTIVITY_READ');
+      const openActivity = {
+        status: 'active',
+        participation_status: 'published',
+        'settings.require_registration_for_attendance': false,
+      };
       if (isTeacher(user) || roleCode === 'TEACHER') {
-        query.advisor_id = new Types.ObjectId(requesterId);
+        query.$or = [{ advisor_id: new Types.ObjectId(requesterId) }, openActivity];
+      } else if (!hasReadPermission) {
+        query.$or = [{ advisor_id: new Types.ObjectId(requesterId) }, openActivity];
       } else {
         // Non-admin, non-teacher users retain the active-or-advised policy.
         query.$or = [
@@ -357,7 +365,7 @@ export class ActivitiesService {
   }
 
   async findOne(id: string, user?: any): Promise<ActivityDocument> {
-    await this.ensureActivityReadAccess(id, user);
+    await this.ensureActivityDetailReadAccess(id, user);
     const activity = await this.activityModel
       .findById(id)
       .populate('advisor_id', 'user_name email phone_number')
@@ -475,6 +483,23 @@ export class ActivitiesService {
       return activity;
     }
     throw new ForbiddenException('Bạn không có quyền truy cập hoạt động này');
+  }
+
+  private async ensureActivityDetailReadAccess(activityId: string, user: any): Promise<ActivityDocument> {
+    const activity = await this.activityModel.findById(activityId).exec();
+    if (!activity) throw new NotFoundException('Activity not found');
+    if (
+      user
+      && activity.status === 'active'
+      && activity.participation_status === 'published'
+      && activity.settings?.require_registration_for_attendance === false
+    ) {
+      return activity;
+    }
+    if (!user || isAdminUser(user) || this.isAssignedAdvisor(activity, user) || (user?.permissions || []).includes('ACTIVITY_READ')) {
+      return activity;
+    }
+    throw new ForbiddenException('You do not have permission to access this activity');
   }
 
   async canAccessAsAssignedAdvisor(activityId: string, user?: any): Promise<boolean> {

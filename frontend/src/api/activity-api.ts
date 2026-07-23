@@ -751,13 +751,22 @@ export interface ActivityAttendanceGrant {
   _id: string;
   teacher_id: { _id: string; user_name?: string; email?: string } | string;
   allowed_methods: ActivityAttendanceMethod[];
-  status: 'active' | 'revoked';
+  effective_methods?: ActivityAttendanceMethod[];
+  status: 'default' | 'active' | 'revoked';
+  grant_status?: 'default' | 'active' | 'revoked';
 }
 
 export interface ActivityAttendanceGrantCandidate {
   _id: string;
-  class_name: string;
-  advisor_id: { _id: string; user_name?: string; email?: string };
+  user_name?: string;
+  email?: string;
+  classes?: Array<{ _id: string; class_name: string; class_year?: string; advisor_id?: string }>;
+  class_names?: string[];
+  effective_methods?: ActivityAttendanceMethod[];
+  grant_status?: ActivityAttendanceCapabilities['grant_status'] | 'default';
+  /** Compatibility with the former class-row response. */
+  class_name?: string;
+  advisor_id?: { _id: string; user_name?: string; email?: string };
 }
 
 export interface ManualAttendanceRoster {

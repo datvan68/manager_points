@@ -67,6 +67,31 @@ describe('AttendanceSessionsService', () => {
     );
   });
 
+  it('preserves active president attendance-manager compatibility', async () => {
+    (service as any).activityModel = {
+      findById: jest.fn(() => ({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ advisor_id: '507f1f77bcf86cd799439099' }),
+      })),
+    };
+    studentModel.findOne.mockReturnValue({
+      select: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue({ _id: studentId }) }) }),
+    });
+    memberModel.findOne.mockResolvedValue({ role: 'president', status: 'active' });
+
+    await expect((service as any).isManager(
+      { context_type: 'activity', context_id: activityId },
+      userId,
+      'STUDENT',
+    )).resolves.toBe(true);
+    expect(memberModel.findOne).toHaveBeenCalledWith(expect.objectContaining({
+      activity_id: activityId,
+      status: 'active',
+      role: 'president',
+    }));
+  });
+
   it.each(['club', 'activity'])('allows active student-linked members in the %s context and persists their resolved student ID', async (contextType) => {
     const contextualSession = { ...session, context_type: contextType };
     sessionModel.findOne.mockResolvedValue(contextualSession);
