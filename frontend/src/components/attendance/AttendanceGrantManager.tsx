@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import {
   activityAttendanceGrantApi,
   type ActivityAttendanceGrant,
@@ -163,17 +164,17 @@ export default function AttendanceGrantManager({ activityId }: { activityId: str
           {methods.map((method) => {
             const pressed = selected.includes(method.id);
             return (
-              <button
+              <Button
                 key={method.id}
                 type="button"
+                variant={pressed ? 'default' : 'outline'}
+                size="sm"
                 aria-pressed={pressed}
                 onClick={() => toggle(method.id)}
-                className={`rounded-lg border px-3 py-2 text-xs font-bold ${
-                  pressed ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-600'
-                }`}
+                className="text-xs"
               >
                 {method.label}
-              </button>
+              </Button>
             );
           })}
         </div>

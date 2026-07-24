@@ -1039,13 +1039,16 @@ function ActivityAttendanceTab({
             Hỗ trợ 3 phương thức điểm danh: <strong>QR Code</strong>, <strong>Phạm vi GPS</strong> và <strong>Theo lớp phụ trách</strong>.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto justify-center">
-            {allowedMethods.length > 0 && <button
+            {allowedMethods.length > 0 && <Button
+              type="button"
+              variant="default"
+              size="default"
               onClick={() => setShowMethodSelector(true)}
               disabled={!attendanceWindowOpen}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full text-xs"
             >
               <Radio size={16} /> Mở điểm danh
-            </button>}
+            </Button>}
           </div>
           {!attendanceWindowOpen && (
             <p className="mt-3 text-xs font-semibold text-amber-700">Chỉ có thể mở điểm danh trong khung giờ của buổi sinh hoạt.</p>
@@ -1076,7 +1079,7 @@ function ActivityAttendanceTab({
             variant="outline"
             size="sm"
             onClick={() => setShowMethodSelector(false)}
-            className="w-full mt-4"
+            className="mt-4 w-auto"
           >
             <ChevronLeft size={16} /> Quay lại
           </Button>
@@ -1099,8 +1102,8 @@ function ActivityAttendanceTab({
             </SelectContent>
           </Select>
           <div className="flex gap-3">
-            <button onClick={() => void handleOpenSession({ method: 'manual_class', class_id: selectedClassId })} disabled={!selectedClassId || !todaySchedule} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50 cursor-pointer">Mở phiên</button>
-            <button onClick={() => { setClassPickerOpen(false); setSelectedClassId(''); }} className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 cursor-pointer">Hủy</button>
+            <Button type="button" onClick={() => void handleOpenSession({ method: 'manual_class', class_id: selectedClassId })} disabled={!selectedClassId || !todaySchedule} className="bg-emerald-600 text-xs hover:bg-emerald-700">Mở phiên</Button>
+            <Button type="button" variant="secondary" onClick={() => { setClassPickerOpen(false); setSelectedClassId(''); }} className="text-xs">Hủy</Button>
           </div>
         </section>
       )}
