@@ -1029,7 +1029,7 @@ function ActivityAttendanceTab({
       )}
 
       {/* No active session */}
-      {!isAnySessionActive && !showMethodSelector && canManageAttendance && allowedMethods.length > 0 && (
+      {!isAnySessionActive && !showMethodSelector && !classPickerOpen && canManageAttendance && allowedMethods.length > 0 && (
         <div className="backdrop-blur-md bg-white/45 border border-white/70 rounded-3xl p-8 shadow-sm text-center">
           <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 mx-auto border border-blue-500/20 shadow-sm">
             <ClipboardCheck size={32} />

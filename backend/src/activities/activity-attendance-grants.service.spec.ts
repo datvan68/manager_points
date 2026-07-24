@@ -14,6 +14,7 @@ describe('ActivityAttendanceGrantsService', () => {
   const activityId = new Types.ObjectId().toString();
   const teacherId = new Types.ObjectId().toString();
   const advisorId = new Types.ObjectId().toString();
+  const adminId = new Types.ObjectId().toString();
   let activityModel: any;
   let grantModel: any;
   let classModel: any;
@@ -51,7 +52,7 @@ describe('ActivityAttendanceGrantsService', () => {
 
   it('rejects a grant mutation for a non-teacher account', async () => {
     userModel.findOne.mockReturnValue(query({ role: { role_code: 'STUDENT' } }));
-    await expect(service.upsert(activityId, teacherId, [], { id: advisorId })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.upsert(activityId, teacherId, [], { id: advisorId })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('returns each active teacher account once with its effective default', async () => {
@@ -59,7 +60,7 @@ describe('ActivityAttendanceGrantsService', () => {
       { _id: teacherId, user_name: 'Teacher', email: 't@example.edu', role: { role_code: 'TEACHER' } },
       { _id: new Types.ObjectId(), user_name: 'Student', role: { role_code: 'STUDENT' } },
     ]));
-    const result = await service.candidates(activityId, { id: advisorId });
+    const result = await service.candidates(activityId, { id: adminId, roleCode: 'ADMIN' });
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ _id: teacherId, effective_methods: ['manual_class'], grant_status: 'default' });
   });
@@ -77,7 +78,7 @@ describe('ActivityAttendanceGrantsService', () => {
       { teacher_id: revokedId, status: 'revoked', allowed_methods: ['manual_class'] },
     ]));
 
-    const result = await service.list(activityId, { id: advisorId });
+    const result = await service.list(activityId, { id: adminId, roleCode: 'ADMIN' });
 
     expect(result.map((row: any) => ({
       id: row.teacher_id._id.toString(),
@@ -106,9 +107,9 @@ describe('ActivityAttendanceGrantsService', () => {
     await expect(service.assertMethod(activityId, advisorId, 'TEACHER', 'proximity')).resolves.toBeUndefined();
     const capabilities = await service.capabilities(activityId, { id: advisorId, roleCode: 'TEACHER' });
     expect(capabilities).toMatchObject({
-      can_administer_grants: true,
-      grant_status: 'inherent',
-      effective_methods: ['qr', 'proximity', 'manual_class'],
+      can_administer_grants: false,
+      grant_status: 'default',
+      effective_methods: ['manual_class'],
     });
   });
 });

@@ -36,8 +36,8 @@ export class ActivityAttendanceGrantsService {
   private async assertAdministrator(activityId: string, user: any) {
     const activity = await this.activity(activityId);
     const requesterId = this.userId(user);
-    if (!isAdminUser(user) && activity.advisor_id?.toString() !== requesterId) {
-      throw new ForbiddenException('Only an administrator or assigned advisor may manage attendance grants.');
+    if (!isAdminUser(user)) {
+      throw new ForbiddenException('Only an administrator may manage attendance grants.');
     }
     return { activity, requesterId };
   }
@@ -131,7 +131,7 @@ export class ActivityAttendanceGrantsService {
   async capabilities(activityId: string, user: any) {
     const activity = await this.activity(activityId);
     const requesterId = this.userId(user);
-    const canAdminister = isAdminUser(user) || activity.advisor_id?.toString() === requesterId;
+    const canAdminister = isAdminUser(user);
     const classFilter: any = canAdminister ? {} : { advisor_id: new Types.ObjectId(requesterId) };
     const classes = await this.classModel.find(classFilter)
       .select('class_name class_year').sort({ class_name: 1 }).lean().exec();
