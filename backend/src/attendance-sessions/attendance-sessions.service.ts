@@ -638,8 +638,21 @@ export class AttendanceSessionsService {
       activity_id: new Types.ObjectId(contextId),
       status: { $ne: 'cancelled' },
     }).lean().exec();
-    if (!schedule || this.toHoChiMinhDate(schedule.start_time) !== this.toHoChiMinhDate(new Date())) {
-      throw new BadRequestException('Attendance requires a non-cancelled activity schedule for today.');
+    const now = new Date();
+    const startTime = schedule ? new Date(schedule.start_time) : null;
+    const endTime = schedule ? new Date(schedule.end_time) : null;
+    if (
+      !schedule ||
+      !startTime ||
+      !endTime ||
+      Number.isNaN(startTime.getTime()) ||
+      Number.isNaN(endTime.getTime()) ||
+      startTime > endTime ||
+      this.toHoChiMinhDate(startTime) !== this.toHoChiMinhDate(now) ||
+      now < startTime ||
+      now > endTime
+    ) {
+      throw new BadRequestException('Attendance can only be opened during the activity schedule window.');
     }
   }
 

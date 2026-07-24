@@ -75,6 +75,13 @@ const getTodaySchedule = (schedules: ActivitySchedule[]) => {
   );
 };
 
+const isScheduleOpenWindow = (schedule?: ActivitySchedule, now = new Date()) => {
+  if (!schedule || schedule.status === 'cancelled') return false;
+  const start = new Date(schedule.start_time).getTime();
+  const end = new Date(schedule.end_time).getTime();
+  return Number.isFinite(start) && Number.isFinite(end) && start <= end && now.getTime() >= start && now.getTime() <= end;
+};
+
 const getCriterionLabel = (criterion: any, criteriaById: Record<string, string>) => {
   const id = normalizeEntityId(criterion);
 
@@ -507,7 +514,7 @@ export default function ActivityDetailPage() {
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-semibold">
               <span className="flex items-center gap-1 text-slate-600">
                 <User size={14} className="text-slate-400 shrink-0" />
-                <span>Cố vấn: {activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}</span>
+                <span>Phụ trách: {activity.advisor_id?.full_name || activity.advisor_id?.user_name || 'Chưa phân công'}</span>
               </span>
               <span className="hidden md:flex items-center gap-1">
                 <MapPin size={14} className="text-slate-400 shrink-0" />
@@ -931,10 +938,17 @@ function ActivityAttendanceTab({
     (checkin) => normalizeEntityId(checkin.student_id) === currentStudentId,
   );
   const todaySchedule = getTodaySchedule(schedules);
+  const [attendanceWindowNow, setAttendanceWindowNow] = useState(() => new Date());
+  const attendanceWindowOpen = isScheduleOpenWindow(todaySchedule, attendanceWindowNow);
   const [classPickerOpen, setClassPickerOpen] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
   const [adminClasses, setAdminClasses] = useState<Array<{ _id: string; class_name: string }>>([]);
   const manualClasses = isAdmin ? adminClasses : (attendance.capabilities?.classes || []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAttendanceWindowNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!classPickerOpen || !isAdmin) return;
@@ -951,6 +965,7 @@ function ActivityAttendanceTab({
   }) => {
     try {
       if (!todaySchedule?._id) throw new Error('No non-cancelled schedule is available today.');
+      if (!attendanceWindowOpen) throw new Error('Attendance can only be opened during the activity schedule window.');
       if (params.method === 'manual_class') {
         if (isManualClassChooser && !params.class_id) {
           setShowMethodSelector(false);
@@ -1026,12 +1041,15 @@ function ActivityAttendanceTab({
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs mx-auto justify-center">
             {allowedMethods.length > 0 && <button
               onClick={() => setShowMethodSelector(true)}
-              disabled={!todaySchedule}
+              disabled={!attendanceWindowOpen}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Radio size={16} /> Mở điểm danh
             </button>}
           </div>
+          {!attendanceWindowOpen && (
+            <p className="mt-3 text-xs font-semibold text-amber-700">Chỉ có thể mở điểm danh trong khung giờ của buổi sinh hoạt.</p>
+          )}
         </div>
       )}
 
@@ -1053,12 +1071,15 @@ function ActivityAttendanceTab({
             loading={attendance.loading}
             allowedMethods={allowedMethods}
           />
-          <button
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setShowMethodSelector(false)}
-            className="w-full mt-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+            className="w-full mt-4"
           >
-            ← Quay lại
-          </button>
+            <ChevronLeft size={16} /> Quay lại
+          </Button>
         </div>
       )}
 

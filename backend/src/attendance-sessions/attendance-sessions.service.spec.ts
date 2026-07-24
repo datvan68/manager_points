@@ -82,7 +82,7 @@ describe('AttendanceSessionsService', () => {
 
   it('scopes duplicate detection and active manual hydration to the opener', async () => {
     scheduleModel.findOne.mockReturnValue({
-      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date() }) }),
+      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date(), end_time: new Date(Date.now() + 60_000) }) }),
     });
     sessionModel.findOne.mockResolvedValueOnce(null);
     const saved = {
@@ -399,7 +399,7 @@ describe('AttendanceSessionsService', () => {
 
   it('accepts a non-cancelled schedule belonging to the activity today', async () => {
     scheduleModel.findOne.mockReturnValue({
-      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date() }) }),
+      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date(Date.now() - 60_000), end_time: new Date(Date.now() + 60_000) }) }),
     });
 
     await expect((service as any).ensureTodaySchedule('activity', activityId, '507f1f77bcf86cd799439015')).resolves.toBeUndefined();
@@ -410,9 +410,22 @@ describe('AttendanceSessionsService', () => {
 
   it('rejects a schedule outside today or cancelled for attendance opening', async () => {
     scheduleModel.findOne.mockReturnValue({
-      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date('2020-01-01T00:00:00.000Z') }) }),
+      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date('2020-01-01T00:00:00.000Z'), end_time: new Date('2020-01-01T01:00:00.000Z') }) }),
     });
 
     await expect((service as any).ensureTodaySchedule('activity', activityId, '507f1f77bcf86cd799439015')).rejects.toBeInstanceOf(Error);
+  });
+
+  it.each([
+    ['before the window', 60_000, 120_000],
+    ['after the window', -120_000, -60_000],
+  ])('rejects attendance opening %s', async (_label, startOffset, endOffset) => {
+    const now = Date.now();
+    const start = now + startOffset;
+    const end = now + endOffset;
+    scheduleModel.findOne.mockReturnValue({
+      lean: () => ({ exec: jest.fn().mockResolvedValue({ start_time: new Date(start), end_time: new Date(end) }) }),
+    });
+    await expect((service as any).ensureTodaySchedule('activity', activityId, scheduleId)).rejects.toBeInstanceOf(Error);
   });
 });
