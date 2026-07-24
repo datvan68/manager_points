@@ -23,6 +23,7 @@ import { studentApi } from "@/api/student-api";
 import { toast } from "sonner";
 import SubsystemPopup from "@/components/popups/SubsystemPopup";
 import { appIconUrl, useAppBranding } from "@/providers/app-branding-provider";
+import { activeControl } from "@/components/ui/controlStyles";
 
 // Cache (shared with RouteGuard via same API)
 let sidebarCachedMappings: any[] | null = null;
@@ -363,7 +364,7 @@ const Sidebar = () => {
                   href={targetHref}
                   onClick={handleMenuItemClick}
                   className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-300 ease-in-out hover:scale-[1.01] ${isActive
-                    ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8] shadow-sm shadow-slate-200/20"
+                    ? `border ${activeControl}`
                     : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8] hover:shadow-sm"
                     } ${isExpanded ? "" : "justify-center"}`}
                   title={isExpanded ? "" : item.label}

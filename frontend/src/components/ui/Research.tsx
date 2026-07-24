@@ -3,6 +3,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { controlBase } from './controlStyles';
 
 interface ResearchProps extends React.InputHTMLAttributes<HTMLInputElement> {
   containerClassName?: string;
@@ -13,7 +14,7 @@ const Research = React.forwardRef<HTMLInputElement, ResearchProps>(
     return (
       <div 
         className={cn(
-          "flex items-center gap-2 h-10 px-3 py-2.5 bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl w-full max-w-[231px] transition-all focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:bg-white/70 focus-within:border-white focus-within:shadow-sm",
+          `flex items-center gap-2 h-10 px-3 py-2.5 w-full max-w-[231px] focus-within:bg-white/70 focus-within:shadow-sm ${controlBase}`,
           containerClassName
         )}
       >

@@ -3,21 +3,22 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { controlBase, controlHover } from "./controlStyles"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-background transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98]",
+  `inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold ring-offset-background disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98] ${controlBase}`,
   {
     variants: {
       variant: {
-        default: "bg-[#1A73E8] text-white shadow-sm shadow-blue-500/10 hover:bg-blue-600 hover:scale-[1.01]",
+        default: "bg-[#1A73E8] border-[#1A73E8]/20 text-white shadow-sm shadow-blue-500/10 hover:bg-blue-600 hover:scale-[1.01]",
         cancel: "bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-600 hover:text-white hover:border-transparent hover:scale-[1.01]",
         destructive:
           "bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-600 hover:text-white hover:border-transparent hover:scale-[1.01]",
         outline:
-          "border border-white/80 bg-white/50 backdrop-blur-sm text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 hover:scale-[1.01]",
+          `${controlHover} text-[#64748B]`,
         secondary:
-          "bg-white/50 backdrop-blur-sm border border-white/80 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 hover:scale-[1.01]",
-        ghost: "hover:bg-white/60 hover:text-[#1E293B] hover:scale-[1.01] rounded-xl",
+          `${controlHover} text-[#64748B]`,
+        ghost: `${controlHover} border-transparent bg-transparent text-[#64748B]`,
         link: "text-[#1A73E8] underline-offset-4 hover:underline",
       },
       size: {

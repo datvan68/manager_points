@@ -4,6 +4,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { Check, ChevronDown } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { controlBase } from "./controlStyles"
 
 // Context to bridge elements together
 interface SelectContextProps {
@@ -168,7 +169,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
     return (
       <div
         className={cn(
-          "relative flex h-10 w-full items-center justify-between rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-[#1A73E8]/30 focus-within:border-[#1A73E8]/50 transition-all cursor-text outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0",
+          `relative flex h-10 w-full items-center justify-between px-3 py-2 text-sm cursor-text outline-none focus:outline-none focus-visible:ring-0 ${controlBase}`,
           error && "border-red-500 focus-within:ring-red-500/20 focus-within:border-red-500",
           className
         )}
