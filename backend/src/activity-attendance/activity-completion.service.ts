@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, ClientSession } from 'mongoose';
 import {
@@ -115,7 +115,7 @@ export class ActivityCompletionService {
   }
 
   async resetMemberProgress(activityId: string, semesterId: string, memberId: string) {
-    const member = await this.memberModel.findOneAndUpdate({ _id: new Types.ObjectId(memberId), activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId) }, { $set: { self_service_leave_count: 0 } }, { new: true }).exec();
+    const member = await this.memberModel.findOneAndUpdate({ _id: new Types.ObjectId(memberId), activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId) }, { $set: { self_service_leave_count: 0 } }, { returnDocument: 'after' }).exec();
     if (!member) throw new NotFoundException('Không tìm thấy thành viên trong hoạt động và học kỳ yêu cầu');
     return { member_id: member._id.toString(), participation_count: 3 };
   }

@@ -111,7 +111,7 @@ export class ActivityAttendanceGrantsService {
         $set: { allowed_methods: methods, status: 'active', granted_by: new Types.ObjectId(requesterId), granted_at: now },
         $unset: { revoked_by: 1, revoked_at: 1 },
       },
-      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+      { returnDocument: 'after', upsert: true, runValidators: true, setDefaultsOnInsert: true },
     ).exec();
   }
 
@@ -122,7 +122,7 @@ export class ActivityAttendanceGrantsService {
     const grant = await this.grantModel.findOneAndUpdate(
       { activity_id: new Types.ObjectId(activityId), teacher_id: new Types.ObjectId(teacherId) },
       { $set: { status: 'revoked', revoked_by: new Types.ObjectId(requesterId), revoked_at: new Date() } },
-      { new: true },
+      { returnDocument: 'after' },
     ).exec();
     if (!grant) throw new NotFoundException('Attendance grant not found.');
     return grant;
