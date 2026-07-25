@@ -92,7 +92,7 @@ export class AttendanceSessionsService {
             class_id: new Types.ObjectId(dto.class_id!),
             opened_by: new Types.ObjectId(userId),
           }
-        : { method: { $in: ['qr', 'proximity'] } }),
+        : { method: { $in: ['qr', 'proximity'] }, opened_by: new Types.ObjectId(userId) }),
     });
     if (existing) {
       throw new BadRequestException(
@@ -408,7 +408,7 @@ export class AttendanceSessionsService {
     if (filters.method === 'manual_class' && !filters.classId) {
       throw new BadRequestException('class_id is required when querying a manual session.');
     }
-    if (filters.method === 'manual_class') {
+    if (filters.method === 'manual_class' || !filters.method || filters.method === 'qr' || filters.method === 'proximity') {
       query.opened_by = new Types.ObjectId(userId);
     }
     const session = await this.sessionModel

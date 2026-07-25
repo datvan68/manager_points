@@ -41,8 +41,7 @@ export class AttendanceRealtimeService {
         if (event.contextType !== contextType || event.contextId !== contextId) return;
 
         if (
-          event.method === 'manual_class'
-          && ['attendance.session_opened', 'attendance.session_closed'].includes(event.type)
+          ['attendance.session_opened', 'attendance.session_closed'].includes(event.type)
           && event.openedBy !== access.userId
         ) {
           return;

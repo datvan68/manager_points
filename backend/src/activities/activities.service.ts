@@ -167,7 +167,7 @@ export class ActivitiesService {
     }
   }
 
-  async create(dto: CreateActivityDto, userId: string): Promise<ActivityDocument> {
+  async create(dto: CreateActivityDto, userId: string, requester?: any): Promise<ActivityDocument> {
     const existing = await this.activityModel.findOne({
       code: dto.code.toUpperCase(),
     });
@@ -185,12 +185,15 @@ export class ActivitiesService {
       }
     }
 
+    const advisorId = dto.advisor_id || (requester && isAdminUser(requester) ? userId : undefined);
+    if (!advisorId) throw new ForbiddenException('An administrator must be the default responsible account when no teacher is selected.');
     if (dto.advisor_id) {
       await this.validateAdvisor(dto.advisor_id);
     }
 
     const activity = new this.activityModel({
       ...dto,
+      advisor_id: advisorId,
       code: dto.code.toUpperCase(),
       activity_type: dto.activity_type || 'activity',
       participation_status: dto.participation_status || 'published',

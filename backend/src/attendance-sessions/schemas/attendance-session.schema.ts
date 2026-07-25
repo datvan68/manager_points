@@ -117,6 +117,6 @@ AttendanceSessionSchema.index(
   },
 );
 AttendanceSessionSchema.index(
-  { context_id: 1, schedule_id: 1 },
-  { unique: true, partialFilterExpression: { status: 'active', method: { $in: ['qr', 'proximity'] } } },
+  { context_id: 1, schedule_id: 1, opened_by: 1 },
+  { name: 'qr_proximity_active_session_per_owner', unique: true, partialFilterExpression: { status: 'active', method: { $in: ['qr', 'proximity'] } } },
 );

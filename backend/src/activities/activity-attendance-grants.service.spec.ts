@@ -102,9 +102,9 @@ describe('ActivityAttendanceGrantsService', () => {
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('preserves inherent attendance methods for the assigned advisor', async () => {
-    await expect(service.assertMethod(activityId, advisorId, 'TEACHER', 'qr')).resolves.toBeUndefined();
-    await expect(service.assertMethod(activityId, advisorId, 'TEACHER', 'proximity')).resolves.toBeUndefined();
+  it('does not grant inherent QR/GPS methods to the assigned advisor', async () => {
+    await expect(service.assertMethod(activityId, advisorId, 'TEACHER', 'qr')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.assertMethod(activityId, advisorId, 'TEACHER', 'proximity')).rejects.toBeInstanceOf(ForbiddenException);
     const capabilities = await service.capabilities(activityId, { id: advisorId, roleCode: 'TEACHER' });
     expect(capabilities).toMatchObject({
       can_administer_grants: false,

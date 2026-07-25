@@ -114,7 +114,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
         ]);
 
         const filteredTeachers = usersData.filter((u: any) => u.role?.role_code === 'TEACHER' || u.role_code === 'TEACHER');
-        setTeachers(filteredTeachers.length > 0 ? filteredTeachers : usersData);
+        setTeachers(filteredTeachers);
         
         const studentsList = Array.isArray(studentsData) ? studentsData : (studentsData as any).data || [];
         setStudents(studentsList);
@@ -194,7 +194,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     e.preventDefault();
     if (saving || uploading) return;
     setSubmitError('');
-    if (!formData.name || !formData.code || !formData.classroom || !formData.advisor_id) {
+    if (!formData.name || !formData.code || !formData.classroom || (!isCreateMode && !formData.advisor_id)) {
       toast.error('Vui lòng điền đầy đủ các trường bắt buộc');
       return;
     }
@@ -268,7 +268,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
             </div>
             <Input
               label="Tên hoạt động"
-              required
+              required={!isCreateMode}
               type="text"
               name="name"
               value={formData.name}
@@ -395,7 +395,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
               required
             >
               <SelectTrigger className="h-10">
-                <SelectValue placeholder="-- Chọn cố vấn --" />
+                <SelectValue placeholder={isCreateMode ? '-- Mặc định là người tạo --' : '-- Chọn cố vấn --'} />
               </SelectTrigger>
               <SelectContent>
                 {teachers.map(t => (

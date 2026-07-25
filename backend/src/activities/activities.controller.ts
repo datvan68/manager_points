@@ -64,6 +64,7 @@ export class ActivitiesController {
     return this.activitiesService.create(
       dto,
       req.user.userId || req.user._id || req.user.id,
+      req.user,
     );
   }
 

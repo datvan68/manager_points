@@ -271,6 +271,7 @@ export function useAttendanceSession({
     }
 
     if (event.type === 'attendance.session_opened' && event.session) {
+      if (event.openedBy && event.openedBy !== currentUserId) return;
       setState((previous) => ({
         ...previous,
         session: event.session as unknown as AttendanceSessionData,
@@ -280,6 +281,7 @@ export function useAttendanceSession({
       return;
     }
     if (event.type === 'attendance.session_closed') {
+      if (event.openedBy && event.openedBy !== currentUserId) return;
       setState((previous) => {
         if (previous.session?._id !== event.sessionId) return previous;
         return {

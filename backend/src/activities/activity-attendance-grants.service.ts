@@ -160,7 +160,7 @@ export class ActivityAttendanceGrantsService {
   async assertMethod(activityId: string, userId: string, roleCode: string | undefined, method: string) {
     if (!Types.ObjectId.isValid(userId)) throw new BadRequestException('Invalid requester ID.');
     const activity = await this.activity(activityId);
-    if (roleCode?.toUpperCase() === 'ADMIN' || activity.advisor_id?.toString() === userId) return;
+    if (roleCode?.toUpperCase() === 'ADMIN') return;
     const grant: any = await this.grantModel.findOne({
       activity_id: new Types.ObjectId(activityId), teacher_id: new Types.ObjectId(userId),
     }).select('status allowed_methods').lean().exec();
