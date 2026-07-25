@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, activityApi } from '@/api/activity-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
-import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { criteriaApi, Criterion } from '@/api/criteria-api';
 import { toast } from 'sonner';
@@ -33,7 +32,6 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     description: initialData?.description || '',
     category: initialData?.category || 'other',
     advisor_id: typeof initialData?.advisor_id === 'object' ? initialData.advisor_id?._id : initialData?.advisor_id || '',
-    president_id: typeof initialData?.president_id === 'object' ? initialData.president_id?._id : initialData?.president_id || '',
     max_members: initialData?.max_members || '',
     founded_date: initialData?.founded_date ? new Date(initialData.founded_date).toISOString().split('T')[0] : '',
     activity_start_date: initialData?.activity_start_date ? new Date(initialData.activity_start_date).toISOString().split('T')[0] : '',
@@ -52,8 +50,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
   });
 
   const [teachers, setTeachers] = useState<any[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -106,9 +103,8 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       setLoadingOptions(true);
       try {
         const token = tokenStorage.getAccessToken() || '';
-        const [usersData, studentsData, semestersData, criteriaData] = await Promise.all([
+        const [usersData, semestersData, criteriaData] = await Promise.all([
           authApi.getUsers(token).catch(() => []),
-          studentApi.getStudents({ limit: 200 }).catch(() => []),
           semesterApi.getSemesters().catch(() => []),
           criteriaApi.getCriteria().catch(() => []),
         ]);
@@ -116,13 +112,9 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
         const filteredTeachers = usersData.filter((u: any) => u.role?.role_code === 'TEACHER' || u.role_code === 'TEACHER');
         setTeachers(filteredTeachers);
         
-        const studentsList = Array.isArray(studentsData) ? studentsData : (studentsData as any).data || [];
-        setStudents(studentsList);
-        setSemesters(semestersData);
-        if (isCreateMode) {
-          const activeSemester = semestersData.find((semester) => semester.status === 'active');
-          if (activeSemester) setFormData(prev => ({ ...prev, semester_id: activeSemester._id }));
-        }
+        const currentActiveSemester = semestersData.find((semester) => semester.status === 'active') || null;
+        setActiveSemester(currentActiveSemester);
+        if (currentActiveSemester) setFormData(prev => ({ ...prev, semester_id: currentActiveSemester._id }));
         setCriteria(criteriaData);
       } catch (err) {
         console.error('Failed to load form options:', err);
@@ -194,12 +186,12 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
     e.preventDefault();
     if (saving || uploading) return;
     setSubmitError('');
-    if (!formData.name || !formData.code || !formData.classroom || (!isCreateMode && !formData.advisor_id)) {
+    if (!formData.name || !formData.code || !formData.classroom) {
       toast.error('Vui lòng điền đầy đủ các trường bắt buộc');
       return;
     }
 
-    if (isCreateMode && !formData.semester_id) {
+    if (!formData.semester_id) {
       setSubmitError('Không tìm thấy học kỳ đang hoạt động. Vui lòng thử lại sau.');
       return;
     }
@@ -224,7 +216,6 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       founded_date: formData.founded_date ? new Date(formData.founded_date) : undefined,
       activity_start_date: formData.activity_start_date ? new Date(formData.activity_start_date) : undefined,
       activity_end_date: formData.activity_end_date ? new Date(formData.activity_end_date) : undefined,
-      president_id: formData.president_id || undefined,
       semester_id: formData.semester_id || undefined,
       settings: {
         ...formData.settings,
@@ -233,12 +224,10 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
       }
     };
 
-    if (isCreateMode) {
-      const { president_id: _presidentId, ...createPayload } = payload;
-      onSubmit(createPayload);
-    } else {
-      onSubmit(payload);
-    }
+    const normalizedPayload = formData.advisor_id === '__DEFAULT_ADMIN__'
+      ? { ...payload, ...(isCreateMode ? {} : { advisor_id: null }) }
+      : payload;
+    onSubmit(normalizedPayload);
     setUploading(false);
   };
 
@@ -391,13 +380,14 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
             <Select
               value={formData.advisor_id}
               onValueChange={(val: string) => setFormData(prev => ({ ...prev, advisor_id: val }))}
-              label="Giáo viên phụ trách (Cố vấn)"
+              label="Giáo viên phụ trách"
               required
             >
               <SelectTrigger className="h-10">
                 <SelectValue placeholder={isCreateMode ? '-- Mặc định là người tạo --' : '-- Chọn cố vấn --'} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__DEFAULT_ADMIN__">Không chọn (mặc định tài khoản admin)</SelectItem>
                 {teachers.map(t => (
                   <SelectItem key={t._id} value={t._id}>
                     {t.full_name || t.user_name || t.email}
@@ -405,40 +395,6 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                 ))}
               </SelectContent>
             </Select>
-
-            {!isCreateMode && <Select
-              value={formData.president_id}
-              onValueChange={(val: string) => setFormData(prev => ({ ...prev, president_id: val }))}
-              label="Chủ nhiệm sinh viên (President)"
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="-- Chọn sinh viên đại diện --" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map(s => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.full_name} ({s.student_code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>}
-
-            {!isCreateMode && <Select
-              value={formData.semester_id}
-              onValueChange={(val: string) => setFormData(prev => ({ ...prev, semester_id: val }))}
-              label="Học kỳ áp dụng"
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="-- Chọn học kỳ --" />
-              </SelectTrigger>
-              <SelectContent>
-                {semesters.map(s => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.semester_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>}
 
             {/* CustomCalendar + Popover Date Picker */}
             <div className="flex flex-col gap-1.5 w-full">
@@ -551,7 +507,7 @@ export default function ActivityForm({ initialData, onSubmit, onCancel, saving =
                 <label className="text-[12px] font-bold text-[#1E293B] block">
                   Yêu cầu phê duyệt
                 </label>
-                <span className="text-[10px] text-[#64748B] font-semibold">Cố vấn/President phải duyệt đơn đăng ký</span>
+                <span className="text-[10px] text-[#64748B] font-semibold">Phụ trách phải duyệt đơn đăng ký</span>
               </div>
               <input
                 type="checkbox"

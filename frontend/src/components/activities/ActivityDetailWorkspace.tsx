@@ -301,7 +301,7 @@ export default function ActivityDetailWorkspace({
               <div className="divide-y divide-slate-100">
                 <InfoItem label="Phân loại" value={getActivityCategoryLabel(activity.category)} />
                 <InfoItem label="Phòng hoạt động" value={activity.classroom || '—'} />
-                <InfoItem label="Cố vấn" value={activity.advisor_id?.full_name || 'Chưa phân công'} />
+                <InfoItem label="Phụ trách" value={activity.advisor_id?.full_name || 'Chưa phân công'} />
                 {isClub && (
                   <InfoItem label="Chủ nhiệm" value={activity.president_id?.full_name || 'Chưa phân công'} />
                 )}
@@ -550,12 +550,14 @@ function ActivityAttendanceTab({
             onSelect={handleOpenSession}
             loading={attendance.loading}
           />
-          <button
+          <Button
+            type="button"
+            variant="ghost"
             onClick={() => setShowMethodSelector(false)}
-            className="w-full mt-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+            className="mt-4 h-auto w-fit px-2 py-2.5 text-xs font-semibold text-gray-500 hover:text-gray-700"
           >
             ← Quay lại
-          </button>
+          </Button>
         </div>
       )}
 

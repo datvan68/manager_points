@@ -427,14 +427,25 @@ export class ActivitiesService {
       );
     }
 
-    if (dto.advisor_id) {
-      await this.validateAdvisor(dto.advisor_id);
+    const hasAdvisorUpdate = Object.prototype.hasOwnProperty.call(dto, 'advisor_id');
+    let advisorUpdate: any = undefined;
+    if (hasAdvisorUpdate) {
+      if (dto.advisor_id) {
+        await this.validateAdvisor(dto.advisor_id);
+        advisorUpdate = dto.advisor_id;
+      } else {
+        if (!user || !isAdminUser(user)) {
+          throw new ForbiddenException('Only an administrator can select the default responsible account.');
+        }
+        advisorUpdate = user.userId || user._id || user.id;
+      }
     }
+    const updatePayload = { ...dto, ...(hasAdvisorUpdate ? { advisor_id: advisorUpdate } : {}) };
 
     const activity = await this.activityModel
       .findByIdAndUpdate(
         id,
-        { $set: dto },
+        { $set: updatePayload },
         { returnDocument: 'after', runValidators: true },
       )
       .populate('advisor_id', 'user_name email')

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { activityApi, Activity } from '@/api/activity-api';
+import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { isTeacherRole } from '@/utils/role.util';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ export default function ActivitiesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [saving, setSaving] = useState(false);
+  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
 
   // Join/Delete Modals States
   const [activityPendingDelete, setActivityPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -69,6 +71,7 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     loadData();
+    semesterApi.getSemesters().then((items) => setActiveSemester(items.find((item) => item.status === 'active') || null)).catch(() => setActiveSemester(null));
   }, []);
   const handleFavoriteUpdated = React.useCallback((payload: { activity_id: string; favorite_count: number }) => {
     setActivities(prev => prev.map(item => item._id === payload.activity_id ? { ...item, favorite_count: payload.favorite_count } : item));
@@ -293,8 +296,9 @@ export default function ActivitiesPage() {
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
           <DialogContent className="max-w-4xl rounded-2xl overflow-hidden bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 p-6">
             <DialogHeader className="border-b border-white/50 pb-3 mb-4">
-              <DialogTitle className="text-sm font-black text-[#1E293B] uppercase tracking-wider">
-                {activityType === 'club' ? 'Tạo câu lạc bộ mới' : 'Tạo hoạt động mới'}
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-sm font-black text-[#1E293B] uppercase tracking-wider">
+                <span>{activityType === 'club' ? 'Tạo câu lạc bộ mới' : 'Tạo hoạt động mới'}</span>
+                {activeSemester && <span className="text-[11px] font-semibold normal-case text-[#64748B]">{activeSemester.semester_name}</span>}
               </DialogTitle>
             </DialogHeader>
             <ActivityForm
@@ -313,7 +317,10 @@ export default function ActivitiesPage() {
         <Dialog open={!!editingActivity} onOpenChange={(open) => !open && setEditingActivity(null)}>
           <DialogContent className="max-w-4xl rounded-2xl overflow-hidden bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 p-6">
             <DialogHeader className="border-b border-white/50 pb-3 mb-4">
-              <DialogTitle className="text-sm font-black text-[#1E293B] uppercase tracking-wider">Cập nhật hoạt động</DialogTitle>
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-sm font-black text-[#1E293B] uppercase tracking-wider">
+                <span>Cập nhật hoạt động</span>
+                {activeSemester && <span className="text-[11px] font-semibold normal-case text-[#64748B]">{activeSemester.semester_name}</span>}
+              </DialogTitle>
             </DialogHeader>
             <ActivityForm
               mode="edit"

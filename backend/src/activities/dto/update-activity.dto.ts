@@ -4,6 +4,8 @@ import { IsEnum, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateActivityDto extends PartialType(CreateActivityDto) {
+  /** Explicit null selects the authenticated administrator as responsible. */
+  advisor_id?: string | null;
   @ApiPropertyOptional({
     description: 'Activity status',
     enum: ['active', 'inactive', 'suspended'],

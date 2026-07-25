@@ -230,7 +230,7 @@ export class CreateActivityDto {
   @ApiPropertyOptional({ description: 'Advisor (teacher) user ID; defaults to the creating administrator when omitted' })
   @IsOptional()
   @IsMongoId()
-  advisor_id?: string;
+  advisor_id?: string | null;
 
   @ApiPropertyOptional({ description: 'President (student) ID' })
   @IsOptional()
