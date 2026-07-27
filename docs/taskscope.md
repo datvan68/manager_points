@@ -1,8 +1,8 @@
-Task: `mobile-sidebar-pill-design` | `ui_change` | Risk: medium | Profile: Quick
+Task: `mobile-sidebar-active-glass` | `ui_change` | Risk: medium | Profile: Quick
 
-Objective: Restyle the responsive mobile sidebar as a centered floating pill matching the supplied reference: five evenly distributed icon-only actions, a distinct rounded active item, and stable alignment on supported mobile widths.
+Objective: Refine the mobile bottom navigation to match the supplied references: a visually balanced active control centered within its equal-width slot, plus a clearly visible frosted-glass container.
 
-Boundary: Mobile bottom navigation only; preserve route visibility, permission filtering, navigation behavior, accessibility, safe-area handling, and the desktop sidebar. Do not change page content, backend behavior, or PWA loading behavior.
+Boundary: Mobile bottom navigation only. Preserve destinations, role/permission filtering, active-route logic, accessibility, safe-area behavior, and the desktop sidebar. Do not change backend or PWA loading behavior.
 
 Write:
 
@@ -10,17 +10,16 @@ Write:
 - `frontend/src/globals.css`
 - `frontend/src/components/layout/Sidebar.test.tsx`
 
-Targets: `.mobile-bottom-nav`, its loading placeholders, mobile links/profile action, active-state styling, and the existing mobile navigation tests.
+Targets: `.mobile-bottom-nav`, `.mobile-bottom-nav-item`, `.mobile-bottom-nav-item-active`, loading placeholders, and focused mobile navigation tests.
 
-Steps: Reconcile conflicting component/global positioning rules; implement the white rounded pill, icon-only items, spacing, shadow, and active squircle; retain accessible labels and `aria-current`; add focused layout/semantics regressions; visually inspect role-dependent item counts and safe areas.
+Steps: Inspect active dimensions across role-dependent item counts; separate each equal-width navigation slot from its fixed-size active surface if required; center the icon and active surface; tune translucent background, border, shadow, `backdrop-filter`, and `-webkit-backdrop-filter`; retain reduced-motion, focus-visible, and safe-area behavior; add focused regressions for active semantics and class structure.
 
 Verify:
 
 - `D:\PROJECT\manager_points\frontend :: npm test -- --run src/components/layout/Sidebar.test.tsx` => focused tests pass.
-- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no TypeScript errors.
-- Inspect at 375x812, 390x844, and 430x932 in mobile browser and standalone PWA modes => centered, unclipped, safe-area clear, and no horizontal overflow.
+- Inspect at 375x812, 390x844, and 430x932 => active surface is centered and consistent; glass blur is visible; no clipping or horizontal overflow.
 - `D:\PROJECT\manager_points :: git diff --check` => valid patch formatting.
 
-Done: The mobile navigation matches the reference’s pill hierarchy and icon treatment, stays centered across target widths, exposes accessible names, preserves authorized destinations, and leaves desktop behavior unchanged.
+Done: Active items have consistent centered geometry matching the reference, the navigation visibly uses frosted glass with a legible fallback, authorized actions remain unchanged, and desktop layout is unaffected.
 
 Gate: None.
