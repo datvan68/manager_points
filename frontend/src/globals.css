@@ -40,7 +40,7 @@ body {
 }
 
 :root {
-  --mobile-bottom-nav-height: 60px;
+  --mobile-bottom-nav-height: 68px;
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -105,18 +105,61 @@ html {
 
 @media (max-width: 767px) {
   .mobile-bottom-nav {
+    position: fixed;
     bottom: max(0.75rem, var(--safe-area-bottom));
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    width: calc(100vw - 2rem);
-    max-width: 340px;
+    z-index: 40;
+    display: flex;
+    width: min(calc(100vw - 2rem), 360px);
     min-height: var(--mobile-bottom-nav-height);
-    padding-bottom: max(0.25rem, var(--safe-area-bottom));
-    padding-left: max(0.25rem, var(--safe-area-left));
-    padding-right: max(0.25rem, var(--safe-area-right));
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 0.25rem;
+    box-sizing: border-box;
+    padding: 0.5rem max(0.5rem, var(--safe-area-right)) max(0.5rem, var(--safe-area-bottom)) max(0.5rem, var(--safe-area-left));
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(18px);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-bottom-nav-item,
+  .mobile-bottom-nav-skeleton {
+    display: inline-flex;
+    width: 48px;
+    height: 48px;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 16px;
+    color: #0f172a;
+    transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+  }
+
+  .mobile-bottom-nav-item:hover {
+    background: #f1f5f9;
+  }
+
+  .mobile-bottom-nav-item:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  .mobile-bottom-nav-item-active {
+    background: #e2e8f0;
+    color: #020617;
+  }
+
+  .mobile-bottom-nav-skeleton {
+    max-width: 48px;
+    flex: 1 1 0;
+    background: #e2e8f0;
   }
 }
 

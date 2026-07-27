@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Sidebar from './Sidebar';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
@@ -57,10 +57,25 @@ vi.mock('sonner', () => ({
 describe('Sidebar Component', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'test_user', role: 'admin' },
+      isLoading: false,
+      hasPermission: vi.fn(),
+      hasAnyPermission: vi.fn(),
+      hasAllPermissions: vi.fn(),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(true);
+    vi.mocked(isStudentRole).mockReturnValue(false);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -103,6 +118,17 @@ describe('Sidebar Component', () => {
 
     const activeLinks = document.querySelectorAll('.mobile-bottom-nav a[aria-current="page"]');
     expect(activeLinks.length).toBeGreaterThan(0);
+  });
+
+  it('uses icon-only actions with accessible names in the mobile navigation', async () => {
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    const mobileNav = document.querySelector('.mobile-bottom-nav');
+    expect(mobileNav?.tagName).toBe('NAV');
+    expect(mobileNav).toHaveAttribute('aria-label', 'Điều hướng chính');
+    expect(within(mobileNav as HTMLElement).getByRole('link', { name: 'Trang chủ' })).toBeTruthy();
+    expect(mobileNav?.textContent).not.toContain('Trang chủ');
   });
 
   it('does not open or close on hover', async () => {

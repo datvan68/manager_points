@@ -396,14 +396,13 @@ const Sidebar = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <div className="mobile-bottom-nav md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-[340px] h-[60px] box-content bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
+      <nav className="mobile-bottom-nav fixed md:hidden" aria-label="Điều hướng chính">
         {isSidebarLoading ? (
           Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="w-9 h-9 bg-white/40 border border-white/50 rounded-full animate-pulse shrink-0" />
+            <div key={index} aria-hidden="true" className="mobile-bottom-nav-skeleton animate-pulse" />
           ))
         ) : (
           <>
-            {/* 3 Main Items */}
             {visibleItems.map((item, index) => {
               const targetHref = (item.href === "/students" && isStudent) ? "/students/tasks" : item.href;
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
@@ -412,74 +411,44 @@ const Sidebar = () => {
                   key={index}
                   href={targetHref}
                   aria-current={isActive ? 'page' : undefined}
-                  className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
+                  aria-label={item.label}
+                  title={item.label}
+                  className={`mobile-bottom-nav-item ${isActive ? "mobile-bottom-nav-item-active" : ""}`}
                 >
-                  <div
-                    className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${isActive
-                        ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
-                        : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                      }`}
-                  >
-                    <item.icon size={18} className="mb-0.5" />
-                    <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${isActive ? "font-bold" : "font-medium"
-                      }`}>
-                      {item.label}
-                    </span>
-                  </div>
+                  <item.icon size={25} strokeWidth={2.25} aria-hidden="true" />
                 </Link>
               );
             })}
 
-            {/* Notifications Link */}
             {!isAdminUser(user) && <Link
               href="/notifications"
               aria-current={pathname === "/notifications" || pathname.startsWith("/notifications") ? 'page' : undefined}
-              className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
+              aria-label="Thông báo"
+              title="Thông báo"
+              className={`mobile-bottom-nav-item ${pathname === "/notifications" || pathname.startsWith("/notifications") ? "mobile-bottom-nav-item-active" : ""}`}
             >
-              <div
-                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${pathname === "/notifications" || pathname.startsWith("/notifications")
-                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
-                    : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                  }`}
-              >
-                <Bell size={18} className="mb-0.5" />
-                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${pathname === "/notifications" || pathname.startsWith("/notifications") ? "font-bold" : "font-medium"
-                  }`}>
-                  Thông báo
-                </span>
-              </div>
+              <Bell size={25} strokeWidth={2.25} aria-hidden="true" />
             </Link>}
 
-            {/* Personal Profile Button */}
             {!isAdminUser(user) && <button
               onClick={handleProfileClick}
               disabled={isResolvingProfile}
               aria-label="Mở hồ sơ cá nhân"
-              className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
+              title="Hồ sơ"
+              className={`mobile-bottom-nav-item ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "mobile-bottom-nav-item-active" : ""} ${isResolvingProfile ? "opacity-50" : ""}`}
             >
-              <div
-                className={`flex flex-col items-center justify-center w-full max-w-[64px] py-1 rounded-xl transition-all duration-300 ease-in-out ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none")
-                    ? "bg-[#1A73E8]/15 border border-[#1A73E8]/25 text-[#1A73E8] shadow-[0_2px_8px_rgba(26,115,232,0.15)]"
-                    : "text-[#64748B] hover:text-[#1E293B] hover:bg-white/20 border border-transparent"
-                  } ${isResolvingProfile ? "opacity-50" : ""}`}
-              >
-                {isResolvingProfile ? (
-                  <svg className="animate-spin h-4.5 w-4.5 mb-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  <User size={18} className="mb-0.5" />
-                )}
-                <span className={`text-[10px] w-full truncate px-0.5 text-center leading-tight ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "font-bold" : "font-medium"
-                  }`}>
-                  Hồ sơ
-                </span>
-              </div>
+              {isResolvingProfile ? (
+                <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <User size={25} strokeWidth={2.25} aria-hidden="true" />
+              )}
             </button>}
           </>
         )}
-      </div>
+      </nav>
 
       {/* Render SubsystemPopup for Mobile Trigger */}
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />
