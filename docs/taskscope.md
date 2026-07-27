@@ -1,122 +1,145 @@
-## Task Identity and Pipeline
+# Task Identity and Pipeline
 
-- Task: `migrate-attendance-session-owner-index-completion`
+- Task: `admin-mobile-tablet-data-performance-and-navigation`
 - Pipeline: `bug_fix`
 - Profile: Full
 - Rule version: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Base state: branch `main`, commit `5a20490e2e1d4fd77891527fab3f117946d1aa44`.
-- Authority: planning-only. This scope does not authorize implementation, a migration dry-run against a database, `--execute`, database mutation, commit, push, or deployment.
+- Base state: branch `main`, commit `80eb95560bef1cbb7e067b6731aaa6f073070d53`.
+- Planning baseline: the worktree already contains uncommitted responsive-shell changes in `frontend/src/app/layout.tsx`, `frontend/src/app/(dashboard)/layout.tsx`, `frontend/src/globals.css`, `frontend/src/components/layout/Header.tsx`, `frontend/src/components/layout/Sidebar.tsx`, and their tests. These changes must be preserved and reconciled before implementation.
+- Authority: planning-only. This scope does not authorize implementation, commit, push, deployment, or production mutation.
+- Effective rules manifest:
+  - `safety.md` SHA-256 `6A3F283B835394B1AF1F6380D94CBA260ACBED8A60D3065DD5365BB15806A772`
+  - `global.md` SHA-256 `67806F70A5F89ADF42E3BE88413CC76CC27A02C90FAD0609AE71DE34D046A43F`
+  - `antigravity-operating-contract.md` SHA-256 `51F3677C7E44121529CC0A4B17E5667BCBD2147EE63C6F30207C10D5DEB51790`
+  - `orchestrator.md` SHA-256 `B782109E896B2FA48A6523358A788A9DB9B81B72F3D8FC66F70019395738D716`
+  - `pipeline.md` SHA-256 `0419C072380887F96B37FE4EB48DAE764306F46FB03190B176A43EBCEA3F41F3`
+- Selected skill: `vercel-react-best-practices` 1.0.0.
 
-## Risk Level
+# Risk Level
 
-- Risk: high because the script manages unique partial MongoDB indexes and a wrong candidate match or drop can change persistent-data constraints.
-- Environment: local development and database-free mocked verification only.
-- Reversibility: source/test edits are Git-reversible; an applied index drop/create is not authorized here and requires a separate Human Gate.
-- Blast radius: active attendance-session uniqueness for manual and QR/GPS (`qr`/`proximity`) sessions.
+- Risk: medium.
+- Environment: frontend development only.
+- Reversibility: all planned changes are Git-reversible.
+- Blast radius: authenticated admin navigation and the initial/perceived loading behavior of the four retained admin destinations on mobile and tablet.
+- Full profile is required because performance investigation and regression coverage span shared navigation and four dashboard routes.
 
-## Objective
+# Objective
 
-Make `migrate-attendance-session-owner-index.ts` deterministically inspect, plan, create/retain, and fully verify both owner-scoped unique indexes, while allowing removal of only each exact corresponding legacy index and exposing the complete behavior through database-free regression tests and dry-run report assertions.
+Reduce measured initial and repeat-navigation data wait on admin mobile/tablet views while making both admin navigation variants contain exactly `Trang chủ`, `Học sinh`, `Hoạt động`, and `Thông báo`, without changing route authorization or non-admin menus.
 
-## Scope Boundaries
+# Scope Boundaries
 
-### Approved Boundary
+## Approved Boundary
 
-- Attendance-session owner-index migration logic, its regression coverage, and this planning artifact.
-- Read-only reference to the attendance-session schema, service behavior, Git history, and backend test/tool configuration.
+- Frontend admin navigation derivation and rendering.
+- Frontend data-loading, request orchestration, rendering, and bundle behavior for `/`, `/students`, `/activities`, and `/notifications`.
+- Focused tests and this planning artifact.
 
-### Write Boundary
+## Write Boundary
 
-- `backend/scripts/migrate-attendance-session-owner-index.ts`
-- `backend/src/attendance-sessions/migrate-attendance-session-owner-index.spec.ts` (new)
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/components/layout/Sidebar.test.tsx`
+- `frontend/src/app/(dashboard)/page.tsx`
+- `frontend/src/app/(dashboard)/page.test.tsx` (new if required)
+- `frontend/src/app/(dashboard)/students/page.tsx`
+- `frontend/src/app/(dashboard)/students/page.test.tsx` (new if required)
+- `frontend/src/app/(dashboard)/activities/page.tsx`
+- `frontend/src/app/(dashboard)/activities/page.test.tsx` (new if required)
+- `frontend/src/app/(dashboard)/notifications/page.tsx`
+- `frontend/src/app/(dashboard)/notifications/page.test.tsx` (new if required)
+- Existing frontend API modules or route-owned components imported by those pages only when profiling identifies a concrete bottleneck; add each discovered path to the implementation manifest before mutation.
 - `docs/taskscope.md`
 
-### Known Index Targets
+## Known Targets
 
-| Lane | Exact legacy definition | Exact owner-scoped definition |
-| --- | --- | --- |
-| Manual | name `context_id_1_schedule_id_1_class_id_1`; key `{ context_id: 1, schedule_id: 1, class_id: 1 }`; unique; partial `{ status: 'active', method: 'manual_class' }` | name `manual_active_session_per_owner`; same key plus `opened_by: 1`; same unique partial options |
-| QR/GPS | name `context_id_1_schedule_id_1`; key `{ context_id: 1, schedule_id: 1 }`; unique; partial `{ status: 'active', method: { $in: ['qr', 'proximity'] } }` | name `qr_proximity_active_session_per_owner`; same key plus `opened_by: 1`; same unique partial options |
+- `allMenuItems`, admin menu selection, route-permission loading effect, desktop footer, and mobile notification/profile rendering in `Sidebar`.
+- `DashboardPage.loadData` and below-the-fold dashboard component loading.
+- `StudentsPageContent.fetchDepartments`, `fetchClasses`, `fetchClassSummaries`, and the artificial department-change loading delay.
+- `ActivitiesPage.loadData`, semester loading, realtime refresh behavior, and modal/below-the-fold imports.
+- `NotificationsPageContent.loadCounts`, `loadPaginated`, and `notifications-updated` refresh behavior.
 
-For all four definitions, approved options additionally require no collation, sparse flag, hidden flag, or TTL.
+# Out of Scope
 
-## Out of Scope
+- Backend/API/database changes, endpoint contract changes, pagination redesign, new caching infrastructure, or new dependencies.
+- Removing routes, revoking permissions, or blocking direct URL access; this task changes admin navigation visibility only.
+- Non-admin sidebar/mobile-menu contents or role-resolution semantics.
+- Visual redesign, breakpoint changes, responsive safe-area implementation from the existing dirty worktree, deployment, or production profiling with personal data.
+- Optimizing dashboard routes other than the four retained admin destinations.
 
-- Running either `migration:attendance-session-owner-index:dry-run` or `migration:attendance-session-owner-index:execute`.
-- Connecting to, reading from, or mutating any local, test, staging, or production database.
-- Repairing duplicate/ownerless attendance records, changing schema declarations or service behavior, renaming `proximity`, or altering unrelated indexes.
-- Package/dependency changes, deployment, rollback execution, or production validation.
+# Context and Dependencies
 
-## Context and Dependencies
+- The frontend uses Next.js 16.1.6, React 19, Tailwind CSS 4, Vitest, and Testing Library; no client data-cache library is installed.
+- `Sidebar` currently calls `getRoutePermissionsPublic` before returning all menu items for an admin, delaying navigation even though admin menu visibility does not depend on that response.
+- The current admin desktop list includes six primary items plus a settings footer. The mobile list appends notification and profile controls, so neither variant matches the requested four-item contract.
+- `/students` currently awaits departments before classes, starts class summaries afterward, and adds a 300 ms loading state when the selected department changes.
+- `/activities` starts activity and semester requests independently, but realtime events can trigger a full list reload.
+- `/notifications` loads counts and the page list independently, then refreshes both for each global update event.
+- `/` uses one aggregated metrics endpoint but blocks the entire page until it completes and statically imports several panels while only two panels are lazy-loaded.
+- Optimization must follow measured evidence, prioritizing removal of request waterfalls and redundant requests, route-level code splitting, stable callbacks/state updates, and progressive rendering.
 
-- The current script handles only the manual legacy/owner pair and only manual duplicate and missing-owner records.
-- The schema already declares the desired QR/GPS owner index `qr_proximity_active_session_per_owner`.
-- Git history establishes the corresponding unnamed-schema legacy QR/GPS index as MongoDB's generated name `context_id_1_schedule_id_1`.
-- QR/GPS application lookup already includes `opened_by`; the migration must align the stored uniqueness constraint with that behavior.
-- Current post-verification is insufficient: it accepts the manual replacement by name alone and treats every remaining legacy-key index as equivalent.
-- The normal dry-run connects to MongoDB. Tests must invoke exported/injected logic with mocked collection/client behavior and prevent CLI `main` from running on import.
+# Steps
 
-## Steps
+1. `code-agent` records the current dirty diff, confirms ownership of overlapping responsive changes, and captures a baseline for the four routes at `390x844`, `768x1024`, and `1024x768` under the same authenticated admin session and throttling profile.
+2. `code-agent` records per route: navigation-to-first-useful-content time, data-ready time, request count, duplicate requests, longest request chain, transferred JavaScript, and visible loading behavior. Use redacted test data only.
+3. `code-agent` derives the admin menu before any route-permission request. For admin only, render exactly four destinations in this order: `/`, `/students`, `/activities`, `/notifications`; omit grading, reports, system, settings, and profile from both desktop and mobile navigation. Preserve direct-route authorization and all non-admin behavior.
+4. `code-agent` removes only evidence-confirmed loading bottlenecks: parallelize independent requests, deduplicate refreshes, avoid full reloads when a local update is sufficient, remove artificial wait states, and retain stale usable data during non-destructive refreshes.
+5. `code-agent` reduces initial mobile/tablet rendering cost only where the baseline proves impact, using route-owned dynamic imports for heavy non-critical panels/modals and progressive loading boundaries without delaying primary content.
+6. `code-agent` preserves cancellation/stale-response safety, error states, retry behavior, pagination/filter state, realtime updates, authorization, and mutation refresh correctness.
+7. `test-agent` adds focused regression tests for exact admin menus on desktop/mobile, unchanged non-admin menus, skipped admin route-permission fetch, parallel/deduplicated loading behavior, and retained error/refresh states.
+8. `review-agent` checks the diff against the Vercel priorities for waterfalls, bundle size, client fetching, rerenders, and rendering; it also checks that existing responsive-shell changes were not lost.
+9. The orchestrator runs focused tests, type-check, production build, repeat profiling, and final diff/status inspection.
 
-1. `code-agent` captures the current report shape and extracts or exposes testable migration orchestration without changing CLI defaults, environment-label validation, URI sanitization, or secret handling.
-2. `code-agent` models manual and QR/GPS as separate exact index specifications containing legacy name/key/options, replacement name/key/options, active filter, and owner-scoped duplicate grouping fields.
-3. `code-agent` extends preflight inspection to classify candidates for both lanes, report duplicate groups and missing `opened_by` records per lane, and set readiness false before any write when data conflicts, duplicate candidates, reserved-name collisions, or definition mismatches exist.
-4. `code-agent` makes dry-run JSON expose both lanes, their exact old/new definitions, readiness/blockers, and ordered retain/create/drop/no-op operations without performing index writes.
-5. `code-agent` makes execute-mode logic create or retain each exact owner index, then drop only the exact approved corresponding legacy name whose key and complete options also match. Lookalike indexes must never be dropped.
-6. `code-agent` strengthens post-verification to compare full name, ordered key, uniqueness, partial filter, and disallowed options for both replacements; verify only the exact approved legacy definitions are absent; and accurately report installed/retained and removed names.
-7. `test-agent` adds mocked regression cases for dry-run output, both create/retain paths, each exact legacy drop, absent legacy indexes, lookalike/reserved-name blockers, duplicate groups, missing owners, no-write-on-blocker, and post-verification failure. Tests must assert that no real `MongoClient.connect` or database operation occurs.
-8. `review-agent` independently reviews candidate classification, operation ordering, exact-drop safety, idempotency, report accuracy, secret redaction, failure-before-write behavior, and full-definition post-verification.
-9. The orchestrator runs only database-free checks, inspects the final diff/status, and maps results to every acceptance criterion.
+# Acceptance Criteria
 
-## Acceptance Criteria
+- `AC-01`: For an `ADMIN` user, desktop and mobile/tablet navigation expose exactly four ordered destinations: `Trang chủ`, `Học sinh`, `Hoạt động`, and `Thông báo`.
+- `AC-02`: Admin navigation does not request public route-permission mappings before it becomes usable.
+- `AC-03`: Grading, reports, system, settings, and profile are absent from the admin navigation UI, while direct-route permissions and route guards remain unchanged.
+- `AC-04`: Student, teacher, and supervisor navigation behavior remains unchanged from the captured baseline.
+- `AC-05`: Independent initial requests on each scoped route start concurrently; no artificial delay or duplicate request remains in the critical data-ready path.
+- `AC-06`: Notification and realtime events cause at most one required refresh per event burst and do not clear already usable content while refreshing.
+- `AC-07`: At each measured viewport, the median warm navigation-to-data-ready time over five runs improves by at least 25% on every route whose baseline is frontend-bound; a backend-bound route must instead show no added frontend waterfall and a documented unchanged server wait.
+- `AC-08`: The optimized build does not increase the initial JavaScript transferred by any scoped route by more than 5%; any route receiving code splitting must show a smaller initial route chunk in the build evidence.
+- `AC-09`: Loading, empty, error, filtering, pagination, manual refresh, and successful mutation/realtime update behavior remain correct.
+- `AC-10`: Focused tests, TypeScript checking, production build, and final diff checks pass without dependency or backend changes.
 
-- `AC-01`: The script recognizes the exact manual and QR/GPS legacy and owner-scoped definitions listed in this scope.
-- `AC-02`: Mocked dry-run output contains separate manual and QR/GPS candidates, conflicts, blockers, readiness, exact definitions, and planned operations.
-- `AC-03`: With clean mocked state, execute-mode logic creates each missing owner index or retains its exact approved instance before considering its matching legacy drop.
-- `AC-04`: A legacy index is droppable only when its name, ordered key, uniqueness, partial filter, and remaining approved options exactly match its lane; wrong-name, wrong-key, wrong-option, and reserved-name lookalikes are preserved and block writes.
-- `AC-05`: Duplicate owner-scoped active groups or active records without `opened_by` in either lane stop the run before every `createIndex` or `dropIndex`.
-- `AC-06`: Post-verification accepts both replacements only when their complete definitions match, rejects incomplete/mismatched results, and verifies absence only of the exact approved legacy definitions.
-- `AC-07`: Completion output accurately distinguishes created/retained owner indexes and removed legacy indexes for both lanes, including idempotent no-op cases.
-- `AC-08`: Focused tests and static checks pass without loading runtime secrets, opening a MongoDB connection, or executing a migration against any database.
+# Verification
 
-## Verification
-
-- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand migrate-attendance-session-owner-index`
-  - Expected: all mocked planning, safety, execution-order, exact-drop, and post-verification regressions pass; no real database connection is attempted.
-- `D:\PROJECT\manager_points\backend :: npx eslint scripts/migrate-attendance-session-owner-index.ts src/attendance-sessions/migrate-attendance-session-owner-index.spec.ts`
-  - Expected: no lint errors and no source mutation.
-- `D:\PROJECT\manager_points\backend :: npx tsc --noEmit --incremental false`
-  - Expected: the script, regression test, and affected backend TypeScript compile without errors.
-- `D:\PROJECT\manager_points\backend :: npx ts-node scripts/migrate-attendance-session-owner-index.ts --help`
-  - Expected: help documents both index lanes and exits before `.env` loading or MongoDB connection.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run src/components/layout/Sidebar.test.tsx "src/app/(dashboard)/page.test.tsx" "src/app/(dashboard)/students/page.test.tsx" "src/app/(dashboard)/activities/page.test.tsx" "src/app/(dashboard)/notifications/page.test.tsx"`
+  - Expected: exact admin navigation, unchanged non-admin behavior, request orchestration, refresh, and error-state regressions pass. Omit optional test paths not created and record the final exact command.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck`
+  - Expected: no TypeScript errors.
+- `D:\PROJECT\manager_points\frontend :: npm run build`
+  - Expected: production build succeeds and route chunk evidence satisfies `AC-08`.
+- Browser performance comparison at `390x844`, `768x1024`, and `1024x768`, five baseline and five post-change warm navigations per route using the same admin account, dataset, cache mode, and throttling profile.
+  - Expected: request timeline satisfies `AC-05`/`AC-06`; median timing satisfies `AC-07`; screenshots confirm `AC-01`.
 - `D:\PROJECT\manager_points :: git diff --check`
   - Expected: no whitespace errors.
 - `D:\PROJECT\manager_points :: git status --short` and `git diff --stat`
-  - Expected: only the three write-boundary paths are changed.
-- Forbidden verification: every `npm run migration:attendance-session-owner-index:*` command and every direct script invocation other than `--help`.
+  - Expected: all implementation changes stay within the write boundary and pre-existing responsive changes remain present.
 
-## Safety Gates
+# Safety Gates
 
-- No Human Gate is required to implement and run the database-free checks within the write boundary.
-- Any real dry-run requires new explicit authority to connect to the named database environment.
-- Any `--execute`, index create/drop, persistent-data repair, staging/production action, or rollback requires a separate Human Gate stating target environment, impact, reviewed dry-run artifact, rollback procedure, and exact resume point.
-- On any unexpected candidate, ownerless/duplicate record, partial write, schema mismatch, or ambiguous legacy identity, stop without dropping an index.
+- Gate: None for local implementation and verification after the overlapping dirty changes are attributed and accepted as the implementation baseline.
+- Stop before implementation if the current uncommitted sidebar/layout changes cannot be safely distinguished or preserved.
+- Any backend/API contract change, dependency installation, breakpoint change, production profiling, deployment, or expansion beyond the approved frontend routes requires a scope amendment and applicable explicit authority.
+- Do not capture tokens, student personal data, notification contents, or other sensitive payloads in performance artifacts.
 
-## Artifacts and Checkpoints
+# Artifacts and Checkpoints
 
 - Planning artifact: `docs/taskscope.md`.
-- Discovery baseline: branch/base commit above, current script/schema definitions, and sanitized read-only findings; no database snapshot or credentials.
-- Implementation checkpoint: scoped diff, focused test/static-check summaries, current commit ID, and hashes of retained review artifacts before independent review.
-- Review checkpoint: acceptance-to-test mapping plus review findings before final verification.
-- Final evidence: final diff/status, exact commands run, database-connection mock assertions, and unresolved risks.
+- Baseline artifact: redacted route performance table and request waterfall screenshots for the three viewport sizes.
+- Implementation checkpoint: scoped diff plus focused-test results after navigation and data-loading changes.
+- Review checkpoint: acceptance-criteria matrix, before/after median measurements, request counts, and route chunk comparison.
+- Final evidence: exact commands run, final diff/status, and remaining backend-bound waits.
 
-## Execution Budgets
+# Execution Budgets
 
-- One writer per path; implementation, test completion, and independent review are sequential where paths overlap.
-- Maximum concurrent workers: 3, with no concurrent writes to the same file.
+- One writer per path; serialize writes to `Sidebar.tsx`, its test, and any file already modified in the worktree.
+- Maximum concurrent workers: 3, with no overlapping writes.
 - Maximum idempotent retries: 2.
 - Maximum implementation/verification loops: 3.
 - Maximum review-remediation cycles: 2.
+- Baseline and post-change profiling: five warm runs per route/viewport; use medians.
 - Default step deadline: 600 seconds; maximum step deadline: 1800 seconds.
-- Stop on write-boundary expansion, a new dependency, database access, stale/conflicting worktree state, failed required verification, or a new Human Gate.
+- Stop on dirty-change conflict, scope expansion, new dependency, backend requirement, sensitive-data exposure, failed mandatory check, or a new Human Gate.

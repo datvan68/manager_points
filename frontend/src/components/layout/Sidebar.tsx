@@ -395,7 +395,7 @@ const Sidebar = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <div className="md:hidden fixed bottom-3 left-4 right-4 h-[60px] bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
+      <div className="mobile-bottom-nav md:hidden fixed bottom-3 left-4 right-4 h-[60px] box-content bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
         {isSidebarLoading ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="w-9 h-9 bg-white/40 border border-white/50 rounded-full animate-pulse shrink-0" />
@@ -410,6 +410,7 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={targetHref}
+                  aria-current={isActive ? 'page' : undefined}
                   className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
                 >
                   <div
@@ -431,6 +432,7 @@ const Sidebar = () => {
             {/* Notifications Link */}
             <Link
               href="/notifications"
+              aria-current={pathname === "/notifications" || pathname.startsWith("/notifications") ? 'page' : undefined}
               className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div
@@ -451,6 +453,7 @@ const Sidebar = () => {
             <button
               onClick={handleProfileClick}
               disabled={isResolvingProfile}
+              aria-label="Mở hồ sơ cá nhân"
               className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
             >
               <div

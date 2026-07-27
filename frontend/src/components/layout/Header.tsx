@@ -227,7 +227,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
   return (
     <>
-      <header className="h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 relative z-50 shadow-sm shadow-slate-200/20 mt-0">
+      <header className="dashboard-header sticky top-0 h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] relative z-50 shadow-sm shadow-slate-200/20 mt-0 min-w-0 w-full">
         {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Logo & System Name (Chỉ hiển thị trên mobile/tablet: lg:hidden) */}
@@ -258,7 +258,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
           {/* Nút tìm kiếm (Chỉ hiển thị trên desktop: lg:flex) */}
-          <button className="hidden lg:flex w-8 h-8 rounded-xl items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer">
+          <button aria-label="Tìm kiếm" className="hidden lg:flex min-w-11 min-h-11 w-11 h-11 rounded-xl items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40">
             <Search size={18} />
           </button>
           
@@ -266,7 +266,8 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
           <div className="hidden lg:block relative" ref={notificationRef}>
               <button 
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out relative cursor-pointer"
+                aria-label={`Thông báo${unreadCount > 0 ? `, ${unreadCount} chưa đọc` : ''}`}
+                className="min-w-11 min-h-11 w-11 h-11 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
               >
                 <Bell size={18} />
                 {unreadCount > 0 && (
@@ -288,7 +289,8 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
           {/* Quản lý phân hệ (Luôn hiển thị) */}
           <button 
             onClick={() => setIsSubsystemOpen(true)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer"
+            aria-label="Quản lý phân hệ"
+            className="min-w-11 min-h-11 w-11 h-11 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
             title="Quản lý phân hệ"
           >
             <LayoutGrid size={18} />
@@ -298,7 +300,8 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
           <div className="relative pl-3 border-l border-white/60 ml-1.5" ref={profileRef}>
              <button 
                onClick={() => setIsProfileOpen(!isProfileOpen)}
-               className="relative w-8 h-8 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-xs ring-2 ring-white/80 shadow-sm hover:ring-[#1A73E8]/30 transition-all focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20"
+               aria-label="Mở hồ sơ cá nhân"
+               className="relative min-w-11 min-h-11 w-11 h-11 rounded-full bg-[#1A73E8]/10 flex items-center justify-center text-[#1A73E8] font-bold text-xs ring-2 ring-white/80 shadow-sm hover:ring-[#1A73E8]/30 transition-[box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
                data-id="btn/Profile"
              >
                {user ? getInitials(user.display_name || user.user_name || user.username || '') : '??'}

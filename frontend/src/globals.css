@@ -35,6 +35,22 @@
 
 body {
   @apply bg-background text-text-main;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+:root {
+  --mobile-bottom-nav-height: 60px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  min-height: 100%;
+  background: #EBF2FA;
+  overflow-x: hidden;
 }
 
 /* Custom scrollbar: visible only on hover */
@@ -83,7 +99,21 @@ body {
 /* Mobile adjustments for Bottom Nav Bar */
 @media (max-width: 767px) {
   main {
-    padding-bottom: 4.5rem !important;
+    padding-bottom: calc(4.5rem + var(--safe-area-bottom)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-bottom-nav {
+    bottom: max(0.75rem, var(--safe-area-bottom));
+    left: max(1rem, var(--safe-area-left));
+    right: max(1rem, var(--safe-area-right));
+    min-height: var(--mobile-bottom-nav-height);
+    padding-bottom: max(0.25rem, var(--safe-area-bottom));
+    padding-left: max(0.25rem, var(--safe-area-left));
+    padding-right: max(0.25rem, var(--safe-area-right));
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

@@ -91,6 +91,18 @@ describe('Sidebar Component', () => {
   it('renders correctly', () => {
     render(<Sidebar />);
     expect(getSidebarElement()).toBeTruthy();
+    const mobileNav = document.querySelector('.mobile-bottom-nav');
+    expect(mobileNav).toBeTruthy();
+    expect(mobileNav?.classList.contains('md:hidden')).toBe(true);
+    expect(mobileNav?.classList.contains('fixed')).toBe(true);
+  });
+
+  it('marks the active mobile destination for assistive technology', async () => {
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    const activeLinks = document.querySelectorAll('.mobile-bottom-nav a[aria-current="page"]');
+    expect(activeLinks.length).toBeGreaterThan(0);
   });
 
   it('does not open or close on hover', async () => {

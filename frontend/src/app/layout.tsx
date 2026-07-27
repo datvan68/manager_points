@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import '../globals.css'
 import { Toaster } from '@/components/ui/sonner';
@@ -27,6 +27,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'HSSV',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#EBF2FA',
 }
 
 export default function RootLayout({
