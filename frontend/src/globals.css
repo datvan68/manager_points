@@ -106,8 +106,11 @@ html {
 @media (max-width: 767px) {
   .mobile-bottom-nav {
     bottom: max(0.75rem, var(--safe-area-bottom));
-    left: max(1rem, var(--safe-area-left));
-    right: max(1rem, var(--safe-area-right));
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100vw - 2rem);
+    max-width: 340px;
     min-height: var(--mobile-bottom-nav-height);
     padding-bottom: max(0.25rem, var(--safe-area-bottom));
     padding-left: max(0.25rem, var(--safe-area-left));

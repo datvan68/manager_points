@@ -14,6 +14,22 @@ import { toast } from "sonner";
 import { isStudentRole, isTeacherRole } from "@/utils/role.util";
 import { API_ORIGIN } from "@/api/config";
 
+const AUTH_REQUEST_TIMEOUT_MS = 10000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('AUTH_REQUEST_TIMEOUT')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 const TAB_INSTANCE_ID = typeof window !== 'undefined'
   ? `${Date.now()}-${Math.random().toString(36).slice(2)}`
   : 'ssr';
@@ -138,10 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Note: We use raw fetch() here instead of httpClient() because this is the primary
       // session validation logic. Using httpClient() here could trigger recursive silent refresh
       // attempts if the token validation itself has expired or failed.
-      const res = await fetch(
+      const res = await withTimeout(fetch(
         `${API_ORIGIN}/api/auth/me`,
         { headers: { Authorization: `Bearer ${token}` } },
-      );
+      ));
 
       if (res.ok) {
         const data = await res.json();
@@ -176,10 +192,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (isStudent && !studentId) {
           try {
-            const studentRes = await fetch(
+            const studentRes = await withTimeout(fetch(
               `${API_ORIGIN}/api/students/me`,
               { headers: { Authorization: `Bearer ${token}` } },
-            );
+            ));
             if (studentRes.ok) {
               const studentData = await studentRes.json();
               studentId = studentData._id;
@@ -187,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else if (studentRes.status === 401) {
               if (!isRetry) {
                 try {
-                  const result = await synchronizedRefreshToken();
+                  const result = await withTimeout(synchronizedRefreshToken());
                   tokenStorage.setAccessToken(result.access_token);
                   return loadUserPermissions(result.access_token, true);
                 } catch (refreshErr) {
@@ -264,7 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       // Try silent refresh if token is missing (e.g. after tab close)
       try {
-        const result = await synchronizedRefreshToken();
+        const result = await withTimeout(synchronizedRefreshToken());
         tokenStorage.setAccessToken(result.access_token);
         // The refresh endpoint intentionally returns only a new access token.
         // Re-fetching /auth/me safely rehydrates the user without durable JWT storage.

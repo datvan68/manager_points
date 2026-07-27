@@ -53,7 +53,10 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
 
     const checkMaintenance = async () => {
       try {
-        const states = await getMaintenanceStatesWithCache();
+        const states = await Promise.race([
+          getMaintenanceStatesWithCache(),
+          new Promise<Record<string, boolean>>((_, reject) => setTimeout(() => reject(new Error('MAINTENANCE_TIMEOUT')), 8000)),
+        ]);
         applyStates(states);
       } catch (error) {
         console.error('Failed to load module maintenance states in layout guard:', error);

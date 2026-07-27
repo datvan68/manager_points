@@ -396,7 +396,7 @@ const Sidebar = () => {
       </div>
 
       {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <div className="mobile-bottom-nav md:hidden fixed bottom-3 left-4 right-4 h-[60px] box-content bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
+      <div className="mobile-bottom-nav md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-[340px] h-[60px] box-content bg-white/40 backdrop-blur-lg border border-white/50 rounded-[20px] flex items-center justify-around z-40 px-1 shadow-[0_8px_32px_rgba(0,0,0,0.08)] ring-1 ring-white/20">
         {isSidebarLoading ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="w-9 h-9 bg-white/40 border border-white/50 rounded-full animate-pulse shrink-0" />

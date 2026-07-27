@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const selectedSemesterRef = useRef<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   
@@ -56,13 +57,17 @@ export default function DashboardPage() {
     if (showIndicator) {
       setIsRefreshing(true);
     }
+    setLoadError(null);
 
     try {
       // 1. Determine the semester ID to load (use refs for stable references)
       const semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterRef.current;
 
       // 2. Fetch metrics from backend (single API call)
-      const dashboardMetrics = await systemApi.getDashboardMetrics(semIdToLoad || undefined);
+      const dashboardMetrics = await Promise.race([
+        systemApi.getDashboardMetrics(semIdToLoad || undefined),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DASHBOARD_TIMEOUT')), 12000)),
+      ]);
       setMetrics(dashboardMetrics);
 
       // 3. Update semesters list from metrics if available and not yet loaded
@@ -88,6 +93,7 @@ export default function DashboardPage() {
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to load dashboard statistics:', err);
+      setLoadError('Không thể tải dữ liệu vận hành. Vui lòng kiểm tra kết nối và thử lại.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -179,10 +185,11 @@ export default function DashboardPage() {
     return (
       <div className="flex-1 flex items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#1A73E8] border-t-transparent shadow-md"></div>
-          <p className="text-xs font-semibold text-[#64748B] animate-pulse">
-            Đang tải dữ liệu vận hành...
-          </p>
+          {loadError ? <p className="text-xs font-semibold text-rose-600 text-center max-w-xs">{loadError}</p> : <>
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#1A73E8] border-t-transparent shadow-md"></div>
+            <p className="text-xs font-semibold text-[#64748B] animate-pulse">Đang tải dữ liệu vận hành...</p>
+          </>}
+          {loadError && <button type="button" onClick={() => loadData(true)} className="rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-bold text-white">Thử lại</button>}
         </div>
       </div>
     );
