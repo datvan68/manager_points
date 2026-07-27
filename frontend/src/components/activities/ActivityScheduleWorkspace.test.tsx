@@ -425,12 +425,16 @@ describe('ActivityScheduleWorkspace', () => {
   });
 
   it('correctly handles drag/save of existing non-recurring schedule with populated objects, calling update with scalar IDs', async () => {
+    const currentWeekDate = new Date();
+    currentWeekDate.setHours(8, 0, 0, 0);
+    const currentWeekEnd = new Date(currentWeekDate);
+    currentWeekEnd.setHours(10, 0, 0, 0);
     const mockSchedules: any[] = [
       {
         _id: 'existing-schedule-id',
         title: 'Existing Meeting',
-        start_time: '2026-07-15T08:00:00.000Z',
-        end_time: '2026-07-15T10:00:00.000Z',
+        start_time: currentWeekDate.toISOString(),
+        end_time: currentWeekEnd.toISOString(),
         activity_id: { _id: '60c72b2f9b1e8a001c8e4a50', name: 'Academic Club', code: 'AC_CLUB', category: 'academic' },
         semester_id: { _id: '60c72b2f9b1e8a001c8e4a52', semester_name: 'Semester 1', start_date: '2026-01-01', end_date: '2026-06-30' },
         location: 'Room 101',

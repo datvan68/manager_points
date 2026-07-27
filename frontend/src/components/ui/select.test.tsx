@@ -1,18 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './select';
 
 describe('Select Component', () => {
-  beforeEach(() => {
-    // Clean up body before each test
-    document.body.innerHTML = '';
-  });
-
-  afterEach(() => {
-    document.body.innerHTML = '';
-  });
-
   it('should mount SelectContent inside document.body using React Portal when opened', async () => {
     render(
       <Select>

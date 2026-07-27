@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { authApi } from '../../../api/auth-api';
+import { authApi } from '@/api/auth-api';
 
 // Mock module authApi
-vi.mock('../../../api/auth-api', () => ({
+vi.mock('@/api/auth-api', () => ({
   authApi: {
     updateUser: vi.fn(),
     createUser: vi.fn(),

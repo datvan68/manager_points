@@ -186,30 +186,32 @@ Object.defineProperty(window, "sessionStorage", {
   writable: true,
 });
 
+HTMLElement.prototype.scrollTo = vi.fn();
+
 describe("Grading Score Page URL Context & Initialization", () => {
   const mockSemesters = [
-    { _id: "sem-1", name: "Học kỳ I 2025-2026", status: "active" },
-    { _id: "sem-2", name: "Học kỳ II 2025-2026", status: "inactive" }
+    { _id: "sem-1", name: "Học kỳ I 2025-2026", semester_name: "Học kỳ I 2025-2026", start_date: "2025-09-01", end_date: "2026-01-31", status: "active" as const },
+    { _id: "sem-2", name: "Học kỳ II 2025-2026", semester_name: "Học kỳ II 2025-2026", start_date: "2026-02-01", end_date: "2026-06-30", status: "inactive" as const }
   ];
 
   const mockClasses = [
-    { _id: "class-1", class_name: "CNTT K19A", advisor_id: "user-teacher-1" },
-    { _id: "class-2", class_name: "CNTT K19B", advisor_id: "user-teacher-1" }
+    { _id: "class-1", class_name: "CNTT K19A", class_year: "2025", dept_id: "dept-1", class_type: "Cao đẳng" as const, advisor_id: "user-teacher-1" },
+    { _id: "class-2", class_name: "CNTT K19B", class_year: "2025", dept_id: "dept-1", class_type: "Cao đẳng" as const, advisor_id: "user-teacher-1" }
   ];
 
   const mockRosterClass1 = [
-    { _id: "stud-1", id: "stud-1", student_code: "SV001", full_name: "Nguyễn Văn A", class_id: "class-1" },
-    { _id: "stud-2", id: "stud-2", student_code: "SV002", full_name: "Trần Thị B", class_id: "class-1" }
+    { _id: "stud-1", id: "stud-1", student_code: "SV001", full_name: "Nguyễn Văn A", date_bir: "2005-01-01", sex: "Male" as const, status: "Studying" as const, class_id: "class-1" },
+    { _id: "stud-2", id: "stud-2", student_code: "SV002", full_name: "Trần Thị B", date_bir: "2005-01-02", sex: "Female" as const, status: "Studying" as const, class_id: "class-1" }
   ];
 
   const mockRosterClass2 = [
-    { _id: "stud-3", id: "stud-3", student_code: "SV003", full_name: "Lê Văn C", class_id: "class-2" }
+    { _id: "stud-3", id: "stud-3", student_code: "SV003", full_name: "Lê Văn C", date_bir: "2005-01-03", sex: "Male" as const, status: "Studying" as const, class_id: "class-2" }
   ];
 
   const mockSummaries = [
-    { _id: "sum-1", student_id: "stud-1", semester_id: "sem-1", class_id: "class-1", status: "draft" },
-    { _id: "sum-2", student_id: "stud-2", semester_id: "sem-1", class_id: "class-1", status: "draft" },
-    { _id: "sum-3", student_id: "stud-3", semester_id: "sem-1", class_id: "class-2", status: "draft" }
+    { _id: "sum-1", student_id: "stud-1", semester_id: "sem-1", class_id: "class-1", total_score: null, grading: null, status: "draft" as const },
+    { _id: "sum-2", student_id: "stud-2", semester_id: "sem-1", class_id: "class-1", total_score: null, grading: null, status: "draft" as const },
+    { _id: "sum-3", student_id: "stud-3", semester_id: "sem-1", class_id: "class-2", total_score: null, grading: null, status: "draft" as const }
   ];
 
   beforeEach(() => {
@@ -229,7 +231,10 @@ describe("Grading Score Page URL Context & Initialization", () => {
     vi.mocked(classApi.getClasses).mockResolvedValue(mockClasses);
     vi.mocked(categoryApi.getCategories).mockResolvedValue([]);
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
-    vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([{ _id: "period-1", name: "Period 1", semester_id: "sem-1" }]);
+    vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([{
+      _id: "period-1", semester_id: "sem-1", status: "sv_phase",
+      sv_deadline: "2026-01-10", gv_deadline: "2026-01-20", admin_deadline: "2026-01-31",
+    }]);
     vi.mocked(evaluationDetailApi.getEvaluationDetailsBySummary).mockResolvedValue([]);
     vi.mocked(summariesPointApi.getGradingAccess).mockResolvedValue({
       role: 'admin',
@@ -267,7 +272,7 @@ describe("Grading Score Page URL Context & Initialization", () => {
         if (params?.classId && s.class_id !== params.classId) match = false;
         return match;
       });
-      return { data: filtered, meta: { total: filtered.length } };
+      return { data: filtered, meta: { total: filtered.length, page: 1, limit: 100, totalPages: 1 } };
     });
 
     vi.mocked(studentApi.getStudent).mockImplementation(async (id: string) => {
@@ -439,29 +444,29 @@ describe("Score Attribution Badges Rendering", () => {
       criterion_name: "Tiêu chí 1",
       category_id: "cat-1",
       score_per_unit: 2,
-      criterion_type: "reward",
+      criterion_type: "cong_diem" as const,
       max_score: 10,
       min_score: 0,
       is_locked: false,
-      scoring_mode: "count",
+      scoring_mode: "count" as const,
       options: []
     }
   ];
 
   const mockSemesters = [
-    { _id: "sem-1", name: "Học kỳ I 2025-2026", status: "active" }
+    { _id: "sem-1", name: "Học kỳ I 2025-2026", semester_name: "Học kỳ I 2025-2026", start_date: "2025-09-01", end_date: "2026-01-31", status: "active" as const }
   ];
 
   const mockClasses = [
-    { _id: "class-1", class_name: "CNTT K19A", advisor_id: "user-teacher-1" }
+    { _id: "class-1", class_name: "CNTT K19A", class_year: "2025", dept_id: "dept-1", class_type: "Cao đẳng" as const, advisor_id: "user-teacher-1" }
   ];
 
   const mockRoster = [
-    { _id: "stud-1", id: "stud-1", student_code: "SV001", full_name: "Nguyễn Văn A", class_id: "class-1" }
+    { _id: "stud-1", id: "stud-1", student_code: "SV001", full_name: "Nguyễn Văn A", date_bir: "2005-01-01", sex: "Male" as const, status: "Studying" as const, class_id: "class-1" }
   ];
 
   const mockSummaries = [
-    { _id: "sum-1", student_id: "stud-1", semester_id: "sem-1", class_id: "class-1", status: "draft" }
+    { _id: "sum-1", student_id: "stud-1", semester_id: "sem-1", class_id: "class-1", total_score: null, grading: null, status: "draft" as const }
   ];
 
   let mockSearchParams = new URLSearchParams();
@@ -488,7 +493,7 @@ describe("Score Attribution Badges Rendering", () => {
     vi.mocked(evaluationPeriodApi.getEvaluationPeriods).mockResolvedValue([]);
     vi.mocked(studentApi.getStudents).mockResolvedValue(mockRoster);
     vi.mocked(studentApi.getStudent).mockResolvedValue(mockRoster[0] as any);
-    vi.mocked(summariesPointApi.getSummariesPoints).mockResolvedValue({ data: mockSummaries, meta: { total: 1 } });
+    vi.mocked(summariesPointApi.getSummariesPoints).mockResolvedValue({ data: mockSummaries, meta: { total: 1, page: 1, limit: 100, totalPages: 1 } });
   });
 
   afterEach(() => {
@@ -500,6 +505,9 @@ describe("Score Attribution Badges Rendering", () => {
     const mockDetails = [
       {
         _id: "det-1",
+        summary_id: "sum-1",
+        log: [],
+        current_count: 1,
         criterion_id: "cri-1",
         sv_score: 6,
         gv_score: 8,
@@ -542,6 +550,9 @@ describe("Score Attribution Badges Rendering", () => {
     const mockDetails = [
       {
         _id: "det-1",
+        summary_id: "sum-1",
+        log: [],
+        current_count: 1,
         criterion_id: "cri-1",
         sv_score: 6,
         gv_score: 8,
@@ -581,6 +592,9 @@ describe("Score Attribution Badges Rendering", () => {
     const mockDetails = [
       {
         _id: "det-1",
+        summary_id: "sum-1",
+        log: [],
+        current_count: 1,
         criterion_id: "cri-1",
         sv_score: 6,
         gv_score: 8,
@@ -617,6 +631,9 @@ describe("Score Attribution Badges Rendering", () => {
     const mockDetails = [
       {
         _id: "det-1",
+        summary_id: "sum-1",
+        log: [],
+        current_count: 1,
         criterion_id: "cri-1",
         sv_score: null,
         gv_score: null,

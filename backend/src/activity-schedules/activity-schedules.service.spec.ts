@@ -486,15 +486,25 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
 
       mockActivityAttendanceModel.find.mockImplementation((filter) => {
         expect(filter.student_id).toBeUndefined();
-        return {
-          populate: jest.fn().mockImplementation((path, fields) => {
-            expect(path).toBe('student_id');
-            expect(fields).toBe('full_name student_code');
-            return {
-              lean: jest.fn().mockReturnThis(),
-              exec: jest.fn().mockResolvedValue(mockAttendance),
-            };
+        const query: any = {
+          populate: jest.fn().mockImplementation((options, fields) => {
+            if (typeof options === 'object') {
+              expect(options).toEqual({
+                path: 'student_id',
+                select: 'full_name student_code class_id',
+                populate: { path: 'class_id', select: 'class_name' },
+              });
+            } else {
+              expect(options).toBe('class_id');
+              expect(fields).toBe('class_name');
+            }
+            return query;
           }),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockAttendance),
+        };
+        return {
+          ...query,
         };
       });
 
@@ -550,7 +560,19 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(studentRes.items[0].attendance_records).toBeUndefined();
 
       // Test advisor/teacher
-      const teacherRequester = { role: 'TEACHER' };
+      const teacherUserId = new Types.ObjectId();
+      mockActivityModel.findById.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({
+          _id: new Types.ObjectId(activityId),
+          advisor_id: teacherUserId,
+        }),
+      });
+      const teacherRequester = {
+        role: 'TEACHER',
+        userId: teacherUserId.toString(),
+      };
       const teacherRes = await service.findActivityTimeline(activityId, teacherRequester);
       expect(teacherRes.viewer_mode).toBe('staff');
       expect(teacherRes.items[0].my_attendance).toBeUndefined();

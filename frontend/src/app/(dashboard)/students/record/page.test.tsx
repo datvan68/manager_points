@@ -1,5 +1,5 @@
 import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import StudentRecordPage from './page';
 import { academicRecordApi } from '@/api/academic-record-api';
 import { classApi } from '@/api/class-api';

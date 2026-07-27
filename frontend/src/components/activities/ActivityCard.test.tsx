@@ -44,6 +44,16 @@ vi.mock('@/api/activity-api', () => ({
 import ActivityCard from './ActivityCard';
 import { activityScheduleApi } from '@/api/activity-api';
 
+const getCurrentWednesdayTime = (hour: number) => {
+  const date = new Date();
+  const day = date.getDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  date.setDate(date.getDate() - daysFromMonday + 2);
+  date.setHours(hour, 0, 0, 0);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 19);
+};
+
 describe('ActivityCard', () => {
   const mockActivity = {
     _id: 'act1',
@@ -101,8 +111,8 @@ describe('ActivityCard', () => {
           activity_id: 'act1',
           title: 'Weekly session',
           schedule_type: 'regular',
-          start_time: '2026-07-15T08:00:00',
-          end_time: '2026-07-15T10:00:00',
+          start_time: getCurrentWednesdayTime(8),
+          end_time: getCurrentWednesdayTime(10),
           status: 'scheduled',
           semester_id: 'semester-1',
           created_by: 'user-1',
@@ -139,8 +149,8 @@ describe('ActivityCard', () => {
           activity_id: 'act1',
           title: 'Empty-summary regression session',
           schedule_type: 'regular',
-          start_time: '2026-07-15T08:00:00',
-          end_time: '2026-07-15T10:00:00',
+          start_time: getCurrentWednesdayTime(8),
+          end_time: getCurrentWednesdayTime(10),
           status: 'scheduled',
           semester_id: 'semester-1',
           created_by: 'user-1',
@@ -174,8 +184,8 @@ describe('ActivityCard', () => {
       data: {
         items: [{
           _id: 'schedule-3', activity_id: 'act1', title: 'Wrapped response session',
-          schedule_type: 'regular', start_time: '2026-07-15T08:00:00',
-          end_time: '2026-07-15T10:00:00', status: 'scheduled',
+          schedule_type: 'regular', start_time: getCurrentWednesdayTime(8),
+          end_time: getCurrentWednesdayTime(10), status: 'scheduled',
         }],
       },
     } as any);
@@ -197,8 +207,8 @@ describe('ActivityCard', () => {
     vi.mocked(activityScheduleApi.getAll).mockResolvedValueOnce({
       items: [{
         _id: 'fallback-1', activity_id: 'act1', title: 'Fallback session',
-        schedule_type: 'regular', start_time: '2026-07-15T08:00:00',
-        end_time: '2026-07-15T10:00:00', status: 'scheduled',
+        schedule_type: 'regular', start_time: getCurrentWednesdayTime(8),
+        end_time: getCurrentWednesdayTime(10), status: 'scheduled',
       }],
       total: 1,
     } as any);

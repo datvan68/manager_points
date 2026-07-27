@@ -41,7 +41,12 @@ describe('MaintenanceGuard', () => {
   it('should show loading spinner if loading auth state is true', () => {
     vi.mocked(useAuth).mockReturnValue({
       user: null,
+      isAuthenticated: false,
       isLoading: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
       hasPermission: () => false,
       hasAnyPermission: () => false,
       hasAllPermissions: () => false,
@@ -55,8 +60,13 @@ describe('MaintenanceGuard', () => {
 
   it('should render children if user is an admin', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { role: 'Admin' },
+      user: { id: 'admin-1', role: 'Admin' },
+      isAuthenticated: true,
       isLoading: false,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
       hasPermission: () => true,
       hasAnyPermission: () => true,
       hasAllPermissions: () => true,
@@ -75,8 +85,13 @@ describe('MaintenanceGuard', () => {
 
   it('should render children if current route does not map to any module', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { role: 'Teacher' },
+      user: { id: 'teacher-1', role: 'Teacher' },
+      isAuthenticated: true,
       isLoading: false,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
       hasPermission: () => true,
       hasAnyPermission: () => true,
       hasAllPermissions: () => true,
@@ -94,8 +109,13 @@ describe('MaintenanceGuard', () => {
 
   it('should block navigation and render maintenance screen if route is under maintenance and user is not admin', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { role: 'Teacher' },
+      user: { id: 'teacher-1', role: 'Teacher' },
+      isAuthenticated: true,
       isLoading: false,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
       hasPermission: () => true,
       hasAnyPermission: () => true,
       hasAllPermissions: () => true,
@@ -119,8 +139,13 @@ describe('MaintenanceGuard', () => {
 
   it('should render children if route is not under maintenance and user is not admin', async () => {
     vi.mocked(useAuth).mockReturnValue({
-      user: { role: 'Teacher' },
+      user: { id: 'teacher-1', role: 'Teacher' },
+      isAuthenticated: true,
       isLoading: false,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
       hasPermission: () => true,
       hasAnyPermission: () => true,
       hasAllPermissions: () => true,

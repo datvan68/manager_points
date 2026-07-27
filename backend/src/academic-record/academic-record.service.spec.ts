@@ -768,7 +768,10 @@ describe('AcademicRecordService - Import Flow', () => {
       });
       mockStudentModel.findById.mockReturnValue({
         select: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue({ class_id: classId }),
+        exec: jest.fn().mockResolvedValue({
+          class_id: classId,
+          user_id: studentId,
+        }),
       });
 
       mockCriterionModel.findById = jest.fn().mockReturnValue({
@@ -1533,6 +1536,11 @@ describe('AcademicRecordService - Import Flow', () => {
       semesterId = new Types.ObjectId().toString();
       criterionId = new Types.ObjectId().toString();
 
+      mockStudentModel.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue({ user_id: studentId }),
+      });
+
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           _id: criterionId,
@@ -1832,9 +1840,14 @@ describe('AcademicRecordService - Import Flow', () => {
         }),
       };
       mockStudentModel.findById = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         exec: jest
           .fn()
-          .mockResolvedValue({ _id: studentId, status: 'Studying' }),
+          .mockResolvedValue({
+            _id: studentId,
+            user_id: studentId,
+            status: 'Studying',
+          }),
       });
       mockCriterionModel.findById = jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue({

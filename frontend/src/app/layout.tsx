@@ -1,13 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
 import '../globals.css'
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/providers/auth-provider'
 import { Suspense } from 'react'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 import { AppBrandingProvider } from '@/providers/app-branding-provider'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'HOCSINHSINHVIEN - Hệ thống quản lý',
@@ -43,7 +40,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Suspense fallback={null}>
           <AuthProvider>
             <AppBrandingProvider>

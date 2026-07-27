@@ -133,8 +133,13 @@ describe('ActivityListWorkspace', () => {
       fireEvent.click(listBtn!);
 
       // Filter by type "club"
-      const typeSelect = screen.getByRole('combobox');
-      fireEvent.change(typeSelect, { target: { value: 'club' } });
+      const typeSelect = container.querySelector('input[type="text"]')!;
+      fireEvent.click(typeSelect);
+      const selectContent = document.querySelector('[data-select-content="true"]')!;
+      const clubOption = Array.from(selectContent.querySelectorAll('div')).find(
+        option => option.textContent === 'Câu lạc bộ'
+      )!;
+      fireEvent.click(clubOption);
 
       // After filtering, only 'IT Club Activity' should be visible.
       // Click header checkbox. It should select only 'act1'
@@ -253,9 +258,11 @@ describe('ActivityListWorkspace', () => {
 
     it('renders the selector with "Tất cả loại hoạt động" and four canonical options', () => {
       renderWorkspace();
-      const combobox = screen.getByRole('combobox');
-      expect(combobox).toBeInTheDocument();
-      const options = Array.from(combobox.querySelectorAll('option')).map(opt => opt.textContent);
+      const typeSelect = document.querySelector('input[type="text"]')!;
+      expect(typeSelect).toBeInTheDocument();
+      fireEvent.click(typeSelect);
+      const content = document.querySelector('[data-select-content="true"] > div')!;
+      const options = Array.from(content.children).map(option => option.textContent);
       expect(options).toEqual([
         'Tất cả loại hoạt động',
         'Câu lạc bộ',

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import SystemPage from './page';
 import { systemApi } from '@/api/system-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -46,6 +46,9 @@ describe('SystemPage - Backup Import/Restore Modal', () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    vi.mocked(systemApi.getMongoDbToolsHealth).mockResolvedValue({ mongodump: true, mongorestore: true });
+    vi.mocked(systemApi.getBackups).mockResolvedValue({ items: [], total: 0, page: 1, limit: 10, totalPages: 0 });
+    vi.mocked(systemApi.getRestoreJobs).mockResolvedValue({ items: [], total: 0, page: 1, limit: 10, totalPages: 0 });
     (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
       user: { role: { permissions: ['DATABASE_BACKUP_READ', 'DATABASE_BACKUP_RESTORE'] } },
       hasPermission: (perm: string) => ['DATABASE_BACKUP_READ', 'DATABASE_BACKUP_RESTORE'].includes(perm),
@@ -84,10 +87,6 @@ describe('SystemPage - Backup Import/Restore Modal', () => {
       render(<SystemPage />);
     });
 
-    // Switch to "Sao lưu / Khôi phục" tab
-    const backupTab = await screen.findByText('Sao lưu / Khôi phục');
-    fireEvent.click(backupTab);
-
     // Wait for the import input to be in document
     // Find the hidden input
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -106,19 +105,19 @@ describe('SystemPage - Backup Import/Restore Modal', () => {
 
     // Wait for modal to open
     await waitFor(() => {
-      expect(screen.getByText('Tổng quan dữ liệu sao lưu')).toBeTruthy();
+      expect(screen.getByText('Khôi phục dữ liệu: Xem trước')).toBeTruthy();
     });
 
     // Check if collection is rendered
     expect(screen.getByText('users')).toBeTruthy();
 
     // Find the restore button, should be disabled initially (because confirmText and checkbox aren't checked)
-    const restoreBtn = screen.getByRole('button', { name: 'Khôi phục dữ liệu' });
+    const restoreBtn = screen.getByRole('button', { name: 'Tiến hành khôi phục' });
     expect((restoreBtn as HTMLButtonElement).disabled).toBe(true);
 
     // Check the "I understand" checkbox
-    const understandCheckbox = screen.getByRole('checkbox');
-    fireEvent.click(understandCheckbox);
+    const confirmationCheckboxes = screen.getAllByRole('checkbox').slice(-2);
+    confirmationCheckboxes.forEach((checkbox) => fireEvent.click(checkbox));
 
     // Input "RESTORE" confirmation text
     const confirmInput = screen.getByPlaceholderText('RESTORE');

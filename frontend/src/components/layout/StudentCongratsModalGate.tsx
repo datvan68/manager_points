@@ -9,13 +9,6 @@ import { isStudentRole } from '@/utils/role.util';
 import { summariesPointApi, LatestStudentSummary } from '@/api/summaries-point-api';
 import { getRankStyle, RankTier, getCongratsMessage } from '@/lib/grading-rank';
 import { getCongratsStorageKey } from './congrats-storage';
-import { Dancing_Script } from 'next/font/google';
-
-const dancingScript = Dancing_Script({
-  subsets: ['vietnamese'],
-  weight: ['700'],
-  display: 'swap',
-});
 
 
 const DiamondSparkle = ({ size = 16, delay = 0, duration = 4, yOffset = -25 }: { size?: number; delay?: number; duration?: number; yOffset?: number }) => {
@@ -150,7 +143,7 @@ const NeonHandwritingText = ({ text }: { text: string }) => {
               filter: 'blur(8px)',
               transition: { duration: 0.5, ease: "easeIn" } 
             }}
-            className={`${dancingScript.className} text-[24px] sm:text-[38px] font-normal tracking-wide neon-handwriting-diamond leading-normal py-1 px-2 flex flex-nowrap whitespace-nowrap justify-center`}
+            className="text-[24px] sm:text-[38px] font-normal tracking-wide neon-handwriting-diamond leading-normal py-1 px-2 flex flex-nowrap whitespace-nowrap justify-center"
           >
             {words.map((word, wordIndex) => (
               <span key={wordIndex} className="inline-flex whitespace-nowrap">

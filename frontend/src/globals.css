@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Inter", sans-serif;
-  --font-sans: "Inter", sans-serif;
+  --font-display: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 
   /* Brand/Primary Colors */
   --color-primary: #155dfc;
@@ -406,7 +406,7 @@ html {
 
 /* Neon Handwriting Effect for Diamond Modal */
 .neon-handwriting-diamond {
-  font-family: 'Dancing Script', cursive;
+  font-family: "Segoe Script", "Brush Script MT", "Lucida Handwriting", cursive;
   color: #f0f9ff;
   text-transform: none; /* Keep natural cursive form */
   animation: neon-pulse 2.2s ease-in-out infinite;
