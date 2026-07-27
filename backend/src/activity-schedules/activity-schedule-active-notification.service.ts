@@ -28,7 +28,7 @@ export class ActivityScheduleActiveNotificationService {
   })
   async handleCron() {
     const now = new Date();
-    this.logger.debug(`Checking for active activity schedules at ${now.toISOString()}`);
+
 
     try {
       // Find active schedules:

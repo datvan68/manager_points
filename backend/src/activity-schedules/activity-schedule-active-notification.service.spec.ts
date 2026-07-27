@@ -164,7 +164,7 @@ describe('ActivityScheduleActiveNotificationService', () => {
       expect(activityMemberModel.find).not.toHaveBeenCalled();
       expect(notificationsService.createOnce).not.toHaveBeenCalled();
       expect(logger.log).not.toHaveBeenCalled();
-      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('Checking for active activity schedules'));
+      expect(logger.debug).not.toHaveBeenCalled();
     });
 
     it('keeps scheduler failures at error level', async () => {

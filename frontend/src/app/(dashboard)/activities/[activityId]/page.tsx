@@ -639,11 +639,14 @@ export default function ActivityDetailPage() {
         </div>
         
         {isAdminOrAdvisor && (
-          <Button 
-            onClick={() => setShowRuleModal(true)} 
-            className="mb-2 shrink-0 h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"
+          <Button
+            variant="outline"
+            onClick={() => setShowRuleModal(true)}
+            className="mb-2 flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+            aria-label="Cấu hình quy tắc hoàn thành"
           >
-             <Settings size={14} className="mr-1.5" /> Cấu hình quy tắc hoàn thành
+            <Settings size={14} />
+            <span>Cấu hình quy tắc hoàn thành</span>
           </Button>
         )}
       </div>
