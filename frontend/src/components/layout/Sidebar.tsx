@@ -53,6 +53,7 @@ const allMenuItems = [
   { icon: LayoutDashboard, label: "Trang chủ", href: "/" },
   { icon: Users, label: "Học sinh sinh viên", href: "/students" },
   { icon: Compass, label: "Hoạt động", href: "/activities" },
+  { icon: Bell, label: "Thông báo", href: "/notifications" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
   { icon: BarChart3, label: "Báo cáo", href: "/reports" },
   { icon: Settings, label: "Quản trị hệ thống", href: "/system" },
@@ -202,14 +203,14 @@ const Sidebar = () => {
       const isTeacherUser = isTeacherRole(user);
 
       try {
-        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('access_token') || '') : '';
-        const mappings = await fetchSidebarMappings(token);
-
         if (isAdminUser(user)) {
-          setVisibleItems(allMenuItems);
+          setVisibleItems(allMenuItems.slice(0, 4));
           setIsSidebarLoading(false);
           return;
         }
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('access_token') || '') : '';
+        const mappings = await fetchSidebarMappings(token);
+
 
         // Filter menu items based on route-permission mappings
         const filtered = allMenuItems.filter((item) => {
@@ -430,7 +431,7 @@ const Sidebar = () => {
             })}
 
             {/* Notifications Link */}
-            <Link
+            {!isAdminUser(user) && <Link
               href="/notifications"
               aria-current={pathname === "/notifications" || pathname.startsWith("/notifications") ? 'page' : undefined}
               className="flex flex-col items-center justify-center flex-1 h-full transition-all duration-150 ease-out cursor-pointer overflow-hidden px-0.5"
@@ -447,10 +448,10 @@ const Sidebar = () => {
                   Thông báo
                 </span>
               </div>
-            </Link>
+            </Link>}
 
             {/* Personal Profile Button */}
-            <button
+            {!isAdminUser(user) && <button
               onClick={handleProfileClick}
               disabled={isResolvingProfile}
               aria-label="Mở hồ sơ cá nhân"
@@ -475,7 +476,7 @@ const Sidebar = () => {
                   Hồ sơ
                 </span>
               </div>
-            </button>
+            </button>}
           </>
         )}
       </div>

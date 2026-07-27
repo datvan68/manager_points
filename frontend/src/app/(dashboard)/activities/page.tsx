@@ -70,8 +70,10 @@ export default function ActivitiesPage() {
   };
 
   useEffect(() => {
-    loadData();
-    semesterApi.getSemesters().then((items) => setActiveSemester(items.find((item) => item.status === 'active') || null)).catch(() => setActiveSemester(null));
+    void Promise.all([
+      loadData(),
+      Promise.resolve(semesterApi.getSemesters ? semesterApi.getSemesters() : []).then((items) => setActiveSemester(items.find((item) => item.status === 'active') || null)).catch(() => setActiveSemester(null)),
+    ]);
   }, []);
   const handleFavoriteUpdated = React.useCallback((payload: { activity_id: string; favorite_count: number }) => {
     setActivities(prev => prev.map(item => item._id === payload.activity_id ? { ...item, favorite_count: payload.favorite_count } : item));

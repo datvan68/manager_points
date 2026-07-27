@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 import { notificationApi, NotificationItem } from '@/api/notification-api';
@@ -59,6 +59,7 @@ function NotificationsPageContent() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'filters' | 'list'>('filters');
   const [detailNotification, setDetailNotification] = useState<NotificationItem | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSelectedIds([]);
@@ -142,12 +143,17 @@ function NotificationsPageContent() {
 
   useEffect(() => {
     const handleNotificationsUpdate = () => {
-      setRefreshKey((prev) => prev + 1);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        setRefreshKey((prev) => prev + 1);
+      }, 50);
     };
 
     window.addEventListener('notifications-updated', handleNotificationsUpdate);
     return () => {
       window.removeEventListener('notifications-updated', handleNotificationsUpdate);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, []);
 

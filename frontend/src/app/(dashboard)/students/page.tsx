@@ -166,8 +166,7 @@ function StudentsPageContent() {
         });
       }
 
-      await fetchClasses(fetchedDepts);
-      fetchClassSummaries();
+      await Promise.all([fetchClasses(fetchedDepts), fetchClassSummaries()]);
     } catch (error: any) {
       toast.error("Không thể tải danh sách khoa: " + error.message);
     } finally {
@@ -266,9 +265,7 @@ function StudentsPageContent() {
 
   useEffect(() => {
     if (!isLoading) {
-      setIsDataLoading(true);
-      const t = setTimeout(() => setIsDataLoading(false), 300);
-      return () => clearTimeout(t);
+      setIsDataLoading(false);
     }
   }, [selectedDept]);
 
