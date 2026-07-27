@@ -1,159 +1,140 @@
-Task: activity-form-and-owner-scoped-attendance | bug_fix | Risk: high | Profile: Full
+## Task Identity and Pipeline
+
+- Task: `login-remember-session-rehydration`
+- Pipeline: `bug_fix`
+- Profile: Full
+- Rule version: 3.2.0
+- Repository: `D:\PROJECT\manager_points`
+- Base state: branch `main`, commit `ab2e069897c7c72f557d1376e352d3416bab3dff`
+- Authority: planning-only; this document does not authorize implementation, commit, push, deployment, or production mutation.
+
+## Risk Level
+
+- Risk: high because the behavior controls authentication persistence and refresh-token recovery.
+- Environment: development investigation and local verification.
+- Reversibility: source and test changes are reversible; no database or credential mutation is planned.
+- Blast radius: login bootstrap, session storage, silent refresh, and browser/PWA relaunch behavior.
 
 ## Objective
 
-Deliver consistent activity creation, update, detail, and attendance behavior so that:
+When `Ghi nhớ đăng nhập` is selected and the server-side refresh session remains valid, reopening the same-origin browser application or installed PWA restores the authenticated user without requesting credentials. When it is not selected, the client creates no durable authentication state and requires login after the browser session and session cookie actually end.
 
-1. The responsible-teacher selector provides an explicit `Không chọn (mặc định tài khoản admin)` option.
-2. On create or update, choosing that option assigns the authenticated administrator performing the operation as the responsible account.
-3. The `Chủ nhiệm sinh viên (President)` field is removed from both create and update forms and is not submitted by either flow.
-4. The `Học kỳ áp dụng` selector is removed from both forms. The active semester is used implicitly and its name is rendered inline with the create/update dialog title.
-5. Attendance can be opened only during the exact configured schedule window.
-6. The attendance-method back action is a shared `Button` whose width fits `← Quay lại`.
-7. Activity detail uses the label `Phụ trách` instead of `Cố vấn`.
-8. `Phân quyền điểm danh` is visible and usable only by administrators.
-9. Selecting `Theo lớp` hides the generic `Điểm danh hoạt động` introduction while the class picker is open.
-10. Active QR and GPS management sessions are isolated by opener account.
-11. Existing shared `Button`, `Input`, and `Select` components remain the design source for activity controls.
+## Scope Boundaries
 
-## Current Evidence
+### Approved Boundary
 
-- `frontend/src/components/activities/ActivityForm.tsx` is shared by create and edit modes. It still loads students and renders `Chủ nhiệm sinh viên (President)` in edit mode.
-- The same form still renders `Học kỳ áp dụng` as an editable `Select` in edit mode, while create mode silently selects the active semester.
-- The responsible selector has an empty placeholder but no selectable reset/default-admin item. Edit validation currently requires a non-empty `advisor_id`.
-- `frontend/src/app/(dashboard)/activities/page.tsx` owns the create and update dialog titles, so it must receive or derive the active-semester display text.
-- `backend/src/activities/activities.service.ts` already falls back to the authenticated creating administrator when create omits `advisor_id`, but update currently treats omitted `advisor_id` as “leave unchanged” and has no explicit default-admin/reset contract.
-- `UpdateActivityDto` is derived from `CreateActivityDto`; the update API needs to distinguish an absent responsible field from an explicit request to use the current administrator.
-- QR/GPS ownership code has been changed toward opener-scoped behavior, but the database can still retain the legacy unique index on `context_id + schedule_id`. That stale index produces MongoDB `E11000`, surfaced as `An active attendance session already exists for this schedule and class.`
-- The existing attendance-session owner-index migration covers manual-class indexes only and does not yet migrate the legacy QR/GPS unique index.
+- Frontend login-state storage and authentication bootstrap.
+- Read-only validation of the existing backend refresh-cookie contract.
+- Read-only validation that the PWA service worker does not intercept authentication.
 
-## Approved Boundary
+### Write Boundary
 
-Planning authorizes only this document. A later implementation is limited to the shared activity form and dialog header, activity create/update contracts, activity-detail attendance UI, attendance authorization/session/realtime services, the attendance-session index migration, and directly corresponding tests.
-
-### Planned Write Paths
-
-- `frontend/src/components/activities/ActivityForm.tsx`
-- `frontend/src/components/activities/ActivityForm.test.tsx`
-- `frontend/src/app/(dashboard)/activities/page.tsx`
-- `frontend/src/app/(dashboard)/activities/page.test.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.tsx`
-- `frontend/src/app/(dashboard)/activities/[activityId]/page.test.tsx`
-- `frontend/src/hooks/useAttendanceSession.ts`
-- `frontend/src/hooks/useAttendanceSession.test.ts`
-- `backend/src/activities/dto/create-activity.dto.ts`
-- `backend/src/activities/dto/update-activity.dto.ts`
-- `backend/src/activities/activities.service.ts`
-- `backend/src/activities/activities.service.spec.ts`
-- `backend/src/activities/activity-attendance-grants.service.ts`
-- `backend/src/activities/activity-attendance-grants.service.spec.ts`
-- `backend/src/attendance-sessions/attendance-sessions.service.ts`
-- `backend/src/attendance-sessions/attendance-sessions.service.spec.ts`
-- `backend/src/attendance-sessions/attendance-realtime.service.ts`
-- `backend/src/attendance-sessions/attendance-realtime.service.spec.ts`
-- `backend/src/attendance-sessions/schemas/attendance-session.schema.ts`
-- `backend/scripts/migrate-attendance-session-owner-index.ts`
-- `backend/package.json`
+- `frontend/src/api/auth-api.ts`
+- `frontend/src/providers/auth-provider.tsx`
+- `frontend/src/api/auth-api.test.ts`
+- `frontend/src/providers/auth-provider.test.tsx` (new)
 
 ### Read-only References
 
-- `frontend/src/components/ui/button.tsx`
-- `frontend/src/components/ui/Input.tsx`
-- `frontend/src/components/ui/select.tsx`
-- `frontend/src/components/attendance/AttendanceMethodSelector.tsx`
-- `frontend/src/api/activity-api.ts`
-- `frontend/src/api/semester-api.ts`
-- `backend/src/activities/activities.controller.ts`
-- `backend/src/semesters/schemas/semester.schema.ts`
+- `frontend/src/app/(auth)/login/page.tsx`
+- `frontend/src/api/http-client.ts`
+- `frontend/src/components/pwa/PwaInstallPrompt.tsx`
+- `frontend/src/components/pwa/PwaInstallPrompt.test.tsx`
+- `frontend/src/app/manifest.ts`
+- `frontend/public/sw.js`
+- `frontend/next.config.js`
+- `backend/src/auth/controllers/auth.controller.ts`
+- `backend/src/auth/services/auth.service.ts`
+- `backend/src/auth/services/token.service.ts`
+- `backend/src/auth/test/auth-security.spec.ts`
+- `backend/test/auth.e2e-spec.ts`
 
-## Implementation Steps
+## Out of Scope
 
-1. Define one responsible-selector contract for create and edit:
-   - show eligible `TEACHER` accounts as explicit choices;
-   - add a selectable `Không chọn (mặc định tài khoản admin)` item using a UI sentinel that is never persisted as an ID;
-   - keep the existing responsible teacher selected when edit mode first opens;
-   - treat selecting the default-admin item as an explicit action, not as an omitted update field.
-2. Normalize the responsible payload:
-   - create sends no `advisor_id` when the default-admin item is selected;
-   - update sends an explicit nullable/default-admin signal when the admin selects that item;
-   - update omission continues to mean “leave the current responsible account unchanged”;
-   - never send an empty string or the UI sentinel as an ObjectId.
-3. Enforce the responsible fallback on the server:
-   - create without a selected teacher persists the authenticated creating administrator as `advisor_id`;
-   - update with the explicit default-admin signal persists the authenticated updating administrator as `advisor_id`;
-   - an explicitly supplied ID must resolve to an eligible `TEACHER`;
-   - only an administrator may invoke the default-admin behavior; non-admin callers cannot clear or self-assign through it.
-4. Remove the President form concern from both modes:
-   - remove the student-options request and local student state when they are no longer used elsewhere in the form;
-   - remove the `Chủ nhiệm sinh viên (President)` control;
-   - exclude `president_id` from create and update payloads so editing other fields cannot overwrite existing legacy President data;
-   - keep the backend/schema field intact for backward compatibility outside this form.
-5. Replace the semester selector with implicit active-semester behavior:
-   - load the active semester once for the dialog/form flow;
-   - render its display name inline on the same row as `Tạo hoạt động mới`, `Tạo câu lạc bộ mới`, or `Cập nhật hoạt động`;
-   - use the active semester ID for create and update submissions without exposing a selector;
-   - block submission with a clear error when no active semester exists;
-   - do not silently fall back to the first inactive semester.
-6. Keep dialog and form behavior responsive: the title and semester text stay on one row when space permits and wrap cleanly on narrow screens. Reuse the existing typography and shared form-control styling.
-7. Add activity form/page tests for create and edit:
-   - default-admin option is visible and selectable;
-   - create fallback and explicit teacher selection produce the correct payload;
-   - edit preserves the existing teacher until changed;
-   - edit default-admin selection uses the explicit update signal;
-   - President and semester selectors are absent;
-   - active-semester text appears beside both dialog titles;
-   - create/update use the active semester ID and reject a missing active semester.
-8. Add service tests proving create/update default-admin assignment, explicit teacher precedence, invalid/admin IDs rejected through the teacher path, non-admin fallback rejection, and omission-on-update preserving the existing responsible account.
-9. Keep the attendance-opening rule as an inclusive interval: current time must be greater than or equal to the selected schedule start and less than or equal to its end. Reject opening outside that interval on the server.
-10. Render `← Quay lại` with the shared `Button` and intrinsic content width. Use shared `Select` controls for attendance choices and do not add page-local button/select primitives.
-11. Replace activity-detail advisor copy with `Phụ trách`.
-12. Make attendance-grant administration administrator-only in both layers: expose `can_administer_grants` only for admins, hide the manager for non-admins, and reject all non-admin grant mutations at the API.
-13. When `Theo lớp` is selected, close the method selector, open the class picker, and suppress the generic `Điểm danh hoạt động` card until the class flow is cancelled or completed.
-14. Complete QR/GPS ownership isolation by including `opened_by` in duplicate detection, active-session hydration, lifecycle/control authorization, realtime routing, and frontend event acceptance.
-15. Extend the dry-run-first index migration to:
-   - inspect and report exact installed manual and QR/GPS attendance indexes;
-   - report conflicting or ownerless active records;
-   - create the owner-scoped QR/GPS partial unique index on `context_id + schedule_id + opened_by`;
-   - drop only the exact approved legacy QR/GPS index;
-   - verify the final definitions;
-   - preserve the dry-run path as non-mutating.
-16. Map duplicate-key failures by index/key pattern so the stale-index or same-owner conflict is diagnosed precisely instead of masking every `E11000` behind the generic English error.
-17. Add regression tests for simultaneous account A/admin QR and GPS sessions, same-opener duplicate rejection, owner-scoped hydration, cross-account control rejection, realtime isolation, and participant QR/GPS check-in compatibility.
+- Storing passwords, refresh tokens, access JWTs, or the complete user object in `localStorage`, Cache Storage, or service-worker caches.
+- Changing the PWA manifest, installation UI, service-worker caching strategy, backend token lifetime, cookie attributes, CORS, DTO validation, database schema, or session rotation policy.
+- Correcting the stale admin cookie-lifetime expectation in `backend/test/auth.e2e-spec.ts`; that requires a separate backend test scope.
+- Dependency upgrades, deployment, production testing, persistent-data changes, or credential handling.
 
-## Verification
+## Context and Dependencies
 
-- `D:\PROJECT\manager_points\frontend :: npm test -- --run src/components/activities/ActivityForm.test.tsx "src/app/(dashboard)/activities/page.test.tsx" "src/app/(dashboard)/activities/[activityId]/page.test.tsx" src/hooks/useAttendanceSession.test.ts`
-  Expected: focused activity create/update, detail, and attendance-hook tests pass.
-- `D:\PROJECT\manager_points\frontend :: npm run typecheck`
-  Expected: no TypeScript errors.
-- `D:\PROJECT\manager_points\frontend :: npm run build`
-  Expected: production build succeeds.
-- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand src/activities/activities.service.spec.ts src/activities/activity-attendance-grants.service.spec.ts src/attendance-sessions/attendance-sessions.service.spec.ts src/attendance-sessions/attendance-realtime.service.spec.ts`
-  Expected: focused activity and attendance backend tests pass.
-- `D:\PROJECT\manager_points\backend :: npm run build`
-  Expected: Nest build succeeds.
-- `D:\PROJECT\manager_points\backend :: npm run migration:attendance-session-owner-index:dry-run -- --environment <approved-environment>`
-  Expected: the sanitized report identifies installed legacy indexes and conflicts without changing any index.
-- `D:\PROJECT\manager_points :: git diff --check`
-  Expected: no whitespace errors.
-- `D:\PROJECT\manager_points :: git status --short` and `git diff --stat`
-  Expected: only approved implementation paths are changed.
+- Login already sends `remember`; the backend creates a 30-day remembered refresh token and a persistent `HttpOnly` cookie, while a non-remembered login receives a session cookie.
+- `tokenStorage` currently writes the remember flag, access token, and user only to `sessionStorage`, despite comments that imply remembered persistence.
+- On a new browser/PWA context, `auth_session_id` can be restored from `localStorage` and `/auth/refresh` can succeed, but `AuthProvider.checkAuth()` then rereads a missing session user, sets the user to `null`, and redirects to `/login`.
+- `/api/auth/me` already provides the authenticated server state needed to rebuild the client user and permissions after refresh.
+- The installed PWA uses the same origin, but a standalone launch is a new top-level context. Its service worker bypasses non-GET, cross-origin, and `/api/*` requests, so it does not cache login or refresh responses.
+- Restarting only a dev process does not inherently remove the MongoDB refresh token. Reproduction must distinguish process restart, tab reload, complete browser-session termination, and PWA relaunch.
+
+## Steps
+
+1. Capture a baseline for remembered and non-remembered login in a normal browser and installed PWA, recording storage state, refresh-cookie presence, `/api/auth/refresh`, `/api/auth/me`, and the final route.
+2. Define one storage contract:
+   - keep access tokens and user details session-scoped;
+   - persist only the non-sensitive remember preference when required;
+   - remove durable preference state when remember is false or logout completes;
+   - tolerate unavailable storage and malformed stored data.
+3. Refactor authentication bootstrap so a missing session token/user first attempts cookie-based refresh, then fetches `/auth/me`, normalizes user/role/permissions, restores session-scoped state, and marks the user authenticated before redirect decisions run.
+4. Preserve current student/teacher routing and student-link hydration without issuing duplicate refreshes or creating redirect races.
+5. Handle failure classes explicitly:
+   - `400/401/403` refresh or identity failures clear client auth state and resolve unauthenticated;
+   - transient network/server failures do not fabricate an authenticated user or erase a still-usable in-memory session;
+   - logout clears both session state and any remembered preference.
+6. Add focused regression tests for storage semantics, refresh-plus-identity rehydration with no stored user, remembered preference recovery, non-remembered cleanup, definitive auth failure, transient failure, logout, and routing after bootstrap.
+7. Run frontend checks and the unchanged backend cookie-policy test. If backend behavior contradicts the documented contract, stop and amend the scope before modifying any backend path.
+8. Perform an independent authentication/security review covering XSS exposure, cookie use, refresh rotation, cross-tab behavior, duplicate requests, loading-state races, and unintended PWA/service-worker changes.
 
 ## Acceptance Criteria
 
-- Create and update forms both offer `Không chọn (mặc định tài khoản admin)` under `Giáo viên phụ trách`.
-- Choosing that option assigns the authenticated admin performing the create/update operation; an explicitly selected eligible teacher takes precedence.
-- Opening edit without changing the responsible selector preserves the existing responsible account.
-- `Chủ nhiệm sinh viên (President)` and `Học kỳ áp dụng` controls do not appear in either mode and neither flow overwrites legacy President data.
-- The active semester name is visible inline with both create and update titles, and its ID is used implicitly; submission is blocked if no active semester exists.
-- Account A and administrator/account B can independently open and manage QR or GPS sessions for the same schedule after the approved index migration.
-- Attendance grants are admin-only, `Theo lớp` hides the generic attendance card, and the attendance window, `Phụ trách` label, intrinsic back button, and shared control design are covered by regression tests.
-- No unrelated behavior or files change.
+- `AC-01`: With remember enabled and a valid refresh cookie, a full close/reopen of the same-origin browser application reaches the correct authenticated route without requesting credentials.
+- `AC-02`: The same scenario succeeds when launching the installed PWA from its icon.
+- `AC-03`: Rehydration succeeds without an existing session-stored access token or user by completing refresh, `/auth/me`, state restoration, and permission loading.
+- `AC-04`: Remember false produces no persistent cookie `Max-Age` and no durable client authentication preference; once the browser session cookie is absent, reopening resolves to `/login`.
+- `AC-05`: Logout and definitive refresh/identity rejection clear authentication state and cannot silently restore the prior user.
+- `AC-06`: Passwords, refresh tokens, access JWTs, and complete user objects are never written to durable web or service-worker storage.
+- `AC-07`: Authentication POST requests remain network-only and are not intercepted or cached by the service worker.
+- `AC-08`: Existing role-based landing routes, permission loading, refresh rotation, PWA installation behavior, type checking, and production build continue to pass.
 
-## Gates and Exclusions
+## Verification
 
-- This request is planning-only. Do not implement code, execute a migration, change persistent data, commit, push, deploy, or publish.
-- Executing the attendance index migration against any database requires separate explicit migration authority, an approved environment label, and a successful dry run.
-- No existing activity data migration is planned for President or semester fields.
-- Do not delete the backend `president_id` schema/API field or historical President data; remove only this form's control and payload writes.
-- No dependency upgrades, role-model redesign, unrelated activity UI refactor, or semester lifecycle redesign.
+- `D:\PROJECT\manager_points\frontend :: npm test -- src/api/auth-api.test.ts src/providers/auth-provider.test.tsx src/components/pwa/PwaInstallPrompt.test.tsx`
+  - Expected: storage, rehydration, failure, logout, routing, and PWA regression tests pass.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck`
+  - Expected: no TypeScript errors.
+- `D:\PROJECT\manager_points\frontend :: npm run build`
+  - Expected: production build succeeds.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand auth/test/auth-security.spec.ts`
+  - Expected: the existing 30-day remembered-cookie and environment-dependent cookie tests pass unchanged.
+- Manual Chromium matrix on one exact origin:
+  - remember on/off;
+  - reload;
+  - restart frontend process while retaining the tab;
+  - close all browser/PWA windows and relaunch;
+  - restart backend while retaining the database;
+  - inspect cookie, `sessionStorage`, `localStorage`, refresh/identity network requests, service-worker handling, and final route.
+  - Expected: `AC-01` through `AC-07` hold, and `localhost`/`127.0.0.1` are not mixed.
+- `D:\PROJECT\manager_points :: git diff --check`
+  - Expected: no whitespace errors.
+- `D:\PROJECT\manager_points :: git status --short` and `git diff --stat`
+  - Expected: only the approved implementation paths and this taskscope are changed.
+
+## Safety Gates
+
+- No Human Gate is required for local implementation and verification within the write boundary.
+- Any backend cookie/session-policy change, production test, deployment, credential access, or persistent-data mutation requires a scope amendment and separate explicit authority.
+- Authentication changes require independent review before completion.
+
+## Artifacts and Checkpoints
+
+- Planning artifact: `docs/taskscope.md`.
+- Baseline evidence: sanitized browser/PWA storage and network matrix; never record raw tokens or cookies.
+- Implementation-to-review checkpoint: base/current commit IDs, scoped diff, test summaries, and hashes of any retained review artifacts.
+- Final evidence: acceptance-to-verification mapping, final diff/status, and unresolved risks.
+
+## Execution Budgets
+
+- One writer per path; implementation and independent review are sequential.
+- Maximum idempotent retries: 2.
+- Maximum implementation/verification loops: 3.
+- Maximum review-remediation cycles: 2.
+- Default step deadline: 600 seconds; maximum step deadline: 1800 seconds.
+- Stop on boundary expansion, backend-contract mismatch, sensitive-data exposure, stale state, failed required verification, or a new Human Gate.

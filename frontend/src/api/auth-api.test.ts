@@ -7,6 +7,34 @@ global.fetch = mockFetch;
 describe('authApi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  describe('tokenStorage remember contract', () => {
+    it('persists only the non-sensitive remember preference', async () => {
+      const { tokenStorage } = await import('./auth-api');
+
+      tokenStorage.setRemember(true);
+      expect(localStorage.getItem('remember_login')).toBe('true');
+      expect(localStorage.getItem('access_token')).toBeNull();
+      expect(localStorage.getItem('user')).toBeNull();
+
+      sessionStorage.clear();
+      expect(tokenStorage.getRemember()).toBe(true);
+
+      tokenStorage.setRemember(false);
+      expect(localStorage.getItem('remember_login')).toBeNull();
+      expect(tokenStorage.getRemember()).toBe(false);
+    });
+
+    it('does not throw when the cached user JSON is malformed', async () => {
+      const { tokenStorage } = await import('./auth-api');
+
+      sessionStorage.setItem('user', '{bad-json');
+      expect(tokenStorage.getUser()).toBeNull();
+      expect(sessionStorage.getItem('user')).toBeNull();
+    });
   });
 
   describe('login', () => {

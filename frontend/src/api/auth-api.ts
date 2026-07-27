@@ -471,9 +471,15 @@ export const tokenStorage = {
   // ─── Remember flag ────────────────────────────────
   setRemember(remember: boolean) {
     sessionStorage.setItem('remember_login', remember ? 'true' : 'false');
+    if (remember) {
+      localStorage.setItem('remember_login', 'true');
+    } else {
+      localStorage.removeItem('remember_login');
+    }
   },
   getRemember(): boolean {
-    return sessionStorage.getItem('remember_login') === 'true';
+    return sessionStorage.getItem('remember_login') === 'true'
+      || localStorage.getItem('remember_login') === 'true';
   },
 
   // ─── Access Token ─────────────────────────────────
@@ -490,6 +496,7 @@ export const tokenStorage = {
   clearTokens() {
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('remember_login');
+    localStorage.removeItem('remember_login');
     sessionStorage.removeItem('user');
     try {
       const keysToRemove: string[] = [];
@@ -522,6 +529,12 @@ export const tokenStorage = {
   },
   getUser(): any | null {
     const raw = sessionStorage.getItem('user');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      sessionStorage.removeItem('user');
+      return null;
+    }
   },
 };

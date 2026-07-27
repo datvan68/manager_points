@@ -148,11 +148,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const perms: string[] = data.permissions || [];
         setPermissions(perms);
 
-        // Update stored user with permissions and student details if Student role
+        // Rebuild the client user from the server response as well as any cached
+        // fields. This is required after a browser/PWA context is recreated,
+        // when sessionStorage no longer contains the previous user object.
         const storedUser = tokenStorage.getUser();
+        const serverUser = data as Record<string, any>;
+        const serverRole = typeof serverUser.role === 'string'
+          ? serverUser.role
+          : serverUser.role?.name;
+        const baseUser = storedUser || {
+          id: serverUser.id,
+          user_name: serverUser.user_name,
+          username: serverUser.username || serverUser.user_name,
+          display_name: serverUser.display_name,
+          role: serverUser.roleName || serverRole,
+          roleName: serverUser.roleName || serverRole,
+          roleCode: serverUser.roleCode || serverUser.role?.role_code,
+        };
         const isStudent = isStudentRole({
-          ...storedUser,
-          ...data
+          ...baseUser,
+          ...serverUser,
+          role: serverUser.roleName || serverRole || baseUser.role,
         });
 
         let studentId = storedUser?.studentId;
@@ -190,20 +206,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        if (storedUser) {
-          const updatedUser = {
-            ...storedUser,
-            display_name: data.display_name || storedUser.display_name,
+        const updatedUser = {
+            ...baseUser,
+            id: serverUser.id || baseUser.id,
+            user_name: serverUser.user_name || baseUser.user_name,
+            username: serverUser.username || serverUser.user_name || baseUser.username,
+            display_name: serverUser.display_name || baseUser.display_name,
             permissions: perms,
-            role: data.roleName || storedUser.role,
-            roleName: data.roleName || storedUser.roleName || storedUser.role,
-            roleCode: data.roleCode || storedUser.roleCode,
+            role: serverUser.roleName || serverRole || baseUser.role,
+            roleName: serverUser.roleName || baseUser.roleName || baseUser.role,
+            roleCode: serverUser.roleCode || baseUser.roleCode,
             studentId,
             classId,
-          };
-          tokenStorage.setUser(updatedUser);
-          setUser(updatedUser);
-        }
+        };
+        tokenStorage.setUser(updatedUser);
+        setUser(updatedUser);
       } else if (res.status === 401) {
         if (!isRetry) {
           try {
@@ -249,15 +266,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const result = await synchronizedRefreshToken();
         tokenStorage.setAccessToken(result.access_token);
-        // Refresh token succeeded - we might still need to get user info if missing
-        const userRes = tokenStorage.getUser(); // Usually stored in localStorage
-        if (userRes) {
-          setUser(userRes);
-          loadUserPermissions(result.access_token);
-        } else {
-          // If user info is lost but token exists, we handle it as unauthenticated for safety
-          setUser(null);
-        }
+        // The refresh endpoint intentionally returns only a new access token.
+        // Re-fetching /auth/me safely rehydrates the user without durable JWT storage.
+        await loadUserPermissions(result.access_token);
       } catch (err: any) {
         const isAuthFailure = 
           err && 
