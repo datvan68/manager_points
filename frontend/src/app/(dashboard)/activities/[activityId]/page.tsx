@@ -581,10 +581,12 @@ export default function ActivityDetailPage() {
 
       {/* Tabs navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200">
-        <div className="flex gap-6 overflow-x-auto custom-scrollbar w-full sm:w-auto">
+        <div className="flex w-full items-stretch overflow-x-auto custom-scrollbar sm:w-auto sm:gap-6">
           <button
             onClick={() => handleTabChange('info')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            aria-label="Thông tin chung"
+            title="Thông tin chung"
+            className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 px-1 pb-3 text-[0px] font-bold transition-all cursor-pointer sm:flex-none sm:text-xs ${
               activeTab === 'info'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
                 : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -595,7 +597,9 @@ export default function ActivityDetailPage() {
           </button>
           {canViewStaffTabs && <button
             onClick={() => handleTabChange('members')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            aria-label="Thành viên"
+            title="Thành viên"
+            className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 px-1 pb-3 text-[0px] font-bold transition-all cursor-pointer sm:flex-none sm:text-xs ${
               activeTab === 'members'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
                 : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -607,7 +611,9 @@ export default function ActivityDetailPage() {
           {canManageAttendance && (
             <button
               onClick={() => handleTabChange('attendance')}
-              className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+              aria-label="Điểm danh"
+              title="Điểm danh"
+              className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 px-1 pb-3 text-[0px] font-bold transition-all cursor-pointer sm:flex-none sm:text-xs ${
                 activeTab === 'attendance'
                   ? 'border-blue-500 text-blue-600 font-extrabold'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -619,7 +625,9 @@ export default function ActivityDetailPage() {
           )}
           {isAdmin && <button
             onClick={() => handleTabChange('rule')}
-            className={`pb-3 text-xs font-bold transition-all border-b-2 px-1 cursor-pointer flex items-center gap-1.5 ${
+            aria-label="Quy tắc hoàn thành"
+            title="Quy tắc hoàn thành"
+            className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 px-1 pb-3 text-[0px] font-bold transition-all cursor-pointer sm:flex-none sm:text-xs ${
               activeTab === 'rule'
                 ? 'border-blue-500 text-blue-600 font-extrabold'
                 : 'border-transparent text-slate-400 hover:text-slate-600'

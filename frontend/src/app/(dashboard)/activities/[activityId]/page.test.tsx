@@ -204,6 +204,26 @@ describe('ActivityDetailPage', () => {
     });
   });
 
+  it('keeps detail tabs accessible and evenly sized for mobile layouts', async () => {
+    const mockActivity = {
+      _id: 'act1', name: 'Responsive Activity', code: 'RESPONSIVE', activity_type: 'event',
+      participation_status: 'published', classroom: 'B.202', advisor_id: { full_name: 'Jane Doe' },
+      semester_id: { _id: 'sem1', semester_name: 'Semester 1' },
+    };
+    vi.mocked(activityApi.getById).mockResolvedValue(mockActivity as any);
+    vi.mocked(activityApi.getMembers).mockResolvedValue([]);
+    vi.mocked(activityScheduleApi.getActivityTimeline).mockResolvedValue({ items: [] } as any);
+    vi.mocked(activityCompletionRuleApi.getAll).mockResolvedValue([]);
+
+    render(<ActivityDetailPage />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Thông tin chung' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Thông tin chung' })).toHaveClass('flex-1');
+    expect(screen.getByRole('button', { name: 'Thành viên' })).toHaveAttribute('title', 'Thành viên');
+    expect(screen.getByRole('button', { name: 'Quy tắc hoàn thành' })).toHaveAttribute('title', 'Quy tắc hoàn thành');
+    expect(screen.getByRole('button', { name: /Cấu hình quy tắc hoàn thành/ })).toBeInTheDocument();
+  });
+
   it('does not expose member self-check-in action to an administrator without membership', async () => {
     // Switch to Schedule tab click
     // 1. Setup mock activity, schedules (including today)

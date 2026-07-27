@@ -197,8 +197,10 @@ export default function ActivityListWorkspace({
           {!isStudent && (
             <Button
               variant="outline"
+              size="sm"
               onClick={onCreateClick}
-              className="flex items-center justify-center gap-1.5 px-3.5 bg-white/50 backdrop-blur-sm border border-white/80 hover:bg-white/70 hover:scale-[1.01] text-[#1E293B] text-xs font-bold rounded-xl shadow-xs transition-all duration-150 ease-out cursor-pointer h-9 focus:outline-none"
+              className="h-12 rounded-2xl border-[#D8E2F2] bg-[#F3F6FC] px-5 text-sm font-semibold text-[#24324A] shadow-sm hover:bg-[#EAF0FB]"
+              aria-label={activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}
             >
               <Plus size={13} />
               <span>{activityType === 'club' ? 'Tạo Câu lạc bộ Mới' : 'Tạo Hoạt động Mới'}</span>
