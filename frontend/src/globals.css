@@ -124,6 +124,14 @@ html {
 
 /* Mobile adjustments for Bottom Nav Bar */
 @media (max-width: 767px) {
+  .dashboard-shell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    overscroll-behavior: none;
+  }
+
   main {
     padding-bottom: calc(4.5rem + var(--safe-area-bottom)) !important;
   }
@@ -132,7 +140,7 @@ html {
 @media (max-width: 767px) {
   .mobile-bottom-nav {
     position: fixed;
-    bottom: calc(var(--safe-area-bottom) + 0.5rem);
+    bottom: calc(var(--safe-area-bottom) + 0.25rem);
     left: 50%;
     right: auto;
     transform: translateX(-50%);
@@ -140,12 +148,12 @@ html {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    width: min(calc(100vw - 2rem), 340px);
+    width: min(calc(100vw - 1rem), 340px);
     min-height: 64px;
     align-items: center;
     gap: 0.25rem;
     box-sizing: border-box;
-    padding: 0.25rem 0.375rem;
+    padding: 0.2rem 0.25rem;
     border: 1px solid rgba(226, 232, 240, 0.9);
     border-radius: 26px;
     background: rgba(255, 255, 255, 0.72);
@@ -189,12 +197,12 @@ html {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: min(74px, calc(100% + 8px));
-    height: 58px;
+    width: min(68px, calc(100% + 4px));
+    height: 54px;
     z-index: 0;
     transform: translate(-50%, -50%);
     border: 1px solid rgba(255, 255, 255, 0.82);
-    border-radius: 22px;
+    border-radius: 20px;
     background: rgba(230, 232, 235, 0.96);
     box-shadow: 0 3px 10px rgba(148, 163, 184, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.92);
     content: "";

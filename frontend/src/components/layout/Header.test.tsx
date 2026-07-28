@@ -28,6 +28,10 @@ describe('Header responsive shell contract', () => {
 
     expect(globalStyles).toContain('font-size: 16px !important');
     expect(globalStyles).toContain('overscroll-behavior: contain');
+    expect(globalStyles).toContain('position: fixed');
+    expect(globalStyles).toContain('bottom: calc(var(--safe-area-bottom) + 0.25rem)');
+    expect(globalStyles).toContain('width: min(calc(100vw - 1rem), 340px)');
+    expect(globalStyles).toContain('height: 54px');
     expect(globalStyles).toContain('touch-action: none');
   });
 });
