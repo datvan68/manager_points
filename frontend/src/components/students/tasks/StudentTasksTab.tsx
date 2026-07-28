@@ -176,7 +176,7 @@ const getLinkedPageName = (url: string): string => {
   return LINKED_PAGE_NAMES[normalizedPath] || url;
 };
 
-const StudentTasksTab = () => {
+const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
   const router = useRouter();
   const { user } = useAuth();
   const taskAccess = usePermission({
@@ -518,7 +518,7 @@ const StudentTasksTab = () => {
 
 
       {/* KPI Cards Grid */}
-      {renderKPICards(false)}
+      {showStats && renderKPICards(false)}
 
       {/* Filter and Grid Container */}
       <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40 order-1 lg:order-2">

@@ -9,12 +9,15 @@ import { HeaderCustomMappings } from '@/providers/header-provider';
 import StudentTasksTab from '@/components/students/tasks/StudentTasksTab';
 import StudentTaskProgressTab from '@/components/students/tasks/StudentTaskProgressTab';
 import { isTeacherRole } from '@/utils/role.util';
+import { BarChart3 } from 'lucide-react';
 
 function StudentTasksPageContent() {
   const router = useRouter();
   const { user } = useAuth();
   const [internalTab, setInternalTab] = useState<'tasks' | 'progress'>('tasks');
   const [hasOpenedProgressTab, setHasOpenedProgressTab] = useState(false);
+  const [showTaskStats, setShowTaskStats] = useState(false);
+  const [showProgressStats, setShowProgressStats] = useState(false);
 
   useEffect(() => {
     if (internalTab === 'progress') {
@@ -60,7 +63,8 @@ function StudentTasksPageContent() {
         <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           {/* Sub-tabs for Navigation inside Tasks */}
           {canViewProgress && (
-            <div className="flex items-center gap-2 mb-3 bg-white/40 p-1 rounded-xl w-full sm:w-fit border border-white/70 backdrop-blur-md shrink-0 shadow-sm shadow-slate-300/40 justify-center">
+            <div className="flex items-center gap-2 mb-3 w-full shrink-0">
+              <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl border border-white/70 backdrop-blur-md shadow-sm">
               <button
                 onClick={() => setInternalTab('tasks')}
                 className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
@@ -81,15 +85,19 @@ function StudentTasksPageContent() {
               >
                 Theo dõi thực hiện
               </button>
+              </div>
+              <button type="button" onClick={() => internalTab === 'tasks' ? setShowTaskStats(v => !v) : setShowProgressStats(v => !v)} aria-label="Bật hoặc tắt thống kê nhanh" title="Thống kê nhanh" className={`flex h-9 w-9 items-center justify-center rounded-xl border bg-white/40 ${(internalTab === 'tasks' ? showTaskStats : showProgressStats) ? 'border-[#1A73E8] text-[#1A73E8]' : 'border-white/70 text-[#64748B]'}`}>
+                <BarChart3 size={16} />
+              </button>
             </div>
           )}
 
           <div className={internalTab === 'tasks' ? 'contents' : 'hidden'}>
-            <StudentTasksTab />
+            <StudentTasksTab showStats={showTaskStats} />
           </div>
           {canViewProgress && hasOpenedProgressTab && (
             <div className={internalTab === 'progress' ? 'contents' : 'hidden'}>
-              <StudentTaskProgressTab />
+              <StudentTaskProgressTab showStats={showProgressStats} />
             </div>
           )}
         </main>

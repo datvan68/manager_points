@@ -17,7 +17,7 @@ import { CustomPagination } from '@/components/ui/pagination';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { isStudentRole, isTeacherRole, isAdminOrSupervisor } from "@/utils/role.util";
 
-export default function StudentTaskProgressTab() {
+export default function StudentTaskProgressTab({ showStats = false }: { showStats?: boolean }) {
   const [items, setItems] = useState<StudentTaskProgress[]>([]);
   const [teacherSummaries, setTeacherSummaries] = useState<any[]>([]);
   const [summary, setSummary] = useState({
@@ -277,13 +277,13 @@ export default function StudentTaskProgressTab() {
       {renderTeacherProgressBars()}
 
       {/* KPI Cards */}
-      {renderKPICards(false)}
+      {showStats && renderKPICards(false)}
 
       <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40 order-1 lg:order-2">
         {/* Filters */}
         <div className="p-4 border-b border-white/70 bg-white/20 flex flex-wrap gap-2 lg:gap-3 items-center">
           {/* Trạng thái */}
-          <div className="hidden lg:block relative shrink-0 lg:w-36">
+          <div className="hidden">
             <Select
               value={statusFilter}
               onValueChange={(val: any) => {
@@ -304,7 +304,7 @@ export default function StudentTaskProgressTab() {
           </div>
           
           {/* Đối tượng */}
-          <div className="hidden lg:block relative shrink-0 lg:w-36">
+          <div className="hidden">
             <Select
               value={assigneeTypeFilter}
               onValueChange={(val: any) => {
@@ -325,7 +325,7 @@ export default function StudentTaskProgressTab() {
           </div>
 
           {/* Lọc theo Lớp */}
-          <div className="hidden lg:block relative shrink-0 lg:w-36">
+          <div className="hidden">
             <Select
               value={classIdFilter || 'all'}
               onValueChange={(val: any) => {
@@ -346,7 +346,7 @@ export default function StudentTaskProgressTab() {
           </div>
 
           {/* Lọc theo Nhiệm vụ */}
-          <div className="hidden lg:block relative shrink-0 lg:w-44">
+          <div className="hidden">
             <Select
               value={taskIdFilter || 'all'}
               onValueChange={(val: any) => {
@@ -368,6 +368,15 @@ export default function StudentTaskProgressTab() {
 
           {/* Ô Tìm kiếm & Chuyển đổi View Mode */}
           <div className="flex items-center gap-2 w-full lg:flex-1 order-last lg:order-none mt-1 lg:mt-0">
+            <button
+              type="button"
+              onClick={() => setIsFilterDialogOpen(true)}
+              aria-label="Mở bộ lọc theo dõi"
+              title="Bộ lọc"
+              className="hidden lg:flex h-8 w-9 items-center justify-center rounded-xl border border-white/70 bg-white/50 text-[#64748B] hover:bg-white/80"
+            >
+              <Filter size={14} />
+            </button>
             {/* Desktop-only Search Bar & View Mode Switcher */}
             <div className="hidden lg:flex items-center gap-2 flex-1">
               <div className="relative flex-1">

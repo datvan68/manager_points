@@ -1,15 +1,15 @@
-Task: `browser-injected-hydration-mismatch` | `bug_fix` | Risk: medium | Profile: Quick
+Task: `tasks-toolbar-quick-stats` | `feature_development` | Risk: medium | Profile: Quick
 
-Objective: Load `/students/**` without hydration mismatch, `removeChild`, or maximum-update-depth errors by removing DOM injection before React hydrates.
+Objective: Trên trang `/students/tasks`, mỗi tab có thanh công cụ cùng hàng với thanh tab; nút biểu đồ bật/tắt đúng ba thẻ thống kê nhanh và trạng thái mặc định là ẩn.
 
-Boundary: frontend runtime and the local browser profile used for reproduction | Write: None; preserve all repository source files
+Boundary: giao diện frontend của trang Nhiệm vụ | Write: `frontend/src/app/(dashboard)/students/tasks/page.tsx`, `frontend/src/components/students/tasks/StudentTasksTab.tsx`, `frontend/src/components/students/tasks/StudentTaskProgressTab.tsx`
 
-Targets: injected `<head>` node `.simulator-pre-loader.simulator`; Next.js metadata hydration boundary; browser extensions or simulator tooling active in the failing profile
+Targets: `StudentTasksPageContent` và cụm sub-tab; `StudentTasksTab`/`renderKPICards`; `StudentTaskProgressTab`/`renderKPICards`, toolbar và `Dialog` bộ lọc
 
-Steps: reproduce the first error in the current profile -> confirm the injected node is absent from server response and source -> disable or exclude the responsible simulator/extension for the application origin -> clear site cache and reproduce in a clean Incognito/Guest profile -> if hydration still fails without injected DOM, capture the exact URL and first application-owned component stack, then amend scope before changing code
+Steps: kiểm tra bố cục desktop/mobile và quyền tạo nhiệm vụ -> bổ sung trạng thái ẩn thống kê độc lập theo tab, nút icon biểu đồ có tooltip/`aria-label` và trạng thái active -> đưa action của tab đang mở lên cùng hàng sub-tab -> tab Danh sách chỉ hiển thị icon tìm kiếm và thêm (nút thêm vẫn theo quyền) -> tab Theo dõi hiển thị action tìm kiếm, bộ lọc và chế độ xem; gom bốn lọc Trạng thái/Đối tượng/Lớp/Nhiệm vụ vào một modal dùng chung mọi breakpoint -> giữ nguyên API, phân trang và giá trị lọc -> kiểm tra responsive và typecheck
 
-Verify: browser, extension-free profile :: open the affected `/students/**` URL, hard reload three times, and navigate away/back => no hydration mismatch, `removeChild`, or maximum-update-depth console errors; `D:\PROJECT\manager_points :: rg -n "simulator-pre-loader" frontend/src` => no application-owned match
+Verify: `D:\PROJECT\manager_points\frontend :: npm run typecheck` => không có lỗi TypeScript; trình duyệt tại `/students/tasks` => hai tab đạt đúng bố cục, thống kê mặc định ẩn và toggle độc lập, modal lọc cập nhật đủ bốn lọc, tìm kiếm/thêm/quyền/chế độ xem vẫn hoạt động trên desktop và mobile
 
-Done: The extension-free browser run passes all reload/navigation checks; no source workaround such as broader hydration suppression or manual DOM removal is added.
+Done: Tất cả hành vi Verify đạt; không đổi backend/API hoặc quyền truy cập.
 
-Gate: None. Stop before editing the currently modified Students files or any application source unless the clean-profile reproduction provides an application-owned stack and the scope is amended.
+Gate: None
