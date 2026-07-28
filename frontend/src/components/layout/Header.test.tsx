@@ -18,4 +18,8 @@ describe('Header responsive shell contract', () => {
     expect(headerSource).toContain('aria-label="Quản lý phân hệ"');
     expect(headerSource).toContain('focus-visible:ring-2');
   });
+
+  it('uses valid Vietnamese text for the location success toast', () => {
+    expect(headerSource).toContain("toast.success('Đã bật chia sẻ vị trí cho điểm danh.')");
+  });
 });

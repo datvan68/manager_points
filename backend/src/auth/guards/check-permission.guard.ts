@@ -97,7 +97,7 @@ export function checkAnyPermission(
         throw new ForbiddenException({
           statusCode: 403,
           error: 'Forbidden',
-          message: 'KhĂ´ng thá»ƒ xĂ¡c thá»±c ngÆ°á»i dĂ¹ng',
+          message: 'Không thể xác thực người dùng',
           requiredPermissions,
         });
       }
@@ -113,7 +113,7 @@ export function checkAnyPermission(
         throw new ForbiddenException({
           statusCode: 403,
           error: 'Forbidden',
-          message: `Báº¡n khĂ´ng cĂ³ quyá»n thá»±c hiá»‡n hĂ nh Ä‘á»™ng nĂ y. Cáº§n má»™t trong cĂ¡c quyá»n: ${requiredPermissions.join(', ')}`,
+          message: `Bạn không có quyền thực hiện hành động này. Cần một trong các quyền: ${requiredPermissions.join(', ')}`,
           requiredPermissions,
         });
       }

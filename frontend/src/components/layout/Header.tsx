@@ -342,7 +342,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                               return;
                             }
                             if (result === 'granted') {
-                              toast.success('ÄĂ£ báº­t chia sáº» vá»‹ trĂ­ cho Ä‘iá»ƒm danh.');
+                              toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
                               return;
                             }
                             if (result === 'denied') {
