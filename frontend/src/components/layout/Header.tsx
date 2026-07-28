@@ -227,7 +227,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
   return (
     <>
-      <header className="dashboard-header sticky top-0 h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] relative z-50 shadow-sm shadow-slate-200/20 mt-0 min-w-0 w-full">
+      <header className="dashboard-header sticky top-0 h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] z-50 shadow-sm shadow-slate-200/20 mt-0 min-w-0 w-full">
         {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Logo & System Name (Chỉ hiển thị trên mobile/tablet: lg:hidden) */}

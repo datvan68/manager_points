@@ -22,4 +22,12 @@ describe('Header responsive shell contract', () => {
   it('uses valid Vietnamese text for the location success toast', () => {
     expect(headerSource).toContain("toast.success('Đã bật chia sẻ vị trí cho điểm danh.')");
   });
+
+  it('declares mobile zoom and header drag protections in the global shell styles', () => {
+    const globalStyles = readFileSync(resolve(__dirname, '../../globals.css'), 'utf8');
+
+    expect(globalStyles).toContain('font-size: 16px !important');
+    expect(globalStyles).toContain('overscroll-behavior: contain');
+    expect(globalStyles).toContain('touch-action: none');
+  });
 });

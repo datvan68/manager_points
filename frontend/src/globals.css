@@ -37,6 +37,7 @@ body {
   @apply bg-background text-text-main;
   min-height: 100%;
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 :root {
@@ -51,6 +52,31 @@ html {
   min-height: 100%;
   background: #EBF2FA;
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Keep iOS from zooming the viewport when a form control receives focus. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* The dashboard owns scrolling; prevent mobile overscroll from dragging the shell/header. */
+.dashboard-shell {
+  overscroll-behavior: contain;
+}
+
+.dashboard-header {
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Custom scrollbar: visible only on hover */
