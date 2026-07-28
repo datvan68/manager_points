@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -533,10 +533,10 @@ const StudentTasksTab = () => {
                   setActiveTabFilter(tab);
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer flex-1 lg:flex-none text-center ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer flex-1 lg:flex-none text-center outline-none focus:outline-none focus-visible:outline-none select-none border ${
                   activeTabFilter === tab 
-                    ? 'bg-white text-[#1A73E8] shadow-sm' 
-                    : 'text-[#64748B] hover:text-[#1E293B]'
+                    ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
+                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
                 }`}
               >
                 {tab === 'Mới nhất' ? 'Tất cả' : tab}

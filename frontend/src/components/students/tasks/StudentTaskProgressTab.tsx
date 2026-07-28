@@ -386,10 +386,10 @@ export default function StudentTaskProgressTab() {
                 <button
                   type="button"
                   onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
+                  className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer outline-none focus:outline-none focus-visible:outline-none select-none border ${
                     viewMode === 'table' 
-                      ? 'bg-white text-[#1A73E8] shadow-sm' 
-                      : 'text-slate-400 hover:text-slate-600'
+                      ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
                   title="Xem dạng bảng"
                 >
@@ -398,10 +398,10 @@ export default function StudentTaskProgressTab() {
                 <button
                   type="button"
                   onClick={() => setViewMode('card')}
-                  className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
+                  className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer outline-none focus:outline-none focus-visible:outline-none select-none border ${
                     viewMode === 'card' 
-                      ? 'bg-white text-[#1A73E8] shadow-sm' 
-                      : 'text-slate-400 hover:text-slate-600'
+                      ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
+                      : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
                   title="Xem dạng thẻ"
                 >
@@ -482,10 +482,10 @@ export default function StudentTaskProgressTab() {
                       <button
                         type="button"
                         onClick={() => setViewMode('table')}
-                        className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
+                        className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer outline-none focus:outline-none focus-visible:outline-none select-none border ${
                           viewMode === 'table' 
-                            ? 'bg-white text-[#1A73E8] shadow-sm' 
-                            : 'text-slate-400 hover:text-slate-600'
+                            ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
                         }`}
                       >
                         <List size={14} />
@@ -493,10 +493,10 @@ export default function StudentTaskProgressTab() {
                       <button
                         type="button"
                         onClick={() => setViewMode('card')}
-                        className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer ${
+                        className={`p-1.5 rounded-lg transition-all duration-150 hover:scale-[1.02] cursor-pointer outline-none focus:outline-none focus-visible:outline-none select-none border ${
                           viewMode === 'card' 
-                            ? 'bg-white text-[#1A73E8] shadow-sm' 
-                            : 'text-slate-400 hover:text-slate-600'
+                            ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
                         }`}
                       >
                         <LayoutGrid size={14} />

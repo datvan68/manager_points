@@ -1661,23 +1661,23 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           </div>
         ) : (
           canAccessClassTab && (
-            <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl w-fit border border-white/70 backdrop-blur-md shrink-0 shadow-sm shadow-slate-300/40">
+            <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl w-full sm:w-fit border border-white/70 backdrop-blur-md shrink-0 shadow-sm shadow-slate-300/40 justify-center">
               <button
                 onClick={() => setActiveSubTab("student")}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
+                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
                   activeSubTab === "student"
-                    ? "bg-white text-[#1A73E8] shadow-sm"
-                    : "text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-[#E6E8EB] border-white/70 text-[#1E293B]"
+                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
                 Tình hình HSSV
               </button>
               <button
                 onClick={() => setActiveSubTab("class")}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
+                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
                   activeSubTab === "class"
-                    ? "bg-white text-[#1A73E8] shadow-sm"
-                    : "text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-[#E6E8EB] border-white/70 text-[#1E293B]"
+                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
                 Tình hình lớp học
