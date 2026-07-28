@@ -51,9 +51,16 @@ export default function DashboardPage() {
   // Extra system state
   const [systemRequests, setSystemRequests] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
+  const loadsInFlightRef = useRef(new Map<string, Promise<void>>());
 
   const loadData = useCallback(async (showIndicator = true, targetSemId?: string | null) => {
     if (!user) return;
+    const semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterRef.current;
+    const loadKey = semIdToLoad || '__active__';
+    const existingLoad = loadsInFlightRef.current.get(loadKey);
+    if (existingLoad) return existingLoad;
+
+    const load = (async () => {
     if (showIndicator) {
       setIsRefreshing(true);
     }
@@ -61,8 +68,6 @@ export default function DashboardPage() {
 
     try {
       // 1. Determine the semester ID to load (use refs for stable references)
-      const semIdToLoad = targetSemId !== undefined ? targetSemId : selectedSemesterRef.current;
-
       // 2. Fetch metrics from backend (single API call)
       const dashboardMetrics = await Promise.race([
         systemApi.getDashboardMetrics(semIdToLoad || undefined),
@@ -97,6 +102,13 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+    }
+    })();
+    loadsInFlightRef.current.set(loadKey, load);
+    try {
+      await load;
+    } finally {
+      loadsInFlightRef.current.delete(loadKey);
     }
   }, [user]);
 

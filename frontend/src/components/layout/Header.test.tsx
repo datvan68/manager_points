@@ -23,6 +23,11 @@ describe('Header responsive shell contract', () => {
     expect(headerSource).toContain("toast.success('Đã bật chia sẻ vị trí cho điểm danh.')");
   });
 
+  it('guides denied location permissions to browser or iOS settings', () => {
+    expect(headerSource).toContain("if (permission === 'denied')");
+    expect(headerSource).toContain('Cài đặt > Safari > Vị trí');
+  });
+
   it('declares mobile zoom and header drag protections in the global shell styles', () => {
     const globalStyles = readFileSync(resolve(__dirname, '../../globals.css'), 'utf8');
 

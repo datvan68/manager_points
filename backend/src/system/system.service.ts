@@ -2308,27 +2308,22 @@ export class SystemService {
     }
 
     // ─── KPIs ────────────────────────────────────────────────────────────────
-    let totalStudents = 0;
-    if (roleScope === 'teacher') {
-      totalStudents = await studentModel.countDocuments({
+    const totalStudentsPromise = roleScope === 'teacher'
+      ? studentModel.countDocuments({
         class_id: { $in: teacherClassIds },
-      });
-    } else if (roleScope === 'student') {
-      totalStudents = studentIds.length;
-    } else {
-      totalStudents = await studentModel.countDocuments();
-    }
-
-    let totalClasses = 0;
-    if (roleScope === 'teacher') {
-      totalClasses = teacherClassIds.length;
-    } else if (roleScope === 'student') {
-      totalClasses = student?.class_id ? 1 : 0;
-    } else {
-      totalClasses = await classModel.countDocuments();
-    }
-
-    const totalDepartments = await departmentModel.countDocuments();
+      })
+      : Promise.resolve(roleScope === 'student' ? studentIds.length : undefined)
+        .then((count) => count === undefined ? studentModel.countDocuments() : count);
+    const totalClassesPromise = roleScope === 'teacher'
+      ? Promise.resolve(teacherClassIds.length)
+      : roleScope === 'student'
+        ? Promise.resolve(student?.class_id ? 1 : 0)
+        : classModel.countDocuments();
+    const [totalStudents, totalClasses, totalDepartments] = await Promise.all([
+      totalStudentsPromise,
+      totalClassesPromise,
+      departmentModel.countDocuments(),
+    ]);
 
     // Average Score
     let averageScore = 0;
@@ -2447,13 +2442,13 @@ export class SystemService {
       ];
     }
 
-    const urgentTasks = await studentTaskModel
+    const urgentTasksPromise = studentTaskModel
       .find(taskFilter)
       .sort({ deadline: 1 })
       .limit(5)
       .lean()
       .exec();
-    const urgentTasksCount = await studentTaskModel.countDocuments(taskFilter);
+    const urgentTasksCountPromise = studentTaskModel.countDocuments(taskFilter);
 
     // Notifications
     const normalizedRoleLower = role.toLowerCase();
@@ -2467,16 +2462,22 @@ export class SystemService {
         },
       ],
     };
-    const recentNotifications = await notificationModel
+    const recentNotificationsPromise = notificationModel
       .find(notifFilter)
       .sort({ createdAt: -1 })
       .limit(5)
       .lean()
       .exec();
-    const unreadNotificationsCount = await notificationModel.countDocuments({
+    const unreadNotificationsCountPromise = notificationModel.countDocuments({
       ...notifFilter,
       readByUserIds: { $ne: new Types.ObjectId(requester.userId) },
     });
+    const [urgentTasks, urgentTasksCount, recentNotifications, unreadNotificationsCount] = await Promise.all([
+      urgentTasksPromise,
+      urgentTasksCountPromise,
+      recentNotificationsPromise,
+      unreadNotificationsCountPromise,
+    ]);
 
     // ─── DISTRIBUTIONS ───────────────────────────────────────────────────────
     // Student Status

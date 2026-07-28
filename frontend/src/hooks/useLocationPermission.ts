@@ -22,12 +22,19 @@ export function useLocationPermission() {
   }, [supported]);
   const requestPermission = useCallback(() => {
     if (!supported) { setPermission('unsupported'); return Promise.resolve('unsupported' as const); }
+    // A permission prompt is disruptive. Keep it to one explicit first-use
+    // request per authenticated PWA session; browser settings remain the path
+    // for changing a denied decision.
+    if (permission !== 'prompt') return Promise.resolve(permission);
+    const requestKey = 'location-permission-requested';
+    if (window.sessionStorage.getItem(requestKey)) return Promise.resolve('prompt' as const);
+    window.sessionStorage.setItem(requestKey, 'true');
     setPermission('requesting');
     return new Promise<LocationPermissionState>((resolve) => navigator.geolocation.getCurrentPosition(
       () => { setPermission('granted'); resolve('granted'); },
       (error) => { const next = error.code === error.PERMISSION_DENIED ? 'denied' : 'prompt'; setPermission(next); resolve(next); },
       { enableHighAccuracy: true, timeout: 10000 },
     ));
-  }, [supported]);
+  }, [permission, supported]);
   return { permission, supported, granted: permission === 'granted', requesting: permission === 'requesting', requestPermission };
 }

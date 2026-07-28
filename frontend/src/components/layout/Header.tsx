@@ -34,8 +34,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
     const { permission, granted: locationEnabled, requesting, requestPermission } = useLocationPermission();
     const locationStatus = requesting ? 'requesting' : permission === 'denied' ? 'denied' : permission === 'granted' ? 'granted' : 'idle';
-    const setLocationStatus = (_status: typeof locationStatus) => undefined;
-    const setLocationEnabled = (_enabled: boolean) => undefined;
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isResolvingProfile, setIsResolvingProfile] = useState(false);
@@ -336,6 +334,10 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                       </div>
                       <button 
                           onClick={async () => {
+                            if (permission === 'denied') {
+                              toast.info('Quyền vị trí đang bị chặn. Trên iPhone/iPad, vào Cài đặt > Safari > Vị trí; trên trình duyệt khác, mở cài đặt trang web để cho phép vị trí.');
+                              return;
+                            }
                             const result = locationEnabled ? 'granted' : await requestPermission();
                             if (locationEnabled) {
                               toast.info('Quyền vị trí đã được cấp. Hãy thu hồi quyền trong cài đặt trình duyệt.');
@@ -349,54 +351,8 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                               toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
                               return;
                             }
-                            if (!locationEnabled) {
-                              // Turn ON: request GPS permission
-                              setLocationStatus('requesting');
-                              try {
-                                const result = await navigator.permissions.query({ name: 'geolocation' });
-                                if (result.state === 'denied') {
-                                  setLocationStatus('denied');
-                                  toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
-                                  return;
-                                }
-                                // Request actual position to trigger browser prompt
-                                navigator.geolocation.getCurrentPosition(
-                                  () => {
-                                    setLocationEnabled(true);
-                                    setLocationStatus('granted');
-                                    toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
-                                  },
-                                  (err) => {
-                                    setLocationStatus('denied');
-                                    if (err.code === err.PERMISSION_DENIED) {
-                                      toast.error('Quyền vị trí bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
-                                    } else {
-                                      toast.error('Không thể truy cập vị trí. Vui lòng thử lại.');
-                                    }
-                                  },
-                                  { enableHighAccuracy: true, timeout: 10000 },
-                                );
-                              } catch {
-                                // Permissions API not supported, try direct request
-                                navigator.geolocation.getCurrentPosition(
-                                  () => {
-                                    setLocationEnabled(true);
-                                    setLocationStatus('granted');
-                                    toast.success('Đã bật chia sẻ vị trí cho điểm danh.');
-                                  },
-                                  () => {
-                                    setLocationStatus('denied');
-                                    toast.error('Không thể truy cập vị trí.');
-                                  },
-                                  { enableHighAccuracy: true, timeout: 10000 },
-                                );
-                              }
-                            } else {
-                              // Turn OFF
-                              setLocationEnabled(false);
-                              setLocationStatus('idle');
-                              toast.success('Đã tắt chia sẻ vị trí.');
-                            }
+                            toast.info('Yêu cầu vị trí đã được hiển thị trong phiên này. Bạn có thể bật lại trong cài đặt trình duyệt.');
+                            return;
                           }}
                           className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors duration-200 cursor-pointer ${locationEnabled ? 'bg-[#1A73E8]' : 'bg-gray-200/80'}`}
                       >
