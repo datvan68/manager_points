@@ -18,7 +18,8 @@ export default function ActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activityType = searchParams.get('activityType') || '';
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canViewAttendance = isAdminUser(user) || !!hasPermission?.('ACTIVITY_ATTENDANCE_READ');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -287,6 +288,8 @@ export default function ActivitiesPage() {
         onBulkActionClick={(actionType: 'deactivate' | 'delete') => setBulkConfirmation(actionType)}
         onSingleStatusChange={handleSingleStatusChange}
         onScheduleClick={() => router.push(activityType ? `/activities/schedule?activityType=${activityType}` : '/activities/schedule')}
+        onAttendanceClick={() => router.push('/activities/attendance')}
+        canViewAttendance={canViewAttendance}
         onRefreshClick={loadData}
         pendingStatusActivityIds={pendingStatusActivityIds}
         activityToJoin={activityToJoin}

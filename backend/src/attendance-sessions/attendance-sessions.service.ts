@@ -774,13 +774,14 @@ export class AttendanceSessionsService {
     this.assertManualSessionOwner(session, userId);
     await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
     await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
+    await this.assertManualWindowOpen(session);
     const [students, attendances, total] = await Promise.all([
       this.studentModel.find({ class_id: session.class_id })
         .select('full_name student_code status class_id').sort({ student_code: 1 }).limit(500).lean().exec(),
       this.clubAttendanceModel.find({
         schedule_id: session.schedule_id,
         class_id: session.class_id,
-        approval_status: 'approved',
+        approval_status: { $in: ['pending', 'approved'] },
         status: { $in: ['present', 'late'] },
       }).lean().exec(),
       this.studentModel.countDocuments({ class_id: session.class_id }),
@@ -808,6 +809,7 @@ export class AttendanceSessionsService {
     this.assertManualSessionOwner(session, userId);
     await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
     await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
+    await this.assertManualWindowOpen(session);
     const student = await this.studentModel.findOne({ _id: new Types.ObjectId(studentId), class_id: session.class_id })
       .select('_id class_id').lean().exec();
     if (!student) throw new ForbiddenException('Student does not belong to the selected class.');
@@ -826,9 +828,9 @@ export class AttendanceSessionsService {
         recorded_by: new Types.ObjectId(userId),
         recorded_by_role: 'teacher',
         recorded_at: now,
-        approval_status: 'approved',
-        approved_by: new Types.ObjectId(userId),
-        approved_at: now,
+        approval_status: 'pending',
+        approved_by: undefined,
+        approved_at: undefined,
     };
     try {
       attendance = await this.clubAttendanceModel.findOneAndUpdate(
@@ -844,7 +846,7 @@ export class AttendanceSessionsService {
     const count = await this.clubAttendanceModel.countDocuments({
       schedule_id: session.schedule_id,
       class_id: session.class_id,
-      approval_status: 'approved',
+      approval_status: { $in: ['pending', 'approved'] },
       status: { $in: ['present', 'late'] },
     });
     await this.sessionModel.updateOne({ _id: session._id }, { $set: { checkin_count: count } }).exec();
@@ -863,7 +865,6 @@ export class AttendanceSessionsService {
       method: 'manual_class', openedBy: session.opened_by.toString(),
       checkinCount: count, attendance: canonical,
     });
-    this.activityAttendanceSyncService.enqueueAttendanceSync(canonical._id);
     return canonical;
   }
 
@@ -878,6 +879,7 @@ export class AttendanceSessionsService {
     this.assertManualSessionOwner(session, userId);
     await this.attendanceGrantsService.assertMethod(session.context_id.toString(), userId, roleCode, 'manual_class');
     await this.attendanceGrantsService.assertOwnClass(session.class_id!.toString(), userId, roleCode);
+    await this.assertManualWindowOpen(session);
     const student = await this.studentModel.findOne({ _id: new Types.ObjectId(studentId), class_id: session.class_id })
       .select('_id class_id').lean().exec();
     if (!student) throw new ForbiddenException('Student does not belong to the selected class.');
@@ -896,7 +898,7 @@ export class AttendanceSessionsService {
     const count = await this.clubAttendanceModel.countDocuments({
       schedule_id: session.schedule_id,
       class_id: session.class_id,
-      approval_status: 'approved',
+      approval_status: { $in: ['pending', 'approved'] },
       status: { $in: ['present', 'late'] },
     });
     await this.sessionModel.updateOne({ _id: session._id }, { $set: { checkin_count: count } }).exec();
@@ -916,6 +918,14 @@ export class AttendanceSessionsService {
       checkinCount: count, attendance: canonical,
     });
     return canonical;
+  }
+
+  private async assertManualWindowOpen(session: AttendanceSessionDocument | any): Promise<void> {
+    if (typeof (this.scheduleModel as any).findById !== 'function') return;
+    const schedule = await this.scheduleModel.findById(session.schedule_id).select('end_time status').lean().exec();
+    if (!schedule || schedule.status === 'cancelled' || new Date(schedule.end_time).getTime() < Date.now()) {
+      throw new BadRequestException('The class attendance window has ended.');
+    }
   }
 
   private toRealtimeCheckin(checkin: AttendanceCheckinDocument | any) {

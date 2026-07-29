@@ -27,6 +27,7 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { ActivityAttendanceModule } from '../activity-attendance/activity-attendance.module';
 import { Activity, ActivitySchema } from '../activities/schemas/activity.schema';
 import { ActivitiesModule } from '../activities/activities.module';
+import { AttendanceDraftFinalizerService } from './attendance-draft-finalizer.service';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { ActivitiesModule } from '../activities/activities.module';
     ]),
   ],
   controllers: [AttendanceSessionsController],
-  providers: [AttendanceSessionsService, AttendanceRealtimeService],
+  providers: [AttendanceSessionsService, AttendanceRealtimeService, AttendanceDraftFinalizerService],
   exports: [AttendanceSessionsService],
 })
 export class AttendanceSessionsModule {}

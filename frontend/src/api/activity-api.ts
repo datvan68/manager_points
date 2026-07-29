@@ -131,6 +131,8 @@ export interface ActivityAttendance {
   rejection_reason?: string;
   synced_to_academic_record: boolean;
   createdAt: string;
+  class_id?: any;
+  attendance_method?: string;
 }
 
 export interface StudentActivityTimelineItem extends ActivitySchedule {

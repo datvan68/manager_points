@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Plus, Grid, List, MapPin, Users, Clock, Heart, Compass, X, Palette, Edit, Trash2, Calendar, RefreshCw } from 'lucide-react';
+import { Search, Filter, Plus, Grid, List, MapPin, Users, Clock, Heart, Compass, X, Palette, Edit, Trash2, Calendar, RefreshCw, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { tokenStorage } from '@/api/auth-api';
@@ -37,6 +37,8 @@ interface ActivityListWorkspaceProps {
   onNavigateToDetail: (activityId: string) => void;
   onConfigureDesign?: (activity: any) => void;
   onScheduleClick?: () => void;
+  onAttendanceClick?: () => void;
+  canViewAttendance?: boolean;
   onRefreshClick?: () => void;
 
   selectedActivityIds?: string[];
@@ -62,6 +64,8 @@ export default function ActivityListWorkspace({
   onNavigateToDetail,
   onConfigureDesign,
   onScheduleClick,
+  onAttendanceClick,
+  canViewAttendance = true,
   onRefreshClick,
 
   selectedActivityIds = [],
@@ -183,7 +187,7 @@ export default function ActivityListWorkspace({
 
         {/* Action Button & View Toggle */}
         <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
-          <Button
+          {canViewAttendance && <Button
             variant="outline"
             onClick={onScheduleClick}
             className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
@@ -192,6 +196,17 @@ export default function ActivityListWorkspace({
           >
             <Calendar size={13} />
             <span>Lịch trình</span>
+          </Button>}
+
+          <Button
+            variant="outline"
+            onClick={onAttendanceClick}
+            className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+            title="Tổng hợp điểm danh"
+            data-testid="attendance-header-button"
+          >
+            <ClipboardCheck size={13} />
+            <span>Điểm danh</span>
           </Button>
 
           {!isStudent && (
