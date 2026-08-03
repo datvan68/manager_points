@@ -536,7 +536,19 @@ export const activityScheduleApi = {
 // ── Activity Attendance API ──
 
 export const activityAttendanceApi = {
-  async getAll(params?: any): Promise<{ items: ActivityAttendance[]; total: number }> {
+  async getAll(params?: {
+    activity_id?: string;
+    schedule_id?: string;
+    student_id?: string;
+    semester_id?: string;
+    approval_status?: string;
+    status?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: ActivityAttendance[]; total: number }> {
     const res = await httpClient(`${API_BASE}/activity-attendance${buildQuery(params)}`);
     return handleResponse(res);
   },

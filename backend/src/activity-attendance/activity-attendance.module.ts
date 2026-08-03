@@ -32,6 +32,8 @@ import {
 import { ActivityCompletionService } from './activity-completion.service';
 import { ActivityCompletionController } from './activity-completion.controller';
 import { ActivityMember, ActivityMemberSchema } from '../activities/schemas/activity-member.schema';
+import { Class, ClassSchema } from '../classes/schemas/class.schema';
+import { Student, StudentSchema } from '../students/schemas/student.schema';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { ActivityMember, ActivityMemberSchema } from '../activities/schemas/acti
       { name: ActivityCompletionRule.name, schema: ActivityCompletionRuleSchema },
       { name: ActivityCompletionAward.name, schema: ActivityCompletionAwardSchema },
       { name: ActivityMember.name, schema: ActivityMemberSchema },
+      { name: Class.name, schema: ClassSchema },
+      { name: Student.name, schema: StudentSchema },
     ]),
   ],
   controllers: [ActivityAttendanceController, ActivityCompletionController],

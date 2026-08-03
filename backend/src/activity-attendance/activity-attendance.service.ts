@@ -19,6 +19,10 @@ import {
   QueryAttendanceDto,
 } from './dto/attendance.dto';
 import { ActivityAttendanceSyncService } from './activity-attendance-sync.service';
+import { Activity } from '../activities/schemas/activity.schema';
+import { ActivitySchedule } from '../activity-schedules/schemas/activity-schedule.schema';
+import { Class } from '../classes/schemas/class.schema';
+import { Student } from '../students/schemas/student.schema';
 
 @Injectable()
 export class ActivityAttendanceService {
@@ -27,6 +31,10 @@ export class ActivityAttendanceService {
   constructor(
     @InjectModel(ActivityAttendance.name)
     private attendanceModel: Model<ActivityAttendanceDocument>,
+    @InjectModel(Activity.name) private activityModel: Model<any>,
+    @InjectModel(ActivitySchedule.name) private scheduleModel: Model<any>,
+    @InjectModel(Student.name) private studentModel: Model<any>,
+    @InjectModel(Class.name) private classModel: Model<any>,
     @Inject(forwardRef(() => ActivityAttendanceSyncService))
     private syncService: ActivityAttendanceSyncService,
   ) {}
@@ -131,6 +139,28 @@ export class ActivityAttendanceService {
       filter.semester_id = new Types.ObjectId(query.semester_id);
     if (query.approval_status) filter.approval_status = query.approval_status;
     if (query.status) filter.status = query.status;
+    if (query.start_date || query.end_date) {
+      filter.recorded_at = {};
+      if (query.start_date) filter.recorded_at.$gte = new Date(`${query.start_date}T00:00:00.000Z`);
+      if (query.end_date) filter.recorded_at.$lte = new Date(`${query.end_date}T23:59:59.999Z`);
+    }
+
+    if (query.search?.trim()) {
+      const escaped = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      const [activities, schedules, students, classes] = await Promise.all([
+        this.activityModel.find({ $or: [{ name: regex }, { code: regex }] }).select('_id').lean().exec(),
+        this.scheduleModel.find({ title: regex }).select('_id').lean().exec(),
+        this.studentModel.find({ $or: [{ full_name: regex }, { student_code: regex }] }).select('_id').lean().exec(),
+        this.classModel.find({ class_name: regex }).select('_id').lean().exec(),
+      ]);
+      filter.$or = [
+        { activity_id: { $in: activities.map((item: any) => item._id) } },
+        { schedule_id: { $in: schedules.map((item: any) => item._id) } },
+        { student_id: { $in: students.map((item: any) => item._id) } },
+        { class_id: { $in: classes.map((item: any) => item._id) } },
+      ];
+    }
 
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -142,6 +172,7 @@ export class ActivityAttendanceService {
         .populate('student_id', 'full_name student_code email')
         .populate('schedule_id', 'title start_time end_time location')
         .populate('activity_id', 'name code')
+        .populate('class_id', 'class_name')
         .populate('recorded_by', 'user_name')
         .populate('approved_by', 'user_name')
         .sort({ recorded_at: -1 })

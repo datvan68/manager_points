@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsMongoId,
   IsDate,
+  IsDateString,
   ValidateNested,
   IsArray,
   ArrayMinSize,
@@ -111,6 +112,20 @@ export class BatchApproveDto {
 }
 
 export class QueryAttendanceDto {
+  @ApiPropertyOptional({ description: 'Search activity, student, schedule, or class names/codes' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Recorded date lower bound (inclusive), ISO date' })
+  @IsOptional()
+  @IsDateString()
+  start_date?: string;
+
+  @ApiPropertyOptional({ description: 'Recorded date upper bound (inclusive), ISO date' })
+  @IsOptional()
+  @IsDateString()
+  end_date?: string;
   @ApiPropertyOptional({ description: 'Filter by activity ID' })
   @IsOptional()
   @IsMongoId()
