@@ -54,4 +54,13 @@ describe('ActivitiesAttendancePage', () => {
     resolveRefresh({ total: 1, items: [{ _id: 'a1', activity_id: { name: 'Activity' }, student_id: { full_name: 'Student' }, status: 'present', approval_status: 'pending' }] });
     await waitFor(() => expect(refresh).not.toBeDisabled());
   });
+
+  it('toggles mobile full width search input', async () => {
+    render(<ActivitiesAttendancePage />);
+    const openSearchBtn = screen.getByRole('button', { name: 'Mở tìm kiếm' });
+    fireEvent.click(openSearchBtn);
+    expect(screen.getByRole('button', { name: 'Đóng tìm kiếm' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng tìm kiếm' }));
+    expect(screen.getByRole('button', { name: 'Mở tìm kiếm' })).toBeInTheDocument();
+  });
 });
