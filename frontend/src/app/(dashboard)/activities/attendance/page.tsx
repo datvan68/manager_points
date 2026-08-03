@@ -164,7 +164,7 @@ export default function ActivitiesAttendancePage() {
   return <RouteGuard requiredPermission="ACTIVITY_ATTENDANCE_READ" fallbackPath="/activities">
     <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
       {isMobileSearchOpen ? (
-        <div className="flex w-full items-center gap-2 py-0.5 sm:hidden">
+        <div className="flex w-full items-center gap-1 py-0.5 sm:hidden">
           <Button type="button" variant="outline" aria-label="Quay lại hoạt động" title="Quay lại hoạt động" onClick={() => router.push('/activities')} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><ArrowLeft className="h-4 w-4" /></Button>
           <Research
             ref={searchInputRef}
@@ -186,7 +186,7 @@ export default function ActivitiesAttendancePage() {
           </Button>
         </div>
       ) : (
-        <div className="flex shrink-0 items-center justify-between gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
+        <div className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
           <Button type="button" variant="outline" aria-label="Quay lại hoạt động" title="Quay lại hoạt động" onClick={() => router.push('/activities')} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><ArrowLeft className="h-4 w-4" /></Button>
           <Research
             aria-label="Tìm kiếm điểm danh"
@@ -205,7 +205,7 @@ export default function ActivitiesAttendancePage() {
           >
             <SearchIcon className="h-3.5 w-3.5" />
           </Button>
-          <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+          <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
             <Select value={status || 'ALL'} onValueChange={(val: string) => { setStatus(val === 'ALL' ? '' : val); resetPageAndSelection(); }}>
               <SelectTrigger aria-label="Lọc trạng thái có mặt" className="h-9 min-w-[125px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none">
                 <SelectValue placeholder="Tất cả có mặt" />
