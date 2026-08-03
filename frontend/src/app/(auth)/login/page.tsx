@@ -103,7 +103,7 @@ export default function LoginPage() {
           {/* Trust Badge */}
           <div className="flex justify-center w-full">
             <div className="backdrop-blur-[2px] bg-white/50 border border-white/80 flex items-center justify-center px-[29px] py-[9px] rounded-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] shrink-0">
-              <span className="font-['Inter'] font-semibold text-[#566069] text-[11px] tracking-[0.275px] whitespace-nowrap">
+              <span className="font-['Inter'] font-medium text-[#64748b] text-[11px] tracking-[0.275px] whitespace-nowrap">
                 HỌC SINH SINH VIÊN
               </span>
             </div>
@@ -111,10 +111,10 @@ export default function LoginPage() {
 
           {/* Heading Container */}
           <div className="flex flex-col gap-[8px] items-center text-center">
-            <h1 className="font-['Inter'] font-semibold text-[#1e293b] text-[28px] sm:text-[36px] tracking-tight leading-[36px] sm:leading-[44px]">
+            <h1 className="font-['Inter'] font-medium text-[#1e293b] text-[28px] sm:text-[36px] tracking-tight leading-[36px] sm:leading-[44px]">
               Chào mừng trở lại
             </h1>
-            <p className="font-['Inter'] font-semibold text-[#64748b] text-[14px] leading-[20px]">
+            <p className="font-['Inter'] font-normal text-[#718096] text-[14px] leading-[20px]">
               Vui lòng nhập thông tin của bạn để tiếp tục
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function LoginPage() {
                     <input
                       type="text"
                       placeholder="Email hoặc mã sinh viên"
-                      className="w-full h-full bg-transparent text-[#0f172a] text-[14px] font-['Inter'] font-semibold placeholder:text-[#a3b1cc] outline-none"
+                      className="w-full h-full bg-transparent text-[#334155] text-[14px] font-['Inter'] font-medium placeholder:text-[#a3b1cc] outline-none"
                       disabled={isLoading}
                       {...register('email')}
                     />
@@ -164,7 +164,7 @@ export default function LoginPage() {
                     <input
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="w-full h-full bg-transparent text-[#0f172a] text-[14px] font-['Inter'] font-semibold placeholder:text-[#a3b1cc] outline-none tracking-widest"
+                      className="w-full h-full bg-transparent text-[#334155] text-[14px] font-['Inter'] font-medium placeholder:text-[#a3b1cc] outline-none tracking-widest"
                       disabled={isLoading}
                       {...register('password')}
                     />
@@ -197,7 +197,7 @@ export default function LoginPage() {
                 disabled={isLoading}
                 {...register('remember')}
               />
-              <label htmlFor="remember" className="font-['Inter'] font-semibold text-[#566069] text-[14px] cursor-pointer select-none">
+              <label htmlFor="remember" className="font-['Inter'] font-medium text-[#64748b] text-[14px] cursor-pointer select-none">
                 Ghi nhớ đăng nhập
               </label>
             </div>
@@ -211,7 +211,7 @@ export default function LoginPage() {
               {isLoading ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                <span className="font-['Inter'] font-bold text-[14px]">Đăng nhập</span>
+                <span className="font-['Inter'] font-semibold text-[14px]">Đăng nhập</span>
               )}
             </button>
 
