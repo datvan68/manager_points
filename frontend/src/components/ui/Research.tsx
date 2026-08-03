@@ -14,16 +14,16 @@ const Research = React.forwardRef<HTMLInputElement, ResearchProps>(
     return (
       <div 
         className={cn(
-          `flex items-center gap-2 h-10 px-3 py-2.5 w-full max-w-[231px] focus-within:bg-white/70 focus-within:shadow-sm ${controlBase}`,
+          `flex items-center gap-2 h-9 px-3 py-1.5 w-full max-w-[231px] border border-white/80 bg-white/50 backdrop-blur-sm focus-within:bg-white/70 focus-within:shadow-xs transition-all duration-150 ease-out ${controlBase}`,
           containerClassName
         )}
       >
-        <Search className="shrink-0 size-4 text-[#0a0a0a80]" />
+        <Search className="shrink-0 size-3.5 text-slate-400" />
         <input
           ref={ref}
           type="text"
           className={cn(
-            "flex-1 bg-transparent border-none outline-none text-[14px] text-gray-900 placeholder:text-[#0a0a0a80] w-full",
+            "flex-1 bg-transparent border-none outline-none text-xs font-medium text-slate-700 placeholder:text-slate-400 w-full",
             className
           )}
           placeholder="Tìm kiếm..."

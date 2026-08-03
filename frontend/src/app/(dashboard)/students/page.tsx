@@ -554,27 +554,22 @@ function StudentsPageContent() {
                     {permissions.canCreateClass && (
                       <div className="flex items-center gap-2">
                         <Button
-                          size="sm"
                           variant="outline"
-                          className={`${controlBase} ${controlHover} shrink-0 h-10 px-3 text-xs md:text-sm font-semibold shadow-sm`}
                           onClick={() => setIsImportClassPopupOpen(true)}
+                          className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                         >
-                          <span className="text-[18px] font-bold leading-none -mt-0.5 mr-1">
-                            <Upload className="w-4 h-4" />
-                          </span>
+                          <Upload size={13} />
                           <span>Import lớp</span>
                         </Button>
                         <Button
-                          size="sm"
-                          className={`${controlBase} ${controlHover} shrink-0 h-10 px-3 text-xs md:text-sm font-semibold shadow-sm`}
+                          variant="outline"
                           onClick={() => {
                             setEditingClass({ departmentId: selectedDept });
                             setIsClassPopupOpen(true);
                           }}
+                          className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                         >
-                          <span className="text-[18px] font-bold leading-none -mt-0.5">
-                            <Plus className="w-4 h-4" />
-                          </span>
+                          <Plus size={13} />
                           <span>Thêm lớp</span>
                         </Button>
                       </div>
