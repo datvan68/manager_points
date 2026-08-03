@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Calendar as CalendarIcon, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, RefreshCw } from 'lucide-react';
 import { activityAttendanceApi, ActivityAttendance } from '@/api/activity-api';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
@@ -50,23 +50,37 @@ export default function ActivitiesAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshInFlight = useRef(false);
+
+  const query = useMemo(() => ({
+    page, limit: pageSize, search: search.trim() || undefined,
+    approval_status: approval || undefined, status: status || undefined,
+    start_date: dateRange ? toDateParam(dateRange.start) : undefined,
+    end_date: dateRange ? toDateParam(dateRange.end) : undefined,
+  }), [page, pageSize, search, approval, status, dateRange]);
+
+  const loadRows = useCallback(async (background = false) => {
+    if (background && refreshInFlight.current) return;
+    if (background) { refreshInFlight.current = true; setRefreshing(true); }
+    else setLoading(true);
+    setError('');
+    try {
+      const result = await activityAttendanceApi.getAll(query);
+      setItems(result.items || []);
+      setTotal(result.total || 0);
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tải danh sách điểm danh.');
+    } finally {
+      if (background) { refreshInFlight.current = false; setRefreshing(false); }
+      else setLoading(false);
+    }
+  }, [query]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      let cancelled = false;
-      setLoading(true); setError('');
-      activityAttendanceApi.getAll({
-        page, limit: pageSize, search: search.trim() || undefined,
-        approval_status: approval || undefined, status: status || undefined,
-        start_date: dateRange ? toDateParam(dateRange.start) : undefined,
-        end_date: dateRange ? toDateParam(dateRange.end) : undefined,
-      }).then((result) => { if (!cancelled) { setItems(result.items || []); setTotal(result.total || 0); } })
-        .catch((err) => { if (!cancelled) setError(err?.message || 'Không thể tải danh sách điểm danh.'); })
-        .finally(() => { if (!cancelled) setLoading(false); });
-      return () => { cancelled = true; };
-    }, 250);
+    const timer = window.setTimeout(() => { void loadRows(); }, 250);
     return () => window.clearTimeout(timer);
-  }, [page, pageSize, search, approval, status, dateRange]);
+  }, [loadRows]);
 
   const resetPageAndSelection = () => { setPage(1); setSelectedIds([]); };
   const pageIds = useMemo(() => items.map((row) => row._id), [items]);
@@ -95,12 +109,15 @@ export default function ActivitiesAttendancePage() {
 
   return <RouteGuard requiredPermission="ACTIVITY_ATTENDANCE_READ" fallbackPath="/activities">
     <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
-      <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Research aria-label="Tìm kiếm điểm danh" placeholder="Tìm kiếm..." value={search} onChange={(event) => { setSearch(event.target.value); resetPageAndSelection(); }} containerClassName="max-w-none sm:max-w-[231px]" />
-          <select aria-label="Lọc trạng thái có mặt" value={status} onChange={(event) => { setStatus(event.target.value); resetPageAndSelection(); }} className="h-9 rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700"><option value="">Tất cả có mặt</option><option value="present">Có mặt</option><option value="absent">Vắng mặt</option><option value="late">Đi muộn</option><option value="excused">Có phép</option></select>
-          <select aria-label="Lọc trạng thái duyệt" value={approval} onChange={(event) => { setApproval(event.target.value); resetPageAndSelection(); }} className="h-9 rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700"><option value="">Tất cả trạng thái</option><option value="pending">Bản nháp</option><option value="approved">Chính thức</option><option value="rejected">Từ chối</option></select>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button variant="outline" aria-label="Lọc theo khoảng ngày" className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs font-semibold text-slate-700"><CalendarIcon className="mr-1.5 h-3.5 w-3.5" />{dateRange ? `${dateRange.start.toLocaleDateString('vi-VN')} - ${dateRange.end.toLocaleDateString('vi-VN')}` : 'Chọn khoảng ngày'}</Button></PopoverTrigger><PopoverContent className="w-auto border-none bg-transparent p-0 shadow-none" align="end"><CustomCalendar startDate={dateRange?.start || null} endDate={dateRange?.end || null} onRangeSelect={(start, end) => setDateRange({ start, end })} onCancel={() => { setDateRange(null); resetPageAndSelection(); setCalendarOpen(false); }} onConfirm={() => { resetPageAndSelection(); setCalendarOpen(false); }} /></PopoverContent></Popover>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <select aria-label="Lọc trạng thái có mặt" value={status} onChange={(event) => { setStatus(event.target.value); resetPageAndSelection(); }} className="h-9 rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700"><option value="">Tất cả có mặt</option><option value="present">Có mặt</option><option value="absent">Vắng mặt</option><option value="late">Đi muộn</option><option value="excused">Có phép</option></select>
+            <select aria-label="Lọc trạng thái duyệt" value={approval} onChange={(event) => { setApproval(event.target.value); resetPageAndSelection(); }} className="h-9 rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700"><option value="">Tất cả trạng thái</option><option value="pending">Bản nháp</option><option value="approved">Chính thức</option><option value="rejected">Từ chối</option></select>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button variant="outline" aria-label="Lọc theo khoảng ngày" className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs font-semibold text-slate-700"><CalendarIcon className="mr-1.5 h-3.5 w-3.5" />{dateRange ? `${dateRange.start.toLocaleDateString('vi-VN')} - ${dateRange.end.toLocaleDateString('vi-VN')}` : 'Chọn khoảng ngày'}</Button></PopoverTrigger><PopoverContent className="w-auto border-none bg-transparent p-0 shadow-none" align="end"><CustomCalendar startDate={dateRange?.start || null} endDate={dateRange?.end || null} onRangeSelect={(start, end) => setDateRange({ start, end })} onCancel={() => { setDateRange(null); resetPageAndSelection(); setCalendarOpen(false); }} onConfirm={() => { resetPageAndSelection(); setCalendarOpen(false); }} /></PopoverContent></Popover>
+            <Button type="button" variant="outline" aria-label="Tải lại danh sách điểm danh" title="Tải lại" disabled={refreshing} onClick={() => void loadRows(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /></Button>
+          </div>
         </div>
       </div>
       {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}

@@ -34,4 +34,24 @@ describe('ActivitiesAttendancePage', () => {
     fireEvent.click(exportButton);
     expect(XLSX.writeFile).toHaveBeenCalledWith(expect.anything(), 'danh-sach-diem-danh.xlsx');
   });
+
+  it('refreshes in the background without flashing rows or duplicating requests', async () => {
+    let resolveRefresh!: (value: any) => void;
+    vi.mocked(activityAttendanceApi.getAll)
+      .mockResolvedValueOnce({ total: 1, items: [{ _id: 'a1', activity_id: { name: 'Activity' }, student_id: { full_name: 'Student' }, status: 'present', approval_status: 'pending' }] as any })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
+
+    render(<ActivitiesAttendancePage />);
+    await waitFor(() => expect(screen.getAllByText('Student').length).toBeGreaterThan(0));
+    const refresh = screen.getByRole('button', { name: 'Tải lại danh sách điểm danh' });
+    fireEvent.click(refresh);
+    fireEvent.click(refresh);
+
+    expect(refresh).toBeDisabled();
+    expect(screen.getAllByText('Student').length).toBeGreaterThan(0);
+    expect(activityAttendanceApi.getAll).toHaveBeenCalledTimes(2);
+
+    resolveRefresh({ total: 1, items: [{ _id: 'a1', activity_id: { name: 'Activity' }, student_id: { full_name: 'Student' }, status: 'present', approval_status: 'pending' }] });
+    await waitFor(() => expect(refresh).not.toBeDisabled());
+  });
 });
