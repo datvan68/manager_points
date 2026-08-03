@@ -47,6 +47,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { HeaderCustomMappings } from '@/providers/header-provider';
+import { controlBase, controlHover } from '@/components/ui/controlStyles';
 
 
 function ClassStudentsPageContent() {
@@ -691,15 +692,15 @@ function ClassStudentsPageContent() {
                                 {permissions.canImportStudent && (
                                 <button
                                     onClick={() => setIsImportPopupOpen(true)}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-bold text-[#64748B] border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] z-10 whitespace-nowrap cursor-pointer"
+                                    className={`${controlBase} ${controlHover} flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-semibold shadow-sm z-10 whitespace-nowrap cursor-pointer`}
                                 >
-                                    <Download className="w-4 h-4" /> Import
+                                    <Download className="w-4 h-4" /> Import sinh viên
                                 </button>
                                 )}
                                 {permissions.canCreateStudent && (
                                 <button
                                     onClick={() => { setEditingStudent(null); setIsStudentPopupOpen(true); }}
-                                    className="flex items-center gap-2 px-4 py-2 text-[12.5px] font-bold text-white bg-[#1A73E8] hover:bg-[#1557b0] rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] z-10 whitespace-nowrap border-none cursor-pointer"
+                                    className={`${controlBase} ${controlHover} flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-semibold shadow-sm z-10 whitespace-nowrap cursor-pointer`}
                                 >
                                     <Plus className="w-4 h-4" /> Thêm sinh viên
                                 </button>

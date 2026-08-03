@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ClassesService } from '../classes.service';
 import { Class } from '../schemas/class.schema';
+import { Student } from '../../students/schemas/student.schema';
+import { User } from '../../auth/schemas/user.schema';
 import * as xlsx from 'xlsx';
 
 jest.mock('xlsx', () => ({
@@ -79,6 +81,8 @@ describe('ClassesService', () => {
             },
           ),
         },
+        { provide: getModelToken(Student.name), useValue: {} },
+        { provide: getModelToken(User.name), useValue: {} },
       ],
     }).compile();
 

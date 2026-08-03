@@ -11,6 +11,8 @@ import { Class, ClassDocument } from './schemas/class.schema';
 import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { isStudent } from '../auth/utils/role.util';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { User, UserDocument } from '../auth/schemas/user.schema';
 import * as xlsx from 'xlsx';
 import {
   ImportClassConfirmDto,
@@ -21,6 +23,8 @@ import {
 export class ClassesService {
   constructor(
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
+    @InjectModel(Student.name) private studentModel: Model<StudentDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
   private normalizeClassPayload<T extends CreateClassDto | UpdateClassDto>(
@@ -134,11 +138,26 @@ export class ClassesService {
   }
 
   async remove(id: string): Promise<Class> {
-    const deletedClass = await this.classModel.findByIdAndDelete(id).exec();
-    if (!deletedClass) {
+    const existingClass = await this.classModel.findById(id).exec();
+    if (!existingClass) {
       throw new NotFoundException(`Class with ID ${id} not found`);
     }
-    return deletedClass;
+    const session = await this.classModel.db.startSession();
+    try {
+      let deletedClass: ClassDocument | null = null;
+      await session.withTransaction(async () => {
+        const students = await this.studentModel.find({ class_id: existingClass._id }).select('user_id').session(session).lean().exec();
+        const userIds = students
+          .map((student) => student.user_id)
+          .filter((userId): userId is Types.ObjectId => userId instanceof Types.ObjectId);
+        if (userIds.length) await this.userModel.deleteMany({ _id: { $in: userIds } }).session(session).exec();
+        await this.studentModel.deleteMany({ class_id: existingClass._id }).session(session).exec();
+        deletedClass = await this.classModel.findByIdAndDelete(existingClass._id).session(session).exec();
+      });
+      return deletedClass as unknown as Class;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async getClassSummary(requester?: any): Promise<any[]> {

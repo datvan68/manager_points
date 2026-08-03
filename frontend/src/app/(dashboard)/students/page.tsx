@@ -14,6 +14,7 @@ import {
   Edit,
   ChevronDown,
   ArrowLeft,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import ClassPopup from "@/components/popups/ClassPopup";
@@ -32,6 +33,7 @@ import { classApi, Class } from "@/api/class-api";
 import { studentApi, Student } from "@/api/student-api";
 import { addNotification } from "@/lib/notifications";
 import { HeaderCustomMappings } from "@/providers/header-provider";
+import { controlBase, controlHover } from "@/components/ui/controlStyles";
 
 const ENABLE_MOCK_SEED = process.env.NEXT_PUBLIC_ENABLE_MOCK_SEED === "true";
 
@@ -554,24 +556,24 @@ function StudentsPageContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="shrink-0 h-10 px-3 text-xs md:text-sm bg-white hover:bg-gray-50 border-gray-200"
+                          className={`${controlBase} ${controlHover} shrink-0 h-10 px-3 text-xs md:text-sm font-semibold shadow-sm`}
                           onClick={() => setIsImportClassPopupOpen(true)}
                         >
                           <span className="text-[18px] font-bold leading-none -mt-0.5 mr-1">
-                            +
+                            <Upload className="w-4 h-4" />
                           </span>
                           <span>Import lớp</span>
                         </Button>
                         <Button
                           size="sm"
-                          className="shrink-0 h-10 px-3 text-xs md:text-sm"
+                          className={`${controlBase} ${controlHover} shrink-0 h-10 px-3 text-xs md:text-sm font-semibold shadow-sm`}
                           onClick={() => {
                             setEditingClass({ departmentId: selectedDept });
                             setIsClassPopupOpen(true);
                           }}
                         >
                           <span className="text-[18px] font-bold leading-none -mt-0.5">
-                            +
+                            <Plus className="w-4 h-4" />
                           </span>
                           <span>Thêm lớp</span>
                         </Button>
@@ -957,7 +959,7 @@ function StudentsPageContent() {
         }}
         onConfirm={handleClassDeleteConfirm}
         title="Xác nhận xóa lớp học"
-        message={`Bạn có chắc chắn muốn xóa lớp học ${classToDelete?.name || ""}? Hành động này sẽ không thể hoàn tác.`}
+        message={`Bạn có chắc chắn muốn xóa lớp học ${classToDelete?.name || ""}? Tất cả sinh viên và tài khoản liên kết cũng sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.`}
         confirmLabel="Xóa lớp"
         cancelLabel="Hủy"
         variant="danger"
