@@ -177,7 +177,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
       >
         <input
           type="text"
-          className="w-full bg-transparent border-none outline-none text-sm text-[#1E293B] placeholder-slate-400 focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+          className="w-full bg-transparent border-none outline-none text-xs font-semibold text-[#1E293B] placeholder-slate-400 focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           placeholder={placeholder}
           value={open ? searchQuery : (selectedLabel || "")}
           onChange={(e) => {
@@ -367,7 +367,7 @@ export const SelectItem = React.forwardRef<any, any>(
       <div
         onClick={handleSelect}
         className={cn(
-          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-sm outline-none text-[#1E293B] hover:bg-white/60 transition-all whitespace-nowrap",
+          "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs font-medium outline-none text-[#1E293B] hover:bg-white/60 transition-all whitespace-nowrap",
           isSelected && "bg-blue-50/80 text-[#1A73E8] font-bold",
           className
         )}

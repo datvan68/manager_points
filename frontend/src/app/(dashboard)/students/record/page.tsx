@@ -25,6 +25,8 @@ import {
 
 import { CustomPagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Research } from "@/components/ui/Research";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -1661,23 +1663,23 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           </div>
         ) : (
           canAccessClassTab && (
-            <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl w-full sm:w-fit border border-white/70 backdrop-blur-md shrink-0 shadow-sm shadow-slate-300/40 justify-center">
+            <div className="flex items-center gap-0.5 p-0.5 bg-white/40 border border-white/70 rounded-xl shadow-xs shrink-0 h-9 justify-center">
               <button
                 onClick={() => setActiveSubTab("student")}
-                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
+                className={`px-3.5 h-8 text-xs font-semibold rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
                   activeSubTab === "student"
-                    ? "bg-[#E6E8EB] border-white/70 text-[#1E293B]"
-                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-white text-slate-800 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium"
                 }`}
               >
                 Tình hình HSSV
               </button>
               <button
                 onClick={() => setActiveSubTab("class")}
-                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
+                className={`px-3.5 h-8 text-xs font-semibold rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
                   activeSubTab === "class"
-                    ? "bg-[#E6E8EB] border-white/70 text-[#1E293B]"
-                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-white text-slate-800 shadow-xs font-bold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium"
                 }`}
               >
                 Tình hình lớp học
@@ -1691,33 +1693,30 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           {activeSubTab === "student" ? (
             <>
               {/* Desktop View: Full search input and normal filters/buttons */}
-              <div className="hidden lg:flex items-center gap-3 w-full lg:w-auto justify-end">
-                <div className="relative w-full sm:max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Tìm kiếm..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
-                  />
-                </div>
+              <div className="hidden lg:flex items-center gap-2.5 w-full lg:w-auto justify-end">
+                <Research
+                  placeholder="Tìm kiếm..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  containerClassName="w-full sm:max-w-[220px]"
+                />
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <Popover open={isCalendarDesktopOpen} onOpenChange={setIsCalendarDesktopOpen}>
                     <PopoverTrigger asChild>
-                      <button
-                        className={`flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                      <Button
+                        variant="outline"
+                        className={`flex items-center gap-1.5 px-3.5 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none cursor-pointer ${filterDateRange ? "border-[#1A73E8]/40 bg-[#1A73E8]/10 text-[#1A73E8]" : "text-slate-700"}`}
                       >
                         <CalendarIcon
-                          className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                          className={`w-3.5 h-3.5 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
                         />
                         <span>
                           {filterDateRange
                             ? `${format(filterDateRange.start, "dd/MM")} - ${format(filterDateRange.end, "dd/MM")}`
                             : "Chọn khoảng ngày"}
                         </span>
-                      </button>
+                      </Button>
                     </PopoverTrigger>
                     <PopoverContent
                       className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
@@ -1750,7 +1749,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           setCurrentPage(1);
                         }}
                       >
-                        <SelectTrigger className="h-8.5 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
+                        <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 text-slate-700 hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-xs">
                           <SelectValue placeholder="Tất cả các lớp" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1766,23 +1765,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   )}
 
                   {ghiNhanAccess.configRecord && (
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={() => setIsGlobalConfigModalOpen(true)}
-                      className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                      className="flex items-center justify-center h-9 w-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl text-slate-700 hover:text-rose-600 shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none p-0"
                       title="Cấu hình tiêu chí vắng mặt"
                     >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                      <Settings className="w-3.5 h-3.5" />
+                    </Button>
                   )}
 
                   {ghiNhanAccess.createStudentRecord && (
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={handleCreate}
-                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus size={13} />
                       <span>Thêm ghi nhận</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -1910,36 +1911,33 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           ) : (
             <>
               {/* Desktop View: Full search input and normal filters/buttons */}
-              <div className="hidden lg:flex items-center gap-3 w-full lg:w-auto justify-end">
-                <div className="relative w-full sm:max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
-                    value={classSearchTerm}
-                    onChange={(e) => setClassSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
-                  />
-                </div>
+              <div className="hidden lg:flex items-center gap-2.5 w-full lg:w-auto justify-end">
+                <Research
+                  placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
+                  value={classSearchTerm}
+                  onChange={(e) => setClassSearchTerm(e.target.value)}
+                  containerClassName="w-full sm:max-w-[260px]"
+                />
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <Popover
                     open={isClassDateCalendarDesktopOpen}
                     onOpenChange={setIsClassDateCalendarDesktopOpen}
                   >
                     <PopoverTrigger asChild>
-                      <button
-                        className={`flex items-center gap-2 px-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
+                      <Button
+                        variant="outline"
+                        className={`flex items-center gap-1.5 px-3.5 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none cursor-pointer ${selectedReportDateRange ? "border-[#1A73E8]/40 bg-[#1A73E8]/10 text-[#1A73E8]" : "text-slate-700"}`}
                       >
                         <CalendarIcon
-                          className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
+                          className={`w-3.5 h-3.5 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
                         />
                         <span>
                           {selectedReportDateRange
                             ? `${format(selectedReportDateRange.start, "dd/MM")} - ${format(selectedReportDateRange.end, "dd/MM")}`
                             : "Chọn khoảng ngày"}
                         </span>
-                      </button>
+                      </Button>
                     </PopoverTrigger>
                     <PopoverContent
                       className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
@@ -1971,7 +1969,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         setClassCurrentPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-8.5 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-sm rounded-xl shadow-sm">
+                      <SelectTrigger className="h-9 bg-white/50 backdrop-blur-sm border border-white/80 text-slate-700 hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-xs">
                         <SelectValue placeholder="Tất cả các lớp" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1986,23 +1984,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </div>
 
                   {ghiNhanAccess.configRecord && (
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={() => setIsGlobalConfigModalOpen(true)}
-                      className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
+                      className="flex items-center justify-center h-9 w-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl text-slate-700 hover:text-rose-600 shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none p-0"
                       title="Cấu hình tiêu chí vắng mặt"
                     >
-                      <Settings className="w-4 h-4" />
-                    </button>
+                      <Settings className="w-3.5 h-3.5" />
+                    </Button>
                   )}
 
                   {ghiNhanAccess.createClassRecord && (
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={handleCreate}
-                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[#1A73E8] text-white text-sm font-semibold rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm whitespace-nowrap cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus size={13} />
                       <span>Thêm ghi nhận</span>
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
