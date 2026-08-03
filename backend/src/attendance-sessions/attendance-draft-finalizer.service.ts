@@ -29,7 +29,7 @@ export class AttendanceDraftFinalizerService {
           const record = await this.attendanceModel.findOneAndUpdate(
             { schedule_id: schedule._id, attendance_method: 'manual_class', approval_status: 'pending', status: { $in: ['present', 'late'] } },
             [{ $set: { approval_status: 'approved', approved_by: '$recorded_by', approved_at: '$$NOW' } }],
-            { sort: { recorded_at: 1 }, returnDocument: 'after' },
+            { sort: { recorded_at: 1 }, returnDocument: 'after', updatePipeline: true },
           ).lean().exec();
           if (!record) break;
           finalized += 1;
