@@ -80,6 +80,23 @@ export interface CreateDormRegistrationInput {
   doi_tuong_uu_tien?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
 }
 
+export interface PublicDormitorySemester {
+  semester_name: string;
+  ky_hoc: string;
+  nam_hoc: string;
+}
+
+export interface PublicDormitoryRegistrationInput {
+  ho_ten: string;
+  ma_sinh_vien?: string;
+  ngay_sinh: string;
+  gioi_tinh: 'Male' | 'Female' | 'Other';
+  so_dien_thoai: string;
+  loai_phong?: 'Thường' | 'Máy lạnh';
+  ghi_chu?: string;
+  qr_room_id?: string;
+}
+
 export interface UnclassifiedRegistration {
   _id: string;
   ma_dk_public: string;
@@ -511,6 +528,18 @@ export const dormitoryApi = {
 
   // ── Public (QR) ──
   public: {
+    async getActiveSemester(): Promise<PublicDormitorySemester> {
+      const res = await httpClient(`${API_BASE}/dormitory/public/semester`);
+      return handleResponse(res);
+    },
+    async register(dto: PublicDormitoryRegistrationInput): Promise<{ success: boolean; ma_dk?: string; code?: string; message: string }> {
+      const res = await httpClient(`${API_BASE}/dormitory/public/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
     async getRoomByQr(qrId: string): Promise<any> {
       const res = await fetch(`${API_BASE}/dormitory/public/room/${qrId}`);
       return handleResponse(res);

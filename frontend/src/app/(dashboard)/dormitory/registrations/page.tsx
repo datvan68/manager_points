@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, Plus, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
-import { Building, CreateDormRegistrationInput, dormitoryApi, DormRegistration } from '@/api/dormitory-api';
+import { Calendar, Check, Plus, QrCode, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
+import QRCodeLib from 'qrcode';
+import { CreateDormRegistrationInput, dormitoryApi, DormRegistration } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -19,6 +20,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 
 const pageSizeOptions = [20, 40, 50, 100];
+export const PUBLIC_REGISTRATION_PATH = '/public/dormitory/register';
+export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\/$/, '')}${PUBLIC_REGISTRATION_PATH}`;
 const statusColors: Record<string, string> = {
   'Chờ duyệt': 'bg-amber-100 text-amber-700', 'Đã duyệt': 'bg-green-100 text-green-700', 'Từ chối': 'bg-red-100 text-red-700',
 };
@@ -39,13 +42,11 @@ type CreateForm = ActiveSemesterValues & {
   ngay_sinh: string;
   gioi_tinh: '' | 'Male' | 'Female' | 'Other';
   so_dien_thoai: string;
-  doi_tuong_uu_tien: '' | 'Xa nhà' | 'Khó khăn';
   loai_phong: 'Thường' | 'Máy lạnh';
-  building_id: string;
   ghi_chu: string;
 };
 
-const emptyCreateForm = (): CreateForm => ({ ky_hoc: '', nam_hoc: '', ngay_sinh: '', gioi_tinh: '', so_dien_thoai: '', doi_tuong_uu_tien: '', loai_phong: 'Thường', building_id: '', ghi_chu: '' });
+const emptyCreateForm = (): CreateForm => ({ ky_hoc: '', nam_hoc: '', ngay_sinh: '', gioi_tinh: '', so_dien_thoai: '', loai_phong: 'Thường', ghi_chu: '' });
 const dateInputValue = (value?: string | Date) => {
   if (!value) return '';
   const date = new Date(value);
@@ -61,6 +62,7 @@ const dateLabel = (value: string) => {
 export default function RegistrationsPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('DORM_REG_CREATE');
+  const canView = hasPermission('DORM_REG_VIEW');
   const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState(''); const [source, setSource] = useState('');
@@ -70,9 +72,16 @@ export default function RegistrationsPage() {
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
   const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false); const [activeSemesterName, setActiveSemesterName] = useState(''); const [calendarOpen, setCalendarOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
-  const [buildingOptions, setBuildingOptions] = useState<Building[]>([]);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
+
+  useEffect(() => {
+    if (!qrOpen) return;
+    const url = getPublicRegistrationUrl(window.location.origin);
+    setQrError('');
+    void QRCodeLib.toDataURL(url, { errorCorrectionLevel: 'H', type: 'image/png', width: 320, margin: 3, color: { dark: '#000000', light: '#FFFFFF' } }).then(setQrDataUrl).catch(() => { setQrDataUrl(''); setQrError('Không thể tạo mã QR.'); });
+  }, [qrOpen]);
 
   useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => {
@@ -82,10 +91,6 @@ export default function RegistrationsPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [createOpen, studentSearch, student]);
-  useEffect(() => {
-    if (!createOpen || buildingOptions.length) return;
-    void dormitoryApi.buildings.getAll({ limit: 100 }).then(result => setBuildingOptions(result.data || [])).catch(() => setBuildingOptions([]));
-  }, [createOpen, buildingOptions.length]);
   useEffect(() => {
     if (!createOpen) return;
     let cancelled = false;
@@ -102,8 +107,8 @@ export default function RegistrationsPage() {
     if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
     if (!createForm.gioi_tinh || !createForm.so_dien_thoai.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.so_dien_thoai.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim(), doi_tuong_uu_tien: createForm.doi_tuong_uu_tien || undefined };
-    const nguyen_vong = { loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', building_id: createForm.building_id || undefined, ghi_chu: createForm.ghi_chu || undefined };
+    const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim() };
+    const nguyen_vong = { loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', ghi_chu: createForm.ghi_chu || undefined };
     if (Object.values(nguyen_vong).some(Boolean)) payload.nguyen_vong = nguyen_vong;
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
   };
@@ -171,6 +176,7 @@ export default function RegistrationsPage() {
               <SelectItem value="PUBLIC">QR</SelectItem>
             </SelectContent>
           </Select>
+          {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
           {canCreate && <Button type="button" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl px-3 text-xs"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
           <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>
         </div>
@@ -180,8 +186,15 @@ export default function RegistrationsPage() {
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
     <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<button type="button" onClick={() => void bulkApprove()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><Check size={14} /> Duyệt</button>} />
     {rejectId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectId(null)}><div role="dialog" aria-labelledby="reject-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}><h2 id="reject-title" className="mb-4 text-lg font-bold text-gray-800">Từ chối đơn đăng ký</h2><textarea aria-label="Lý do từ chối" placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="mb-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} /><div className="flex gap-3"><button onClick={() => setRejectId(null)} className="flex-1 rounded-lg border px-4 py-2 text-sm">Hủy</button><button onClick={() => void reject()} disabled={!rejectReason} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Từ chối</button></div></div></div>}
+    <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 font-sans shadow-2xl">
+        <DialogHeader className="border-b border-white/60 pb-2"><DialogTitle className="flex items-center gap-2 text-sm font-bold text-[#1E293B]"><QrCode className="h-4 w-4 text-blue-600" />QR đăng ký KTX</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2 text-center"><p className="text-xs text-slate-600">Quét mã để mở trang đăng ký KTX công khai</p>{qrDataUrl && <img src={qrDataUrl} alt="QR mở trang đăng ký KTX" className="mx-auto h-64 w-64 rounded-lg bg-white p-2" />}{qrError && <p role="alert" className="text-sm text-red-600">{qrError}</p>}<p className="break-all rounded-xl border border-white/80 bg-white/60 px-3 py-2 text-[11px] text-slate-600">{typeof window !== 'undefined' ? getPublicRegistrationUrl(window.location.origin) : PUBLIC_REGISTRATION_PATH}</p></div>
+        <DialogFooter className="border-t border-white/60 pt-2"><Button type="button" variant="outline" onClick={() => setQrOpen(false)}>Đóng</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl bg-white/45 p-6 shadow-sm shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">
           <DialogTitle className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-wider text-[#1E293B]">
             <span>Thêm sinh viên đăng ký KTX</span>
@@ -191,7 +204,7 @@ export default function RegistrationsPage() {
         </DialogHeader>
         <form onSubmit={submitCreate} className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
-            <section className="space-y-4 rounded-2xl border border-white/70 bg-white/35 p-4 shadow-sm">
+            <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
               <div className="relative">
                 <Input label="Sinh viên" required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm theo mã hoặc họ tên" autoComplete="off" />
                 {studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">{studentOptions.map(item => <Button variant="ghost" type="button" key={item._id} onClick={() => selectStudent(item)} className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></Button>)}</div>}
@@ -223,12 +236,8 @@ export default function RegistrationsPage() {
               </div>
               <Input label="Số điện thoại" required type="tel" value={createForm.so_dien_thoai} onChange={e => setCreateForm(f => ({ ...f, so_dien_thoai: e.target.value }))} placeholder="Nhập số điện thoại" />
             </section>
-            <section className="space-y-4 rounded-2xl border border-white/70 bg-white/35 p-4 shadow-sm">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Đối tượng ưu tiên</label><Select value={createForm.doi_tuong_uu_tien || 'NONE'} onValueChange={value => setCreateForm(f => ({ ...f, doi_tuong_uu_tien: value === 'NONE' ? '' : value as CreateForm['doi_tuong_uu_tien'] }))}><SelectTrigger aria-label="Đối tượng ưu tiên" className="w-full"><SelectValue placeholder="Không" /></SelectTrigger><SelectContent><SelectItem value="NONE">Không</SelectItem><SelectItem value="Xa nhà">Xa nhà</SelectItem><SelectItem value="Khó khăn">Khó khăn</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.loai_phong} disabled={createForm.gioi_tinh !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, loai_phong: value as CreateForm['loai_phong'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
-              </div>
-              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Tòa nhà</label><Select value={createForm.building_id || 'NONE'} onValueChange={value => setCreateForm(f => ({ ...f, building_id: value === 'NONE' ? '' : value }))}><SelectTrigger aria-label="Tòa nhà" className="w-full"><SelectValue placeholder="Không chọn" /></SelectTrigger><SelectContent><SelectItem value="NONE">Không chọn</SelectItem>{buildingOptions.map(building => <SelectItem key={building._id} value={building._id}>{building.ma_toa_nha} — {building.ten}</SelectItem>)}</SelectContent></Select></div>
+            <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
+              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.loai_phong} disabled={createForm.gioi_tinh !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, loai_phong: value as CreateForm['loai_phong'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
               <Input label="Ghi chú" multiline rows={3} value={createForm.ghi_chu} onChange={e => setCreateForm(f => ({ ...f, ghi_chu: e.target.value }))} />
             </section>
           </div>

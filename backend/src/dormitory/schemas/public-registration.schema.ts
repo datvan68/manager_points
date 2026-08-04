@@ -24,6 +24,12 @@ export class PublicRegistration {
   @Prop()
   ma_sinh_vien: string;
 
+  @Prop({ required: true })
+  ngay_sinh: string;
+
+  @Prop({ required: true, enum: ['Male', 'Female', 'Other'] })
+  gioi_tinh: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room' })
   room_id: Types.ObjectId;
 
@@ -33,7 +39,7 @@ export class PublicRegistration {
   @Prop()
   ten_toa_nha: string;
 
-  @Prop()
+  @Prop({ enum: ['Thường', 'Máy lạnh'], default: 'Thường' })
   loai_phong: string;
 
   @Prop({ default: () => {

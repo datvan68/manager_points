@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsEmail,
   IsEnum,
+  IsDateString,
 } from 'class-validator';
 
 /**
@@ -27,9 +28,21 @@ export class PublicRegisterDto {
   @IsString()
   ma_sinh_vien?: string;
 
-  @IsNotEmpty({ message: 'Thiếu mã phòng QR' })
+  @IsOptional()
   @IsString()
-  qr_room_id: string;
+  qr_room_id?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Ngày sinh không hợp lệ' })
+  ngay_sinh?: string;
+
+  @IsOptional()
+  @IsEnum(['Male', 'Female', 'Other'], { message: 'Giới tính không hợp lệ' })
+  gioi_tinh?: 'Male' | 'Female' | 'Other';
+
+  @IsOptional()
+  @IsEnum(['Thường', 'Máy lạnh'], { message: 'Loại phòng không hợp lệ' })
+  loai_phong?: 'Thường' | 'Máy lạnh';
 
   @IsOptional()
   @IsString()

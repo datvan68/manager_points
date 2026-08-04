@@ -51,9 +51,11 @@ import {
   Student,
   StudentSchema,
 } from '../students/schemas/student.schema';
+import { SemestersModule } from '../semesters/semesters.module';
 
 @Module({
   imports: [
+    SemestersModule,
     MongooseModule.forFeature([
       { name: Building.name, schema: BuildingSchema },
       { name: Room.name, schema: RoomSchema },

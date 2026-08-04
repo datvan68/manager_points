@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapActiveSemester } from './page';
+import { getPublicRegistrationUrl, mapActiveSemester } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -17,5 +17,11 @@ describe('KTX registration active semester mapping', () => {
     expect(() => mapActiveSemester([
       { _id: 'semester-1', semester_name: 'Học kỳ hiện tại', start_date: '', end_date: '', status: 'active' },
     ])).toThrow('Không đọc được định dạng');
+  });
+});
+
+describe('KTX public registration QR destination', () => {
+  it('uses the same-origin public registration route', () => {
+    expect(getPublicRegistrationUrl('https://ktx.example.edu/')).toBe('https://ktx.example.edu/public/dormitory/register');
   });
 });
