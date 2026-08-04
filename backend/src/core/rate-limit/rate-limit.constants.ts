@@ -11,5 +11,5 @@ export function isMemoryRateLimitStore(): boolean {
 }
 
 export function isProductionRateLimitStore(): boolean {
-  return process.env.NODE_ENV === 'production' && !isMemoryRateLimitStore();
+  return process.env.NODE_ENV === 'production';
 }
