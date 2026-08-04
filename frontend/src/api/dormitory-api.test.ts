@@ -17,8 +17,11 @@ describe('dormitoryApi.registrations.create', () => {
       student_id: '507f1f77bcf86cd799439011',
       ky_hoc: '1',
       nam_hoc: '2026',
-      doi_tuong_uu_tien: 'Không',
-      nguyen_vong: { loai_phong: '4 người', ghi_chu: 'Gần khu học tập' },
+      ngay_sinh: '2003-01-15',
+      gioi_tinh: 'Female',
+      so_dien_thoai: '0912345678',
+      doi_tuong_uu_tien: 'Khó khăn',
+      nguyen_vong: { loai_phong: 'Máy lạnh', ghi_chu: 'Gần khu học tập' },
     });
 
     const [, options] = mockFetch.mock.calls[0];
@@ -27,8 +30,11 @@ describe('dormitoryApi.registrations.create', () => {
       student_id: '507f1f77bcf86cd799439011',
       ky_hoc: '1',
       nam_hoc: '2026',
-      doi_tuong_uu_tien: 'Không',
-      nguyen_vong: { loai_phong: '4 người', ghi_chu: 'Gần khu học tập' },
+      ngay_sinh: '2003-01-15',
+      gioi_tinh: 'Female',
+      so_dien_thoai: '0912345678',
+      doi_tuong_uu_tien: 'Khó khăn',
+      nguyen_vong: { loai_phong: 'Máy lạnh', ghi_chu: 'Gần khu học tập' },
     });
   });
 });

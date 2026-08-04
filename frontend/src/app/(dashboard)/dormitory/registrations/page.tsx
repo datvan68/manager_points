@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Plus, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
 import { Building, CreateDormRegistrationInput, dormitoryApi, DormRegistration } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
+import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Research } from '@/components/ui/Research';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const pageSizeOptions = [20, 40, 50, 100];
@@ -20,6 +22,33 @@ const statusColors: Record<string, string> = {
 };
 const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.ho_ten || (r as any).ho_ten || '—';
 const studentCode = (r: DormRegistration) => r.student_id?.student_code || r.public_registration?.ma_sinh_vien || (r as any).ma_sinh_vien || 'Chưa có mã SV';
+
+export type ActiveSemesterValues = { ky_hoc: string; nam_hoc: string };
+
+export function mapActiveSemester(semesters: Semester[]): ActiveSemesterValues {
+  const active = semesters.filter(semester => semester.status === 'active');
+  if (active.length !== 1) throw new Error(active.length ? 'Có nhiều học kỳ đang active. Vui lòng kiểm tra cấu hình học kỳ.' : 'Chưa có học kỳ active. Vui lòng cấu hình học kỳ trước khi đăng ký.');
+  const match = active[0].semester_name.trim().match(/^(HK[12]|Hè|[12])\s*-\s*(\d{4})\s*-\s*(\d{4})$/i);
+  if (!match) throw new Error(`Không đọc được định dạng học kỳ active: ${active[0].semester_name}`);
+  return { ky_hoc: match[1].toUpperCase() === 'HÈ' ? 'Hè' : match[1].toUpperCase(), nam_hoc: `${match[2]}-${match[3]}` };
+}
+
+type CreateForm = ActiveSemesterValues & {
+  ngay_sinh: string;
+  gioi_tinh: '' | 'Male' | 'Female' | 'Other';
+  so_dien_thoai: string;
+  doi_tuong_uu_tien: '' | 'Xa nhà' | 'Khó khăn';
+  loai_phong: 'Thường' | 'Máy lạnh';
+  building_id: string;
+  ghi_chu: string;
+};
+
+const emptyCreateForm = (): CreateForm => ({ ky_hoc: '', nam_hoc: '', ngay_sinh: '', gioi_tinh: '', so_dien_thoai: '', doi_tuong_uu_tien: '', loai_phong: 'Thường', building_id: '', ghi_chu: '' });
+const dateInputValue = (value?: string | Date) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+};
 
 export default function RegistrationsPage() {
   const { hasPermission } = useAuth();
@@ -32,10 +61,10 @@ export default function RegistrationsPage() {
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
-  const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState('');
+  const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false);
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
   const [buildingOptions, setBuildingOptions] = useState<Building[]>([]);
-  const [createForm, setCreateForm] = useState({ ky_hoc: '1', nam_hoc: new Date().getFullYear().toString(), doi_tuong_uu_tien: 'Không', loai_phong: '', building_id: '', ghi_chu: '' });
+  const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
 
   useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => {
@@ -49,12 +78,24 @@ export default function RegistrationsPage() {
     if (!createOpen || buildingOptions.length) return;
     void dormitoryApi.buildings.getAll({ limit: 100 }).then(result => setBuildingOptions(result.data || [])).catch(() => setBuildingOptions([]));
   }, [createOpen, buildingOptions.length]);
-  const resetCreate = () => { setStudent(null); setStudentSearch(''); setStudentOptions([]); setCreateError(''); setCreateForm({ ky_hoc: '1', nam_hoc: new Date().getFullYear().toString(), doi_tuong_uu_tien: 'Không', loai_phong: '', building_id: '', ghi_chu: '' }); };
+  useEffect(() => {
+    if (!createOpen) return;
+    let cancelled = false;
+    setSemesterLoading(true); setSemesterError('');
+    void semesterApi.getSemesters().then(items => { if (!cancelled) { const values = mapActiveSemester(items); setCreateForm(current => ({ ...current, ...values })); } }).catch((err: any) => { if (!cancelled) { setSemesterError(err?.message || 'Không thể tải học kỳ active.'); setCreateForm(current => ({ ...current, ky_hoc: '', nam_hoc: '' })); } }).finally(() => { if (!cancelled) setSemesterLoading(false); });
+    return () => { cancelled = true; };
+  }, [createOpen]);
+  const resetCreate = () => { setStudent(null); setStudentSearch(''); setStudentOptions([]); setCreateError(''); setSemesterError(''); setCreateForm(emptyCreateForm()); };
+  const selectStudent = (item: Student) => { setStudent(item); setStudentSearch(''); setStudentOptions([]); setCreateForm(current => ({ ...current, ngay_sinh: dateInputValue(item.date_bir), gioi_tinh: item.sex, so_dien_thoai: (item as Student & { phone_number?: string }).phone_number || '' })); };
   const submitCreate = async (event: React.FormEvent) => {
     event.preventDefault(); setCreateError('');
-    if (!student || !createForm.ky_hoc || !createForm.nam_hoc) { setCreateError('Vui lòng chọn sinh viên và nhập đủ kỳ học, năm học.'); return; }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, doi_tuong_uu_tien: createForm.doi_tuong_uu_tien as CreateDormRegistrationInput['doi_tuong_uu_tien'] };
-    const nguyen_vong = { loai_phong: createForm.loai_phong || undefined, building_id: createForm.building_id || undefined, ghi_chu: createForm.ghi_chu || undefined };
+    const birthDate = createForm.ngay_sinh ? new Date(`${createForm.ngay_sinh}T00:00:00`) : null;
+    if (!student || !createForm.ky_hoc || !createForm.nam_hoc || semesterError || semesterLoading) { setCreateError('Vui lòng chọn sinh viên và chờ học kỳ active được tải thành công.'); return; }
+    if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
+    if (!createForm.gioi_tinh || !createForm.so_dien_thoai.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
+    if (!/^[0-9+().\s-]{8,20}$/.test(createForm.so_dien_thoai.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
+    const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim(), doi_tuong_uu_tien: createForm.doi_tuong_uu_tien || undefined };
+    const nguyen_vong = { loai_phong: createForm.loai_phong, building_id: createForm.building_id || undefined, ghi_chu: createForm.ghi_chu || undefined };
     if (Object.values(nguyen_vong).some(Boolean)) payload.nguyen_vong = nguyen_vong;
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
   };
@@ -135,11 +176,27 @@ export default function RegistrationsPage() {
       <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-xl">
         <DialogHeader><DialogTitle>Thêm sinh viên đăng ký KTX</DialogTitle><DialogDescription>Chọn sinh viên hiện có và nhập thông tin đăng ký.</DialogDescription></DialogHeader>
         <form onSubmit={submitCreate} className="space-y-4">
-          <div className="relative"><label htmlFor="registration-student" className="mb-1 block text-sm font-medium">Sinh viên <span className="text-red-500">*</span></label><input id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm theo mã hoặc họ tên" className="w-full rounded-lg border px-3 py-2 text-sm" autoComplete="off" />{studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg">{studentOptions.map(item => <button type="button" key={item._id} onClick={() => { setStudent(item); setStudentSearch(''); setStudentOptions([]); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></button>)}</div>}</div>
-          <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Kỳ học <select value={createForm.ky_hoc} onChange={e => setCreateForm(f => ({ ...f, ky_hoc: e.target.value }))} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal"><option value="1">1</option><option value="2">2</option><option value="Hè">Hè</option></select></label><label className="text-sm font-medium">Năm học <input required value={createForm.nam_hoc} onChange={e => setCreateForm(f => ({ ...f, nam_hoc: e.target.value }))} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" /></label></div>
-          <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Đối tượng ưu tiên<select value={createForm.doi_tuong_uu_tien} onChange={e => setCreateForm(f => ({ ...f, doi_tuong_uu_tien: e.target.value }))} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal"><option>Không</option><option>Chính sách</option><option>Xa nhà</option><option>Học lực giỏi</option></select></label><label className="text-sm font-medium">Loại phòng<input value={createForm.loai_phong} onChange={e => setCreateForm(f => ({ ...f, loai_phong: e.target.value }))} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" /></label></div>
-          <label className="block text-sm font-medium">Tòa nhà<select value={createForm.building_id} onChange={e => setCreateForm(f => ({ ...f, building_id: e.target.value }))} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal"><option value="">Không chọn</option>{buildingOptions.map(building => <option key={building._id} value={building._id}>{building.ma_toa_nha} — {building.ten}</option>)}</select></label><label className="block text-sm font-medium">Ghi chú<textarea value={createForm.ghi_chu} onChange={e => setCreateForm(f => ({ ...f, ghi_chu: e.target.value }))} rows={2} className="mt-1 w-full rounded-lg border px-3 py-2 font-normal" /></label>
-          {createError && <p role="alert" className="text-sm text-red-600">{createError}</p>}<DialogFooter><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
+          <div className="relative">
+            <Input label="Sinh viên" required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm theo mã hoặc họ tên" autoComplete="off" />
+            {studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">{studentOptions.map(item => <Button variant="ghost" type="button" key={item._id} onClick={() => selectStudent(item)} className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></Button>)}</div>}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Ngày sinh" required type="date" value={createForm.ngay_sinh} onChange={e => setCreateForm(f => ({ ...f, ngay_sinh: e.target.value }))} />
+            <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={createForm.gioi_tinh} onValueChange={value => setCreateForm(f => ({ ...f, gioi_tinh: value as CreateForm['gioi_tinh'] }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+          </div>
+          <Input label="Số điện thoại" required type="tel" value={createForm.so_dien_thoai} onChange={e => setCreateForm(f => ({ ...f, so_dien_thoai: e.target.value }))} placeholder="Nhập số điện thoại" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Học kỳ active" value={createForm.ky_hoc} readOnly disabled placeholder={semesterLoading ? 'Đang tải...' : 'Chưa có dữ liệu'} />
+            <Input label="Năm học active" value={createForm.nam_hoc} readOnly disabled placeholder={semesterLoading ? 'Đang tải...' : 'Chưa có dữ liệu'} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Đối tượng ưu tiên</label><Select value={createForm.doi_tuong_uu_tien || 'NONE'} onValueChange={value => setCreateForm(f => ({ ...f, doi_tuong_uu_tien: value === 'NONE' ? '' : value as CreateForm['doi_tuong_uu_tien'] }))}><SelectTrigger aria-label="Đối tượng ưu tiên" className="w-full"><SelectValue placeholder="Không" /></SelectTrigger><SelectContent><SelectItem value="NONE">Không</SelectItem><SelectItem value="Xa nhà">Xa nhà</SelectItem><SelectItem value="Khó khăn">Khó khăn</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.loai_phong} onValueChange={value => setCreateForm(f => ({ ...f, loai_phong: value as CreateForm['loai_phong'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
+          </div>
+          <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Tòa nhà</label><Select value={createForm.building_id || 'NONE'} onValueChange={value => setCreateForm(f => ({ ...f, building_id: value === 'NONE' ? '' : value }))}><SelectTrigger aria-label="Tòa nhà" className="w-full"><SelectValue placeholder="Không chọn" /></SelectTrigger><SelectContent><SelectItem value="NONE">Không chọn</SelectItem>{buildingOptions.map(building => <SelectItem key={building._id} value={building._id}>{building.ma_toa_nha} — {building.ten}</SelectItem>)}</SelectContent></Select></div>
+          <Input label="Ghi chú" multiline rows={2} value={createForm.ghi_chu} onChange={e => setCreateForm(f => ({ ...f, ghi_chu: e.target.value }))} />
+          {(createError || semesterError) && <p role="alert" className="text-sm text-red-600">{createError || semesterError}</p>}
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.ky_hoc}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

@@ -17,6 +17,15 @@ export class Registration {
   @Prop({ required: true })
   nam_hoc: string;
 
+  @Prop({ type: Date })
+  ngay_sinh: Date;
+
+  @Prop({ enum: ['Male', 'Female', 'Other'] })
+  gioi_tinh: 'Male' | 'Female' | 'Other';
+
+  @Prop({ trim: true })
+  so_dien_thoai: string;
+
   @Prop({
     type: {
       loai_phong: { type: String },
@@ -32,7 +41,7 @@ export class Registration {
   };
 
   @Prop({
-    enum: ['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Không'],
+    enum: ['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Khó khăn', 'Không'],
     default: 'Không',
   })
   doi_tuong_uu_tien: string;

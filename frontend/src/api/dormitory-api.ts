@@ -60,18 +60,24 @@ export interface DormRegistration {
   source?: 'FORMAL' | 'PUBLIC';
   classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED';
   public_registration?: any;
+  ngay_sinh?: string;
+  gioi_tinh?: 'Male' | 'Female' | 'Other';
+  so_dien_thoai?: string;
 }
 
 export interface CreateDormRegistrationInput {
   student_id: string;
   ky_hoc: string;
   nam_hoc: string;
+  ngay_sinh: string;
+  gioi_tinh: 'Male' | 'Female' | 'Other';
+  so_dien_thoai: string;
   nguyen_vong?: {
     loai_phong?: string;
     building_id?: string;
     ghi_chu?: string;
   };
-  doi_tuong_uu_tien?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Không';
+  doi_tuong_uu_tien?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
 }
 
 export interface UnclassifiedRegistration {
