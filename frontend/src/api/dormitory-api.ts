@@ -57,6 +57,26 @@ export interface DormRegistration {
   nguoi_duyet_id?: any;
   ngay_duyet?: string;
   createdAt?: string;
+  source?: 'FORMAL' | 'PUBLIC';
+  classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED';
+  public_registration?: any;
+}
+
+export interface UnclassifiedRegistration {
+  _id: string;
+  ma_dk_public: string;
+  ho_ten: string;
+  so_dien_thoai: string;
+  email?: string;
+  ma_sinh_vien?: string;
+  ma_phong?: string;
+  ten_toa_nha?: string;
+  loai_phong?: string;
+  ky_hoc?: string;
+  nam_hoc?: string;
+  trang_thai: string;
+  source: 'PUBLIC';
+  classification_status: 'UNCLASSIFIED';
 }
 
 export interface DormContract {
@@ -259,6 +279,10 @@ export const dormitoryApi = {
   registrations: {
     async getAll(params?: QueryParams): Promise<PaginatedResponse<DormRegistration>> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations${buildQuery(params)}`);
+      return handleResponse(res);
+    },
+    async getUnclassified(params?: QueryParams): Promise<PaginatedResponse<UnclassifiedRegistration>> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/unclassified${buildQuery(params)}`);
       return handleResponse(res);
     },
     async getOne(id: string): Promise<DormRegistration> {

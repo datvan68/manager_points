@@ -70,6 +70,12 @@ export class PublicRegistration {
 
   @Prop()
   nguon: string; // 'QR_SCAN'
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', index: true })
+  linked_student_id?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Registration', index: true })
+  linked_registration_id?: Types.ObjectId;
 }
 
 export const PublicRegistrationSchema =

@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 
 const dormitoryTabs = [
-  { href: '/dormitory', label: 'Tổng quan', icon: LayoutDashboard },
-  { href: '/dormitory/buildings', label: 'Khu vực & Phòng', icon: Building2 },
   { href: '/dormitory/registrations', label: 'Đăng ký', icon: ClipboardList },
+  { href: '/dormitory/overview', label: 'Tổng quan', icon: LayoutDashboard },
+  { href: '/dormitory/buildings', label: 'Khu vực & Phòng', icon: Building2 },
   { href: '/dormitory/contracts', label: 'Hợp đồng', icon: FileText },
   { href: '/dormitory/invoices', label: 'Hóa đơn', icon: Receipt },
   { href: '/dormitory/violations', label: 'Vi phạm', icon: AlertTriangle },
@@ -40,9 +40,7 @@ export default function DormitoryLayout({
         <nav className="flex gap-1 overflow-x-auto py-2 scrollbar-hide">
           {dormitoryTabs.map((tab) => {
             const isActive =
-              tab.href === '/dormitory'
-                ? pathname === '/dormitory'
-                : pathname?.startsWith(tab.href);
+              pathname?.startsWith(tab.href);
             const Icon = tab.icon;
             return (
               <Link

@@ -20,6 +20,7 @@ export default function RegistrationsPage() {
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [meta, setMeta] = useState<any>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     try {
@@ -27,6 +28,7 @@ export default function RegistrationsPage() {
       const res = await dormitoryApi.registrations.getAll({
         trang_thai: filterStatus || undefined,
         search: search || undefined,
+        page,
         limit: 50,
       });
       setRegistrations(res.data);
@@ -36,7 +38,9 @@ export default function RegistrationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, search]);
+  }, [filterStatus, search, page]);
+
+  useEffect(() => { setPage(1); }, [filterStatus, search]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -122,7 +126,7 @@ export default function RegistrationsPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -158,17 +162,18 @@ export default function RegistrationsPage() {
                   </td>
                   <td className="p-3 font-mono text-xs">{reg.ma_dk}</td>
                   <td className="p-3">
-                    <div className="font-medium text-gray-800">{reg.student_id?.full_name || '—'}</div>
-                    <div className="text-xs text-gray-400">{reg.student_id?.student_code || ''}</div>
+                    <div className="font-medium text-gray-800">{reg.student_id?.full_name || reg.public_registration?.ho_ten || (reg as any).ho_ten || '—'}</div>
+                    <div className="text-xs text-gray-400">{reg.student_id?.student_code || reg.public_registration?.ma_sinh_vien || (reg as any).ma_sinh_vien || 'Chưa có mã SV'}</div>
                   </td>
                   <td className="p-3 text-gray-600">{reg.ky_hoc} / {reg.nam_hoc}</td>
                   <td className="p-3 text-gray-600 text-xs">{reg.doi_tuong_uu_tien}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[reg.trang_thai] || ''}`}>{reg.trang_thai}</span>
+                    <div className="flex flex-wrap gap-1"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[reg.trang_thai] || 'bg-gray-100 text-gray-600'}`}>{reg.trang_thai}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.source === 'PUBLIC' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{reg.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span></div>
+                    {reg.classification_status === 'UNCLASSIFIED' && <div className="text-xs text-amber-600 mt-1">Chưa phân lớp</div>}
                   </td>
                   <td className="p-3 text-gray-500 text-xs">{reg.createdAt ? new Date(reg.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
                   <td className="p-3 text-center">
-                    {reg.trang_thai === 'Chờ duyệt' && (
+                    {reg.source !== 'PUBLIC' && reg.trang_thai === 'Chờ duyệt' && (
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={() => handleApprove(reg._id)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600" title="Duyệt">
                           <Check size={16} />
@@ -184,9 +189,13 @@ export default function RegistrationsPage() {
             </tbody>
           </table>
         </div>
+        <div className="md:hidden divide-y divide-gray-100">
+          {loading ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="p-4 animate-pulse"><div className="h-4 w-2/3 bg-gray-100 rounded mb-2" /><div className="h-3 w-1/2 bg-gray-100 rounded" /></div>) : registrations.length === 0 ? <div className="p-8 text-center text-gray-400">Không có đơn đăng ký nào</div> : registrations.map(reg => <div key={reg._id} className="p-4 space-y-2"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs text-gray-500">{reg.ma_dk}</p><p className="font-medium text-gray-800">{reg.student_id?.full_name || reg.public_registration?.ho_ten || (reg as any).ho_ten || '—'}</p></div><span className={`px-2 py-0.5 rounded-full text-xs ${reg.source === 'PUBLIC' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{reg.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span></div><p className="text-xs text-gray-500">{reg.student_id?.student_code || reg.public_registration?.ma_sinh_vien || (reg as any).ma_sinh_vien || 'Chưa có mã SV'} · {reg.classification_status === 'UNCLASSIFIED' ? 'Chưa phân lớp' : reg.trang_thai}</p>{reg.source !== 'PUBLIC' && reg.trang_thai === 'Chờ duyệt' && <div className="flex gap-2 pt-1"><button onClick={() => handleApprove(reg._id)} className="px-3 py-1 rounded bg-green-50 text-green-700 text-xs">Duyệt</button><button onClick={() => setRejectId(reg._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 text-xs">Từ chối</button></div>}</div>)}
+        </div>
         {meta && (
-          <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
+          <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 flex items-center justify-between gap-3">
             Hiển thị {registrations.length} / {meta.total} đơn đăng ký
+            <div className="flex items-center gap-2"><button disabled={page <= 1} onClick={() => setPage(current => current - 1)} className="px-2 py-1 border rounded disabled:opacity-40">Trước</button><span>{page} / {meta.totalPages || 1}</span><button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(current => current + 1)} className="px-2 py-1 border rounded disabled:opacity-40">Sau</button></div>
           </div>
         )}
       </div>

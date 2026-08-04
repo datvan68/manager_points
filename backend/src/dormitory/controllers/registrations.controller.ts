@@ -58,6 +58,12 @@ export class RegistrationsController {
     });
   }
 
+  @Get('unclassified')
+  @UseGuards(checkPermission('DORM_REG_VIEW'))
+  findUnclassified(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
+    return this.registrationsService.findUnclassified({ page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {

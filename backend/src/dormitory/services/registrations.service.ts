@@ -18,6 +18,7 @@ import {
   BulkApproveRegistrationDto,
 } from '../dto/approve-registration.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
 
 @Injectable()
 export class RegistrationsService {
@@ -28,6 +29,8 @@ export class RegistrationsService {
     private invoiceModel: Model<InvoiceDocument>,
     @InjectModel(Contract.name)
     private contractModel: Model<ContractDocument>,
+    @InjectModel(PublicRegistration.name)
+    private publicRegModel: Model<PublicRegistrationDocument>,
   ) {}
 
   async create(dto: CreateRegistrationDto, user: any): Promise<Registration> {
@@ -81,34 +84,65 @@ export class RegistrationsService {
     page?: number;
     limit?: number;
   }) {
+    const search = query.search?.trim();
     const filter: any = {};
     if (query.trang_thai) filter.trang_thai = query.trang_thai;
     if (query.ky_hoc) filter.ky_hoc = query.ky_hoc;
     if (query.nam_hoc) filter.nam_hoc = query.nam_hoc;
-    if (query.search) {
-      filter.$or = [
-        { ma_dk: { $regex: query.search, $options: 'i' } },
-      ];
-    }
 
     const page = query.page || 1;
     const limit = query.limit || 50;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
+    const [formalData, publicData] = await Promise.all([
       this.registrationModel
         .find(filter)
-        .populate('student_id', 'student_code full_name')
+        .populate('student_id', 'student_code full_name class_id')
         .populate('nguoi_duyet_id', 'user_name')
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
         .exec(),
-      this.registrationModel.countDocuments(filter),
+      this.publicRegModel.find({
+        ...(query.trang_thai ? { trang_thai: query.trang_thai } : {}),
+        ...(search ? { $or: ['ma_dk_public', 'ho_ten', 'ma_sinh_vien', 'so_dien_thoai', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
+      }).sort({ createdAt: -1 }).lean(),
     ]);
 
+    const normalizedSearch = search?.toLocaleLowerCase();
+    const matches = (values: unknown[]) => !normalizedSearch || values.some(value => String(value ?? '').toLocaleLowerCase().includes(normalizedSearch));
+    const formalRows = formalData.filter((item: any) => matches([item.ma_dk, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
+      ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
+      student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
+    }));
+    const publicRows = publicData.filter((item: any) => !item.linked_student_id && !item.linked_registration_id && matches([item.ma_dk_public, item.ho_ten, item.ma_sinh_vien, item.so_dien_thoai, item.email])).map((item: any) => ({
+      ...item, _id: String(item._id), ma_dk: item.ma_dk_public, student_id: null, student_code: item.ma_sinh_vien || null, full_name: item.ho_ten, class_id: null,
+      source: 'PUBLIC', classification_status: item.ma_sinh_vien ? 'MISSING_CLASS' : 'UNCLASSIFIED',
+    }));
+    const data = [...formalRows, ...publicRows]
+      .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    const total = data.length;
+
     return {
-      data,
+      data: data.slice(skip, skip + limit),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async findUnclassified(query: { page?: number; limit?: number; search?: string }) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const filter: any = {
+      ma_sinh_vien: { $in: ['', null] },
+      linked_student_id: { $exists: false },
+      linked_registration_id: { $exists: false },
+    };
+    const search = query.search?.trim();
+    if (search) filter.$or = ['ma_dk_public', 'ho_ten', 'so_dien_thoai', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } }));
+    const [data, total] = await Promise.all([
+      this.publicRegModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      this.publicRegModel.countDocuments(filter),
+    ]);
+    return {
+      data: data.map((item: any) => ({ ...item, source: 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

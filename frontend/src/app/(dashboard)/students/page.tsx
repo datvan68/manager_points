@@ -34,6 +34,7 @@ import { studentApi, Student } from "@/api/student-api";
 import { addNotification } from "@/lib/notifications";
 import { HeaderCustomMappings } from "@/providers/header-provider";
 import { controlBase, controlHover } from "@/components/ui/controlStyles";
+import { dormitoryApi } from "@/api/dormitory-api";
 
 const ENABLE_MOCK_SEED = process.env.NEXT_PUBLIC_ENABLE_MOCK_SEED === "true";
 
@@ -88,6 +89,7 @@ function StudentsPageContent() {
   const [isCaoDangExpanded, setIsCaoDangExpanded] = useState(true);
   const [isTrungCapExpanded, setIsTrungCapExpanded] = useState(true);
   const [isMobileViewClasses, setIsMobileViewClasses] = useState(() => searchParams.get("view") === "classes");
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
 
   const classListScrollRef = useRef<HTMLDivElement | null>(null);
   const hasRestoredClassListScrollRef = useRef(false);
@@ -263,6 +265,7 @@ function StudentsPageContent() {
 
   useEffect(() => {
     fetchDepartments();
+    dormitoryApi.registrations.getUnclassified({ limit: 1 }).then((result) => setUnclassifiedCount(result.meta.total)).catch(() => setUnclassifiedCount(0));
   }, []);
 
   useEffect(() => {
@@ -781,6 +784,13 @@ function StudentsPageContent() {
                               className={`transition-transform duration-250 ${isTrungCapExpanded ? "" : "rotate-180"}`}
                             />
                           </button>
+                        </div>
+
+                        <div onClick={() => router.push('/students/unclassified')} className="group bg-amber-50/70 border border-amber-200 rounded-2xl p-5 flex flex-col gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer max-w-sm">
+                          <div className="flex items-center justify-between"><span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Chưa phân loại</span><Users size={18} className="text-amber-600" /></div>
+                          <h4 className="text-[18px] font-bold text-gray-800">Chưa phân lớp</h4>
+                          <p className="text-xs text-gray-500">Đăng ký KTX chưa liên kết sinh viên</p>
+                          <div className="pt-3 border-t border-amber-100 text-sm font-bold text-amber-700">{unclassifiedCount} học viên</div>
                         </div>
 
                         {isTrungCapExpanded && (
