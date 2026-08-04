@@ -1,219 +1,75 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { ClipboardList, Check, X, Search, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
 import { dormitoryApi, DormRegistration } from '@/api/dormitory-api';
 import { toast } from 'sonner';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import { CustomPagination } from '@/components/ui/pagination';
+import { Research } from '@/components/ui/Research';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const pageSizeOptions = [20, 40, 50, 100];
 const statusColors: Record<string, string> = {
-  'Chờ duyệt': 'bg-amber-100 text-amber-700',
-  'Đã duyệt': 'bg-green-100 text-green-700',
-  'Từ chối': 'bg-red-100 text-red-700',
+  'Chờ duyệt': 'bg-amber-100 text-amber-700', 'Đã duyệt': 'bg-green-100 text-green-700', 'Từ chối': 'bg-red-100 text-red-700',
 };
+const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.ho_ten || (r as any).ho_ten || '—';
+const studentCode = (r: DormRegistration) => r.student_id?.student_code || r.public_registration?.ma_sinh_vien || (r as any).ma_sinh_vien || 'Chưa có mã SV';
 
 export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('');
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [rejectId, setRejectId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [meta, setMeta] = useState<any>(null);
-  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  const [filterStatus, setFilterStatus] = useState(''); const [source, setSource] = useState('');
+  const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
+  const [selected, setSelected] = useState<string[]>([]); const [rejectId, setRejectId] = useState<string | null>(null); const [rejectReason, setRejectReason] = useState('');
+  const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
 
-  const load = useCallback(async () => {
+  useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
+  const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
+  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ trang_thai: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [filterStatus, source, search, page, pageSize]);
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
+  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [filterStatus, source, search, pageSize]);
+  const loadMoreMobile = useCallback(async () => {
+    if (mobileLoadingMore || !mobileHasMoreRef.current) return;
+    setMobileLoadingMore(true);
+    const nextPage = mobilePageRef.current + 1;
     try {
-      setLoading(true);
-      const res = await dormitoryApi.registrations.getAll({
-        trang_thai: filterStatus || undefined,
-        search: search || undefined,
-        page,
-        limit: 50,
-      });
-      setRegistrations(res.data);
-      setMeta(res.meta);
-    } catch (err: any) {
-      toast.error(err?.message || 'Lỗi tải danh sách đăng ký');
-    } finally {
-      setLoading(false);
-    }
-  }, [filterStatus, search, page]);
-
-  useEffect(() => { setPage(1); }, [filterStatus, search]);
-
-  useEffect(() => { load(); }, [load]);
-
-  function toggleSelect(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    const pending = registrations.filter(r => r.trang_thai === 'Chờ duyệt');
-    if (selected.size === pending.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(pending.map(r => r._id)));
-    }
-  }
-
-  async function handleApprove(id: string) {
-    try {
-      await dormitoryApi.registrations.approve(id, { trang_thai: 'Đã duyệt' });
-      toast.success('Đã duyệt đơn đăng ký');
-      load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Lỗi duyệt đơn');
-    }
-  }
-
-  async function handleReject() {
-    if (!rejectId || !rejectReason) return;
-    try {
-      await dormitoryApi.registrations.approve(rejectId, { trang_thai: 'Từ chối', ly_do_tu_choi: rejectReason });
-      toast.success('Đã từ chối đơn đăng ký');
-      setRejectId(null);
-      setRejectReason('');
-      load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Lỗi từ chối đơn');
-    }
-  }
-
-  async function handleBulkApprove() {
-    if (selected.size === 0) return;
-    try {
-      const res = await dormitoryApi.registrations.bulkApprove({
-        registration_ids: Array.from(selected),
-        trang_thai: 'Đã duyệt',
-      });
-      toast.success(`Đã duyệt ${res.success} đơn${res.failed > 0 ? `, ${res.failed} lỗi` : ''}`);
-      setSelected(new Set());
-      load();
-    } catch (err: any) {
-      toast.error(err?.message || 'Lỗi duyệt hàng loạt');
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-bold text-gray-800">Đăng ký KTX</h1>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Tìm kiếm..." value={search} onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
-          </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="">Tất cả trạng thái</option>
-            <option value="Chờ duyệt">Chờ duyệt</option>
-            <option value="Đã duyệt">Đã duyệt</option>
-            <option value="Từ chối">Từ chối</option>
-          </select>
-          {selected.size > 0 && (
-            <button onClick={handleBulkApprove} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
-              <Check size={16} /> Duyệt {selected.size} đơn
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="p-3 text-left w-10">
-                  <input type="checkbox" onChange={toggleAll} checked={selected.size > 0 && selected.size === registrations.filter(r => r.trang_thai === 'Chờ duyệt').length} className="rounded" />
-                </th>
-                <th className="p-3 text-left font-medium text-gray-600">Mã ĐK</th>
-                <th className="p-3 text-left font-medium text-gray-600">Sinh viên</th>
-                <th className="p-3 text-left font-medium text-gray-600">Kỳ/Năm</th>
-                <th className="p-3 text-left font-medium text-gray-600">Ưu tiên</th>
-                <th className="p-3 text-left font-medium text-gray-600">Trạng thái</th>
-                <th className="p-3 text-left font-medium text-gray-600">Ngày tạo</th>
-                <th className="p-3 text-center font-medium text-gray-600">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <td key={j} className="p-3"><div className="h-4 bg-gray-100 rounded animate-pulse" /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : registrations.length === 0 ? (
-                <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có đơn đăng ký nào</td></tr>
-              ) : registrations.map(reg => (
-                <tr key={reg._id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="p-3">
-                    {reg.trang_thai === 'Chờ duyệt' && (
-                      <input type="checkbox" checked={selected.has(reg._id)} onChange={() => toggleSelect(reg._id)} className="rounded" />
-                    )}
-                  </td>
-                  <td className="p-3 font-mono text-xs">{reg.ma_dk}</td>
-                  <td className="p-3">
-                    <div className="font-medium text-gray-800">{reg.student_id?.full_name || reg.public_registration?.ho_ten || (reg as any).ho_ten || '—'}</div>
-                    <div className="text-xs text-gray-400">{reg.student_id?.student_code || reg.public_registration?.ma_sinh_vien || (reg as any).ma_sinh_vien || 'Chưa có mã SV'}</div>
-                  </td>
-                  <td className="p-3 text-gray-600">{reg.ky_hoc} / {reg.nam_hoc}</td>
-                  <td className="p-3 text-gray-600 text-xs">{reg.doi_tuong_uu_tien}</td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-1"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[reg.trang_thai] || 'bg-gray-100 text-gray-600'}`}>{reg.trang_thai}</span><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${reg.source === 'PUBLIC' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{reg.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span></div>
-                    {reg.classification_status === 'UNCLASSIFIED' && <div className="text-xs text-amber-600 mt-1">Chưa phân lớp</div>}
-                  </td>
-                  <td className="p-3 text-gray-500 text-xs">{reg.createdAt ? new Date(reg.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
-                  <td className="p-3 text-center">
-                    {reg.source !== 'PUBLIC' && reg.trang_thai === 'Chờ duyệt' && (
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleApprove(reg._id)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600" title="Duyệt">
-                          <Check size={16} />
-                        </button>
-                        <button onClick={() => setRejectId(reg._id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-600" title="Từ chối">
-                          <X size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="md:hidden divide-y divide-gray-100">
-          {loading ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="p-4 animate-pulse"><div className="h-4 w-2/3 bg-gray-100 rounded mb-2" /><div className="h-3 w-1/2 bg-gray-100 rounded" /></div>) : registrations.length === 0 ? <div className="p-8 text-center text-gray-400">Không có đơn đăng ký nào</div> : registrations.map(reg => <div key={reg._id} className="p-4 space-y-2"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-xs text-gray-500">{reg.ma_dk}</p><p className="font-medium text-gray-800">{reg.student_id?.full_name || reg.public_registration?.ho_ten || (reg as any).ho_ten || '—'}</p></div><span className={`px-2 py-0.5 rounded-full text-xs ${reg.source === 'PUBLIC' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{reg.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span></div><p className="text-xs text-gray-500">{reg.student_id?.student_code || reg.public_registration?.ma_sinh_vien || (reg as any).ma_sinh_vien || 'Chưa có mã SV'} · {reg.classification_status === 'UNCLASSIFIED' ? 'Chưa phân lớp' : reg.trang_thai}</p>{reg.source !== 'PUBLIC' && reg.trang_thai === 'Chờ duyệt' && <div className="flex gap-2 pt-1"><button onClick={() => handleApprove(reg._id)} className="px-3 py-1 rounded bg-green-50 text-green-700 text-xs">Duyệt</button><button onClick={() => setRejectId(reg._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 text-xs">Từ chối</button></div>}</div>)}
-        </div>
-        {meta && (
-          <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 flex items-center justify-between gap-3">
-            Hiển thị {registrations.length} / {meta.total} đơn đăng ký
-            <div className="flex items-center gap-2"><button disabled={page <= 1} onClick={() => setPage(current => current - 1)} className="px-2 py-1 border rounded disabled:opacity-40">Trước</button><span>{page} / {meta.totalPages || 1}</span><button disabled={page >= (meta.totalPages || 1)} onClick={() => setPage(current => current + 1)} className="px-2 py-1 border rounded disabled:opacity-40">Sau</button></div>
-          </div>
-        )}
-      </div>
-
-      {/* Reject Modal */}
-      {rejectId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setRejectId(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Từ chối đơn đăng ký</h2>
-            <textarea placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-300 mb-4" rows={3} required />
-            <div className="flex gap-3">
-              <button onClick={() => setRejectId(null)} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Hủy</button>
-              <button onClick={handleReject} disabled={!rejectReason} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">Từ chối</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      const res = await dormitoryApi.registrations.getAll({ trang_thai: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      const next = res.data || [];
+      setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
+      mobilePageRef.current = nextPage;
+      mobileHasMoreRef.current = next.length === pageSize && nextPage * pageSize < res.meta.total;
+    } catch { setError('Không thể tải thêm đăng ký.'); } finally { setMobileLoadingMore(false); }
+  }, [filterStatus, source, search, pageSize, mobileLoadingMore]);
+  useEffect(() => {
+    const target = mobileSentinelRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) void loadMoreMobile(); }, { root: mobileScrollRef.current, rootMargin: '160px', threshold: 0.1 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMoreMobile]);
+  const pendingIds = useMemo(() => registrations.filter(r => r.trang_thai === 'Chờ duyệt' && r.source !== 'PUBLIC').map(r => r._id), [registrations]);
+  const allSelected = pendingIds.length > 0 && pendingIds.every(id => selected.includes(id));
+  const toggleAll = (checked: boolean) => setSelected(checked ? pendingIds : []);
+  const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { trang_thai: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
+  const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { trang_thai: 'Từ chối', ly_do_tu_choi: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
+  const bulkApprove = async () => { if (!selected.length) return; try { const res = await dormitoryApi.registrations.bulkApprove({ registration_ids: selected, trang_thai: 'Đã duyệt' }); toast.success(`Đã duyệt ${res.success} đơn${res.failed ? `, ${res.failed} lỗi` : ''}`); setSelected([]); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt hàng loạt'); } };
+  const columns: ResponsiveColumn<DormRegistration>[] = [
+    { key: 'ma_dk', header: 'Mã ĐK', priority: 'primary' }, { key: 'student', header: 'Sinh viên', priority: 'secondary', render: (_, r) => <><div className="font-semibold text-slate-800">{studentName(r)}</div><div className="text-xs text-slate-400">{studentCode(r)}</div></> },
+    { key: 'period', header: 'Kỳ/Năm', render: (_, r) => `${r.ky_hoc} / ${r.nam_hoc}` }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => r.doi_tuong_uu_tien || '—' },
+    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.trang_thai] || 'bg-slate-100 text-slate-600'}`}>{r.trang_thai}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
+    { key: 'created', header: 'Ngày tạo', render: (_, r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString('vi-VN') : '—' },
+    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.trang_thai === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
+  ];
+  return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
+    {mobileSearchOpen ? <div className="flex gap-1 sm:hidden"><Research ref={searchRef} aria-label="Tìm kiếm đăng ký" value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="max-w-none flex-1" /><Button variant="outline" aria-label="Đóng tìm kiếm" onClick={() => setMobileSearchOpen(false)} className="h-9 w-9 p-0"><X size={15} /></Button></div> : <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto py-0.5 scrollbar-none"><Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden shrink-0 sm:flex" /><Button variant="outline" aria-label="Mở tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="h-9 w-9 shrink-0 p-0 sm:hidden"><SearchIcon size={15} /></Button><div className="ml-auto flex shrink-0 gap-2"><Select value={filterStatus || 'ALL'} onValueChange={v => { setFilterStatus(v === 'ALL' ? '' : v); reset(); }}><SelectTrigger aria-label="Lọc trạng thái" className="h-9 min-w-[140px] rounded-xl text-xs"><SelectValue placeholder="Tất cả trạng thái" /></SelectTrigger><SelectContent><SelectItem value="ALL">Tất cả trạng thái</SelectItem><SelectItem value="Chờ duyệt">Chờ duyệt</SelectItem><SelectItem value="Đã duyệt">Đã duyệt</SelectItem><SelectItem value="Từ chối">Từ chối</SelectItem></SelectContent></Select><Select value={source || 'ALL'} onValueChange={v => { setSource(v === 'ALL' ? '' : v); reset(); }}><SelectTrigger aria-label="Lọc nguồn" className="h-9 min-w-[105px] rounded-xl text-xs"><SelectValue placeholder="Tất cả nguồn" /></SelectTrigger><SelectContent><SelectItem value="ALL">Tất cả nguồn</SelectItem><SelectItem value="FORMAL">Chính thức</SelectItem><SelectItem value="PUBLIC">QR</SelectItem></SelectContent></Select><Button variant="outline" aria-label="Tải lại danh sách" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl p-0"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button></div></div>}
+    {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<button type="button" onClick={() => void bulkApprove()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"><Check size={14} /> Duyệt</button>} />
+    {rejectId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectId(null)}><div role="dialog" aria-labelledby="reject-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}><h2 id="reject-title" className="mb-4 text-lg font-bold text-gray-800">Từ chối đơn đăng ký</h2><textarea aria-label="Lý do từ chối" placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="mb-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} /><div className="flex gap-3"><button onClick={() => setRejectId(null)} className="flex-1 rounded-lg border px-4 py-2 text-sm">Hủy</button><button onClick={() => void reject()} disabled={!rejectReason} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Từ chối</button></div></div></div>}
+  </main>;
 }

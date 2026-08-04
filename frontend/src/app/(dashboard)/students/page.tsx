@@ -609,6 +609,19 @@ function StudentsPageContent() {
                     </div>
                   ) : (
                     <>
+                      {/* Global unclassified group stays outside faculty sections. */}
+                      <div className="flex flex-col gap-4 w-full">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex flex-1 items-center"><span className="text-[14px] font-medium text-[#6b7280] tracking-wide">Chưa phân loại</span><div className="flex-1 h-px bg-[#f3f4f6] ml-4" /></div>
+                        </div>
+                        <div onClick={() => router.push('/students/unclassified')} className="group bg-amber-50/70 border border-amber-200 rounded-2xl p-5 flex flex-col gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer max-w-sm">
+                          <div className="flex items-center justify-between"><span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Chưa phân loại</span><Users size={18} className="text-amber-600" /></div>
+                          <h4 className="text-[18px] font-bold text-gray-800">Chưa phân lớp</h4>
+                          <p className="text-xs text-gray-500">Đăng ký KTX chưa liên kết sinh viên</p>
+                          <div className="pt-3 border-t border-amber-100 text-sm font-bold text-amber-700">{unclassifiedCount} học viên</div>
+                        </div>
+                      </div>
+
                       {/* Cao đẳng Section */}
                       <div className="flex flex-col gap-4 w-full">
                         <div className="flex items-center justify-between w-full">
@@ -784,13 +797,6 @@ function StudentsPageContent() {
                               className={`transition-transform duration-250 ${isTrungCapExpanded ? "" : "rotate-180"}`}
                             />
                           </button>
-                        </div>
-
-                        <div onClick={() => router.push('/students/unclassified')} className="group bg-amber-50/70 border border-amber-200 rounded-2xl p-5 flex flex-col gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer max-w-sm">
-                          <div className="flex items-center justify-between"><span className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">Chưa phân loại</span><Users size={18} className="text-amber-600" /></div>
-                          <h4 className="text-[18px] font-bold text-gray-800">Chưa phân lớp</h4>
-                          <p className="text-xs text-gray-500">Đăng ký KTX chưa liên kết sinh viên</p>
-                          <div className="pt-3 border-t border-amber-100 text-sm font-bold text-amber-700">{unclassifiedCount} học viên</div>
                         </div>
 
                         {isTrungCapExpanded && (
