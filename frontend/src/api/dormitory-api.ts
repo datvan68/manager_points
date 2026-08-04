@@ -62,6 +62,18 @@ export interface DormRegistration {
   public_registration?: any;
 }
 
+export interface CreateDormRegistrationInput {
+  student_id: string;
+  ky_hoc: string;
+  nam_hoc: string;
+  nguyen_vong?: {
+    loai_phong?: string;
+    building_id?: string;
+    ghi_chu?: string;
+  };
+  doi_tuong_uu_tien?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Không';
+}
+
 export interface UnclassifiedRegistration {
   _id: string;
   ma_dk_public: string;
@@ -289,7 +301,7 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}`);
       return handleResponse(res);
     },
-    async create(dto: any): Promise<DormRegistration> {
+    async create(dto: CreateDormRegistrationInput): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
