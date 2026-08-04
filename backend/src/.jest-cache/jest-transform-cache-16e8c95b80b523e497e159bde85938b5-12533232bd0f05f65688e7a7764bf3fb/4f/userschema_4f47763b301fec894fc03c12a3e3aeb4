@@ -1,0 +1,80 @@
+839fc2c500112a732192fcc7e059f5b3
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var _a, _b, _c, _d;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserSchema = exports.User = exports.UserStatus = void 0;
+const mongoose_1 = require("@nestjs/mongoose");
+const mongoose_2 = require("mongoose");
+var UserStatus;
+(function (UserStatus) {
+    UserStatus["ACTIVE"] = "active";
+    UserStatus["LOCKED"] = "locked";
+    UserStatus["INACTIVE"] = "inactive";
+})(UserStatus || (exports.UserStatus = UserStatus = {}));
+let User = class User {
+    user_name;
+    email;
+    pw_hash;
+    status;
+    role;
+    failed_login_attempts;
+    phone_number;
+    department;
+    date_birth;
+    locked_until;
+};
+exports.User = User;
+__decorate([
+    (0, mongoose_1.Prop)({ required: true, trim: true }),
+    __metadata("design:type", String)
+], User.prototype, "user_name", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ required: true, unique: true, lowercase: true, trim: true }),
+    __metadata("design:type", String)
+], User.prototype, "email", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ required: true }),
+    __metadata("design:type", String)
+], User.prototype, "pw_hash", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: String, enum: UserStatus, default: UserStatus.ACTIVE }),
+    __metadata("design:type", String)
+], User.prototype, "status", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Role' }),
+    __metadata("design:type", Object)
+], User.prototype, "role", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ default: 0 }),
+    __metadata("design:type", Number)
+], User.prototype, "failed_login_attempts", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", String)
+], User.prototype, "phone_number", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", String)
+], User.prototype, "department", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", typeof (_c = typeof Date !== "undefined" && Date) === "function" ? _c : Object)
+], User.prototype, "date_birth", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: Date, default: null }),
+    __metadata("design:type", Object)
+], User.prototype, "locked_until", void 0);
+exports.User = User = __decorate([
+    (0, mongoose_1.Schema)({ timestamps: true, collection: 'users' })
+], User);
+exports.UserSchema = mongoose_1.SchemaFactory.createForClass(User);
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJmaWxlIjoiRDpcXFBST0pFQ1RcXG1hbmFnZXJfcG9pbnRzXFxiYWNrZW5kXFxzcmNcXGF1dGhcXHNjaGVtYXNcXHVzZXIuc2NoZW1hLnRzIiwibWFwcGluZ3MiOiI7Ozs7Ozs7Ozs7Ozs7QUFBQSwrQ0FBK0Q7QUFDL0QsdUNBQTJDO0FBTTNDLElBQVksVUFJWDtBQUpELFdBQVksVUFBVTtJQUNwQiwrQkFBaUIsQ0FBQTtJQUNqQiwrQkFBaUIsQ0FBQTtJQUNqQixtQ0FBcUIsQ0FBQTtBQUN2QixDQUFDLEVBSlcsVUFBVSwwQkFBVixVQUFVLFFBSXJCO0FBR00sSUFBTSxJQUFJLEdBQVYsTUFBTSxJQUFJO0lBRWYsU0FBUyxDQUFTO0lBR2xCLEtBQUssQ0FBUztJQUdkLE9BQU8sQ0FBUztJQUdoQixNQUFNLENBQWE7SUFHbkIsSUFBSSxDQUF3QjtJQUc1QixxQkFBcUIsQ0FBUztJQUc5QixZQUFZLENBQVM7SUFHckIsVUFBVSxDQUFTO0lBR25CLFVBQVUsQ0FBTztJQUdqQixZQUFZLENBQWM7Q0FDM0IsQ0FBQTtBQTlCWSxvQkFBSTtBQUVmO0lBREMsSUFBQSxlQUFJLEVBQUMsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsQ0FBQzs7dUNBQ25CO0FBR2xCO0lBREMsSUFBQSxlQUFJLEVBQUMsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLE1BQU0sRUFBRSxJQUFJLEVBQUUsU0FBUyxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsSUFBSSxFQUFFLENBQUM7O21DQUN0RDtBQUdkO0lBREMsSUFBQSxlQUFJLEVBQUMsRUFBRSxRQUFRLEVBQUUsSUFBSSxFQUFFLENBQUM7O3FDQUNUO0FBR2hCO0lBREMsSUFBQSxlQUFJLEVBQUMsRUFBRSxJQUFJLEVBQUUsTUFBTSxFQUFFLElBQUksRUFBRSxVQUFVLEVBQUUsT0FBTyxFQUFFLFVBQVUsQ0FBQyxNQUFNLEVBQUUsQ0FBQzs7b0NBQ2xEO0FBR25CO0lBREMsSUFBQSxlQUFJLEVBQUMsRUFBRSxJQUFJLEVBQUUsZ0JBQUssQ0FBQyxRQUFRLEVBQUUsR0FBRyxFQUFFLE1BQU0sRUFBRSxDQUFDOztrQ0FDaEI7QUFHNUI7SUFEQyxJQUFBLGVBQUksRUFBQyxFQUFFLE9BQU8sRUFBRSxDQUFDLEVBQUUsQ0FBQzs7bURBQ1M7QUFHOUI7SUFEQyxJQUFBLGVBQUksR0FBRTs7MENBQ2M7QUFHckI7SUFEQyxJQUFBLGVBQUksR0FBRTs7d0NBQ1k7QUFHbkI7SUFEQyxJQUFBLGVBQUksR0FBRTtrREFDSyxJQUFJLG9CQUFKLElBQUk7d0NBQUM7QUFHakI7SUFEQyxJQUFBLGVBQUksRUFBQyxFQUFFLElBQUksRUFBRSxJQUFJLEVBQUUsT0FBTyxFQUFFLElBQUksRUFBRSxDQUFDOzswQ0FDVjtlQTdCZixJQUFJO0lBRGhCLElBQUEsaUJBQU0sRUFBQyxFQUFFLFVBQVUsRUFBRSxJQUFJLEVBQUUsVUFBVSxFQUFFLE9BQU8sRUFBRSxDQUFDO0dBQ3JDLElBQUksQ0E4QmhCO0FBRVksUUFBQSxVQUFVLEdBQUcsd0JBQWEsQ0FBQyxjQUFjLENBQUMsSUFBSSxDQUFDLENBQUMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiRDpcXFBST0pFQ1RcXG1hbmFnZXJfcG9pbnRzXFxiYWNrZW5kXFxzcmNcXGF1dGhcXHNjaGVtYXNcXHVzZXIuc2NoZW1hLnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IFByb3AsIFNjaGVtYSwgU2NoZW1hRmFjdG9yeSB9IGZyb20gJ0BuZXN0anMvbW9uZ29vc2UnO1xyXG5pbXBvcnQgeyBEb2N1bWVudCwgVHlwZXMgfSBmcm9tICdtb25nb29zZSc7XHJcbmltcG9ydCB7IFJvbGUgfSBmcm9tICcuL3JvbGUuc2NoZW1hJztcclxuaW1wb3J0IHsgRGVwYXJ0bWVudCB9IGZyb20gJy4uLy4uL2RlcGFydG1lbnRzL3NjaGVtYXMvZGVwYXJ0bWVudC5zY2hlbWEnO1xyXG5cclxuZXhwb3J0IHR5cGUgVXNlckRvY3VtZW50ID0gVXNlciAmIERvY3VtZW50O1xyXG5cclxuZXhwb3J0IGVudW0gVXNlclN0YXR1cyB7XHJcbiAgQUNUSVZFID0gJ2FjdGl2ZScsXHJcbiAgTE9DS0VEID0gJ2xvY2tlZCcsXHJcbiAgSU5BQ1RJVkUgPSAnaW5hY3RpdmUnLFxyXG59XHJcblxyXG5AU2NoZW1hKHsgdGltZXN0YW1wczogdHJ1ZSwgY29sbGVjdGlvbjogJ3VzZXJzJyB9KVxyXG5leHBvcnQgY2xhc3MgVXNlciB7XHJcbiAgQFByb3AoeyByZXF1aXJlZDogdHJ1ZSwgdHJpbTogdHJ1ZSB9KVxyXG4gIHVzZXJfbmFtZTogc3RyaW5nO1xyXG5cclxuICBAUHJvcCh7IHJlcXVpcmVkOiB0cnVlLCB1bmlxdWU6IHRydWUsIGxvd2VyY2FzZTogdHJ1ZSwgdHJpbTogdHJ1ZSB9KVxyXG4gIGVtYWlsOiBzdHJpbmc7XHJcblxyXG4gIEBQcm9wKHsgcmVxdWlyZWQ6IHRydWUgfSlcclxuICBwd19oYXNoOiBzdHJpbmc7XHJcblxyXG4gIEBQcm9wKHsgdHlwZTogU3RyaW5nLCBlbnVtOiBVc2VyU3RhdHVzLCBkZWZhdWx0OiBVc2VyU3RhdHVzLkFDVElWRSB9KVxyXG4gIHN0YXR1czogVXNlclN0YXR1cztcclxuXHJcbiAgQFByb3AoeyB0eXBlOiBUeXBlcy5PYmplY3RJZCwgcmVmOiAnUm9sZScgfSlcclxuICByb2xlOiBSb2xlIHwgVHlwZXMuT2JqZWN0SWQ7XHJcblxyXG4gIEBQcm9wKHsgZGVmYXVsdDogMCB9KVxyXG4gIGZhaWxlZF9sb2dpbl9hdHRlbXB0czogbnVtYmVyO1xyXG5cclxuICBAUHJvcCgpXHJcbiAgcGhvbmVfbnVtYmVyOiBzdHJpbmc7XHJcblxyXG4gIEBQcm9wKClcclxuICBkZXBhcnRtZW50OiBzdHJpbmc7XHJcblxyXG4gIEBQcm9wKClcclxuICBkYXRlX2JpcnRoOiBEYXRlO1xyXG5cclxuICBAUHJvcCh7IHR5cGU6IERhdGUsIGRlZmF1bHQ6IG51bGwgfSlcclxuICBsb2NrZWRfdW50aWw6IERhdGUgfCBudWxsO1xyXG59XHJcblxyXG5leHBvcnQgY29uc3QgVXNlclNjaGVtYSA9IFNjaGVtYUZhY3RvcnkuY3JlYXRlRm9yQ2xhc3MoVXNlcik7XHJcbiJdLCJ2ZXJzaW9uIjozfQ==

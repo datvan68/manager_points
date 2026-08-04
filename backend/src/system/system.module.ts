@@ -20,7 +20,6 @@ import {
 } from './schemas/system-performance-metric.schema';
 import { LoginLog, LoginLogSchema } from '../auth/schemas/login-log.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
-import { ThrottlerModule } from '@nestjs/throttler';
 import {
   SystemSetting,
   SystemSettingSchema,
@@ -41,12 +40,6 @@ import { AppBrandingController } from './app-branding.controller';
         schema: SystemPerformanceMetricSchema,
       },
       { name: SystemSetting.name, schema: SystemSettingSchema },
-    ]),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60000,
-        limit: 30, // limit each IP to 30 requests per minute
-      },
     ]),
   ],
   controllers: [SystemController, AppBrandingController],

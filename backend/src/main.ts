@@ -32,7 +32,10 @@ async function bootstrap() {
   });
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ limit: '10mb', extended: true }));
-  app.getHttpAdapter().getInstance().set('trust proxy', true);
+  const trustedProxyHops = isProduction
+    ? Number.parseInt(process.env.TRUSTED_PROXY_HOPS || '1', 10)
+    : 0;
+  app.getHttpAdapter().getInstance().set('trust proxy', trustedProxyHops);
 
   // Serve static uploads
   app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));

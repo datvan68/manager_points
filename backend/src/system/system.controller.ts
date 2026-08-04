@@ -14,7 +14,7 @@ import {
   UseInterceptors,
   BadRequestException,
 } from '@nestjs/common';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { SystemService } from './system.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -283,8 +283,7 @@ export class SystemController {
 
   @Post('performance/metrics')
   @Permissions()
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // More strict limit for this specific endpoint
+  @Throttle({ burst: { limit: 10, ttl: 60000 }, sustained: { limit: 10, ttl: 60000 } })
   // No explicit permission required to send telemetry if they are authenticated users
   createPerformanceMetric(
     @Body() dto: CreateSystemPerformanceMetricDto,
