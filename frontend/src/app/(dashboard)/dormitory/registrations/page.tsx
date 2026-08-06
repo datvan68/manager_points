@@ -103,10 +103,19 @@ export default function RegistrationsPage() {
   const submitCreate = async (event: React.FormEvent) => {
     event.preventDefault(); setCreateError('');
     const birthDate = createForm.ngay_sinh ? new Date(`${createForm.ngay_sinh}T00:00:00`) : null;
-    if (!student || !createForm.ky_hoc || !createForm.nam_hoc || semesterError || semesterLoading) { setCreateError('Vui lòng chọn sinh viên và chờ học kỳ active được tải thành công.'); return; }
+    if (semesterLoading) { setCreateError('Đang tải học kỳ active, vui lòng chờ.'); return; }
+    if (semesterError || !createForm.ky_hoc || !createForm.nam_hoc) { setCreateError(semesterError || 'Chưa xác định được học kỳ active.'); return; }
+    const hasClass = Boolean(student && student.student_code && student.class_id);
+    const temporaryName = student ? '' : studentSearch.trim();
+    if (!hasClass && !temporaryName) { setCreateError('Vui lòng chọn sinh viên từ kết quả tìm kiếm hoặc nhập họ tên để lưu tạm.'); return; }
+    if (student && !hasClass) { setCreateError('Sinh viên đã chọn chưa có mã sinh viên và lớp đầy đủ. Hãy xóa lựa chọn rồi nhập họ tên để lưu tạm.'); return; }
     if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
     if (!createForm.gioi_tinh || !createForm.so_dien_thoai.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.so_dien_thoai.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
+    if (!student) {
+      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ ho_ten: temporaryName, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim(), loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', ghi_chu: createForm.ghi_chu || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
+      return;
+    }
     const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim() };
     const nguyen_vong = { loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', ghi_chu: createForm.ghi_chu || undefined };
     if (Object.values(nguyen_vong).some(Boolean)) payload.nguyen_vong = nguyen_vong;
@@ -135,7 +144,7 @@ export default function RegistrationsPage() {
     observer.observe(target);
     return () => observer.disconnect();
   }, [loadMoreMobile]);
-  const pendingIds = useMemo(() => registrations.filter(r => r.trang_thai === 'Chờ duyệt' && r.source !== 'PUBLIC').map(r => r._id), [registrations]);
+  const pendingIds = useMemo(() => registrations.filter(r => r.trang_thai === 'Chờ duyệt' && r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY').map(r => r._id), [registrations]);
   const allSelected = pendingIds.length > 0 && pendingIds.every(id => selected.includes(id));
   const toggleAll = (checked: boolean) => setSelected(checked ? pendingIds : []);
   const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { trang_thai: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
@@ -144,9 +153,9 @@ export default function RegistrationsPage() {
   const columns: ResponsiveColumn<DormRegistration>[] = [
     { key: 'ma_dk', header: 'Mã ĐK', priority: 'primary' }, { key: 'student', header: 'Sinh viên', priority: 'secondary', render: (_, r) => <><div className="font-semibold text-slate-800">{studentName(r)}</div><div className="text-xs text-slate-400">{studentCode(r)}</div></> },
     { key: 'period', header: 'Kỳ/Năm', render: (_, r) => `${r.ky_hoc} / ${r.nam_hoc}` }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => r.doi_tuong_uu_tien || '—' },
-    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.trang_thai] || 'bg-slate-100 text-slate-600'}`}>{r.trang_thai}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
+    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.trang_thai] || 'bg-slate-100 text-slate-600'}`}>{r.trang_thai}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : r.source === 'ADMIN_TEMPORARY' ? 'Nhập tạm' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString('vi-VN') : '—' },
-    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.trang_thai === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
+    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.trang_thai === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
@@ -174,6 +183,7 @@ export default function RegistrationsPage() {
               <SelectItem value="ALL">Tất cả nguồn</SelectItem>
               <SelectItem value="FORMAL">Chính thức</SelectItem>
               <SelectItem value="PUBLIC">QR</SelectItem>
+              <SelectItem value="ADMIN_TEMPORARY">Nhập tạm</SelectItem>
             </SelectContent>
           </Select>
           {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
@@ -206,7 +216,8 @@ export default function RegistrationsPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
               <div className="relative">
-                <Input label="Sinh viên" required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm theo mã hoặc họ tên" autoComplete="off" />
+                <Input label="Sinh viên / họ tên tạm" required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm sinh viên hoặc nhập họ tên để lưu tạm" autoComplete="off" />
+                {!student && studentSearch.trim() && <p className="mt-1 px-1 text-xs text-amber-700">Không chọn kết quả tìm kiếm: hồ sơ sẽ được lưu tạm để phân loại sau.</p>}
                 {studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">{studentOptions.map(item => <Button variant="ghost" type="button" key={item._id} onClick={() => selectStudent(item)} className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></Button>)}</div>}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">

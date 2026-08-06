@@ -1,14 +1,17 @@
-# Task: public-dormitory-registration-qr
+# Task: dormitory-registration-existing-or-temporary
 
 - Pipeline: `feature_development`
 - Risk: high
 - Profile: Full
 - Repository: `D:\PROJECT\manager_points`
-- Branch/base: `main` / `10c92dd8`
+- Base: current working tree
 
 ## Objective
 
-Let any device scan the KTX QR code and open a public page that displays only the KTX registration modal, without authentication or access to the dashboard.
+Adjust **“Thêm sinh viên đăng ký KTX”** so the generic message `Vui lòng chọn sinh viên và chờ học kỳ active được tải thành công.` no longer blocks valid input. The modal must support exactly two save paths:
+
+1. An existing student with a class is selected from search: create a formal KTX registration linked by `student_id`.
+2. The person has neither student code nor class: save only a temporary, unclassified registration for later reconciliation; do not create a Student, class membership, formal registration, contract, or room assignment.
 
 ## Boundary
 
@@ -16,49 +19,64 @@ Let any device scan the KTX QR code and open a public page that displays only th
 
 - `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`
 - `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`
-- New public route and focused tests under `frontend/src/app/public/dormitory/register/`
-- A shared KTX registration form component under `frontend/src/components/dormitory/` only if required to prevent duplicated form behavior
 - `frontend/src/api/dormitory-api.ts`
+- `frontend/src/api/dormitory-api.test.ts` only when the new request contract needs focused coverage
 
 ### Backend writes
 
-- `backend/src/dormitory/controllers/dormitory-qr.controller.ts` and its focused test
-- `backend/src/dormitory/dto/public-register.dto.ts`
-- `backend/src/dormitory/schemas/public-registration.schema.ts`
-- `backend/src/dormitory/dormitory.module.ts` only if active-semester resolution requires the Semester model/service
+- `backend/src/dormitory/controllers/registrations.controller.ts`
+- `backend/src/dormitory/dto/` for a focused authenticated temporary-registration DTO
+- `backend/src/dormitory/services/registrations.service.ts`
+- Focused controller/service specs under `backend/src/dormitory/`
+- `backend/src/dormitory/schemas/public-registration.schema.ts` only if an explicit admin-temporary source value cannot be persisted with the current schema
 
 ### Reference only / exclusions
 
-- Reference: the **“Phạm vi xuất file Excel”** surface, existing room QR implementation, `CustomCalendar`, and shared UI components.
-- Exclude authentication changes, public room-page redesign, formal registration schema changes, student search/data exposure on the public page, new dependencies, migrations/backfills, direct MongoDB writes, and unrelated KTX behavior.
+- Reuse the existing `PublicRegistration` collection as temporary storage and the existing unclassified-list flow.
+- Preserve the public QR registration route, active-semester source, modal design, requested fields, female-only room-type behavior, formal approval rules, and student/class data.
+- Exclude creating/updating Student or Class documents, assigning a class/code automatically, migrations/backfills, contracts, rooms, deployment, and direct MongoDB writes.
+- A partially classified case (for example, student code exists but class is absent) is outside this change unless already represented by a selected Student record; do not silently convert it into the no-code/no-class temporary path.
 
 ## Required changes
 
-1. Add a permission-aware, accessible shared `Button` with the `QrCode` icon beside the create action in the registration menubar. It opens a QR dialog without changing the create form.
-2. Generate a standards-compliant black-on-white QR using the installed `qrcode` package, quiet-zone margin, and error-correction level `H`. Encode the absolute same-origin URL `/public/dormitory/register`; show the URL and render errors in the QR dialog.
-3. Create `/public/dormitory/register` as an unauthenticated route. It must render no dashboard shell, navigation, room details, login prompt, table, or other system content. On load it displays only a neutral page backdrop and the registration modal. Direct access and QR access behave identically on desktop and mobile.
-4. Reuse the same visual language and field behavior as **“Thêm sinh viên đăng ký KTX”**, with the translucent blue gradient, white border, header/footer dividers, shared `Input`/`Select`/`Button`, and `CustomCalendar`. Do not expose the authenticated student lookup; use public inputs for full name and optional student code instead.
-5. Public form fields: full name, optional student code, date of birth, gender, phone number, room type, and optional note. Do not show or submit priority object or building. Only `Female` enables room-type selection; every other gender forces and disables `Thường`.
-6. Resolve the single active semester through a public-safe backend response or server-side submission logic; do not trust editable semester query parameters. Display its label beside the modal title. Block submission with clear feedback when no unique valid active semester exists.
-7. Extend the unauthenticated public-registration contract to accept and validate the new general-registration fields without requiring `qr_room_id`. Preserve the existing room-specific QR registration contract and behavior. Persist public registrations with source `QR_SCAN`, pending status, no room/building, and the resolved active semester.
-8. Keep duplicate-phone protection for pending public registrations. Return structured validation/duplicate/server errors; show inline feedback, prevent duplicate submits, and replace the form with a success state containing the public registration code after creation.
-9. Public submissions must continue appearing in the admin registration list as source `PUBLIC`/QR and follow the existing unclassified/linking flow. No public endpoint may return student search results or privileged registration data.
+1. Replace the single combined precondition/error with independent state and messages:
+   - while the active semester is loading, disable submission and show the existing loading state;
+   - when active-semester resolution fails, show the specific semester error;
+   - when neither an existing student nor a valid temporary profile is supplied, ask the user to select a search result or enter the required temporary information;
+   - never show `Vui lòng chọn sinh viên và chờ học kỳ active được tải thành công.` for a valid temporary profile.
+2. Keep student search as the primary path. Selecting a student with `student_code` and `class_id` fills the current personal fields and submits the existing formal payload to `POST /dormitory/registrations`.
+3. Provide an explicit **temporary/unclassified** mode when no search result is selected. In this mode:
+   - treat the entered text as the required full name;
+   - do not request or synthesize `student_id`, student code, or class;
+   - require the existing personal fields (date of birth, gender, phone) and apply the current room-type/note rules;
+   - display a concise notice that the record will be saved temporarily and classified later.
+4. Mode transitions must be deterministic: selecting a search result enters formal mode; editing/clearing that selection returns to search/manual input without retaining a stale `student_id`; reset all mode-specific state after close or successful save.
+5. Add a permission-protected authenticated endpoint for temporary admin entry. Validate full name, date of birth, gender, phone, room type, note, and active semester server-side. Ignore client-supplied student/class identifiers and derive the active semester on the server.
+6. Save temporary entries in `PublicRegistration` with empty `ma_sinh_vien`, no linked student/registration, pending status, no room/building, and an explicit admin-temporary origin such as `ADMIN_ENTRY`. Apply the existing pending duplicate-phone protection and generate the normal temporary registration code.
+7. Normalize/display the saved row as unclassified in the registration table and **“Chưa phân loại / chưa phân lớp”** flow. Distinguish admin temporary entries from QR entries in the source label/filter so they are not falsely presented as QR submissions.
+8. Return and display precise duplicate, validation, semester, and server errors. Prevent repeated submissions while saving. On success, close/reset the modal, show the appropriate success toast, and refresh the table.
+9. Preserve existing behavior for formal registrations, QR registrations, sorting, pagination, approval restrictions, and linking temporary records after a Student is later created.
 
 ## Verification
 
-- Frontend focused tests: QR destination, QR dialog, public-only rendering, modal fields/style, female-only room type, loading/error/success states, payload, and duplicate-submit protection.
-- Backend focused tests: unauthenticated general submission, DTO validation, active-semester resolution, duplicate phone, persisted source/status/fields, and unchanged room-specific QR behavior.
-- `D:\PROJECT\manager_points\frontend :: npm run typecheck` and repository-native backend type/test commands => no introduced errors.
-- Manual scan from a second unauthenticated device => only the public registration modal opens and a valid submission reaches the admin QR list.
-- `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => no unintended changes.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run 'src/app/(dashboard)/dormitory/registrations/page.test.tsx' 'src/api/dormitory-api.test.ts'` => covers mode selection, stale-selection clearing, separate semester errors, formal payload, temporary payload, duplicate-submit prevention, and success/reset behavior.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand dormitory/controllers/registrations.controller.spec.ts dormitory/services/registrations.service.spec.ts` => covers permission protection, server-derived active semester, temporary persistence shape/source, duplicate phone, validation, and unchanged formal creation.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no introduced TypeScript errors.
+- `D:\PROJECT\manager_points\backend :: npm run build` => NestJS build passes.
+- Manual mocked/isolated verification:
+  - selected student with code and class creates one formal registration;
+  - no-code/no-class profile creates one temporary unclassified entry and no Student/Class/formal registration;
+  - active-semester loading/error states are specific and neither valid path shows the removed generic message;
+  - admin temporary source is not labeled QR.
+- `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => only intended changes and no whitespace errors.
 
 ## Done
 
-- Any device can scan the QR and immediately see only the public KTX registration modal without logging in.
-- The submitted form follows the requested fields and room-gender rule and appears in the admin QR registration list.
-- Existing authenticated create flow and room-specific public QR flow remain functional.
-- Focused frontend/backend tests, static checks, manual responsive scan, and final diff checks pass.
+- Both specified paths save to their correct storage model and appear correctly in the KTX registration list.
+- A temporary entry cannot create or mutate student/class data and remains available in the unclassified workflow.
+- The generic combined warning is removed from valid flows and replaced by actionable validation feedback.
+- Focused frontend/backend tests, frontend typecheck, backend build, and final diff checks pass.
 
 ## Gate
 
-Planning-only: this taskscope authorizes no implementation or persistent-data mutation. Implementation requires a separate explicit request. End-to-end verification that creates a real public registration is a persistent-data write and requires the applicable Human Gate; automated verification must use mocks or an isolated test database unless separately approved.
+Planning-only: this taskscope authorizes no implementation or persistent-data mutation. Implementation requires a separate explicit request. Automated tests must use mocks or an isolated test database. Any verification against the connected MongoDB that creates or changes records requires explicit persistent-data authority and the applicable Human Gate.

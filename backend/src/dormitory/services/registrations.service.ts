@@ -19,6 +19,8 @@ import {
 } from '../dto/approve-registration.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
+import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
+import { SemestersService } from '../../semesters/semesters.service';
 
 @Injectable()
 export class RegistrationsService {
@@ -31,7 +33,29 @@ export class RegistrationsService {
     private contractModel: Model<ContractDocument>,
     @InjectModel(PublicRegistration.name)
     private publicRegModel: Model<PublicRegistrationDocument>,
+    private readonly semestersService: SemestersService,
   ) {}
+
+  async createTemporary(dto: CreateTemporaryRegistrationDto) {
+    const active = (await this.semestersService.findAll()).filter((item) => item.status === 'active');
+    if (active.length !== 1) {
+      throw new BadRequestException(active.length ? 'Có nhiều học kỳ active. Vui lòng kiểm tra cấu hình học kỳ.' : 'Chưa có học kỳ active. Vui lòng cấu hình học kỳ trước khi đăng ký.');
+    }
+    const existing = await this.publicRegModel.findOne({ so_dien_thoai: dto.so_dien_thoai, trang_thai: 'Chờ xác nhận' });
+    if (existing) {
+      throw new ConflictException('Số điện thoại này đã có đơn đăng ký tạm đang chờ xử lý.');
+    }
+    const parts = active[0].semester_name.split(/\s*-\s*/);
+    const registration = new this.publicRegModel({
+      ma_dk_public: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
+      ho_ten: dto.ho_ten.trim(), so_dien_thoai: dto.so_dien_thoai.trim(),
+      ma_sinh_vien: '', ngay_sinh: dto.ngay_sinh, gioi_tinh: dto.gioi_tinh,
+      loai_phong: dto.gioi_tinh === 'Female' ? (dto.loai_phong || 'Thường') : 'Thường',
+      ky_hoc: parts[0] || '', nam_hoc: parts.slice(1).join('-').replace(/\s/g, ''),
+      ghi_chu: dto.ghi_chu || '', trang_thai: 'Chờ xác nhận', nguon: 'ADMIN_ENTRY',
+    });
+    return registration.save();
+  }
 
   async create(dto: CreateRegistrationDto, user: any): Promise<Registration> {
     // BR3: Check overdue invoices > 1 kỳ
@@ -81,6 +105,7 @@ export class RegistrationsService {
     ky_hoc?: string;
     nam_hoc?: string;
     search?: string;
+    source?: string;
     page?: number;
     limit?: number;
   }) {
@@ -102,6 +127,7 @@ export class RegistrationsService {
         .sort({ createdAt: -1 })
         .exec(),
       this.publicRegModel.find({
+        ...(query.source === 'ADMIN_TEMPORARY' ? { nguon: 'ADMIN_ENTRY' } : {}),
         ...(query.trang_thai ? { trang_thai: query.trang_thai } : {}),
         ...(search ? { $or: ['ma_dk_public', 'ho_ten', 'ma_sinh_vien', 'so_dien_thoai', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
       }).sort({ createdAt: -1 }).lean(),
@@ -109,13 +135,13 @@ export class RegistrationsService {
 
     const normalizedSearch = search?.toLocaleLowerCase();
     const matches = (values: unknown[]) => !normalizedSearch || values.some(value => String(value ?? '').toLocaleLowerCase().includes(normalizedSearch));
-    const formalRows = formalData.filter((item: any) => matches([item.ma_dk, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
+    const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.ma_dk, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
       ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
       student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
     }));
-    const publicRows = publicData.filter((item: any) => !item.linked_student_id && !item.linked_registration_id && matches([item.ma_dk_public, item.ho_ten, item.ma_sinh_vien, item.so_dien_thoai, item.email])).map((item: any) => ({
+    const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.nguon !== 'ADMIN_ENTRY') && matches([item.ma_dk_public, item.ho_ten, item.ma_sinh_vien, item.so_dien_thoai, item.email])).map((item: any) => ({
       ...item, _id: String(item._id), ma_dk: item.ma_dk_public, student_id: null, student_code: item.ma_sinh_vien || null, full_name: item.ho_ten, class_id: null,
-      source: 'PUBLIC', classification_status: item.ma_sinh_vien ? 'MISSING_CLASS' : 'UNCLASSIFIED',
+      source: item.nguon === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.ma_sinh_vien ? 'MISSING_CLASS' : 'UNCLASSIFIED',
     }));
     const data = [...formalRows, ...publicRows]
       .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -142,7 +168,7 @@ export class RegistrationsService {
       this.publicRegModel.countDocuments(filter),
     ]);
     return {
-      data: data.map((item: any) => ({ ...item, source: 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
+      data: data.map((item: any) => ({ ...item, source: item.nguon === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

@@ -21,6 +21,7 @@ import { AssignRoomDto } from '../dto/assign-room.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PublicRegistrationLinkService } from '../services/public-registration-link.service';
+import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
 
 @ApiTags('Dormitory - Registrations')
 @ApiBearerAuth()
@@ -38,6 +39,12 @@ export class RegistrationsController {
     return this.registrationsService.create(dto, req.user);
   }
 
+  @Post('temporary')
+  @UseGuards(checkPermission('DORM_REG_CREATE'))
+  createTemporary(@Body() dto: CreateTemporaryRegistrationDto) {
+    return this.registrationsService.createTemporary(dto);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(
@@ -45,6 +52,7 @@ export class RegistrationsController {
     @Query('ky_hoc') ky_hoc?: string,
     @Query('nam_hoc') nam_hoc?: string,
     @Query('search') search?: string,
+    @Query('source') source?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -53,6 +61,7 @@ export class RegistrationsController {
       ky_hoc,
       nam_hoc,
       search,
+      source,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

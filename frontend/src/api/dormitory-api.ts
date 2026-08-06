@@ -57,7 +57,7 @@ export interface DormRegistration {
   nguoi_duyet_id?: any;
   ngay_duyet?: string;
   createdAt?: string;
-  source?: 'FORMAL' | 'PUBLIC';
+  source?: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
   classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED';
   public_registration?: any;
   ngay_sinh?: string;
@@ -110,7 +110,7 @@ export interface UnclassifiedRegistration {
   ky_hoc?: string;
   nam_hoc?: string;
   trang_thai: string;
-  source: 'PUBLIC';
+  source: 'PUBLIC' | 'ADMIN_TEMPORARY';
   classification_status: 'UNCLASSIFIED';
 }
 
@@ -330,6 +330,10 @@ export const dormitoryApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto),
       });
+      return handleResponse(res);
+    },
+    async createTemporary(dto: { ho_ten: string; ngay_sinh: string; gioi_tinh: 'Male' | 'Female' | 'Other'; so_dien_thoai: string; loai_phong?: 'Thường' | 'Máy lạnh'; ghi_chu?: string }): Promise<any> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/temporary`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
     async approve(id: string, dto: { trang_thai: string; ly_do_tu_choi?: string }): Promise<DormRegistration> {
