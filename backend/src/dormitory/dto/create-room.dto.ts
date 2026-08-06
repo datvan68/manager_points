@@ -15,6 +15,10 @@ export class CreateRoomDto {
   ma_phong: string;
 
   @IsNotEmpty()
+  @IsString()
+  ten_phong: string;
+
+  @IsNotEmpty()
   @IsMongoId()
   building_id: string;
 

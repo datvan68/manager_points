@@ -7,7 +7,7 @@ import TabNavigation from '@/components/ui/TabNavigation';
 const dormitoryTabs = [
   { id: 'registrations', href: '/dormitory/registrations', label: 'Đăng ký' },
   { id: 'overview', href: '/dormitory/overview', label: 'Tổng quan' },
-  { id: 'buildings', href: '/dormitory/buildings', label: 'Khu vực & Phòng' },
+  { id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' },
   { id: 'contracts', href: '/dormitory/contracts', label: 'Hợp đồng' },
   { id: 'invoices', href: '/dormitory/invoices', label: 'Hóa đơn' },
   { id: 'violations', href: '/dormitory/violations', label: 'Vi phạm' },

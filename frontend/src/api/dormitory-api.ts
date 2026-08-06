@@ -18,6 +18,7 @@ export interface Building {
 export interface Room {
   _id: string;
   ma_phong: string;
+  ten_phong?: string;
   building_id: Building | string;
   tang: number;
   loai_phong: string;
@@ -30,6 +31,7 @@ export interface Room {
   url_xem_nhanh: string;
   mo_ta?: string;
   createdAt?: string;
+  total_students?: number;
 }
 
 export interface Bed {

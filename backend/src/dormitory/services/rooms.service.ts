@@ -11,6 +11,7 @@ import { Building, BuildingDocument } from '../schemas/building.schema';
 import { CreateRoomDto } from '../dto/create-room.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { Contract, ContractDocument } from '../schemas/contract.schema';
 
 @Injectable()
 export class RoomsService {
@@ -18,6 +19,7 @@ export class RoomsService {
     @InjectModel(Room.name) private roomModel: Model<RoomDocument>,
     @InjectModel(Bed.name) private bedModel: Model<BedDocument>,
     @InjectModel(Building.name) private buildingModel: Model<BuildingDocument>,
+    @InjectModel(Contract.name) private contractModel: Model<ContractDocument>,
   ) {}
 
   async create(dto: CreateRoomDto, user: any): Promise<Room> {
@@ -56,6 +58,7 @@ export class RoomsService {
     if (query.search) {
       filter.$or = [
         { ma_phong: { $regex: query.search, $options: 'i' } },
+        { ten_phong: { $regex: query.search, $options: 'i' } },
       ];
     }
     if (query.building_id) filter.building_id = query.building_id;
@@ -77,8 +80,14 @@ export class RoomsService {
       this.roomModel.countDocuments(filter),
     ]);
 
+    const rows = await Promise.all(data.map(async (room: any) => {
+      const item = room.toObject ? room.toObject() : room;
+      const total_students = await this.contractModel.countDocuments({ room_id: room._id, trang_thai: 'Hiệu lực' });
+      return { ...item, ten_phong: item.ten_phong || item.ma_phong, total_students };
+    }));
+
     return {
-      data,
+      data: rows,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

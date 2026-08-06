@@ -9,6 +9,9 @@ export class Room {
   @Prop({ required: true, unique: true })
   ma_phong: string;
 
+  @Prop()
+  ten_phong: string;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Building', required: true })
   building_id: Types.ObjectId | Building;
 
