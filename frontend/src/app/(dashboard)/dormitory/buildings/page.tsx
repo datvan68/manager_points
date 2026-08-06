@@ -19,6 +19,31 @@ const roomDefaults = { ma_phong: '', ten_phong: '', building_id: '', tang: 1, lo
 const buildingDefaults = { ma_toa_nha: '', ten: '', dia_chi: '', so_tang: 1, trang_thai: 'Active', mo_ta: '' };
 const pageSizeOptions = [20, 40, 50, 100];
 type FormValue = Record<string, any>;
+type RoomMutationInput = {
+  ma_phong: string;
+  ten_phong: string;
+  building_id: string;
+  tang: number;
+  loai_phong: string;
+  so_giuong: number;
+  gia_phong: number;
+  trang_thai?: Room['trang_thai'];
+  tien_ich?: string[];
+  mo_ta?: string;
+};
+
+const toRoomMutationPayload = (form: FormValue): RoomMutationInput => ({
+  ma_phong: String(form.ma_phong ?? '').trim(),
+  ten_phong: String(form.ten_phong ?? '').trim(),
+  building_id: typeof form.building_id === 'object' ? form.building_id?._id : String(form.building_id ?? ''),
+  tang: Number(form.tang),
+  loai_phong: String(form.loai_phong ?? ''),
+  so_giuong: Number(form.so_giuong),
+  gia_phong: Number(form.gia_phong),
+  trang_thai: form.trang_thai || undefined,
+  tien_ich: Array.isArray(form.tien_ich) ? form.tien_ich : undefined,
+  mo_ta: form.mo_ta ? String(form.mo_ta) : undefined,
+});
 const formatRoomPrice = (value: unknown) => `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} VNĐ`;
 
 const mergeUnique = (current: Room[], incoming: Room[]) => {
@@ -145,7 +170,7 @@ export default function BuildingsPage() {
     if (saving) return;
     setSaving(true);
     try {
-      const payload = { ...roomForm, so_giuong: Number(roomForm.so_giuong), tang: Number(roomForm.tang), gia_phong: Number(roomForm.gia_phong) };
+      const payload = toRoomMutationPayload(roomForm);
       if (roomEdit) await dormitoryApi.rooms.update(roomEdit._id, payload); else await dormitoryApi.rooms.create(payload);
       toast.success(roomEdit ? 'Đã cập nhật phòng' : 'Đã thêm phòng');
       setRoomOpen(false);
@@ -224,7 +249,7 @@ export default function BuildingsPage() {
     </div>
 
     {canDeleteRoom && <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="phòng" actions={<button type="button" aria-label="Xóa phòng đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} />Xóa</button>} />}
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
       <ResponsiveDataView data={rooms} columns={columns} isLoading={loading} keyExtractor={room => room._id} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMoreRef.current && rooms.length ? 'Đã hiển thị tất cả phòng.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">{error || 'Chưa có phòng nào'}</div>} pagination={<CustomPagination totalItems={meta.total} pageSize={pageSize} currentPage={page} onPageChange={next => { setPage(next); setSelected([]); }} onPageSizeChange={size => { setPage(1); setPageSize(size); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="phòng" />} />
     </div>
 
@@ -235,5 +260,6 @@ export default function BuildingsPage() {
     <ConfirmModal isOpen={Boolean(roomToDelete)} onClose={() => setRoomToDelete(null)} onConfirm={removeRoom} title="Xóa phòng" message={roomToDelete ? `Bạn có chắc chắn muốn xóa phòng ${roomToDelete.ma_phong}?` : ''} confirmLabel="Xóa phòng" variant="danger" />
     <ConfirmModal isOpen={Boolean(buildingToDelete)} onClose={() => setBuildingToDelete(null)} onConfirm={removeBuilding} title="Xóa khu vực" message={buildingToDelete ? `Bạn có chắc chắn muốn xóa khu vực ${buildingToDelete.ten}?` : ''} confirmLabel="Xóa khu vực" variant="danger" />
     <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={async () => { await removeSelectedRooms(); setBulkDeleteOpen(false); }} title="Xóa phòng đã chọn" message={`Bạn có chắc chắn muốn xóa ${selected.length} phòng đã chọn? Các phòng đang được sử dụng có thể bị từ chối.`} confirmLabel="Xóa phòng" variant="danger" />
-  </main>;
+   <style jsx global>{`[role="dialog"] button:has(> svg.lucide-plus) { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid rgba(255,255,255,.8); border-radius: .75rem; background: rgba(255,255,255,.5); color: #334155; font-size: 0; }`}</style>
+   </main>;
 }

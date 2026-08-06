@@ -8,7 +8,7 @@
 
 ## Objective
 
-Complete the **“Phòng”** tab so it follows the existing KTX registration workspace design. It must provide matching page spacing, a room table with actionable row selection, room type and VND price data, accurate occupancy data, a single area-management dialog with full CRUD, safe single/bulk delete confirmation, and registration-style mobile card/infinite-load behavior.
+Complete the **“Phòng”** tab so it follows the existing KTX registration workspace design. It must provide matching page spacing, a compact room table with actionable row selection, room type and VND price data, accurate occupancy data, DTO-safe create/update payloads, a single area-management dialog with full CRUD, safe single/bulk delete confirmation, and registration-style mobile card/infinite-load behavior.
 
 ## Boundary
 
@@ -56,6 +56,7 @@ Complete the **“Phòng”** tab so it follows the existing KTX registration wo
    - **Số sinh viên** (rename the current **“Tổng số sinh viên tại phòng”** header);
    - **Giá phòng**;
    - **Thao tác**.
+   Use a smaller, readable page-scoped table font and compact header/body row spacing so more room rows fit in the available viewport. Keep checkbox and action hit targets accessible, preserve column alignment, and do not globally change `ResponsiveDataView` typography or density for other pages.
 5. Render **Loại phòng** from the existing `loai_phong` field and **Giá phòng** from the existing `gia_phong` field. Format room prices consistently in Vietnamese locale with the `VNĐ` unit, define a safe display for zero/missing legacy values, and do not change the stored numeric value or API/schema contract.
 6. Connect `ResponsiveDataView.selection` to controlled room selection state. The header checkbox selects or clears only the currently loaded desktop page, each desktop row and mobile card has its own checkbox, and selection is cleared when search/filter/page-size context changes.
 7. When at least one room is selected, show the shared `FloatingActionBar` with the selected count, a clear-selection control, and a permission-aware **“Xóa”** action. The action must:
@@ -71,9 +72,14 @@ Complete the **“Phòng”** tab so it follows the existing KTX registration wo
 13. Return an explicit read-only occupancy field (for example `total_students`) in each room-list row. Compute it server-side from active KTX contracts assigned to that room (`trang_thai = “Hiệu lực”`), not from `so_giuong - so_giuong_trong`, and do not persist this derived count in the room document.
 14. Extend room search to match both `ma_phong` and `ten_phong`. Preserve existing building, status, and room-type filters supported by the endpoint.
 15. Implement **add/edit room** dialogs with the same `DialogContent` gradient background, translucent border, header/footer, spacing, responsive width, and validation/error treatment as the **“Thêm đăng ký”** dialog. Use existing `Input` and `Select` components for fields such as area, room code, room name, floor, room type, bed count, price, and status; retain current room fields required by the backend.
+    - Do not build the room mutation request by spreading a room response object or the unrestricted form state.
+    - Create an explicit frontend room-mutation input type and a shared payload mapper/whitelist containing only fields accepted by `CreateRoomDto`/`UpdateRoomDto`: `ma_phong`, `ten_phong`, `building_id`, `tang`, `loai_phong`, `so_giuong`, `gia_phong`, optional `trang_thai`, `tien_ich`, and `mo_ta`.
+    - Normalize populated `building_id` to its string id and numeric form values before both create and update requests.
+    - Never send response-only or derived fields such as `_id`, `so_giuong_trong`, `ma_qr`, `url_xem_nhanh`, `createdAt`, `updatedAt`, `__v`, or `total_students`. Editing a room loaded from either list or detail responses must no longer trigger validation errors for these properties.
 16. Replace the standalone add-area dialog and area chips with one **area-management dialog** opened from the menu bar. The dialog:
     - lists all areas and exposes permission-aware **add**, **edit**, and **delete** actions;
     - provides a clear empty state and a create action inside the modal;
+    - renders the **add area** action with the shared `Button` component as an icon-only control: show the add icon without visible **“Thêm khu vực”** text, while retaining `aria-label="Thêm khu vực"` and a matching tooltip/title;
     - uses the registration-modal surface and existing `Input`/`Select` primitives for area code, name, address, floor count, status, and description;
     - supports create/edit without leaving the modal, returning predictably to the refreshed area list after save or cancel;
     - uses `ConfirmModal` with danger styling for area deletion and preserves backend dependency/conflict safeguards.
@@ -82,19 +88,20 @@ Complete the **“Phòng”** tab so it follows the existing KTX registration wo
 
 ## Verification
 
-- `D:\PROJECT\manager_points\frontend :: npm test -- --run 'src/app/(dashboard)/dormitory/layout.test.tsx' 'src/app/(dashboard)/dormitory/buildings/page.test.tsx' 'src/api/dormitory-api.test.ts'` => covers renamed tab, registration-matched spacing, visible **“Thêm phòng”** button text, room selection, `FloatingActionBar`, single/bulk `ConfirmModal` delete flows including partial failure, room type and VNĐ price rendering, renamed headers, right-aligned actions, area-management CRUD dialog, desktop pagination, mobile card/infinite loading, search reset, permission-aware actions, dialog state, and room API payloads.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run 'src/app/(dashboard)/dormitory/layout.test.tsx' 'src/app/(dashboard)/dormitory/buildings/page.test.tsx' 'src/api/dormitory-api.test.ts'` => covers renamed tab, registration-matched spacing, visible **“Thêm phòng”** button text, compact page-scoped table typography/density, room selection, `FloatingActionBar`, single/bulk `ConfirmModal` delete flows including partial failure, room type and VNĐ price rendering, renamed headers, right-aligned actions, icon-only shared `Button` for **“Thêm khu vực”**, area-management CRUD dialog, desktop pagination, mobile card/infinite loading, search reset, permission-aware actions, dialog state, and exact room create/update payloads with response-only fields excluded.
 - `D:\PROJECT\manager_points\backend :: npm test -- --runInBand dormitory/services/rooms.service.spec.ts dormitory/controllers/rooms.controller.spec.ts` => covers room-name validation/search, legacy fallback contract, active-contract occupancy aggregation, pagination, CRUD conflicts, and unchanged filters.
 - `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no introduced TypeScript errors.
 - `D:\PROJECT\manager_points\backend :: npm run build` => NestJS build and dependency injection pass.
 - Manual mocked/isolated verification at desktop and mobile widths:
   - tab label is **“Phòng”** and remains selected on `/dormitory/buildings`;
   - page padding, gaps, menu search, add-room button with visible **“Thêm phòng”** text, and area-management button match the registration tab;
-  - the area-management modal contains working permission-aware add/edit/delete flows and no separate area-chip row remains;
-  - desktop table shows selection, the required room code/name/type, **“Giường”**, **“Số sinh viên”**, VNĐ-formatted **“Giá phòng”**, right-aligned actions, and pagination;
+  - the area-management modal contains working permission-aware add/edit/delete flows, its add action is an accessible icon-only shared `Button`, and no separate area-chip row remains;
+  - desktop table uses smaller readable text and compact row spacing, and shows selection, the required room code/name/type, **“Giường”**, **“Số sinh viên”**, VNĐ-formatted **“Giá phòng”**, right-aligned actions, and pagination;
   - selecting rooms opens `FloatingActionBar`; clearing selection is inert, bulk delete requires one danger confirmation, and success/partial-failure/failure states preserve accurate selections and data;
   - mobile/tablet shows selectable cards, appends subsequent pages on scroll, has retry/end feedback, and never shows pagination;
   - room and area deletes open `ConfirmModal`; cancel is inert and confirm performs exactly one guarded request;
   - create, edit, delete, validation, conflict, empty, loading, and permission states behave correctly;
+  - editing a room sends only DTO-supported mutation fields and does not reproduce validation errors for `_id`, availability, QR, timestamps, version, or derived occupancy fields;
   - legacy rooms without `ten_phong` render without crashing.
 - `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => only intended changes and no whitespace errors.
 
@@ -105,6 +112,9 @@ Complete the **“Phòng”** tab so it follows the existing KTX registration wo
 - Desktop rooms have checkboxes, a deletion `FloatingActionBar`, right-aligned actions, and pagination; mobile/tablet rooms render as cards with selection and registration-style infinite loading without pagination.
 - Single-room, selected-room, and area destructive actions use shared `ConfirmModal` and retain backend conflict protections.
 - Every room row exposes room code, room name, room type, **“Giường”**, server-derived **“Số sinh viên”**, VNĐ-formatted room price, and permitted actions.
+- The desktop table is page-scoped and compact enough to display more rows without reducing checkbox/action accessibility or changing other `ResponsiveDataView` consumers.
+- Room create/update payloads contain only DTO-supported fields; response-only and derived room properties never reach the mutation endpoints.
+- The area-management modal uses an accessible icon-only shared `Button` for adding an area, with no visible **“Thêm khu vực”** text.
 - Existing QR, room assignment, bed availability, permission, and legacy-room behavior remain compatible.
 - Focused tests, frontend typecheck, backend build, and final diff checks pass.
 
