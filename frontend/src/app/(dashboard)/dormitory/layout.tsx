@@ -31,7 +31,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
         }}
       />
       <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === 'registrations' ? (
+        {activeTab === 'registrations' || activeTab === 'buildings' ? (
           children
         ) : (
           <div className="h-full overflow-y-auto p-4 md:p-6">{children}</div>
