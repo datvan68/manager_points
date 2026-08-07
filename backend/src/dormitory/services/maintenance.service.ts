@@ -24,30 +24,30 @@ export class MaintenanceService {
   ): Promise<MaintenanceRequest> {
     const request = new this.maintenanceModel({
       ...dto,
-      ma_ycbt: `BT-${uuidv4().substring(0, 8).toUpperCase()}`,
-      trang_thai: 'Mới',
+      request_code: `BT-${uuidv4().substring(0, 8).toUpperCase()}`,
+      status: 'Mới',
     });
     return request.save();
   }
 
   async findAll(query: {
     room_id?: string;
-    trang_thai?: string;
-    do_uu_tien?: string;
-    loai_su_co?: string;
+    status?: string;
+    priority?: string;
+    issue_type?: string;
     search?: string;
     page?: number;
     limit?: number;
   }) {
     const filter: any = {};
     if (query.room_id) filter.room_id = query.room_id;
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
-    if (query.do_uu_tien) filter.do_uu_tien = query.do_uu_tien;
-    if (query.loai_su_co) filter.loai_su_co = query.loai_su_co;
+    if (query.status) filter.status = query.status;
+    if (query.priority) filter.priority = query.priority;
+    if (query.issue_type) filter.issue_type = query.issue_type;
     if (query.search) {
       filter.$or = [
-        { ma_ycbt: { $regex: query.search, $options: 'i' } },
-        { mo_ta: { $regex: query.search, $options: 'i' } },
+        { request_code: { $regex: query.search, $options: 'i' } },
+        { description: { $regex: query.search, $options: 'i' } },
       ];
     }
 
@@ -58,9 +58,9 @@ export class MaintenanceService {
     const [data, total] = await Promise.all([
       this.maintenanceModel
         .find(filter)
-        .populate('room_id', 'ma_phong')
+        .populate('room_id', 'room_code')
         .populate('student_id', 'student_code full_name')
-        .populate('ky_thuat_vien_id', 'user_name')
+        .populate('technician_id', 'user_name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -79,7 +79,7 @@ export class MaintenanceService {
       .findById(id)
       .populate('room_id')
       .populate('student_id')
-      .populate('ky_thuat_vien_id', 'user_name')
+      .populate('technician_id', 'user_name')
       .exec();
     if (!req) {
       throw new NotFoundException(`Không tìm thấy yêu cầu bảo trì: ${id}`);
@@ -100,12 +100,12 @@ export class MaintenanceService {
       throw new NotFoundException(`Không tìm thấy yêu cầu bảo trì: ${id}`);
     }
 
-    if (dto.ky_thuat_vien_id) req.ky_thuat_vien_id = dto.ky_thuat_vien_id as any;
-    if (dto.trang_thai) req.trang_thai = dto.trang_thai;
-    if (dto.ghi_chu_xu_ly) req.ghi_chu_xu_ly = dto.ghi_chu_xu_ly;
+    if (dto.technician_id) req.technician_id = dto.technician_id as any;
+    if (dto.status) req.status = dto.status;
+    if (dto.resolution_notes) req.resolution_notes = dto.resolution_notes;
 
-    if (dto.trang_thai === 'Hoàn tất') {
-      req.ngay_hoan_tat = new Date();
+    if (dto.status === 'Hoàn tất') {
+      req.completed_at = new Date();
     }
 
     return req.save();

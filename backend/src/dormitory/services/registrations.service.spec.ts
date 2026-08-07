@@ -16,13 +16,13 @@ function queryResult<T>(value: T) {
 describe('RegistrationsService unclassified roster', () => {
   it('returns only blank-code public registrations without typed links', async () => {
     const publicModel: any = {
-      find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', ma_dk_public: 'QR-1', ma_sinh_vien: '', ho_ten: 'A' }])),
+      find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', public_registration_code: 'QR-1', student_code: '', full_name: 'A' }])),
       countDocuments: jest.fn().mockResolvedValue(1),
     };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
     const result = await service.findUnclassified({ page: 1, limit: 20 });
     expect(publicModel.find).toHaveBeenCalledWith(expect.objectContaining({
-      ma_sinh_vien: { $in: ['', null] },
+      student_code: { $in: ['', null] },
       linked_student_id: { $exists: false },
       linked_registration_id: { $exists: false },
     }));
@@ -30,7 +30,7 @@ describe('RegistrationsService unclassified roster', () => {
   });
 
   it('does not expose a public registration after auto-link references are persisted', async () => {
-    const publicModel: any = { find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', ma_dk_public: 'QR-1', ma_sinh_vien: '', linked_student_id: 'student-1', linked_registration_id: 'registration-1' }])) };
+    const publicModel: any = { find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', public_registration_code: 'QR-1', student_code: '', linked_student_id: 'student-1', linked_registration_id: 'registration-1' }])) };
     const registrationModel: any = { find: jest.fn().mockReturnValue(queryResult([])) };
     const service = new RegistrationsService(registrationModel, {} as any, {} as any, publicModel, {} as any);
     const result = await service.findAll({});
@@ -52,23 +52,23 @@ describe('RegistrationsService create snapshots', () => {
 
     await service.create({
       student_id: '507f1f77bcf86cd799439011',
-      ky_hoc: 'HK2',
-      nam_hoc: '2025-2026',
-      ngay_sinh: '2003-01-15',
-      gioi_tinh: 'Female',
-      so_dien_thoai: '0912345678',
-      doi_tuong_uu_tien: 'Khó khăn',
-      nguyen_vong: { loai_phong: 'Máy lạnh' },
+      semester: 'HK2',
+      academic_year: '2025-2026',
+      date_of_birth: '2003-01-15',
+      gender: 'Female',
+      phone_number: '0912345678',
+      priority_group: 'Khó khăn',
+      preference: { room_type: 'Máy lạnh' },
     }, { _id: 'user-1' });
 
     expect(registrationModel).toHaveBeenCalledWith(expect.objectContaining({
       student_id: '507f1f77bcf86cd799439011',
-      ngay_sinh: '2003-01-15',
-      gioi_tinh: 'Female',
-      so_dien_thoai: '0912345678',
-      doi_tuong_uu_tien: 'Khó khăn',
-      nguyen_vong: { loai_phong: 'Máy lạnh' },
-      trang_thai: 'Chờ duyệt',
+      date_of_birth: '2003-01-15',
+      gender: 'Female',
+      phone_number: '0912345678',
+      priority_group: 'Khó khăn',
+      preference: { room_type: 'Máy lạnh' },
+      status: 'Chờ duyệt',
     }));
   });
 });
@@ -80,19 +80,19 @@ describe('RegistrationsService temporary entry', () => {
     const semesters = { findAll: jest.fn().mockResolvedValue([{ semester_name: 'HK2 - 2025 - 2026', status: 'active' }]) };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, semesters as any);
 
-    await service.createTemporary({ ho_ten: 'Nguyễn Tạm', ngay_sinh: '2004-02-03', gioi_tinh: 'Female', so_dien_thoai: '0912345678', loai_phong: 'Máy lạnh' });
+    await service.createTemporary({ full_name: 'Nguyễn Tạm', date_of_birth: '2004-02-03', gender: 'Female', phone_number: '0912345678', room_type: 'Máy lạnh' });
 
     expect(publicModel).toHaveBeenCalledWith(expect.objectContaining({
-      ho_ten: 'Nguyễn Tạm', ma_sinh_vien: '', ky_hoc: 'HK2', nam_hoc: '2025-2026',
-      loai_phong: 'Máy lạnh', nguon: 'ADMIN_ENTRY', trang_thai: 'Chờ xác nhận',
+      full_name: 'Nguyễn Tạm', student_code: '', semester: 'HK2', academic_year: '2025-2026',
+      room_type: 'Máy lạnh', source: 'ADMIN_ENTRY', status: 'Chờ xác nhận',
     }));
   });
 
   it('rejects a duplicate pending phone', async () => {
     const publicModel: any = jest.fn();
-    publicModel.findOne = jest.fn().mockResolvedValue({ ma_dk_public: 'PUB-OLD' });
+    publicModel.findOne = jest.fn().mockResolvedValue({ public_registration_code: 'PUB-OLD' });
     const semesters = { findAll: jest.fn().mockResolvedValue([{ semester_name: 'HK1 - 2025 - 2026', status: 'active' }]) };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, semesters as any);
-    await expect(service.createTemporary({ ho_ten: 'Nguyễn Tạm', ngay_sinh: '2004-02-03', gioi_tinh: 'Other', so_dien_thoai: '0912345678' })).rejects.toThrow('đã có đơn đăng ký tạm');
+    await expect(service.createTemporary({ full_name: 'Nguyễn Tạm', date_of_birth: '2004-02-03', gender: 'Other', phone_number: '0912345678' })).rejects.toThrow('đã có đơn đăng ký tạm');
   });
 });

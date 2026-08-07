@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type InvoiceDocument = Invoice & Document;
 
@@ -9,13 +10,13 @@ export class InvoiceItem {
     required: true,
     enum: ['Phí phòng', 'Điện', 'Nước', 'Dịch vụ', 'Phạt vi phạm'],
   })
-  loai: string;
+  type: string;
 
   @Prop()
-  mo_ta: string;
+  description: string;
 
   @Prop({ required: true })
-  so_tien: number;
+  amount: number;
 }
 
 export const InvoiceItemSchema = SchemaFactory.createForClass(InvoiceItem);
@@ -23,7 +24,7 @@ export const InvoiceItemSchema = SchemaFactory.createForClass(InvoiceItem);
 @Schema({ timestamps: true })
 export class Invoice {
   @Prop({ required: true, unique: true })
-  ma_hoa_don: string;
+  invoice_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Contract', required: true })
   contract_id: Types.ObjectId;
@@ -32,35 +33,35 @@ export class Invoice {
   student_id: Types.ObjectId;
 
   @Prop({ required: true })
-  ky_thu: string; // e.g. 'T01/2026'
+  billing_period: string; // e.g. 'T01/2026'
 
   @Prop({ type: [InvoiceItemSchema], default: [] })
-  chi_tiet: InvoiceItem[];
+  items: InvoiceItem[];
 
   @Prop({ required: true })
-  tong_tien: number;
+  total_amount: number;
 
   @Prop({
     required: true,
-    enum: ['Chưa thanh toán', 'Đã thanh toán', 'Quá hạn'],
+    enum: DORMITORY_ENUMS.invoiceStatus,
     default: 'Chưa thanh toán',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop({ required: true })
-  han_thanh_toan: Date;
+  due_date: Date;
 
   @Prop()
-  ngay_thanh_toan: Date;
+  paid_at: Date;
 
   @Prop({ enum: ['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'] })
-  phuong_thuc: string;
+  payment_method: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  nguoi_xac_nhan_id: Types.ObjectId;
+  confirmed_by_id: Types.ObjectId;
 
   @Prop()
-  ghi_chu: string;
+  notes: string;
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);

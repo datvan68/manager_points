@@ -15,16 +15,16 @@ import { Type } from 'class-transformer';
 class InvoiceItemDto {
   @IsNotEmpty()
   @IsEnum(['Phí phòng', 'Điện', 'Nước', 'Dịch vụ', 'Phạt vi phạm'])
-  loai: string;
+  type: string;
 
   @IsOptional()
   @IsString()
-  mo_ta?: string;
+  description?: string;
 
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
-  so_tien: number;
+  amount: number;
 }
 
 export class CreateInvoiceDto {
@@ -38,38 +38,38 @@ export class CreateInvoiceDto {
 
   @IsNotEmpty()
   @IsString()
-  ky_thu: string;
+  billing_period: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
-  chi_tiet: InvoiceItemDto[];
+  items: InvoiceItemDto[];
 
   @IsNotEmpty()
   @IsDateString()
-  han_thanh_toan: string;
+  due_date: string;
 
   @IsOptional()
   @IsString()
-  ghi_chu?: string;
+  notes?: string;
 }
 
 export class PayInvoiceDto {
   @IsNotEmpty()
   @IsEnum(['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'])
-  phuong_thuc: string;
+  payment_method: string;
 
   @IsOptional()
   @IsString()
-  ghi_chu?: string;
+  notes?: string;
 }
 
 export class BulkCreateInvoiceDto {
   @IsNotEmpty()
   @IsString()
-  ky_thu: string;
+  billing_period: string;
 
   @IsNotEmpty()
   @IsDateString()
-  han_thanh_toan: string;
+  due_date: string;
 }

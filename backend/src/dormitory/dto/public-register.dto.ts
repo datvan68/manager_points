@@ -14,11 +14,11 @@ import {
 export class PublicRegisterDto {
   @IsNotEmpty({ message: 'Vui lòng nhập họ tên' })
   @IsString()
-  ho_ten: string;
+  full_name: string;
 
   @IsNotEmpty({ message: 'Vui lòng nhập số điện thoại' })
   @IsString()
-  so_dien_thoai: string;
+  phone_number: string;
 
   @IsOptional()
   @IsEmail({}, { message: 'Email không hợp lệ' })
@@ -26,7 +26,7 @@ export class PublicRegisterDto {
 
   @IsOptional()
   @IsString()
-  ma_sinh_vien?: string;
+  student_code?: string;
 
   @IsOptional()
   @IsString()
@@ -34,29 +34,29 @@ export class PublicRegisterDto {
 
   @IsOptional()
   @IsDateString({}, { message: 'Ngày sinh không hợp lệ' })
-  ngay_sinh?: string;
+  date_of_birth?: string;
 
   @IsOptional()
   @IsEnum(['Male', 'Female', 'Other'], { message: 'Giới tính không hợp lệ' })
-  gioi_tinh?: 'Male' | 'Female' | 'Other';
+  gender?: 'Male' | 'Female' | 'Other';
 
   @IsOptional()
   @IsEnum(['Thường', 'Máy lạnh'], { message: 'Loại phòng không hợp lệ' })
-  loai_phong?: 'Thường' | 'Máy lạnh';
+  room_type?: 'Thường' | 'Máy lạnh';
 
   @IsOptional()
   @IsString()
-  ky_hoc?: string;
+  semester?: string;
 
   @IsOptional()
   @IsString()
-  nam_hoc?: string;
+  academic_year?: string;
 
   @IsOptional()
   @IsEnum(['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Không'])
-  doi_tuong_uu_tien?: string;
+  priority_group?: string;
 
   @IsOptional()
   @IsString()
-  ghi_chu?: string;
+  notes?: string;
 }

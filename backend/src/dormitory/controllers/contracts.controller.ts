@@ -36,14 +36,14 @@ export class ContractsController {
   @UseGuards(JwtAuthGuard)
   findAll(
     @Query('student_id') student_id?: string,
-    @Query('trang_thai') trang_thai?: string,
+    @Query('status') status?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.contractsService.findAll({
       student_id,
-      trang_thai,
+      status,
       search,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -70,10 +70,10 @@ export class ContractsController {
   @UseGuards(checkPermission('DORM_CONTRACT_UPDATE'))
   extend(
     @Param('id') id: string,
-    @Body('ngay_ket_thuc') ngay_ket_thuc: string,
+    @Body('end_date') end_date: string,
     @Request() req: any,
   ) {
-    return this.contractsService.extend(id, ngay_ket_thuc, req.user);
+    return this.contractsService.extend(id, end_date, req.user);
   }
 
   @Post('transfer')

@@ -23,8 +23,8 @@ export class DormitoryReportsController {
 
   @Get('revenue')
   @UseGuards(checkPermission('DORM_REPORT_READ'))
-  getRevenueReport(@Query('ky_thu') ky_thu?: string) {
-    return this.reportsService.getRevenueReport({ ky_thu });
+  getRevenueReport(@Query('billing_period') billing_period?: string) {
+    return this.reportsService.getRevenueReport({ billing_period });
   }
 
   @Get('violations-maintenance')

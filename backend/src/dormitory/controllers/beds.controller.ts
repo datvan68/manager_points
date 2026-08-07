@@ -53,10 +53,10 @@ export class BedsController {
   @UseGuards(checkPermission('DORM_BED_UPDATE'))
   updateStatus(
     @Param('id') id: string,
-    @Body('trang_thai') trang_thai: string,
+    @Body('status') status: string,
     @Request() req: any,
   ) {
-    return this.bedsService.updateStatus(id, trang_thai, req.user);
+    return this.bedsService.updateStatus(id, status, req.user);
   }
 
   @Delete(':id')

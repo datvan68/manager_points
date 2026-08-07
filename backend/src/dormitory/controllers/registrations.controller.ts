@@ -48,18 +48,18 @@ export class RegistrationsController {
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(
-    @Query('trang_thai') trang_thai?: string,
-    @Query('ky_hoc') ky_hoc?: string,
-    @Query('nam_hoc') nam_hoc?: string,
+    @Query('status') status?: string,
+    @Query('semester') semester?: string,
+    @Query('academic_year') academic_year?: string,
     @Query('search') search?: string,
     @Query('source') source?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.registrationsService.findAll({
-      trang_thai,
-      ky_hoc,
-      nam_hoc,
+      status,
+      semester,
+      academic_year,
       search,
       source,
       page: page ? parseInt(page, 10) : undefined,
@@ -113,12 +113,12 @@ export class RegistrationsController {
   @Get('public/list')
   @UseGuards(checkPermission('DORM_REG_VIEW'))
   getPublicRegistrations(
-    @Query('trang_thai') trang_thai?: string,
+    @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.publicLinkService.getAllPublicRegistrations({
-      trang_thai,
+      status,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

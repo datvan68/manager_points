@@ -21,26 +21,26 @@ describe('DormitoryQrController public registration', () => {
 
   it('returns the single active semester without authentication data', async () => {
     const { controller } = setup();
-    await expect(controller.getActiveSemester()).resolves.toEqual({ semester_name: 'HK1 - 2026 - 2027', ky_hoc: 'HK1', nam_hoc: '2026-2027' });
+    await expect(controller.getActiveSemester()).resolves.toEqual({ semester_name: 'HK1 - 2026 - 2027', semester: 'HK1', academic_year: '2026-2027' });
   });
 
   it('persists a general QR registration without a room and forces the female room choice', async () => {
     const { controller, saved } = setup();
-    await controller.publicRegister({ ho_ten: 'Nguyễn Văn A', so_dien_thoai: '0912345678', ngay_sinh: '2004-01-02', gioi_tinh: 'Female', loai_phong: 'Máy lạnh' } as any);
+    await controller.publicRegister({ full_name: 'Nguyễn Văn A', phone_number: '0912345678', date_of_birth: '2004-01-02', gender: 'Female', room_type: 'Máy lạnh' } as any);
     expect(saved).toHaveBeenCalled();
-    expect(saved.mock.instances[0]).toMatchObject({ nguon: 'QR_SCAN', trang_thai: 'Chờ xác nhận', room_id: undefined, loai_phong: 'Máy lạnh', ky_hoc: 'HK1', nam_hoc: '2026-2027' });
+    expect(saved.mock.instances[0]).toMatchObject({ source: 'QR_SCAN', status: 'Chờ xác nhận', room_id: undefined, room_type: 'Máy lạnh', semester: 'HK1', academic_year: '2026-2027' });
   });
 
   it('returns a structured duplicate-phone response', async () => {
-    const { controller } = setup({ ma_dk_public: 'PUB-EXISTING' });
-    await expect(controller.publicRegister({ ho_ten: 'A', so_dien_thoai: '0912345678', ngay_sinh: '2004-01-02', gioi_tinh: 'Male' } as any)).resolves.toMatchObject({ success: false, code: 'DUPLICATE_PHONE', ma_dk: 'PUB-EXISTING' });
+    const { controller } = setup({ public_registration_code: 'PUB-EXISTING' });
+    await expect(controller.publicRegister({ full_name: 'A', phone_number: '0912345678', date_of_birth: '2004-01-02', gender: 'Male' } as any)).resolves.toMatchObject({ success: false, code: 'DUPLICATE_PHONE', registration_code: 'PUB-EXISTING' });
   });
 
   it('keeps room-specific QR requests compatible when new fields are omitted', async () => {
     const { controller, roomsService, saved } = setup();
-    roomsService.findByQrId.mockResolvedValue({ _id: 'room-1', ma_phong: 'A101', loai_phong: 'Thường', building_id: { ten: 'A' } });
-    await controller.publicRegister({ ho_ten: 'A', so_dien_thoai: '0912345678', qr_room_id: 'room-qr' } as any);
+    roomsService.findByQrId.mockResolvedValue({ _id: 'room-1', room_code: 'A101', room_type: 'Thường', building_id: { name: 'A' } });
+    await controller.publicRegister({ full_name: 'A', phone_number: '0912345678', qr_room_id: 'room-qr' } as any);
     expect(saved).toHaveBeenCalled();
-    expect(saved.mock.instances[0]).toMatchObject({ ma_phong: 'A101', gioi_tinh: 'Other', loai_phong: 'Thường' });
+    expect(saved.mock.instances[0]).toMatchObject({ room_code: 'A101', gender: 'Other', room_type: 'Thường' });
   });
 });

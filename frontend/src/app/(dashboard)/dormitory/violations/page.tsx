@@ -23,12 +23,12 @@ export default function ViolationsPage() {
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
   const [handleId, setHandleId] = useState<string | null>(null);
-  const [handleForm, setHandleForm] = useState({ hinh_thuc_xu_ly: 'Nhắc nhở', ghi_chu_xu_ly: '' });
+  const [handleForm, setHandleForm] = useState({ resolution_type: 'Nhắc nhở', resolution_notes: '' });
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await dormitoryApi.violations.getAll({ trang_thai: filterStatus || undefined, search: search || undefined, limit: 50 });
+      const res = await dormitoryApi.violations.getAll({ status: filterStatus || undefined, search: search || undefined, limit: 50 });
       setViolations(res.data);
       setMeta(res.meta);
     } catch (err: any) {
@@ -98,19 +98,19 @@ export default function ViolationsPage() {
                 <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có vi phạm nào</td></tr>
               ) : violations.map(v => (
                 <tr key={v._id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="p-3 font-mono text-xs">{v.ma_vp}</td>
+                  <td className="p-3 font-mono text-xs">{v.violation_code}</td>
                   <td className="p-3">
                     <div className="font-medium text-gray-800">{v.student_id?.full_name || '—'}</div>
                     <div className="text-xs text-gray-400">{v.student_id?.student_code || ''}</div>
                   </td>
-                  <td className="p-3 text-gray-600">{v.room_id?.ma_phong || '—'}</td>
-                  <td className="p-3 text-gray-600 text-xs">{v.loai_vi_pham}</td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${severityColors[v.muc_do] || ''}`}>{v.muc_do}</span></td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[v.trang_thai] || ''}`}>{v.trang_thai}</span></td>
-                  <td className="p-3 text-gray-500 text-xs">{v.ngay_ghi_nhan ? new Date(v.ngay_ghi_nhan).toLocaleDateString('vi-VN') : '—'}</td>
+                  <td className="p-3 text-gray-600">{v.room_id?.room_code || '—'}</td>
+                  <td className="p-3 text-gray-600 text-xs">{v.violation_type}</td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${severityColors[v.severity] || ''}`}>{v.severity}</span></td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[v.status] || ''}`}>{v.status}</span></td>
+                  <td className="p-3 text-gray-500 text-xs">{v.recorded_at ? new Date(v.recorded_at).toLocaleDateString('vi-VN') : '—'}</td>
                   <td className="p-3 text-center">
-                    {v.trang_thai !== 'Đã xử lý' && (
-                      <button onClick={() => { setHandleId(v._id); setHandleForm({ hinh_thuc_xu_ly: 'Nhắc nhở', ghi_chu_xu_ly: '' }); }}
+                    {v.status !== 'Đã xử lý' && (
+                      <button onClick={() => { setHandleId(v._id); setHandleForm({ resolution_type: 'Nhắc nhở', resolution_notes: '' }); }}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Xử lý">
                         <Shield size={16} />
                       </button>
@@ -131,7 +131,7 @@ export default function ViolationsPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Hình thức xử lý</label>
-                <select value={handleForm.hinh_thuc_xu_ly} onChange={e => setHandleForm(f => ({ ...f, hinh_thuc_xu_ly: e.target.value }))}
+                <select value={handleForm.resolution_type} onChange={e => setHandleForm(f => ({ ...f, resolution_type: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                   <option value="Nhắc nhở">Nhắc nhở</option>
                   <option value="Cảnh cáo">Cảnh cáo</option>
@@ -141,7 +141,7 @@ export default function ViolationsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú xử lý</label>
-                <textarea value={handleForm.ghi_chu_xu_ly} onChange={e => setHandleForm(f => ({ ...f, ghi_chu_xu_ly: e.target.value }))}
+                <textarea value={handleForm.resolution_notes} onChange={e => setHandleForm(f => ({ ...f, resolution_notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" rows={3} />
               </div>
               <div className="flex gap-3 pt-2">

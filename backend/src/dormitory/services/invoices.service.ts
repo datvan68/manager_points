@@ -26,13 +26,13 @@ export class InvoicesService {
 
   async create(dto: CreateInvoiceDto, user: any): Promise<Invoice> {
     // Calculate total
-    const tong_tien = dto.chi_tiet.reduce((sum, item) => sum + item.so_tien, 0);
+    const total_amount = dto.items.reduce((sum, item) => sum + item.amount, 0);
 
     const invoice = new this.invoiceModel({
       ...dto,
-      ma_hoa_don: `INV-${uuidv4().substring(0, 8).toUpperCase()}`,
-      tong_tien,
-      trang_thai: 'Chưa thanh toán',
+      invoice_code: `INV-${uuidv4().substring(0, 8).toUpperCase()}`,
+      total_amount,
+      status: 'Chưa thanh toán',
     });
 
     return invoice.save();
@@ -46,8 +46,8 @@ export class InvoicesService {
     user: any,
   ): Promise<{ created: number; skipped: number }> {
     const activeContracts = await this.contractModel
-      .find({ trang_thai: 'Hiệu lực' })
-      .populate('room_id', 'gia_phong')
+      .find({ status: 'Hiệu lực' })
+      .populate('room_id', 'room_price')
       .exec();
 
     let created = 0;
@@ -57,7 +57,7 @@ export class InvoicesService {
       // Check if invoice already exists for this period
       const existing = await this.invoiceModel.findOne({
         contract_id: contract._id,
-        ky_thu: dto.ky_thu,
+        billing_period: dto.billing_period,
       });
       if (existing) {
         skipped++;
@@ -65,23 +65,23 @@ export class InvoicesService {
       }
 
       const room = contract.room_id as any;
-      const giaPhong = room?.gia_phong || 0;
+      const giaPhong = room?.room_price || 0;
 
       const invoice = new this.invoiceModel({
-        ma_hoa_don: `INV-${uuidv4().substring(0, 8).toUpperCase()}`,
+        invoice_code: `INV-${uuidv4().substring(0, 8).toUpperCase()}`,
         contract_id: contract._id,
         student_id: contract.student_id,
-        ky_thu: dto.ky_thu,
-        chi_tiet: [
+        billing_period: dto.billing_period,
+        items: [
           {
-            loai: 'Phí phòng',
-            mo_ta: `Phí phòng kỳ ${dto.ky_thu}`,
-            so_tien: giaPhong,
+            type: 'Phí phòng',
+            description: `Phí phòng kỳ ${dto.billing_period}`,
+            amount: giaPhong,
           },
         ],
-        tong_tien: giaPhong,
-        trang_thai: 'Chưa thanh toán',
-        han_thanh_toan: new Date(dto.han_thanh_toan),
+        total_amount: giaPhong,
+        status: 'Chưa thanh toán',
+        due_date: new Date(dto.due_date),
       });
 
       await invoice.save();
@@ -94,8 +94,8 @@ export class InvoicesService {
   async findAll(query: {
     student_id?: string;
     contract_id?: string;
-    trang_thai?: string;
-    ky_thu?: string;
+    status?: string;
+    billing_period?: string;
     search?: string;
     page?: number;
     limit?: number;
@@ -103,11 +103,11 @@ export class InvoicesService {
     const filter: any = {};
     if (query.student_id) filter.student_id = query.student_id;
     if (query.contract_id) filter.contract_id = query.contract_id;
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
-    if (query.ky_thu) filter.ky_thu = query.ky_thu;
+    if (query.status) filter.status = query.status;
+    if (query.billing_period) filter.billing_period = query.billing_period;
     if (query.search) {
       filter.$or = [
-        { ma_hoa_don: { $regex: query.search, $options: 'i' } },
+        { invoice_code: { $regex: query.search, $options: 'i' } },
       ];
     }
 
@@ -119,8 +119,8 @@ export class InvoicesService {
       this.invoiceModel
         .find(filter)
         .populate('student_id', 'student_code full_name')
-        .populate('contract_id', 'ma_hd')
-        .populate('nguoi_xac_nhan_id', 'user_name')
+        .populate('contract_id', 'contract_code')
+        .populate('confirmed_by_id', 'user_name')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -139,7 +139,7 @@ export class InvoicesService {
       .findById(id)
       .populate('student_id')
       .populate('contract_id')
-      .populate('nguoi_xac_nhan_id', 'user_name')
+      .populate('confirmed_by_id', 'user_name')
       .exec();
     if (!invoice) {
       throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
@@ -155,15 +155,15 @@ export class InvoicesService {
     if (!invoice) {
       throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
     }
-    if (invoice.trang_thai === 'Đã thanh toán') {
+    if (invoice.status === 'Đã thanh toán') {
       throw new BadRequestException('Hóa đơn đã được thanh toán');
     }
 
-    invoice.trang_thai = 'Đã thanh toán';
-    invoice.phuong_thuc = dto.phuong_thuc;
-    invoice.ngay_thanh_toan = new Date();
-    invoice.nguoi_xac_nhan_id = user._id || user.userId;
-    invoice.ghi_chu = dto.ghi_chu || invoice.ghi_chu;
+    invoice.status = 'Đã thanh toán';
+    invoice.payment_method = dto.payment_method;
+    invoice.paid_at = new Date();
+    invoice.confirmed_by_id = user._id || user.userId;
+    invoice.notes = dto.notes || invoice.notes;
 
     return invoice.save();
   }
@@ -173,9 +173,9 @@ export class InvoicesService {
    */
   async getOverdueSummary() {
     const overdue = await this.invoiceModel
-      .find({ trang_thai: 'Chưa thanh toán', han_thanh_toan: { $lt: new Date() } })
+      .find({ status: 'Chưa thanh toán', due_date: { $lt: new Date() } })
       .populate('student_id', 'student_code full_name')
-      .sort({ han_thanh_toan: 1 })
+      .sort({ due_date: 1 })
       .exec();
 
     // Mark as overdue
@@ -183,13 +183,13 @@ export class InvoicesService {
     if (ids.length > 0) {
       await this.invoiceModel.updateMany(
         { _id: { $in: ids } },
-        { $set: { trang_thai: 'Quá hạn' } },
+        { $set: { status: 'Quá hạn' } },
       );
     }
 
     return {
       total_overdue: overdue.length,
-      total_amount: overdue.reduce((sum, inv) => sum + inv.tong_tien, 0),
+      total_amount: overdue.reduce((sum, inv) => sum + inv.total_amount, 0),
       invoices: overdue,
     };
   }

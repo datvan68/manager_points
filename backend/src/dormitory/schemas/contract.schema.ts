@@ -1,12 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type ContractDocument = Contract & Document;
 
 @Schema({ timestamps: true })
 export class Contract {
   @Prop({ required: true, unique: true })
-  ma_hd: string;
+  contract_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Types.ObjectId;
@@ -21,23 +22,23 @@ export class Contract {
   registration_id: Types.ObjectId;
 
   @Prop({ required: true })
-  ngay_bat_dau: Date;
+  start_date: Date;
 
   @Prop({ required: true })
-  ngay_ket_thuc: Date;
+  end_date: Date;
 
   @Prop({
     required: true,
-    enum: ['Hiệu lực', 'Hết hạn', 'Đã hủy'],
+    enum: DORMITORY_ENUMS.contractStatus,
     default: 'Hiệu lực',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop()
-  ly_do_huy: string;
+  cancellation_reason: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  nguoi_tao_id: Types.ObjectId;
+  created_by_id: Types.ObjectId;
 }
 
 export const ContractSchema = SchemaFactory.createForClass(Contract);

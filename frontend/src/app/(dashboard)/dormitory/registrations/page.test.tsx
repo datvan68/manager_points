@@ -5,7 +5,7 @@ describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
     expect(mapActiveSemester([
       { _id: 'semester-1', semester_name: 'HK2 - 2025 - 2026', start_date: '', end_date: '', status: 'active' },
-    ])).toEqual({ ky_hoc: 'HK2', nam_hoc: '2025-2026' });
+    ])).toEqual({ semester: 'HK2', academic_year: '2025-2026' });
   });
 
   it('rejects missing, duplicate, and malformed active semesters', () => {

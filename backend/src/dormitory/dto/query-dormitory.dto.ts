@@ -29,13 +29,13 @@ export class QueryDormitoryDto {
 
   @IsOptional()
   @IsString()
-  trang_thai?: string;
+  status?: string;
 
   @IsOptional()
   @IsString()
-  ky_hoc?: string;
+  semester?: string;
 
   @IsOptional()
   @IsString()
-  nam_hoc?: string;
+  academic_year?: string;
 }

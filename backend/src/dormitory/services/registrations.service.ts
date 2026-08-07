@@ -41,18 +41,18 @@ export class RegistrationsService {
     if (active.length !== 1) {
       throw new BadRequestException(active.length ? 'Có nhiều học kỳ active. Vui lòng kiểm tra cấu hình học kỳ.' : 'Chưa có học kỳ active. Vui lòng cấu hình học kỳ trước khi đăng ký.');
     }
-    const existing = await this.publicRegModel.findOne({ so_dien_thoai: dto.so_dien_thoai, trang_thai: 'Chờ xác nhận' });
+    const existing = await this.publicRegModel.findOne({ phone_number: dto.phone_number, status: 'Chờ xác nhận' });
     if (existing) {
       throw new ConflictException('Số điện thoại này đã có đơn đăng ký tạm đang chờ xử lý.');
     }
     const parts = active[0].semester_name.split(/\s*-\s*/);
     const registration = new this.publicRegModel({
-      ma_dk_public: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
-      ho_ten: dto.ho_ten.trim(), so_dien_thoai: dto.so_dien_thoai.trim(),
-      ma_sinh_vien: '', ngay_sinh: dto.ngay_sinh, gioi_tinh: dto.gioi_tinh,
-      loai_phong: dto.gioi_tinh === 'Female' ? (dto.loai_phong || 'Thường') : 'Thường',
-      ky_hoc: parts[0] || '', nam_hoc: parts.slice(1).join('-').replace(/\s/g, ''),
-      ghi_chu: dto.ghi_chu || '', trang_thai: 'Chờ xác nhận', nguon: 'ADMIN_ENTRY',
+      public_registration_code: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
+      full_name: dto.full_name.trim(), phone_number: dto.phone_number.trim(),
+      student_code: '', date_of_birth: dto.date_of_birth, gender: dto.gender,
+      room_type: dto.gender === 'Female' ? (dto.room_type || 'Thường') : 'Thường',
+      semester: parts[0] || '', academic_year: parts.slice(1).join('-').replace(/\s/g, ''),
+      notes: dto.notes || '', status: 'Chờ xác nhận', source: 'ADMIN_ENTRY',
     });
     return registration.save();
   }
@@ -61,7 +61,7 @@ export class RegistrationsService {
     // BR3: Check overdue invoices > 1 kỳ
     const overdueCount = await this.invoiceModel.countDocuments({
       student_id: dto.student_id,
-      trang_thai: 'Quá hạn',
+      status: 'Quá hạn',
     });
     if (overdueCount > 0) {
       throw new BadRequestException(
@@ -72,7 +72,7 @@ export class RegistrationsService {
     // Check existing pending registration
     const existing = await this.registrationModel.findOne({
       student_id: dto.student_id,
-      trang_thai: 'Chờ duyệt',
+      status: 'Chờ duyệt',
     });
     if (existing) {
       throw new ConflictException(
@@ -83,7 +83,7 @@ export class RegistrationsService {
     // BR1: Check existing active contract
     const activeContract = await this.contractModel.findOne({
       student_id: dto.student_id,
-      trang_thai: 'Hiệu lực',
+      status: 'Hiệu lực',
     });
     if (activeContract) {
       throw new ConflictException(
@@ -93,17 +93,17 @@ export class RegistrationsService {
 
     const registration = new this.registrationModel({
       ...dto,
-      ma_dk: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
-      trang_thai: 'Chờ duyệt',
+      registration_code: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
+      status: 'Chờ duyệt',
     });
 
     return registration.save();
   }
 
   async findAll(query: {
-    trang_thai?: string;
-    ky_hoc?: string;
-    nam_hoc?: string;
+    status?: string;
+    semester?: string;
+    academic_year?: string;
     search?: string;
     source?: string;
     page?: number;
@@ -111,9 +111,9 @@ export class RegistrationsService {
   }) {
     const search = query.search?.trim();
     const filter: any = {};
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
-    if (query.ky_hoc) filter.ky_hoc = query.ky_hoc;
-    if (query.nam_hoc) filter.nam_hoc = query.nam_hoc;
+    if (query.status) filter.status = query.status;
+    if (query.semester) filter.semester = query.semester;
+    if (query.academic_year) filter.academic_year = query.academic_year;
 
     const page = query.page || 1;
     const limit = query.limit || 50;
@@ -123,25 +123,25 @@ export class RegistrationsService {
       this.registrationModel
         .find(filter)
         .populate('student_id', 'student_code full_name class_id')
-        .populate('nguoi_duyet_id', 'user_name')
+        .populate('reviewed_by_id', 'user_name')
         .sort({ createdAt: -1 })
         .exec(),
       this.publicRegModel.find({
-        ...(query.source === 'ADMIN_TEMPORARY' ? { nguon: 'ADMIN_ENTRY' } : {}),
-        ...(query.trang_thai ? { trang_thai: query.trang_thai } : {}),
-        ...(search ? { $or: ['ma_dk_public', 'ho_ten', 'ma_sinh_vien', 'so_dien_thoai', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
+        ...(query.source === 'ADMIN_TEMPORARY' ? { source: 'ADMIN_ENTRY' } : {}),
+        ...(query.status ? { status: query.status } : {}),
+        ...(search ? { $or: ['public_registration_code', 'full_name', 'student_code', 'phone_number', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
       }).sort({ createdAt: -1 }).lean(),
     ]);
 
     const normalizedSearch = search?.toLocaleLowerCase();
     const matches = (values: unknown[]) => !normalizedSearch || values.some(value => String(value ?? '').toLocaleLowerCase().includes(normalizedSearch));
-    const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.ma_dk, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
+    const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.registration_code, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
       ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
       student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
     }));
-    const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.nguon !== 'ADMIN_ENTRY') && matches([item.ma_dk_public, item.ho_ten, item.ma_sinh_vien, item.so_dien_thoai, item.email])).map((item: any) => ({
-      ...item, _id: String(item._id), ma_dk: item.ma_dk_public, student_id: null, student_code: item.ma_sinh_vien || null, full_name: item.ho_ten, class_id: null,
-      source: item.nguon === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.ma_sinh_vien ? 'MISSING_CLASS' : 'UNCLASSIFIED',
+    const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.source !== 'ADMIN_ENTRY') && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email])).map((item: any) => ({
+      ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,
+      source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.student_code ? 'MISSING_CLASS' : 'UNCLASSIFIED',
     }));
     const data = [...formalRows, ...publicRows]
       .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -157,18 +157,18 @@ export class RegistrationsService {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const filter: any = {
-      ma_sinh_vien: { $in: ['', null] },
+      student_code: { $in: ['', null] },
       linked_student_id: { $exists: false },
       linked_registration_id: { $exists: false },
     };
     const search = query.search?.trim();
-    if (search) filter.$or = ['ma_dk_public', 'ho_ten', 'so_dien_thoai', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } }));
+    if (search) filter.$or = ['public_registration_code', 'full_name', 'phone_number', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } }));
     const [data, total] = await Promise.all([
       this.publicRegModel.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       this.publicRegModel.countDocuments(filter),
     ]);
     return {
-      data: data.map((item: any) => ({ ...item, source: item.nguon === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
+      data: data.map((item: any) => ({ ...item, source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -177,7 +177,7 @@ export class RegistrationsService {
     const reg = await this.registrationModel
       .findById(id)
       .populate('student_id')
-      .populate('nguoi_duyet_id', 'user_name')
+      .populate('reviewed_by_id', 'user_name')
       .exec();
     if (!reg) {
       throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
@@ -194,18 +194,18 @@ export class RegistrationsService {
     if (!reg) {
       throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
     }
-    if (reg.trang_thai !== 'Chờ duyệt') {
+    if (reg.status !== 'Chờ duyệt') {
       throw new BadRequestException('Đơn đăng ký không ở trạng thái chờ duyệt');
     }
 
-    if (dto.trang_thai === 'Từ chối' && !dto.ly_do_tu_choi) {
+    if (dto.status === 'Từ chối' && !dto.rejection_reason) {
       throw new BadRequestException('Vui lòng nhập lý do từ chối');
     }
 
-    reg.trang_thai = dto.trang_thai;
-    reg.ly_do_tu_choi = dto.ly_do_tu_choi || '';
-    reg.nguoi_duyet_id = user._id || user.userId;
-    reg.ngay_duyet = new Date();
+    reg.status = dto.status;
+    reg.rejection_reason = dto.rejection_reason || '';
+    reg.reviewed_by_id = user._id || user.userId;
+    reg.reviewed_at = new Date();
 
     return reg.save();
   }
@@ -221,7 +221,7 @@ export class RegistrationsService {
       try {
         await this.approve(
           regId,
-          { trang_thai: dto.trang_thai, ly_do_tu_choi: dto.ly_do_tu_choi },
+          { status: dto.status, rejection_reason: dto.rejection_reason },
           user,
         );
         success++;

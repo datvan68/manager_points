@@ -12,7 +12,7 @@ import { Type } from 'class-transformer';
 class NguyenVongDto {
   @IsOptional()
   @IsString()
-  loai_phong?: string;
+  room_type?: string;
 
   @IsOptional()
   @IsMongoId()
@@ -20,7 +20,7 @@ class NguyenVongDto {
 
   @IsOptional()
   @IsString()
-  ghi_chu?: string;
+  notes?: string;
 }
 
 export class CreateRegistrationDto {
@@ -30,30 +30,30 @@ export class CreateRegistrationDto {
 
   @IsNotEmpty()
   @IsString()
-  ky_hoc: string;
+  semester: string;
 
   @IsNotEmpty()
   @IsString()
-  nam_hoc: string;
+  academic_year: string;
 
   @IsNotEmpty()
   @IsDateString()
-  ngay_sinh: string;
+  date_of_birth: string;
 
   @IsNotEmpty()
   @IsEnum(['Male', 'Female', 'Other'])
-  gioi_tinh: 'Male' | 'Female' | 'Other';
+  gender: 'Male' | 'Female' | 'Other';
 
   @IsNotEmpty()
   @IsString()
-  so_dien_thoai: string;
+  phone_number: string;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => NguyenVongDto)
-  nguyen_vong?: NguyenVongDto;
+  preference?: NguyenVongDto;
 
   @IsOptional()
   @IsEnum(['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Khó khăn', 'Không'])
-  doi_tuong_uu_tien?: string;
+  priority_group?: string;
 }

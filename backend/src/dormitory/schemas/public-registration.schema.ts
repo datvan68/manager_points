@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type PublicRegistrationDocument = PublicRegistration & Document;
 
@@ -10,72 +11,72 @@ export type PublicRegistrationDocument = PublicRegistration & Document;
 @Schema({ timestamps: true })
 export class PublicRegistration {
   @Prop({ required: true, unique: true })
-  ma_dk_public: string;
+  public_registration_code: string;
 
   @Prop({ required: true })
-  ho_ten: string;
+  full_name: string;
 
   @Prop({ required: true })
-  so_dien_thoai: string;
+  phone_number: string;
 
   @Prop()
   email: string;
 
   @Prop()
-  ma_sinh_vien: string;
+  student_code: string;
 
   @Prop({ required: true })
-  ngay_sinh: string;
+  date_of_birth: string;
 
   @Prop({ required: true, enum: ['Male', 'Female', 'Other'] })
-  gioi_tinh: string;
+  gender: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room' })
   room_id: Types.ObjectId;
 
   @Prop()
-  ma_phong: string;
+  room_code: string;
 
   @Prop()
-  ten_toa_nha: string;
+  building_name: string;
 
-  @Prop({ enum: ['Thường', 'Máy lạnh'], default: 'Thường' })
-  loai_phong: string;
+  @Prop({ enum: DORMITORY_ENUMS.roomType, default: 'Thường' })
+  room_type: string;
 
   @Prop({ default: () => {
     const now = new Date();
     const month = now.getMonth() + 1;
     return month >= 8 ? 'HK1' : month >= 1 && month < 6 ? 'HK2' : 'Hè';
   }})
-  ky_hoc: string;
+  semester: string;
 
   @Prop({ default: () => {
     const now = new Date();
     return `${now.getFullYear()}-${now.getFullYear() + 1}`;
   }})
-  nam_hoc: string;
+  academic_year: string;
 
   @Prop({
     enum: ['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Không'],
     default: 'Không',
   })
-  doi_tuong_uu_tien: string;
+  priority_group: string;
 
   @Prop()
-  ghi_chu: string;
+  notes: string;
 
   @Prop({
     required: true,
-    enum: ['Chờ xác nhận', 'Đã xác nhận', 'Từ chối'],
+    enum: DORMITORY_ENUMS.publicRegistrationStatus,
     default: 'Chờ xác nhận',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop()
-  ly_do_tu_choi: string;
+  rejection_reason: string;
 
   @Prop()
-  nguon: string; // 'QR_SCAN'
+  source: string; // 'QR_SCAN'
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', index: true })
   linked_student_id?: Types.ObjectId;

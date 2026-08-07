@@ -23,7 +23,7 @@ export default function ContractsPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await dormitoryApi.contracts.getAll({ trang_thai: filterStatus || undefined, search: search || undefined, limit: 50 });
+      const res = await dormitoryApi.contracts.getAll({ status: filterStatus || undefined, search: search || undefined, limit: 50 });
       setContracts(res.data);
       setMeta(res.meta);
     } catch (err: any) {
@@ -94,18 +94,18 @@ export default function ContractsPage() {
                 <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có hợp đồng nào</td></tr>
               ) : contracts.map(c => (
                 <tr key={c._id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="p-3 font-mono text-xs">{c.ma_hd}</td>
+                  <td className="p-3 font-mono text-xs">{c.contract_code}</td>
                   <td className="p-3">
                     <div className="font-medium text-gray-800">{c.student_id?.full_name || '—'}</div>
                     <div className="text-xs text-gray-400">{c.student_id?.student_code || ''}</div>
                   </td>
-                  <td className="p-3 text-gray-600">{c.room_id?.ma_phong || '—'}</td>
-                  <td className="p-3 text-gray-600">{c.bed_id?.ma_giuong || '—'}</td>
-                  <td className="p-3 text-gray-500 text-xs">{c.ngay_bat_dau ? new Date(c.ngay_bat_dau).toLocaleDateString('vi-VN') : '—'}</td>
-                  <td className="p-3 text-gray-500 text-xs">{c.ngay_ket_thuc ? new Date(c.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—'}</td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[c.trang_thai] || ''}`}>{c.trang_thai}</span></td>
+                  <td className="p-3 text-gray-600">{c.room_id?.room_code || '—'}</td>
+                  <td className="p-3 text-gray-600">{c.bed_id?.bed_code || '—'}</td>
+                  <td className="p-3 text-gray-500 text-xs">{c.start_date ? new Date(c.start_date).toLocaleDateString('vi-VN') : '—'}</td>
+                  <td className="p-3 text-gray-500 text-xs">{c.end_date ? new Date(c.end_date).toLocaleDateString('vi-VN') : '—'}</td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[c.status] || ''}`}>{c.status}</span></td>
                   <td className="p-3 text-center">
-                    {c.trang_thai === 'Hiệu lực' && (
+                    {c.status === 'Hiệu lực' && (
                       <button onClick={() => setCancelId(c._id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Hủy hợp đồng">
                         <XCircle size={16} />
                       </button>

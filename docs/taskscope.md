@@ -1,123 +1,123 @@
-# Task: dormitory-rooms-workspace-redesign
+# Task Identity and Pipeline
 
-- Pipeline: `feature_development`
+- Task: `dormitory-schema-english-naming`
+- Pipeline: `refactor`
 - Risk: high
 - Profile: Full
+- Rule set: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Base: current working tree
+- Base commit: `146b0ecd10a08499b85bf59fa3a6302b9aebd540`
+- Base state: current worktree; preserve the pre-existing deleted files under `backend/uploads/`.
+
+## Risk Level
+
+This is a cross-layer public-contract and persistent-data rename affecting MongoDB documents, indexes/queries, DTOs, services, tests, frontend types, forms, filters, reports, and public QR registration. The change is reversible through a tested rollback migration, but executing either migration mutates persistent data and requires a Human Gate. Environment for implementation and automated verification is development/isolated test only.
 
 ## Objective
 
-Complete the **“Phòng”** tab so it follows the existing KTX registration workspace design. It must provide matching page spacing, a compact room table with actionable row selection, room type and VND price data, accurate occupancy data, DTO-safe create/update payloads, a single area-management dialog with full CRUD, safe single/bulk delete confirmation, and registration-style mobile card/infinite-load behavior.
+Replace Vietnamese transliterated field identifiers in the dormitory domain with consistent English `snake_case` identifiers, while keeping Vietnamese only in explicitly required enum values and rendering all user-facing text in correct, fully accented UTF-8 Vietnamese without mojibake.
 
-## Boundary
+## Scope Boundaries
 
-### Frontend writes
+### Approved/read boundary
 
-- `frontend/src/app/(dashboard)/dormitory/layout.tsx`
-- `frontend/src/app/(dashboard)/dormitory/layout.test.tsx`
-- `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`
-- A focused page test beside the buildings page, if absent
+- `backend/src/dormitory/**`
+- `backend/test/**` only for affected dormitory e2e contracts
+- `backend/scripts/**` and `backend/package.json` for migration commands
 - `frontend/src/api/dormitory-api.ts`
-- `frontend/src/api/dormitory-api.test.ts` only when the room response/input contract needs focused coverage
+- `frontend/src/app/(dashboard)/dormitory/**`
+- `frontend/src/app/public/room/[qrId]/**`
+- `frontend/src/app/(dashboard)/students/unclassified/**`
+- Focused tests adjacent to those frontend paths
+- `docs/**` for the migration/runbook documentation
 
-### Backend writes
+### Expected write boundary
 
-- `backend/src/dormitory/controllers/rooms.controller.ts` only if its list contract must expose new query/response fields
-- `backend/src/dormitory/services/rooms.service.ts`
-- `backend/src/dormitory/schemas/room.schema.ts`
-- `backend/src/dormitory/dto/create-room.dto.ts`
-- `backend/src/dormitory/dto/update-room.dto.ts`
-- Focused room controller/service specs under `backend/src/dormitory/`
-- `backend/src/dormitory/dormitory.module.ts` only if dependency injection for occupancy aggregation requires it
+- The affected files inside the approved boundary that reference renamed fields
+- New idempotent dry-run/execute and rollback scripts under `backend/scripts/`
+- `backend/package.json` migration script entries
+- Focused backend/frontend regression tests
+- A migration field map/runbook under `docs/`
 
-### Reference only / exclusions
+### Canonical field map
 
-- Reuse the menu bar, page padding/gaps, responsive table/card surface, dialog styling, colors, and controls from `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`.
-- Reuse `Research`, `Button`, `Input`, `Select`, `Dialog`, `ResponsiveDataView`, `CustomPagination`, `FloatingActionBar`, and `ConfirmModal`; do not introduce another UI library or duplicate these primitives.
-- Preserve existing room QR generation/public room URLs, bed management, room assignment, permissions, and building APIs.
-- Exclude direct MongoDB writes, backfills, deletion of legacy room/building data, redesign of other KTX tabs, deployment, and unrelated refactors.
+Use English `snake_case` for persisted fields, DTO/query keys, response bodies, aggregation projections, and frontend API models. Preserve already-English relationship keys such as `student_id`, `room_id`, `bed_id`, `building_id`, `contract_id`, and timestamps.
 
-## Required changes
+| Schema | Legacy fields → canonical English fields |
+| --- | --- |
+| Building | `ma_toa_nha→building_code`, `ten→name`, `dia_chi→address`, `so_tang→floor_count`, `trang_thai→status`, `mo_ta→description` |
+| Bed | `ma_giuong→bed_code`, `vi_tri→position`, `trang_thai→status` |
+| Room | `ma_phong→room_code`, `ten_phong→room_name`, `tang→floor`, `loai_phong→room_type`, `so_giuong→bed_count`, `so_giuong_trong→available_bed_count`, `gia_phong→room_price`, `trang_thai→status`, `tien_ich→amenities`, `ma_qr→qr_code`, `url_xem_nhanh→public_url`, `mo_ta→description` |
+| Contract | `ma_hd→contract_code`, `ngay_bat_dau→start_date`, `ngay_ket_thuc→end_date`, `trang_thai→status`, `ly_do_huy→cancellation_reason`, `nguoi_tao_id→created_by_id` |
+| Invoice/InvoiceItem | `loai→type`, `mo_ta→description`, `so_tien→amount`, `ma_hoa_don→invoice_code`, `ky_thu→billing_period`, `chi_tiet→items`, `tong_tien→total_amount`, `trang_thai→status`, `han_thanh_toan→due_date`, `ngay_thanh_toan→paid_at`, `phuong_thuc→payment_method`, `nguoi_xac_nhan_id→confirmed_by_id`, `ghi_chu→notes` |
+| MaintenanceRequest | `ma_ycbt→request_code`, `loai_su_co→issue_type`, `mo_ta→description`, `hinh_anh→images`, `trang_thai→status`, `do_uu_tien→priority`, `ky_thuat_vien_id→technician_id`, `ghi_chu_xu_ly→resolution_notes`, `ngay_hoan_tat→completed_at` |
+| Registration | `ma_dk→registration_code`, `ky_hoc→semester`, `nam_hoc→academic_year`, `ngay_sinh→date_of_birth`, `gioi_tinh→gender`, `so_dien_thoai→phone_number`, `nguyen_vong→preference`, nested `loai_phong→room_type` and `ghi_chu→notes`, `doi_tuong_uu_tien→priority_group`, `trang_thai→status`, `ly_do_tu_choi→rejection_reason`, `nguoi_duyet_id→reviewed_by_id`, `ngay_duyet→reviewed_at` |
+| PublicRegistration | `ma_dk_public→public_registration_code`, `ho_ten→full_name`, `so_dien_thoai→phone_number`, `ma_sinh_vien→student_code`, `ngay_sinh→date_of_birth`, `gioi_tinh→gender`, `ma_phong→room_code`, `ten_toa_nha→building_name`, `loai_phong→room_type`, `ky_hoc→semester`, `nam_hoc→academic_year`, `doi_tuong_uu_tien→priority_group`, `ghi_chu→notes`, `trang_thai→status`, `ly_do_tu_choi→rejection_reason`, `nguon→source` |
+| Violation | `ma_vp→violation_code`, `loai_vi_pham→violation_type`, `muc_do→severity`, `diem_tru→deducted_points`, `ngay_ghi_nhan→recorded_at`, `mo_ta→description`, `minh_chung→evidence`, `hinh_thuc_xu_ly→resolution_type`, `trang_thai→status`, `nguoi_ghi_nhan_id→recorded_by_id`, `nguoi_xu_ly_id→resolved_by_id`, `ghi_chu_xu_ly→resolution_notes` |
 
-1. Rename only the dormitory navigation label **“Khu vực & Phòng”** to **“Phòng”** while retaining the existing tab id and `/dormitory/buildings` route so bookmarks and active-tab behavior remain compatible.
-2. Use the same outer layout spacing as **“Đăng ký”**, including equivalent left/right and top/bottom padding, vertical gap between the menu bar and data surface, scroll behavior, rounded border, shadow, and translucent background. Avoid an extra heading, area-chip row, or wrapper margin that makes the content narrower or taller than the registration tab.
-3. Use the same compact glass-style menu bar as **“Đăng ký”**:
-   - responsive `Research` input that searches room code and room name;
-   - `Button` with the add icon and visible text **“Thêm phòng”**; retain an accessible name and allow a compact responsive treatment only where required on narrow screens;
-   - one icon `Button` labeled **“Quản lý khu vực”** that opens the area-management dialog; it must not directly open a blank create-area form;
-   - accessible labels/tooltips and permission-based visibility for create actions;
-   - loading/refresh behavior consistent with the registration workspace.
-4. Replace the building-card/room-card split with a responsive room data view/table. Desktop must start with a checkbox selection column, followed by columns ordered exactly as:
-   - **Mã phòng**;
-   - **Tên phòng**;
-   - **Loại phòng**;
-   - **Giường** (rename the current **“Tổng số giường”** header);
-   - **Số sinh viên** (rename the current **“Tổng số sinh viên tại phòng”** header);
-   - **Giá phòng**;
-   - **Thao tác**.
-   Use a smaller, readable page-scoped table font and compact header/body row spacing so more room rows fit in the available viewport. Keep checkbox and action hit targets accessible, preserve column alignment, and do not globally change `ResponsiveDataView` typography or density for other pages.
-5. Render **Loại phòng** from the existing `loai_phong` field and **Giá phòng** from the existing `gia_phong` field. Format room prices consistently in Vietnamese locale with the `VNĐ` unit, define a safe display for zero/missing legacy values, and do not change the stored numeric value or API/schema contract.
-6. Connect `ResponsiveDataView.selection` to controlled room selection state. The header checkbox selects or clears only the currently loaded desktop page, each desktop row and mobile card has its own checkbox, and selection is cleared when search/filter/page-size context changes.
-7. When at least one room is selected, show the shared `FloatingActionBar` with the selected count, a clear-selection control, and a permission-aware **“Xóa”** action. The action must:
-   - appear only for users with `DORM_ROOM_DELETE` and never bypass existing per-room server permission/dependency checks;
-   - open a danger `ConfirmModal` that identifies the selected count before any request is sent;
-   - reuse the existing room delete API for each selected id without adding a new bulk endpoint in this task;
-   - prevent repeated submission, avoid optimistic removal, refresh the room list after completion, clear only successfully deleted selections, and report full success, full failure, or partial success with actionable conflict/error feedback.
-8. Right-align the **“Thao tác”** header, cells, and icon group flush with the table's right content edge while preserving the standard horizontal cell padding. Create remains in the menu bar; each row exposes edit and delete icon buttons. Keep room QR access only if it fits the action group without changing the required data columns. All actions must have accessible names and obey `DORM_ROOM_CREATE`, `DORM_ROOM_UPDATE`, and `DORM_ROOM_DELETE` permissions.
-9. Replace native `window.confirm` room deletion with shared `ConfirmModal` using the danger variant. Clicking delete only opens the confirmation; cancellation performs no API call; confirmation is single-submit, shows the room identity, calls the delete endpoint once, closes on success, refreshes data, and surfaces occupied-room/server conflicts without optimistic removal.
-10. Desktop retains `CustomPagination`. Mobile/tablet uses `ResponsiveDataView` cards and hides pagination, matching **“Đăng ký”** with an internal scroll container, sentinel plus `IntersectionObserver`, appended next-page results, loading/end states, and retry on load-more failure. Prevent duplicate concurrent page loads; reset the accumulated list and mobile cursor on search/filter/page-size changes.
-11. Search is sent to the room-list endpoint rather than filtering only loaded data. Desktop page changes replace rows; mobile page changes append de-duplicated rows. Loading, empty, initial-error, refresh, and load-more-error states must remain distinct.
-12. Add an explicit room display-name field (for example `ten_phong`) to the room frontend type, DTO validation, and schema. New rooms require both room code and room name. Existing legacy records without a name display `ma_phong` as a safe fallback and remain editable; no migration/backfill is part of this task.
-13. Return an explicit read-only occupancy field (for example `total_students`) in each room-list row. Compute it server-side from active KTX contracts assigned to that room (`trang_thai = “Hiệu lực”`), not from `so_giuong - so_giuong_trong`, and do not persist this derived count in the room document.
-14. Extend room search to match both `ma_phong` and `ten_phong`. Preserve existing building, status, and room-type filters supported by the endpoint.
-15. Implement **add/edit room** dialogs with the same `DialogContent` gradient background, translucent border, header/footer, spacing, responsive width, and validation/error treatment as the **“Thêm đăng ký”** dialog. Use existing `Input` and `Select` components for fields such as area, room code, room name, floor, room type, bed count, price, and status; retain current room fields required by the backend.
-    - Do not build the room mutation request by spreading a room response object or the unrestricted form state.
-    - Create an explicit frontend room-mutation input type and a shared payload mapper/whitelist containing only fields accepted by `CreateRoomDto`/`UpdateRoomDto`: `ma_phong`, `ten_phong`, `building_id`, `tang`, `loai_phong`, `so_giuong`, `gia_phong`, optional `trang_thai`, `tien_ich`, and `mo_ta`.
-    - Normalize populated `building_id` to its string id and numeric form values before both create and update requests.
-    - Never send response-only or derived fields such as `_id`, `so_giuong_trong`, `ma_qr`, `url_xem_nhanh`, `createdAt`, `updatedAt`, `__v`, or `total_students`. Editing a room loaded from either list or detail responses must no longer trigger validation errors for these properties.
-16. Replace the standalone add-area dialog and area chips with one **area-management dialog** opened from the menu bar. The dialog:
-    - lists all areas and exposes permission-aware **add**, **edit**, and **delete** actions;
-    - provides a clear empty state and a create action inside the modal;
-    - renders the **add area** action with the shared `Button` component as an icon-only control: show the add icon without visible **“Thêm khu vực”** text, while retaining `aria-label="Thêm khu vực"` and a matching tooltip/title;
-    - uses the registration-modal surface and existing `Input`/`Select` primitives for area code, name, address, floor count, status, and description;
-    - supports create/edit without leaving the modal, returning predictably to the refreshed area list after save or cancel;
-    - uses `ConfirmModal` with danger styling for area deletion and preserves backend dependency/conflict safeguards.
-17. Dialog state must be deterministic: opening create clears stale edit data; opening edit loads the selected entity; cancel/close does not save; successful room save closes/resets; successful area mutation refreshes the management list, room table, and room-form area options as applicable. Disable repeated submission and show precise validation, duplicate, dependency, delete-conflict, and server errors.
-18. Preserve current QR/public-room behavior, room availability synchronization, server permission guards, non-cascading deletion, and all functionality outside this tab.
+## Out of Scope
+
+- Renaming already-English fields merely to switch between `snake_case` and `camelCase`.
+- Changing collection names, route URLs, permission codes, ObjectId relationships, or Mongo timestamps.
+- Redesigning dormitory UI or changing business behavior.
+- Translating free-form user data.
+- Production/staging migration, deployment, or deletion of legacy data during planning/implementation without separate approval.
+- Non-dormitory schemas; the focused audit found Vietnamese-style schema identifiers only in the nine dormitory schema files listed above.
+
+## Context and Dependencies
+
+- `Building` currently persists `ma_toa_nha`, `ten`, `dia_chi`, `so_tang`, `trang_thai`, and `mo_ta`; the same pattern appears across the other eight dormitory schemas.
+- Consumers include dormitory controllers/services/DTOs, populate projections and aggregation stages, QR/public registration, reports, `frontend/src/api/dormitory-api.ts`, all dormitory pages, the public room page, and the unclassified-students page.
+- Replace identifiers end-to-end; do not leave mixed legacy/canonical request or response shapes after the migration cutover.
+- Define typed enum constants. Prefer stable English enum codes; retain Vietnamese enum values only when an explicit business/data-compatibility requirement is documented. UI labels must come from centralized Vietnamese display maps, never from persisted field names or raw English enum codes.
+- All edited source and fixtures must remain UTF-8. Mojibake detection must target broken byte-decoding sequences and must not flag valid Vietnamese uppercase text such as `NHÂN`.
+
+## Steps
+
+1. Inventory every legacy-field read/write, Mongo filter/update/projection/index, DTO/Swagger contract, frontend API type, UI form/filter/table, export/report, fixture, and test within the approved boundary; freeze the final mapping above before mutation.
+2. Add canonical enum definitions and Vietnamese UI label maps. Document any enum intentionally retained in Vietnamese and why.
+3. Update the nine schemas, compound indexes, DTOs/query DTOs, controllers, services, populate projections, aggregations, QR/public flows, and reports to the canonical English contract.
+4. Update frontend API models/payloads and every affected dormitory/public consumer. Render labels, validation messages, statuses, options, headings, currency/date text, and accessibility text as fully accented Vietnamese through explicit mappings.
+5. Add an idempotent migration with default dry-run, explicit `--execute`, collision detection when both old/new keys exist, count/checksum summaries, production blocking, and no logging of personal field values. Rename nested registration preference keys and every affected index/query key. Add a matching dry-run-first rollback.
+6. Add focused schema/service/controller/API/UI/migration tests, including legacy fixtures, canonical output, index behavior, enum display mapping, Unicode round trips, and representative mojibake guards.
+7. Run focused tests, builds/typecheck, migration dry-run against an isolated fixture database, then review the final diff/status for unintended legacy identifiers and unrelated changes.
+
+## Acceptance Criteria
+
+- `AC-01`: All nine dormitory schemas and their active consumers use only the canonical English field names in the table; approved enum values are the only persisted values that may contain Vietnamese.
+- `AC-02`: Create/read/update/filter/search/report/QR/public-registration flows accept and return the canonical English contract with no mixed legacy keys.
+- `AC-03`: The migration dry-run reports document/index changes without mutation; execute and rollback are idempotent, collision-safe, count-verified, and blocked for production by default.
+- `AC-04`: Existing isolated legacy fixtures migrate without data loss, relationship breakage, duplicate-index failure, or semantic change; rollback restores the legacy shape.
+- `AC-05`: Every affected UI surface displays fully accented Vietnamese labels and mapped enum text; representative Unicode values survive API round trips and no known mojibake sequence is rendered.
+- `AC-06`: Focused backend/frontend tests, backend build, frontend typecheck, migration tests/dry-run, and final repository checks pass.
 
 ## Verification
 
-- `D:\PROJECT\manager_points\frontend :: npm test -- --run 'src/app/(dashboard)/dormitory/layout.test.tsx' 'src/app/(dashboard)/dormitory/buildings/page.test.tsx' 'src/api/dormitory-api.test.ts'` => covers renamed tab, registration-matched spacing, visible **“Thêm phòng”** button text, compact page-scoped table typography/density, room selection, `FloatingActionBar`, single/bulk `ConfirmModal` delete flows including partial failure, room type and VNĐ price rendering, renamed headers, right-aligned actions, icon-only shared `Button` for **“Thêm khu vực”**, area-management CRUD dialog, desktop pagination, mobile card/infinite loading, search reset, permission-aware actions, dialog state, and exact room create/update payloads with response-only fields excluded.
-- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand dormitory/services/rooms.service.spec.ts dormitory/controllers/rooms.controller.spec.ts` => covers room-name validation/search, legacy fallback contract, active-contract occupancy aggregation, pagination, CRUD conflicts, and unchanged filters.
-- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no introduced TypeScript errors.
-- `D:\PROJECT\manager_points\backend :: npm run build` => NestJS build and dependency injection pass.
-- Manual mocked/isolated verification at desktop and mobile widths:
-  - tab label is **“Phòng”** and remains selected on `/dormitory/buildings`;
-  - page padding, gaps, menu search, add-room button with visible **“Thêm phòng”** text, and area-management button match the registration tab;
-  - the area-management modal contains working permission-aware add/edit/delete flows, its add action is an accessible icon-only shared `Button`, and no separate area-chip row remains;
-  - desktop table uses smaller readable text and compact row spacing, and shows selection, the required room code/name/type, **“Giường”**, **“Số sinh viên”**, VNĐ-formatted **“Giá phòng”**, right-aligned actions, and pagination;
-  - selecting rooms opens `FloatingActionBar`; clearing selection is inert, bulk delete requires one danger confirmation, and success/partial-failure/failure states preserve accurate selections and data;
-  - mobile/tablet shows selectable cards, appends subsequent pages on scroll, has retry/end feedback, and never shows pagination;
-  - room and area deletes open `ConfirmModal`; cancel is inert and confirm performs exactly one guarded request;
-  - create, edit, delete, validation, conflict, empty, loading, and permission states behave correctly;
-  - editing a room sends only DTO-supported mutation fields and does not reproduce validation errors for `_id`, availability, QR, timestamps, version, or derived occupancy fields;
-  - legacy rooms without `ten_phong` render without crashing.
-- `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => only intended changes and no whitespace errors.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand dormitory` => affected schema/service/controller behavior and canonical contracts pass.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand <new migration spec path>` => dry-run, execute, collision, nested-key, idempotency, and rollback cases pass against isolated fixtures.
+- `D:\PROJECT\manager_points\backend :: npm run migration:dormitory-naming:dry-run` with an explicitly isolated test database => zero writes and an accurate proposed-change summary.
+- `D:\PROJECT\manager_points\backend :: npm run build` => NestJS compilation passes.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run src/api/dormitory-api.test.ts 'src/app/(dashboard)/dormitory' src/components/dormitory` => canonical payload/response and Vietnamese display regressions pass.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => no TypeScript errors.
+- `D:\PROJECT\manager_points :: rg -n '<final legacy identifier alternation>' backend/src/dormitory frontend/src/api/dormitory-api.ts 'frontend/src/app/(dashboard)/dormitory' 'frontend/src/app/public/room/[qrId]' 'frontend/src/app/(dashboard)/students/unclassified'` => only migration compatibility maps/tests/documented enum values remain.
+- `D:\PROJECT\manager_points :: rg -n '<targeted mojibake alternation>' backend/src/dormitory frontend/src` => no broken Vietnamese sequences in affected user-facing text.
+- `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => no whitespace errors; only scoped changes plus the preserved pre-existing upload deletions are present.
 
-## Done
+## Safety Gates
 
-- The KTX tab is labeled **“Phòng”** and its outer spacing, menu bar, and data surface align with **“Đăng ký”**.
-- The menu bar opens room creation and one consolidated area-management modal; area add/edit/delete is completed inside that modal.
-- Desktop rooms have checkboxes, a deletion `FloatingActionBar`, right-aligned actions, and pagination; mobile/tablet rooms render as cards with selection and registration-style infinite loading without pagination.
-- Single-room, selected-room, and area destructive actions use shared `ConfirmModal` and retain backend conflict protections.
-- Every room row exposes room code, room name, room type, **“Giường”**, server-derived **“Số sinh viên”**, VNĐ-formatted room price, and permitted actions.
-- The desktop table is page-scoped and compact enough to display more rows without reducing checkbox/action accessibility or changing other `ResponsiveDataView` consumers.
-- Room create/update payloads contain only DTO-supported fields; response-only and derived room properties never reach the mutation endpoints.
-- The area-management modal uses an accessible icon-only shared `Button` for adding an area, with no visible **“Thêm khu vực”** text.
-- Existing QR, room assignment, bed availability, permission, and legacy-room behavior remain compatible.
-- Focused tests, frontend typecheck, backend build, and final diff checks pass.
+- Planning-only: this file authorizes no implementation.
+- Human Gate: required before any migration `--execute` or rollback against a connected persistent database. Review artifact: dry-run counts, collision report, affected collections/indexes, backup reference, tested rollback, environment, and masked connection identity. Resume point: execute only after approval, then compare pre/post counts and sample canonical shapes without exposing personal data.
+- Deployment remains separately gated and out of scope.
 
-## Gate
+## Artifacts and Checkpoints
 
-Planning-only: this taskscope authorizes no implementation, schema deployment, migration, deletion, or persistent-data mutation. Implementation requires a separate explicit request. Automated tests must use mocks or an isolated test database. Any operation that creates, updates, or deletes records in the connected MongoDB requires explicit persistent-data authority and the applicable Human Gate.
+- Required for implementation: final mapping inventory, focused test results, dry-run report, rollback test result, and final diff/status.
+- Before any approved persistent execution: database backup reference and pre-migration counts/checksums.
+- Checkpoint hashes: migration/rollback scripts and approved dry-run report at the Human Gate.
+
+## Execution Budgets
+
+- Step deadline: 600 seconds; maximum 1800 seconds when migration tests/build require it.
+- Concurrent writers per path: 1; serialize schema/API contract changes.
+- Idempotent retries: 2; engineering loops: 3; review remediation cycles: 2.
+- Stop on collision, data-count mismatch, index incompatibility, unexpected consumer outside the approved boundary, production connection detection, or need to change an undocumented enum/business meaning.

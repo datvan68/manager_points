@@ -34,16 +34,16 @@ export class RoomsController {
   findAll(
     @Query('search') search?: string,
     @Query('building_id') building_id?: string,
-    @Query('trang_thai') trang_thai?: string,
-    @Query('loai_phong') loai_phong?: string,
+    @Query('status') status?: string,
+    @Query('room_type') room_type?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.roomsService.findAll({
       search,
       building_id,
-      trang_thai,
-      loai_phong,
+      status,
+      room_type,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

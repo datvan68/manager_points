@@ -1,12 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type ViolationDocument = Violation & Document;
 
 @Schema({ timestamps: true })
 export class Violation {
   @Prop({ required: true, unique: true })
-  ma_vp: string;
+  violation_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Types.ObjectId;
@@ -15,47 +16,47 @@ export class Violation {
   room_id: Types.ObjectId;
 
   @Prop({ required: true })
-  loai_vi_pham: string;
+  violation_type: string;
 
   @Prop({
     required: true,
     enum: ['Nhẹ', 'Trung bình', 'Nghiêm trọng'],
   })
-  muc_do: string;
+  severity: string;
 
   @Prop({ default: 0 })
-  diem_tru: number;
+  deducted_points: number;
 
   @Prop({ required: true, default: () => new Date() })
-  ngay_ghi_nhan: Date;
+  recorded_at: Date;
 
   @Prop()
-  mo_ta: string;
+  description: string;
 
   @Prop({ type: [String], default: [] })
-  minh_chung: string[];
+  evidence: string[];
 
   @Prop({
     enum: ['Nhắc nhở', 'Cảnh cáo', 'Phạt tiền', 'Buộc rời KTX'],
     default: 'Nhắc nhở',
   })
-  hinh_thuc_xu_ly: string;
+  resolution_type: string;
 
   @Prop({
     required: true,
-    enum: ['Mới', 'Đã xử lý', 'Đang xét'],
+    enum: DORMITORY_ENUMS.violationStatus,
     default: 'Mới',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  nguoi_ghi_nhan_id: Types.ObjectId;
+  recorded_by_id: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  nguoi_xu_ly_id: Types.ObjectId;
+  resolved_by_id: Types.ObjectId;
 
   @Prop()
-  ghi_chu_xu_ly: string;
+  resolution_notes: string;
 }
 
 export const ViolationSchema = SchemaFactory.createForClass(Violation);

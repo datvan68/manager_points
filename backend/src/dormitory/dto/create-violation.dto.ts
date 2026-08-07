@@ -20,33 +20,33 @@ export class CreateViolationDto {
 
   @IsNotEmpty()
   @IsString()
-  loai_vi_pham: string;
+  violation_type: string;
 
   @IsNotEmpty()
   @IsEnum(['Nhẹ', 'Trung bình', 'Nghiêm trọng'])
-  muc_do: string;
+  severity: string;
 
   @IsOptional()
   @IsNumber()
   @Min(0)
-  diem_tru?: number;
+  deducted_points?: number;
 
   @IsOptional()
   @IsString()
-  mo_ta?: string;
+  description?: string;
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  minh_chung?: string[];
+  evidence?: string[];
 }
 
 export class HandleViolationDto {
   @IsNotEmpty()
   @IsEnum(['Nhắc nhở', 'Cảnh cáo', 'Phạt tiền', 'Buộc rời KTX'])
-  hinh_thuc_xu_ly: string;
+  resolution_type: string;
 
   @IsOptional()
   @IsString()
-  ghi_chu_xu_ly?: string;
+  resolution_notes?: string;
 }

@@ -29,18 +29,18 @@ export class RoomsService {
       throw new NotFoundException(`Không tìm thấy tòa nhà: ${dto.building_id}`);
     }
 
-    const existing = await this.roomModel.findOne({ ma_phong: dto.ma_phong });
+    const existing = await this.roomModel.findOne({ room_code: dto.room_code });
     if (existing) {
-      throw new ConflictException(`Phòng với mã "${dto.ma_phong}" đã tồn tại`);
+      throw new ConflictException(`Phòng với mã "${dto.room_code}" đã tồn tại`);
     }
 
     // Auto-generate QR code and URL (FR16)
     const qrId = uuidv4();
     const room = new this.roomModel({
       ...dto,
-      so_giuong_trong: dto.so_giuong, // initially all beds are empty
-      ma_qr: qrId,
-      url_xem_nhanh: `/public/room/${qrId}`,
+      available_bed_count: dto.bed_count, // initially all beds are empty
+      qr_code: qrId,
+      public_url: `/public/room/${qrId}`,
     });
 
     return room.save();
@@ -49,21 +49,21 @@ export class RoomsService {
   async findAll(query: {
     search?: string;
     building_id?: string;
-    trang_thai?: string;
-    loai_phong?: string;
+    status?: string;
+    room_type?: string;
     page?: number;
     limit?: number;
   }) {
     const filter: any = {};
     if (query.search) {
       filter.$or = [
-        { ma_phong: { $regex: query.search, $options: 'i' } },
-        { ten_phong: { $regex: query.search, $options: 'i' } },
+        { room_code: { $regex: query.search, $options: 'i' } },
+        { room_name: { $regex: query.search, $options: 'i' } },
       ];
     }
     if (query.building_id) filter.building_id = query.building_id;
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
-    if (query.loai_phong) filter.loai_phong = query.loai_phong;
+    if (query.status) filter.status = query.status;
+    if (query.room_type) filter.room_type = query.room_type;
 
     const page = query.page || 1;
     const limit = query.limit || 50;
@@ -72,8 +72,8 @@ export class RoomsService {
     const [data, total] = await Promise.all([
       this.roomModel
         .find(filter)
-        .populate('building_id', 'ma_toa_nha ten')
-        .sort({ ma_phong: 1 })
+        .populate('building_id', 'building_code name')
+        .sort({ room_code: 1 })
         .skip(skip)
         .limit(limit)
         .exec(),
@@ -82,8 +82,8 @@ export class RoomsService {
 
     const rows = await Promise.all(data.map(async (room: any) => {
       const item = room.toObject ? room.toObject() : room;
-      const total_students = await this.contractModel.countDocuments({ room_id: room._id, trang_thai: 'Hiệu lực' });
-      return { ...item, ten_phong: item.ten_phong || item.ma_phong, total_students };
+      const total_students = await this.contractModel.countDocuments({ room_id: room._id, status: 'Hiệu lực' });
+      return { ...item, room_name: item.room_name || item.room_code, total_students };
     }));
 
     return {
@@ -95,7 +95,7 @@ export class RoomsService {
   async findOne(id: string): Promise<Room> {
     const room = await this.roomModel
       .findById(id)
-      .populate('building_id', 'ma_toa_nha ten dia_chi')
+      .populate('building_id', 'building_code name address')
       .exec();
     if (!room) {
       throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
@@ -105,8 +105,8 @@ export class RoomsService {
 
   async findByQrId(qrId: string): Promise<Room> {
     const room = await this.roomModel
-      .findOne({ ma_qr: qrId })
-      .populate('building_id', 'ma_toa_nha ten dia_chi')
+      .findOne({ qr_code: qrId })
+      .populate('building_id', 'building_code name address')
       .exec();
     if (!room) {
       throw new NotFoundException(`Không tìm thấy phòng với mã QR: ${qrId}`);
@@ -128,7 +128,7 @@ export class RoomsService {
     // Check if room has beds in use
     const bedsInUse = await this.bedModel.countDocuments({
       room_id: id,
-      trang_thai: 'Đang sử dụng',
+      status: 'Đang sử dụng',
     });
     if (bedsInUse > 0) {
       throw new ConflictException(
@@ -152,28 +152,28 @@ export class RoomsService {
     const totalBeds = await this.bedModel.countDocuments({ room_id: roomId });
     const usedBeds = await this.bedModel.countDocuments({
       room_id: roomId,
-      trang_thai: 'Đang sử dụng',
+      status: 'Đang sử dụng',
     });
     const availableBeds = totalBeds - usedBeds;
 
-    let trang_thai: string;
+    let status: string;
     if (availableBeds <= 0) {
-      trang_thai = 'Đầy';
+      status = 'Đầy';
     } else if (availableBeds === totalBeds) {
-      trang_thai = 'Trống';
+      status = 'Trống';
     } else {
-      trang_thai = 'Trống'; // Partially occupied still shown as available
+      status = 'Trống'; // Partially occupied still shown as available
     }
 
     // Don't override 'Khóa' or 'Bảo trì' status
     const room = await this.roomModel.findById(roomId);
-    if (room && !['Khóa', 'Bảo trì'].includes(room.trang_thai)) {
+    if (room && !['Khóa', 'Bảo trì'].includes(room.status)) {
       await this.roomModel.findByIdAndUpdate(roomId, {
-        $set: { so_giuong_trong: availableBeds, trang_thai },
+        $set: { available_bed_count: availableBeds, status },
       });
     } else if (room) {
       await this.roomModel.findByIdAndUpdate(roomId, {
-        $set: { so_giuong_trong: availableBeds },
+        $set: { available_bed_count: availableBeds },
       });
     }
   }

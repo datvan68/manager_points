@@ -13,24 +13,24 @@ export class BuildingsService {
   ) {}
 
   async create(dto: CreateBuildingDto, user: any): Promise<Building> {
-    const existing = await this.buildingModel.findOne({ ma_toa_nha: dto.ma_toa_nha });
+    const existing = await this.buildingModel.findOne({ building_code: dto.building_code });
     if (existing) {
-      throw new ConflictException(`Tòa nhà với mã "${dto.ma_toa_nha}" đã tồn tại`);
+      throw new ConflictException(`Tòa nhà với mã "${dto.building_code}" đã tồn tại`);
     }
     const building = new this.buildingModel(dto);
     return building.save();
   }
 
-  async findAll(query: { search?: string; trang_thai?: string; page?: number; limit?: number }) {
+  async findAll(query: { search?: string; status?: string; page?: number; limit?: number }) {
     const filter: any = {};
     if (query.search) {
       filter.$or = [
-        { ma_toa_nha: { $regex: query.search, $options: 'i' } },
-        { ten: { $regex: query.search, $options: 'i' } },
+        { building_code: { $regex: query.search, $options: 'i' } },
+        { name: { $regex: query.search, $options: 'i' } },
       ];
     }
-    if (query.trang_thai) {
-      filter.trang_thai = query.trang_thai;
+    if (query.status) {
+      filter.status = query.status;
     }
 
     const page = query.page || 1;

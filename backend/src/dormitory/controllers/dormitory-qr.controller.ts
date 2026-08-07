@@ -36,8 +36,8 @@ export class DormitoryQrController {
     const parts = active[0].semester_name.split(/\s*-\s*/);
     return {
       semester_name: active[0].semester_name,
-      ky_hoc: parts[0] || '',
-      nam_hoc: parts.slice(1).join('-').replace(/\s/g, ''),
+      semester: parts[0] || '',
+      academic_year: parts.slice(1).join('-').replace(/\s/g, ''),
     };
   }
 
@@ -52,21 +52,21 @@ export class DormitoryQrController {
     return {
       room: {
         _id: (room as any)._id,
-        ma_phong: room.ma_phong,
+        room_code: room.room_code,
         building: room.building_id,
-        tang: room.tang,
-        loai_phong: room.loai_phong,
-        so_giuong: room.so_giuong,
-        so_giuong_trong: room.so_giuong_trong,
-        gia_phong: room.gia_phong,
-        tien_ich: room.tien_ich,
-        trang_thai: room.trang_thai,
-        mo_ta: room.mo_ta,
+        floor: room.floor,
+        room_type: room.room_type,
+        bed_count: room.bed_count,
+        available_bed_count: room.available_bed_count,
+        room_price: room.room_price,
+        amenities: room.amenities,
+        status: room.status,
+        description: room.description,
       },
       beds: beds.map((b) => ({
-        ma_giuong: b.ma_giuong,
-        vi_tri: b.vi_tri,
-        trang_thai: b.trang_thai,
+        bed_code: b.bed_code,
+        position: b.position,
+        status: b.status,
       })),
     };
   }
@@ -77,21 +77,21 @@ export class DormitoryQrController {
   @Post('register')
   async publicRegister(@Body() dto: PublicRegisterDto) {
     const room = dto.qr_room_id ? await this.roomsService.findByQrId(dto.qr_room_id) : null;
-    if (!room && (!dto.ngay_sinh || !dto.gioi_tinh)) throw new BadRequestException('Vui lòng nhập ngày sinh và giới tính.');
+    if (!room && (!dto.date_of_birth || !dto.gender)) throw new BadRequestException('Vui lòng nhập ngày sinh và giới tính.');
     const active = (await this.semestersService.findAll()).filter((item) => item.status === 'active');
     if (active.length !== 1) throw new BadRequestException('Không thể xác định học kỳ active.');
 
     // Check for duplicate phone number with pending registration
     const existing = await this.publicRegModel.findOne({
-      so_dien_thoai: dto.so_dien_thoai,
-      trang_thai: 'Chờ xác nhận',
+      phone_number: dto.phone_number,
+      status: 'Chờ xác nhận',
     });
     if (existing) {
       return {
         success: false,
         code: 'DUPLICATE_PHONE',
         message: 'Số điện thoại này đã có đơn đăng ký đang chờ xác nhận.',
-        ma_dk: existing.ma_dk_public,
+        registration_code: existing.public_registration_code,
       };
     }
 
@@ -99,23 +99,23 @@ export class DormitoryQrController {
     const semesterParts = active[0].semester_name.split(/\s*-\s*/);
 
     const registration = new this.publicRegModel({
-      ma_dk_public: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
-      ho_ten: dto.ho_ten,
-      so_dien_thoai: dto.so_dien_thoai,
+      public_registration_code: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
+      full_name: dto.full_name,
+      phone_number: dto.phone_number,
       email: dto.email || '',
-      ma_sinh_vien: dto.ma_sinh_vien || '',
-      ngay_sinh: dto.ngay_sinh || '',
-      gioi_tinh: dto.gioi_tinh || 'Other',
+      student_code: dto.student_code || '',
+      date_of_birth: dto.date_of_birth || '',
+      gender: dto.gender || 'Other',
       room_id: room ? (room as any)._id : undefined,
-      ma_phong: room?.ma_phong || '',
-      ten_toa_nha: building?.ten || '',
-      loai_phong: dto.gioi_tinh === 'Female' ? (dto.loai_phong || 'Thường') : room?.loai_phong || 'Thường',
-      ky_hoc: semesterParts[0] || '',
-      nam_hoc: semesterParts.slice(1).join('-').replace(/\s/g, ''),
-      doi_tuong_uu_tien: 'Không',
-      ghi_chu: dto.ghi_chu || '',
-      trang_thai: 'Chờ xác nhận',
-      nguon: 'QR_SCAN',
+      room_code: room?.room_code || '',
+      building_name: building?.name || '',
+      room_type: dto.gender === 'Female' ? (dto.room_type || 'Thường') : room?.room_type || 'Thường',
+      semester: semesterParts[0] || '',
+      academic_year: semesterParts.slice(1).join('-').replace(/\s/g, ''),
+      priority_group: 'Không',
+      notes: dto.notes || '',
+      status: 'Chờ xác nhận',
+      source: 'QR_SCAN',
     });
 
     const saved = await registration.save();
@@ -123,7 +123,7 @@ export class DormitoryQrController {
     return {
       success: true,
       message: 'Đăng ký thành công! Chúng tôi sẽ liên hệ bạn qua số điện thoại đã cung cấp.',
-      ma_dk: saved.ma_dk_public,
+      registration_code: saved.public_registration_code,
     };
   }
 }

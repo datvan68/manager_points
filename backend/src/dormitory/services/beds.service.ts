@@ -27,12 +27,12 @@ export class BedsService {
 
     // Check duplicate bed code within room
     const existing = await this.bedModel.findOne({
-      ma_giuong: dto.ma_giuong,
+      bed_code: dto.bed_code,
       room_id: dto.room_id,
     });
     if (existing) {
       throw new ConflictException(
-        `Giường "${dto.ma_giuong}" đã tồn tại trong phòng`,
+        `Giường "${dto.bed_code}" đã tồn tại trong phòng`,
       );
     }
 
@@ -46,13 +46,13 @@ export class BedsService {
   }
 
   async findByRoom(roomId: string): Promise<Bed[]> {
-    return this.bedModel.find({ room_id: roomId }).sort({ ma_giuong: 1 }).exec();
+    return this.bedModel.find({ room_id: roomId }).sort({ bed_code: 1 }).exec();
   }
 
   async findOne(id: string): Promise<Bed> {
     const bed = await this.bedModel
       .findById(id)
-      .populate('room_id', 'ma_phong')
+      .populate('room_id', 'room_code')
       .exec();
     if (!bed) {
       throw new NotFoundException(`Không tìm thấy giường: ${id}`);
@@ -62,11 +62,11 @@ export class BedsService {
 
   async updateStatus(
     id: string,
-    trang_thai: string,
+    status: string,
     user: any,
   ): Promise<Bed> {
     const bed = await this.bedModel
-      .findByIdAndUpdate(id, { $set: { trang_thai } }, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, { $set: { status } }, { returnDocument: 'after' })
       .exec();
     if (!bed) {
       throw new NotFoundException(`Không tìm thấy giường: ${id}`);
@@ -85,7 +85,7 @@ export class BedsService {
     if (!bed) {
       throw new NotFoundException(`Không tìm thấy giường: ${id}`);
     }
-    if (bed.trang_thai === 'Đang sử dụng') {
+    if (bed.status === 'Đang sử dụng') {
       throw new ConflictException('Không thể xóa giường đang sử dụng');
     }
 
@@ -109,10 +109,10 @@ export class BedsService {
     const beds: Bed[] = [];
     for (let i = 1; i <= soGiuong; i++) {
       const bed = new this.bedModel({
-        ma_giuong: `G${i.toString().padStart(2, '0')}`,
+        bed_code: `G${i.toString().padStart(2, '0')}`,
         room_id: roomId,
-        vi_tri: `Vị trí ${i}`,
-        trang_thai: 'Trống',
+        position: `Vị trí ${i}`,
+        status: 'Trống',
       });
       beds.push(await bed.save());
     }

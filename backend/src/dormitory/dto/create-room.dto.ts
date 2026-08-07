@@ -12,11 +12,11 @@ import {
 export class CreateRoomDto {
   @IsNotEmpty()
   @IsString()
-  ma_phong: string;
+  room_code: string;
 
   @IsNotEmpty()
   @IsString()
-  ten_phong: string;
+  room_name: string;
 
   @IsNotEmpty()
   @IsMongoId()
@@ -25,32 +25,32 @@ export class CreateRoomDto {
   @IsNotEmpty()
   @IsNumber()
   @Min(1)
-  tang: number;
+  floor: number;
 
   @IsNotEmpty()
   @IsString()
-  loai_phong: string;
+  room_type: string;
 
   @IsNotEmpty()
   @IsNumber()
   @Min(1)
-  so_giuong: number;
+  bed_count: number;
 
   @IsNotEmpty()
   @IsNumber()
   @Min(0)
-  gia_phong: number;
+  room_price: number;
 
   @IsOptional()
   @IsEnum(['Trống', 'Đầy', 'Khóa', 'Bảo trì'])
-  trang_thai?: string;
+  status?: string;
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  tien_ich?: string[];
+  amenities?: string[];
 
   @IsOptional()
   @IsString()
-  mo_ta?: string;
+  description?: string;
 }

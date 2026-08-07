@@ -10,26 +10,26 @@ import {
 export class CreateBuildingDto {
   @IsNotEmpty()
   @IsString()
-  ma_toa_nha: string;
+  building_code: string;
 
   @IsNotEmpty()
   @IsString()
-  ten: string;
+  name: string;
 
   @IsOptional()
   @IsString()
-  dia_chi?: string;
+  address?: string;
 
   @IsOptional()
   @IsNumber()
   @Min(1)
-  so_tang?: number;
+  floor_count?: number;
 
   @IsOptional()
   @IsEnum(['Active', 'Inactive', 'Maintenance'])
-  trang_thai?: string;
+  status?: string;
 
   @IsOptional()
   @IsString()
-  mo_ta?: string;
+  description?: string;
 }

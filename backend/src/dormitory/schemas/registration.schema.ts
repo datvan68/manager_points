@@ -1,66 +1,67 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type RegistrationDocument = Registration & Document;
 
 @Schema({ timestamps: true })
 export class Registration {
   @Prop({ required: true, unique: true })
-  ma_dk: string;
+  registration_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Types.ObjectId;
 
   @Prop({ required: true })
-  ky_hoc: string;
+  semester: string;
 
   @Prop({ required: true })
-  nam_hoc: string;
+  academic_year: string;
 
   @Prop({ type: Date })
-  ngay_sinh: Date;
+  date_of_birth: Date;
 
   @Prop({ enum: ['Male', 'Female', 'Other'] })
-  gioi_tinh: 'Male' | 'Female' | 'Other';
+  gender: 'Male' | 'Female' | 'Other';
 
   @Prop({ trim: true })
-  so_dien_thoai: string;
+  phone_number: string;
 
   @Prop({
     type: {
-      loai_phong: { type: String },
+      room_type: { type: String },
       building_id: { type: MongooseSchema.Types.ObjectId, ref: 'Building' },
-      ghi_chu: { type: String },
+      notes: { type: String },
     },
     _id: false,
   })
-  nguyen_vong: {
-    loai_phong: string;
+  preference: {
+    room_type: string;
     building_id?: Types.ObjectId;
-    ghi_chu: string;
+    notes: string;
   };
 
   @Prop({
     enum: ['Chính sách', 'Xa nhà', 'Học lực giỏi', 'Khó khăn', 'Không'],
     default: 'Không',
   })
-  doi_tuong_uu_tien: string;
+  priority_group: string;
 
   @Prop({
     required: true,
-    enum: ['Chờ duyệt', 'Đã duyệt', 'Từ chối'],
+    enum: DORMITORY_ENUMS.registrationStatus,
     default: 'Chờ duyệt',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop()
-  ly_do_tu_choi: string;
+  rejection_reason: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  nguoi_duyet_id: Types.ObjectId;
+  reviewed_by_id: Types.ObjectId;
 
   @Prop()
-  ngay_duyet: Date;
+  reviewed_at: Date;
 }
 
 export const RegistrationSchema = SchemaFactory.createForClass(Registration);

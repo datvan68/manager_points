@@ -68,7 +68,7 @@ export default function ReportsPage() {
               {occupancy.buildings.map((b: any) => (
                 <div key={b.building_id} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-700">{b.ten}</span>
+                    <span className="font-medium text-gray-700">{b.name}</span>
                     <span className="text-gray-500">{b.used_beds}/{b.total_beds} giường ({b.occupancy_rate}%)</span>
                   </div>
                   <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">

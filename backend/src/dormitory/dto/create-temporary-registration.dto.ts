@@ -4,26 +4,26 @@ export class CreateTemporaryRegistrationDto {
   @IsNotEmpty()
   @IsString()
   @Matches(/\S/, { message: 'Vui lòng nhập họ tên hợp lệ' })
-  ho_ten: string;
+  full_name: string;
 
   @IsNotEmpty()
   @IsDateString()
-  ngay_sinh: string;
+  date_of_birth: string;
 
   @IsNotEmpty()
   @IsEnum(['Male', 'Female', 'Other'])
-  gioi_tinh: 'Male' | 'Female' | 'Other';
+  gender: 'Male' | 'Female' | 'Other';
 
   @IsNotEmpty()
   @IsString()
   @Matches(/^[0-9+().\s-]{8,20}$/, { message: 'Số điện thoại không hợp lệ' })
-  so_dien_thoai: string;
+  phone_number: string;
 
   @IsOptional()
   @IsEnum(['Thường', 'Máy lạnh'])
-  loai_phong?: 'Thường' | 'Máy lạnh';
+  room_type?: 'Thường' | 'Máy lạnh';
 
   @IsOptional()
   @IsString()
-  ghi_chu?: string;
+  notes?: string;
 }

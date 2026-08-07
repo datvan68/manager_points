@@ -5,180 +5,180 @@ import { API_BASE } from './config';
 
 export interface Building {
   _id: string;
-  ma_toa_nha: string;
-  ten: string;
-  dia_chi?: string;
-  so_tang: number;
-  trang_thai: 'Active' | 'Inactive' | 'Maintenance';
-  mo_ta?: string;
+  building_code: string;
+  name: string;
+  address?: string;
+  floor_count: number;
+  status: 'Active' | 'Inactive' | 'Maintenance';
+  description?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface Room {
   _id: string;
-  ma_phong: string;
-  ten_phong?: string;
+  room_code: string;
+  room_name?: string;
   building_id: Building | string;
-  tang: number;
-  loai_phong: string;
-  so_giuong: number;
-  so_giuong_trong: number;
-  gia_phong: number;
-  trang_thai: 'Trống' | 'Đầy' | 'Khóa' | 'Bảo trì';
-  tien_ich: string[];
-  ma_qr: string;
-  url_xem_nhanh: string;
-  mo_ta?: string;
+  floor: number;
+  room_type: string;
+  bed_count: number;
+  available_bed_count: number;
+  room_price: number;
+  status: 'Trống' | 'Đầy' | 'Khóa' | 'Bảo trì';
+  amenities: string[];
+  qr_code: string;
+  public_url: string;
+  description?: string;
   createdAt?: string;
   total_students?: number;
 }
 
 export interface Bed {
   _id: string;
-  ma_giuong: string;
+  bed_code: string;
   room_id: Room | string;
-  vi_tri?: string;
-  trang_thai: 'Trống' | 'Đang sử dụng' | 'Bảo trì';
+  position?: string;
+  status: 'Trống' | 'Đang sử dụng' | 'Bảo trì';
 }
 
 export interface DormRegistration {
   _id: string;
-  ma_dk: string;
+  registration_code: string;
   student_id: any;
-  ky_hoc: string;
-  nam_hoc: string;
-  nguyen_vong?: {
-    loai_phong?: string;
+  semester: string;
+  academic_year: string;
+  preference?: {
+    room_type?: string;
     building_id?: string;
-    ghi_chu?: string;
+    notes?: string;
   };
-  doi_tuong_uu_tien: string;
-  trang_thai: 'Chờ duyệt' | 'Đã duyệt' | 'Từ chối';
-  ly_do_tu_choi?: string;
-  nguoi_duyet_id?: any;
-  ngay_duyet?: string;
+  priority_group: string;
+  status: 'Chờ duyệt' | 'Đã duyệt' | 'Từ chối';
+  rejection_reason?: string;
+  reviewed_by_id?: any;
+  reviewed_at?: string;
   createdAt?: string;
   source?: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
   classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED';
   public_registration?: any;
-  ngay_sinh?: string;
-  gioi_tinh?: 'Male' | 'Female' | 'Other';
-  so_dien_thoai?: string;
+  date_of_birth?: string;
+  gender?: 'Male' | 'Female' | 'Other';
+  phone_number?: string;
 }
 
 export interface CreateDormRegistrationInput {
   student_id: string;
-  ky_hoc: string;
-  nam_hoc: string;
-  ngay_sinh: string;
-  gioi_tinh: 'Male' | 'Female' | 'Other';
-  so_dien_thoai: string;
-  nguyen_vong?: {
-    loai_phong?: string;
+  semester: string;
+  academic_year: string;
+  date_of_birth: string;
+  gender: 'Male' | 'Female' | 'Other';
+  phone_number: string;
+  preference?: {
+    room_type?: string;
     building_id?: string;
-    ghi_chu?: string;
+    notes?: string;
   };
-  doi_tuong_uu_tien?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+  priority_group?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
 }
 
 export interface PublicDormitorySemester {
   semester_name: string;
-  ky_hoc: string;
-  nam_hoc: string;
+  semester: string;
+  academic_year: string;
 }
 
 export interface PublicDormitoryRegistrationInput {
-  ho_ten: string;
-  ma_sinh_vien?: string;
-  ngay_sinh: string;
-  gioi_tinh: 'Male' | 'Female' | 'Other';
-  so_dien_thoai: string;
-  loai_phong?: 'Thường' | 'Máy lạnh';
-  ghi_chu?: string;
+  full_name: string;
+  student_code?: string;
+  date_of_birth: string;
+  gender: 'Male' | 'Female' | 'Other';
+  phone_number: string;
+  room_type?: 'Thường' | 'Máy lạnh';
+  notes?: string;
   qr_room_id?: string;
 }
 
 export interface UnclassifiedRegistration {
   _id: string;
-  ma_dk_public: string;
-  ho_ten: string;
-  so_dien_thoai: string;
+  public_registration_code: string;
+  full_name: string;
+  phone_number: string;
   email?: string;
-  ma_sinh_vien?: string;
-  ma_phong?: string;
-  ten_toa_nha?: string;
-  loai_phong?: string;
-  ky_hoc?: string;
-  nam_hoc?: string;
-  trang_thai: string;
+  student_code?: string;
+  room_code?: string;
+  building_name?: string;
+  room_type?: string;
+  semester?: string;
+  academic_year?: string;
+  status: string;
   source: 'PUBLIC' | 'ADMIN_TEMPORARY';
   classification_status: 'UNCLASSIFIED';
 }
 
 export interface DormContract {
   _id: string;
-  ma_hd: string;
+  contract_code: string;
   student_id: any;
   bed_id: any;
   room_id: any;
   registration_id?: any;
-  ngay_bat_dau: string;
-  ngay_ket_thuc: string;
-  trang_thai: 'Hiệu lực' | 'Hết hạn' | 'Đã hủy';
-  ly_do_huy?: string;
+  start_date: string;
+  end_date: string;
+  status: 'Hiệu lực' | 'Hết hạn' | 'Đã hủy';
+  cancellation_reason?: string;
   createdAt?: string;
 }
 
 export interface DormInvoice {
   _id: string;
-  ma_hoa_don: string;
+  invoice_code: string;
   contract_id: any;
   student_id: any;
-  ky_thu: string;
-  chi_tiet: { loai: string; mo_ta?: string; so_tien: number }[];
-  tong_tien: number;
-  trang_thai: 'Chưa thanh toán' | 'Đã thanh toán' | 'Quá hạn';
-  han_thanh_toan: string;
-  ngay_thanh_toan?: string;
-  phuong_thuc?: string;
-  nguoi_xac_nhan_id?: any;
-  ghi_chu?: string;
+  billing_period: string;
+  items: { type: string; description?: string; amount: number }[];
+  total_amount: number;
+  status: 'Chưa thanh toán' | 'Đã thanh toán' | 'Quá hạn';
+  due_date: string;
+  paid_at?: string;
+  payment_method?: string;
+  confirmed_by_id?: any;
+  notes?: string;
   createdAt?: string;
 }
 
 export interface DormViolation {
   _id: string;
-  ma_vp: string;
+  violation_code: string;
   student_id: any;
   room_id?: any;
-  loai_vi_pham: string;
-  muc_do: 'Nhẹ' | 'Trung bình' | 'Nghiêm trọng';
-  diem_tru: number;
-  ngay_ghi_nhan: string;
-  mo_ta?: string;
-  minh_chung?: string[];
-  hinh_thuc_xu_ly: string;
-  trang_thai: 'Mới' | 'Đã xử lý' | 'Đang xét';
-  nguoi_ghi_nhan_id?: any;
-  nguoi_xu_ly_id?: any;
-  ghi_chu_xu_ly?: string;
+  violation_type: string;
+  severity: 'Nhẹ' | 'Trung bình' | 'Nghiêm trọng';
+  deducted_points: number;
+  recorded_at: string;
+  description?: string;
+  evidence?: string[];
+  resolution_type: string;
+  status: 'Mới' | 'Đã xử lý' | 'Đang xét';
+  recorded_by_id?: any;
+  resolved_by_id?: any;
+  resolution_notes?: string;
   createdAt?: string;
 }
 
 export interface DormMaintenance {
   _id: string;
-  ma_ycbt: string;
+  request_code: string;
   room_id: any;
   student_id?: any;
-  loai_su_co: string;
-  mo_ta: string;
-  hinh_anh?: string[];
-  trang_thai: 'Mới' | 'Đang xử lý' | 'Hoàn tất' | 'Từ chối';
-  do_uu_tien: string;
-  ky_thuat_vien_id?: any;
-  ghi_chu_xu_ly?: string;
-  ngay_hoan_tat?: string;
+  issue_type: string;
+  description: string;
+  images?: string[];
+  status: 'Mới' | 'Đang xử lý' | 'Hoàn tất' | 'Từ chối';
+  priority: string;
+  technician_id?: any;
+  resolution_notes?: string;
+  completed_at?: string;
   createdAt?: string;
 }
 
@@ -298,11 +298,11 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async updateStatus(id: string, trang_thai: string): Promise<Bed> {
+    async updateStatus(id: string, status: string): Promise<Bed> {
       const res = await httpClient(`${API_BASE}/dormitory/beds/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trang_thai }),
+        body: JSON.stringify({ status }),
       });
       return handleResponse(res);
     },
@@ -334,11 +334,11 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async createTemporary(dto: { ho_ten: string; ngay_sinh: string; gioi_tinh: 'Male' | 'Female' | 'Other'; so_dien_thoai: string; loai_phong?: 'Thường' | 'Máy lạnh'; ghi_chu?: string }): Promise<any> {
+    async createTemporary(dto: { full_name: string; date_of_birth: string; gender: 'Male' | 'Female' | 'Other'; phone_number: string; room_type?: 'Thường' | 'Máy lạnh'; notes?: string }): Promise<any> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/temporary`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
-    async approve(id: string, dto: { trang_thai: string; ly_do_tu_choi?: string }): Promise<DormRegistration> {
+    async approve(id: string, dto: { status: string; rejection_reason?: string }): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}/approve`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -346,7 +346,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async bulkApprove(dto: { registration_ids: string[]; trang_thai: string; ly_do_tu_choi?: string }): Promise<{ success: number; failed: number }> {
+    async bulkApprove(dto: { registration_ids: string[]; status: string; rejection_reason?: string }): Promise<{ success: number; failed: number }> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/bulk-approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -386,19 +386,19 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async cancel(id: string, ly_do_huy: string): Promise<DormContract> {
+    async cancel(id: string, cancellation_reason: string): Promise<DormContract> {
       const res = await httpClient(`${API_BASE}/dormitory/contracts/${id}/cancel`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ly_do_huy }),
+        body: JSON.stringify({ cancellation_reason }),
       });
       return handleResponse(res);
     },
-    async extend(id: string, ngay_ket_thuc: string): Promise<DormContract> {
+    async extend(id: string, end_date: string): Promise<DormContract> {
       const res = await httpClient(`${API_BASE}/dormitory/contracts/${id}/extend`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ngay_ket_thuc }),
+        body: JSON.stringify({ end_date }),
       });
       return handleResponse(res);
     },
@@ -430,7 +430,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async bulkCreate(dto: { ky_thu: string; han_thanh_toan: string }): Promise<{ created: number; skipped: number }> {
+    async bulkCreate(dto: { billing_period: string; due_date: string }): Promise<{ created: number; skipped: number }> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/bulk-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -438,7 +438,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async pay(id: string, dto: { phuong_thuc: string; ghi_chu?: string }): Promise<DormInvoice> {
+    async pay(id: string, dto: { payment_method: string; notes?: string }): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/pay`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -470,7 +470,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async handle(id: string, dto: { hinh_thuc_xu_ly: string; ghi_chu_xu_ly?: string }): Promise<DormViolation> {
+    async handle(id: string, dto: { resolution_type: string; resolution_notes?: string }): Promise<DormViolation> {
       const res = await httpClient(`${API_BASE}/dormitory/violations/${id}/handle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -522,8 +522,8 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/reports/occupancy`);
       return handleResponse(res);
     },
-    async getRevenueReport(ky_thu?: string): Promise<any> {
-      const res = await httpClient(`${API_BASE}/dormitory/reports/revenue${buildQuery({ ky_thu })}`);
+    async getRevenueReport(billing_period?: string): Promise<any> {
+      const res = await httpClient(`${API_BASE}/dormitory/reports/revenue${buildQuery({ billing_period })}`);
       return handleResponse(res);
     },
     async getViolationMaintenanceReport(): Promise<any> {
@@ -538,7 +538,7 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/public/semester`);
       return handleResponse(res);
     },
-    async register(dto: PublicDormitoryRegistrationInput): Promise<{ success: boolean; ma_dk?: string; code?: string; message: string }> {
+    async register(dto: PublicDormitoryRegistrationInput): Promise<{ success: boolean; registration_code?: string; code?: string; message: string }> {
       const res = await httpClient(`${API_BASE}/dormitory/public/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

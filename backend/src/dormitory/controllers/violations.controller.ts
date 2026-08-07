@@ -35,8 +35,8 @@ export class ViolationsController {
   findAll(
     @Query('student_id') student_id?: string,
     @Query('room_id') room_id?: string,
-    @Query('trang_thai') trang_thai?: string,
-    @Query('muc_do') muc_do?: string,
+    @Query('status') status?: string,
+    @Query('severity') severity?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -44,8 +44,8 @@ export class ViolationsController {
     return this.violationsService.findAll({
       student_id,
       room_id,
-      trang_thai,
-      muc_do,
+      status,
+      severity,
       search,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,

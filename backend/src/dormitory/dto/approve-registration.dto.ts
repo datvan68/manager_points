@@ -10,11 +10,11 @@ import {
 export class ApproveRegistrationDto {
   @IsNotEmpty()
   @IsEnum(['Đã duyệt', 'Từ chối'])
-  trang_thai: string;
+  status: string;
 
   @IsOptional()
   @IsString()
-  ly_do_tu_choi?: string;
+  rejection_reason?: string;
 }
 
 export class BulkApproveRegistrationDto {
@@ -25,9 +25,9 @@ export class BulkApproveRegistrationDto {
 
   @IsNotEmpty()
   @IsEnum(['Đã duyệt', 'Từ chối'])
-  trang_thai: string;
+  status: string;
 
   @IsOptional()
   @IsString()
-  ly_do_tu_choi?: string;
+  rejection_reason?: string;
 }

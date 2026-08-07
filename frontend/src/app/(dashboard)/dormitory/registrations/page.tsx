@@ -25,28 +25,28 @@ export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\
 const statusColors: Record<string, string> = {
   'Chờ duyệt': 'bg-amber-100 text-amber-700', 'Đã duyệt': 'bg-green-100 text-green-700', 'Từ chối': 'bg-red-100 text-red-700',
 };
-const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.ho_ten || (r as any).ho_ten || '—';
-const studentCode = (r: DormRegistration) => r.student_id?.student_code || r.public_registration?.ma_sinh_vien || (r as any).ma_sinh_vien || 'Chưa có mã SV';
+const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
+const studentCode = (r: DormRegistration) => r.student_id?.student_code || r.public_registration?.student_code || (r as any).student_code || 'Chưa có mã SV';
 
-export type ActiveSemesterValues = { ky_hoc: string; nam_hoc: string };
+export type ActiveSemesterValues = { semester: string; academic_year: string };
 
 export function mapActiveSemester(semesters: Semester[]): ActiveSemesterValues {
   const active = semesters.filter(semester => semester.status === 'active');
   if (active.length !== 1) throw new Error(active.length ? 'Có nhiều học kỳ đang active. Vui lòng kiểm tra cấu hình học kỳ.' : 'Chưa có học kỳ active. Vui lòng cấu hình học kỳ trước khi đăng ký.');
   const match = active[0].semester_name.trim().match(/^(HK[12]|Hè|[12])\s*-\s*(\d{4})\s*-\s*(\d{4})$/i);
   if (!match) throw new Error(`Không đọc được định dạng học kỳ active: ${active[0].semester_name}`);
-  return { ky_hoc: match[1].toUpperCase() === 'HÈ' ? 'Hè' : match[1].toUpperCase(), nam_hoc: `${match[2]}-${match[3]}` };
+  return { semester: match[1].toUpperCase() === 'HÈ' ? 'Hè' : match[1].toUpperCase(), academic_year: `${match[2]}-${match[3]}` };
 }
 
 type CreateForm = ActiveSemesterValues & {
-  ngay_sinh: string;
-  gioi_tinh: '' | 'Male' | 'Female' | 'Other';
-  so_dien_thoai: string;
-  loai_phong: 'Thường' | 'Máy lạnh';
-  ghi_chu: string;
+  date_of_birth: string;
+  gender: '' | 'Male' | 'Female' | 'Other';
+  phone_number: string;
+  room_type: 'Thường' | 'Máy lạnh';
+  notes: string;
 };
 
-const emptyCreateForm = (): CreateForm => ({ ky_hoc: '', nam_hoc: '', ngay_sinh: '', gioi_tinh: '', so_dien_thoai: '', loai_phong: 'Thường', ghi_chu: '' });
+const emptyCreateForm = (): CreateForm => ({ semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '' });
 const dateInputValue = (value?: string | Date) => {
   if (!value) return '';
   const date = new Date(value);
@@ -95,34 +95,34 @@ export default function RegistrationsPage() {
     if (!createOpen) return;
     let cancelled = false;
     setSemesterLoading(true); setSemesterError('');
-    void semesterApi.getSemesters().then(items => { if (!cancelled) { const values = mapActiveSemester(items); const active = items.find(semester => semester.status === 'active'); setActiveSemesterName(active?.semester_name || ''); setCreateForm(current => ({ ...current, ...values })); } }).catch((err: any) => { if (!cancelled) { setActiveSemesterName(''); setSemesterError(err?.message || 'Không thể tải học kỳ active.'); setCreateForm(current => ({ ...current, ky_hoc: '', nam_hoc: '' })); } }).finally(() => { if (!cancelled) setSemesterLoading(false); });
+    void semesterApi.getSemesters().then(items => { if (!cancelled) { const values = mapActiveSemester(items); const active = items.find(semester => semester.status === 'active'); setActiveSemesterName(active?.semester_name || ''); setCreateForm(current => ({ ...current, ...values })); } }).catch((err: any) => { if (!cancelled) { setActiveSemesterName(''); setSemesterError(err?.message || 'Không thể tải học kỳ active.'); setCreateForm(current => ({ ...current, semester: '', academic_year: '' })); } }).finally(() => { if (!cancelled) setSemesterLoading(false); });
     return () => { cancelled = true; };
   }, [createOpen]);
   const resetCreate = () => { setStudent(null); setStudentSearch(''); setStudentOptions([]); setCreateError(''); setSemesterError(''); setActiveSemesterName(''); setCalendarOpen(false); setCreateForm(emptyCreateForm()); };
-  const selectStudent = (item: Student) => { setStudent(item); setStudentSearch(''); setStudentOptions([]); setCreateForm(current => ({ ...current, ngay_sinh: dateInputValue(item.date_bir), gioi_tinh: item.sex, loai_phong: item.sex === 'Female' ? current.loai_phong : 'Thường', so_dien_thoai: (item as Student & { phone_number?: string }).phone_number || '' })); };
+  const selectStudent = (item: Student) => { setStudent(item); setStudentSearch(''); setStudentOptions([]); setCreateForm(current => ({ ...current, date_of_birth: dateInputValue(item.date_bir), gender: item.sex, room_type: item.sex === 'Female' ? current.room_type : 'Thường', phone_number: (item as Student & { phone_number?: string }).phone_number || '' })); };
   const submitCreate = async (event: React.FormEvent) => {
     event.preventDefault(); setCreateError('');
-    const birthDate = createForm.ngay_sinh ? new Date(`${createForm.ngay_sinh}T00:00:00`) : null;
+    const birthDate = createForm.date_of_birth ? new Date(`${createForm.date_of_birth}T00:00:00`) : null;
     if (semesterLoading) { setCreateError('Đang tải học kỳ active, vui lòng chờ.'); return; }
-    if (semesterError || !createForm.ky_hoc || !createForm.nam_hoc) { setCreateError(semesterError || 'Chưa xác định được học kỳ active.'); return; }
+    if (semesterError || !createForm.semester || !createForm.academic_year) { setCreateError(semesterError || 'Chưa xác định được học kỳ active.'); return; }
     const hasClass = Boolean(student && student.student_code && student.class_id);
     const temporaryName = student ? '' : studentSearch.trim();
     if (!hasClass && !temporaryName) { setCreateError('Vui lòng chọn sinh viên từ kết quả tìm kiếm hoặc nhập họ tên để lưu tạm.'); return; }
     if (student && !hasClass) { setCreateError('Sinh viên đã chọn chưa có mã sinh viên và lớp đầy đủ. Hãy xóa lựa chọn rồi nhập họ tên để lưu tạm.'); return; }
     if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
-    if (!createForm.gioi_tinh || !createForm.so_dien_thoai.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
-    if (!/^[0-9+().\s-]{8,20}$/.test(createForm.so_dien_thoai.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
+    if (!createForm.gender || !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
+    if (!/^[0-9+().\s-]{8,20}$/.test(createForm.phone_number.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
     if (!student) {
-      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ ho_ten: temporaryName, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim(), loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', ghi_chu: createForm.ghi_chu || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
+      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
       return;
     }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, ky_hoc: createForm.ky_hoc, nam_hoc: createForm.nam_hoc, ngay_sinh: createForm.ngay_sinh, gioi_tinh: createForm.gioi_tinh, so_dien_thoai: createForm.so_dien_thoai.trim() };
-    const nguyen_vong = { loai_phong: createForm.gioi_tinh === 'Female' ? createForm.loai_phong : 'Thường', ghi_chu: createForm.ghi_chu || undefined };
-    if (Object.values(nguyen_vong).some(Boolean)) payload.nguyen_vong = nguyen_vong;
+    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim() };
+    const preference = { room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
+    if (Object.values(preference).some(Boolean)) payload.preference = preference;
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
   };
   const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
-  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ trang_thai: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [filterStatus, source, search, page, pageSize]);
+  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ status: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [filterStatus, source, search, page, pageSize]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [filterStatus, source, search, pageSize]);
   const loadMoreMobile = useCallback(async () => {
@@ -130,7 +130,7 @@ export default function RegistrationsPage() {
     setMobileLoadingMore(true);
     const nextPage = mobilePageRef.current + 1;
     try {
-      const res = await dormitoryApi.registrations.getAll({ trang_thai: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      const res = await dormitoryApi.registrations.getAll({ status: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
       mobilePageRef.current = nextPage;
@@ -144,18 +144,18 @@ export default function RegistrationsPage() {
     observer.observe(target);
     return () => observer.disconnect();
   }, [loadMoreMobile]);
-  const pendingIds = useMemo(() => registrations.filter(r => r.trang_thai === 'Chờ duyệt' && r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY').map(r => r._id), [registrations]);
+  const pendingIds = useMemo(() => registrations.filter(r => r.status === 'Chờ duyệt' && r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY').map(r => r._id), [registrations]);
   const allSelected = pendingIds.length > 0 && pendingIds.every(id => selected.includes(id));
   const toggleAll = (checked: boolean) => setSelected(checked ? pendingIds : []);
-  const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { trang_thai: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
-  const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { trang_thai: 'Từ chối', ly_do_tu_choi: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
-  const bulkApprove = async () => { if (!selected.length) return; try { const res = await dormitoryApi.registrations.bulkApprove({ registration_ids: selected, trang_thai: 'Đã duyệt' }); toast.success(`Đã duyệt ${res.success} đơn${res.failed ? `, ${res.failed} lỗi` : ''}`); setSelected([]); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt hàng loạt'); } };
+  const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { status: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
+  const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { status: 'Từ chối', rejection_reason: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
+  const bulkApprove = async () => { if (!selected.length) return; try { const res = await dormitoryApi.registrations.bulkApprove({ registration_ids: selected, status: 'Đã duyệt' }); toast.success(`Đã duyệt ${res.success} đơn${res.failed ? `, ${res.failed} lỗi` : ''}`); setSelected([]); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt hàng loạt'); } };
   const columns: ResponsiveColumn<DormRegistration>[] = [
-    { key: 'ma_dk', header: 'Mã ĐK', priority: 'primary' }, { key: 'student', header: 'Sinh viên', priority: 'secondary', render: (_, r) => <><div className="font-semibold text-slate-800">{studentName(r)}</div><div className="text-xs text-slate-400">{studentCode(r)}</div></> },
-    { key: 'period', header: 'Kỳ/Năm', render: (_, r) => `${r.ky_hoc} / ${r.nam_hoc}` }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => r.doi_tuong_uu_tien || '—' },
-    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.trang_thai] || 'bg-slate-100 text-slate-600'}`}>{r.trang_thai}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : r.source === 'ADMIN_TEMPORARY' ? 'Nhập tạm' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
+    { key: 'registration_code', header: 'Mã ĐK', priority: 'primary' }, { key: 'student', header: 'Sinh viên', priority: 'secondary', render: (_, r) => <><div className="font-semibold text-slate-800">{studentName(r)}</div><div className="text-xs text-slate-400">{studentCode(r)}</div></> },
+    { key: 'period', header: 'Kỳ/Năm', render: (_, r) => `${r.semester} / ${r.academic_year}` }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => r.priority_group || '—' },
+    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : r.source === 'ADMIN_TEMPORARY' ? 'Nhập tạm' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString('vi-VN') : '—' },
-    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.trang_thai === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
+    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
@@ -225,17 +225,17 @@ export default function RegistrationsPage() {
                   <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.ngay_sinh)}</span><Calendar size={15} className="shrink-0 text-[#64748B]" /></Button>
+                      <Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.date_of_birth)}</span><Calendar size={15} className="shrink-0 text-[#64748B]" /></Button>
                     </PopoverTrigger>
                     <PopoverContent className="z-[100] w-auto overflow-hidden border-none bg-transparent p-0 shadow-none" align="start">
                       <CustomCalendar
-                        startDate={createForm.ngay_sinh ? new Date(`${createForm.ngay_sinh}T00:00:00`) : null}
+                        startDate={createForm.date_of_birth ? new Date(`${createForm.date_of_birth}T00:00:00`) : null}
                         endDate={null}
-                        onRangeSelect={(start) => setCreateForm(f => ({ ...f, ngay_sinh: dateInputValue(start) }))}
+                        onRangeSelect={(start) => setCreateForm(f => ({ ...f, date_of_birth: dateInputValue(start) }))}
                         onRangeConfirm={(start, end) => setCreateForm(f => {
                           const startValue = dateInputValue(start);
                           const endValue = end ? dateInputValue(end) : '';
-                          return { ...f, ngay_sinh: endValue && startValue === f.ngay_sinh ? endValue : startValue };
+                          return { ...f, date_of_birth: endValue && startValue === f.date_of_birth ? endValue : startValue };
                         })}
                         onCancel={() => setCalendarOpen(false)}
                         onConfirm={() => setCalendarOpen(false)}
@@ -243,17 +243,17 @@ export default function RegistrationsPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={createForm.gioi_tinh} onValueChange={value => setCreateForm(f => ({ ...f, gioi_tinh: value as CreateForm['gioi_tinh'], loai_phong: value === 'Female' ? f.loai_phong : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
               </div>
-              <Input label="Số điện thoại" required type="tel" value={createForm.so_dien_thoai} onChange={e => setCreateForm(f => ({ ...f, so_dien_thoai: e.target.value }))} placeholder="Nhập số điện thoại" />
+              <Input label="Số điện thoại" required type="tel" value={createForm.phone_number} onChange={e => setCreateForm(f => ({ ...f, phone_number: e.target.value }))} placeholder="Nhập số điện thoại" />
             </section>
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
-              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.loai_phong} disabled={createForm.gioi_tinh !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, loai_phong: value as CreateForm['loai_phong'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
-              <Input label="Ghi chú" multiline rows={3} value={createForm.ghi_chu} onChange={e => setCreateForm(f => ({ ...f, ghi_chu: e.target.value }))} />
+              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.room_type} disabled={createForm.gender !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
+              <Input label="Ghi chú" multiline rows={3} value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </section>
           </div>
           {(createError || semesterError) && <p role="alert" className="text-sm text-red-600">{createError || semesterError}</p>}
-          <DialogFooter className="mt-2 border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.ky_hoc}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
+          <DialogFooter className="mt-2 border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.semester}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

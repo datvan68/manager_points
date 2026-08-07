@@ -25,15 +25,15 @@ export class CreateContractDto {
 
   @IsNotEmpty()
   @IsDateString()
-  ngay_bat_dau: string;
+  start_date: string;
 
   @IsNotEmpty()
   @IsDateString()
-  ngay_ket_thuc: string;
+  end_date: string;
 }
 
 export class CancelContractDto {
   @IsNotEmpty()
   @IsString()
-  ly_do_huy: string;
+  cancellation_reason: string;
 }

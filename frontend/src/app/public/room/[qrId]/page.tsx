@@ -17,26 +17,27 @@ import {
   ClipboardCheck,
   X,
 } from 'lucide-react';
+import { dormitoryLabel } from '@/api/dormitory-enums';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 interface RoomPublicInfo {
   room: {
-    ma_phong: string;
-    building: { ma_toa_nha: string; ten: string; dia_chi?: string } | null;
-    tang: number;
-    loai_phong: string;
-    so_giuong: number;
-    so_giuong_trong: number;
-    gia_phong: number;
-    tien_ich: string[];
-    trang_thai: string;
-    mo_ta?: string;
+    room_code: string;
+    building: { building_code: string; name: string; address?: string } | null;
+    floor: number;
+    room_type: string;
+    bed_count: number;
+    available_bed_count: number;
+    room_price: number;
+    amenities: string[];
+    status: string;
+    description?: string;
   };
   beds: {
-    ma_giuong: string;
-    vi_tri?: string;
-    trang_thai: string;
+    bed_code: string;
+    position?: string;
+    status: string;
   }[];
 }
 
@@ -60,14 +61,14 @@ export default function PublicRoomPage() {
   const [error, setError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
   const [regSubmitting, setRegSubmitting] = useState(false);
-  const [regSuccess, setRegSuccess] = useState<{ ma_dk: string } | null>(null);
+  const [regSuccess, setRegSuccess] = useState<{ registration_code: string } | null>(null);
   const [regForm, setRegForm] = useState({
-    ho_ten: '',
-    so_dien_thoai: '',
+    full_name: '',
+    phone_number: '',
     email: '',
-    ma_sinh_vien: '',
-    doi_tuong_uu_tien: 'Không',
-    ghi_chu: '',
+    student_code: '',
+    priority_group: 'Không',
+    notes: '',
   });
 
   async function handleRegister(e: React.FormEvent) {
@@ -85,7 +86,7 @@ export default function PublicRoomPage() {
       });
       const result = await res.json();
       if (result.success) {
-        setRegSuccess({ ma_dk: result.ma_dk });
+        setRegSuccess({ registration_code: result.registration_code });
       } else {
         alert(result.message || 'Đã có lỗi xảy ra');
       }
@@ -133,7 +134,7 @@ export default function PublicRoomPage() {
 
   const { room, beds } = data;
   const building = room.building as any;
-  const availableBeds = beds.filter((b) => b.trang_thai === 'Trống').length;
+  const availableBeds = beds.filter((b) => b.status === 'Trống').length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -145,14 +146,14 @@ export default function PublicRoomPage() {
               <DoorOpen size={22} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{room.ma_phong}</h1>
-              <p className="text-blue-100 text-sm">{room.loai_phong} • Tầng {room.tang}</p>
+              <h1 className="text-2xl font-bold">{room.room_code}</h1>
+              <p className="text-blue-100 text-sm">{room.room_type} • Tầng {room.floor}</p>
             </div>
           </div>
           {building && (
             <div className="flex items-center gap-2 mt-3 text-blue-100 text-sm">
               <Building2 size={14} />
-              <span>{building.ten} {building.dia_chi ? `— ${building.dia_chi}` : ''}</span>
+              <span>{building.name} {building.address ? `— ${building.address}` : ''}</span>
             </div>
           )}
         </div>
@@ -165,17 +166,17 @@ export default function PublicRoomPage() {
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Giá phòng / kỳ</p>
               <p className="text-3xl font-bold text-blue-600 mt-1">
-                {room.gia_phong?.toLocaleString('vi-VN')}
+                {room.room_price?.toLocaleString('vi-VN')}
                 <span className="text-base font-normal text-gray-400"> đ</span>
               </p>
             </div>
             <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-              room.trang_thai === 'Trống' ? 'bg-green-100 text-green-700' :
-              room.trang_thai === 'Đầy' ? 'bg-red-100 text-red-700' :
-              room.trang_thai === 'Bảo trì' ? 'bg-amber-100 text-amber-700' :
+              room.status === 'Trống' ? 'bg-green-100 text-green-700' :
+              room.status === 'Đầy' ? 'bg-red-100 text-red-700' :
+              room.status === 'Bảo trì' ? 'bg-amber-100 text-amber-700' :
               'bg-gray-100 text-gray-600'
             }`}>
-              {room.trang_thai}
+              {dormitoryLabel(room.status)}
             </div>
           </div>
         </div>
@@ -189,24 +190,24 @@ export default function PublicRoomPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500">Tổng giường</p>
-              <p className="text-xl font-bold text-gray-800">{room.so_giuong}</p>
+              <p className="text-xl font-bold text-gray-800">{room.bed_count}</p>
             </div>
             <div className="bg-green-50 rounded-xl p-3 text-center">
               <p className="text-xs text-green-600">Còn trống</p>
               <p className="text-xl font-bold text-green-700">{availableBeds}</p>
             </div>
           </div>
-          {room.mo_ta && (
-            <p className="text-sm text-gray-500 mt-3">{room.mo_ta}</p>
+          {room.description && (
+            <p className="text-sm text-gray-500 mt-3">{room.description}</p>
           )}
         </div>
 
         {/* Amenities */}
-        {room.tien_ich?.length > 0 && (
+        {room.amenities?.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
             <h2 className="font-semibold text-gray-800 mb-3">Tiện ích</h2>
             <div className="flex flex-wrap gap-2">
-              {room.tien_ich.map((t, i) => {
+              {room.amenities.map((t, i) => {
                 const Icon = amenityIcons[t] || CheckCircle;
                 return (
                   <span key={i} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm">
@@ -227,18 +228,18 @@ export default function PublicRoomPage() {
           </h2>
           <div className="grid grid-cols-2 gap-2">
             {beds.map((bed, i) => {
-              const config = bedStatusConfig[bed.trang_thai] || bedStatusConfig['Trống'];
+              const config = bedStatusConfig[bed.status] || bedStatusConfig['Trống'];
               const Icon = config.icon;
               return (
                 <div key={i} className={`rounded-xl p-3 border ${config.bg}`}>
                   <div className="flex items-center gap-2">
                     <Icon size={16} className={config.color} />
                     <div>
-                      <p className="font-medium text-sm text-gray-800">{bed.ma_giuong}</p>
-                      <p className="text-xs text-gray-500">{bed.trang_thai}</p>
+                      <p className="font-medium text-sm text-gray-800">{bed.bed_code}</p>
+                      <p className="text-xs text-gray-500">{dormitoryLabel(bed.status)}</p>
                     </div>
                   </div>
-                  {bed.vi_tri && <p className="text-xs text-gray-400 mt-1">{bed.vi_tri}</p>}
+                  {bed.position && <p className="text-xs text-gray-400 mt-1">{bed.position}</p>}
                 </div>
               );
             })}
@@ -246,7 +247,7 @@ export default function PublicRoomPage() {
         </div>
 
         {/* CTA Register Button */}
-        {room.trang_thai !== 'Khóa' && room.trang_thai !== 'Bảo trì' && availableBeds > 0 && (
+        {room.status !== 'Khóa' && room.status !== 'Bảo trì' && availableBeds > 0 && (
           <button
             onClick={() => setShowRegister(true)}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-semibold text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
@@ -276,20 +277,20 @@ export default function PublicRoomPage() {
 
             {/* Room summary */}
             <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
-              <p className="text-sm text-blue-700 font-medium">Phòng {room.ma_phong} — {building?.ten || ''}</p>
-              <p className="text-xs text-blue-500">Tầng {room.tang} • {room.loai_phong} • {room.gia_phong?.toLocaleString('vi-VN')}đ/kỳ</p>
+              <p className="text-sm text-blue-700 font-medium">Phòng {room.room_code} — {building?.name || ''}</p>
+              <p className="text-xs text-blue-500">Tầng {room.floor} • {room.room_type} • {room.room_price?.toLocaleString('vi-VN')}đ/kỳ</p>
             </div>
 
             <form onSubmit={handleRegister} className="p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Họ tên <span className="text-red-500">*</span></label>
-                <input type="text" required value={regForm.ho_ten} onChange={e => setRegForm(f => ({ ...f, ho_ten: e.target.value }))}
+                <input type="text" required value={regForm.full_name} onChange={e => setRegForm(f => ({ ...f, full_name: e.target.value }))}
                   placeholder="Nguyễn Văn A" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại <span className="text-red-500">*</span></label>
-                <input type="tel" required value={regForm.so_dien_thoai} onChange={e => setRegForm(f => ({ ...f, so_dien_thoai: e.target.value }))}
+                <input type="tel" required value={regForm.phone_number} onChange={e => setRegForm(f => ({ ...f, phone_number: e.target.value }))}
                   placeholder="0912345678" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
               </div>
 
@@ -301,13 +302,13 @@ export default function PublicRoomPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mã sinh viên <span className="text-gray-400 text-xs">(nếu có)</span></label>
-                <input type="text" value={regForm.ma_sinh_vien} onChange={e => setRegForm(f => ({ ...f, ma_sinh_vien: e.target.value }))}
+                <input type="text" value={regForm.student_code} onChange={e => setRegForm(f => ({ ...f, student_code: e.target.value }))}
                   placeholder="SV001" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Đối tượng ưu tiên</label>
-                <select value={regForm.doi_tuong_uu_tien} onChange={e => setRegForm(f => ({ ...f, doi_tuong_uu_tien: e.target.value }))}
+                <select value={regForm.priority_group} onChange={e => setRegForm(f => ({ ...f, priority_group: e.target.value }))}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white">
                   <option value="Không">Không</option>
                   <option value="Chính sách">Chính sách</option>
@@ -318,7 +319,7 @@ export default function PublicRoomPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea value={regForm.ghi_chu} onChange={e => setRegForm(f => ({ ...f, ghi_chu: e.target.value }))}
+                <textarea value={regForm.notes} onChange={e => setRegForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder="Yêu cầu đặc biệt, thời gian liên hệ phù hợp..."
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" rows={2} />
               </div>
@@ -348,7 +349,7 @@ export default function PublicRoomPage() {
             <h2 className="text-xl font-bold text-gray-800 mb-2">Đăng ký thành công!</h2>
             <p className="text-sm text-gray-500 mb-4">Mã đăng ký của bạn:</p>
             <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4">
-              <p className="text-xl font-bold text-blue-700 font-mono">{regSuccess.ma_dk}</p>
+              <p className="text-xl font-bold text-blue-700 font-mono">{regSuccess.registration_code}</p>
             </div>
             <p className="text-xs text-gray-400 mb-6">Vui lòng lưu mã này. Chúng tôi sẽ liên hệ bạn qua số điện thoại đã cung cấp để xác nhận.</p>
             <button onClick={() => { setRegSuccess(null); setShowRegister(false); }}

@@ -49,27 +49,27 @@ export class PublicRegistrationLinkService {
   async autoLinkPendingRegistrations(): Promise<{
     matched: number;
     converted: number;
-    details: { ma_dk_public: string; student_code: string; ho_ten: string }[];
+    details: { public_registration_code: string; student_code: string; full_name: string }[];
   }> {
     // Get all pending public registrations
     const pendingRegs = await this.publicRegModel.find({
-      trang_thai: 'Chờ xác nhận',
+      status: 'Chờ xác nhận',
     });
 
     if (pendingRegs.length === 0) {
       return { matched: 0, converted: 0, details: [] };
     }
 
-    const details: { ma_dk_public: string; student_code: string; ho_ten: string }[] = [];
+    const details: { public_registration_code: string; student_code: string; full_name: string }[] = [];
     let converted = 0;
 
     for (const pubReg of pendingRegs) {
       let student: StudentDocument | null = null;
 
       // Priority 1: Match by student_code
-      if (pubReg.ma_sinh_vien) {
+      if (pubReg.student_code) {
         student = await this.studentModel.findOne({
-          student_code: pubReg.ma_sinh_vien,
+          student_code: pubReg.student_code,
           status: 'Studying',
         });
       }
@@ -90,12 +90,12 @@ export class PublicRegistrationLinkService {
       // Check if student already has an active formal registration
       const existingReg = await this.registrationModel.findOne({
         student_id: (student as any)._id,
-        trang_thai: { $in: ['Chờ duyệt', 'Đã duyệt'] },
+        status: { $in: ['Chờ duyệt', 'Đã duyệt'] },
       });
 
       if (existingReg) {
         // Already has a formal registration — just mark public reg as linked
-        pubReg.trang_thai = 'Đã xác nhận';
+        pubReg.status = 'Đã xác nhận';
         (pubReg as any).linked_student_id = (student as any)._id;
         (pubReg as any).linked_registration_id = existingReg._id;
         await pubReg.save();
@@ -104,34 +104,34 @@ export class PublicRegistrationLinkService {
 
       // Convert public registration → formal registration
       const formalReg = new this.registrationModel({
-        ma_dk: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
+        registration_code: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
         student_id: (student as any)._id,
-        ky_hoc: pubReg.ky_hoc,
-        nam_hoc: pubReg.nam_hoc,
-        nguyen_vong: {
-          loai_phong: pubReg.loai_phong || undefined,
-          ghi_chu: `Tự động chuyển từ đăng ký QR (${pubReg.ma_dk_public}). SĐT: ${pubReg.so_dien_thoai}`,
+        semester: pubReg.semester,
+        academic_year: pubReg.academic_year,
+        preference: {
+          room_type: pubReg.room_type || undefined,
+          notes: `Tự động chuyển từ đăng ký QR (${pubReg.public_registration_code}). SĐT: ${pubReg.phone_number}`,
         },
-        doi_tuong_uu_tien: pubReg.doi_tuong_uu_tien || 'Không',
-        trang_thai: 'Chờ duyệt',
+        priority_group: pubReg.priority_group || 'Không',
+        status: 'Chờ duyệt',
       });
       await formalReg.save();
 
       // Update public registration status
-      pubReg.trang_thai = 'Đã xác nhận';
+      pubReg.status = 'Đã xác nhận';
       (pubReg as any).linked_student_id = (student as any)._id;
       (pubReg as any).linked_registration_id = formalReg._id;
       await pubReg.save();
 
       converted++;
       details.push({
-        ma_dk_public: pubReg.ma_dk_public,
+        public_registration_code: pubReg.public_registration_code,
         student_code: student.student_code,
-        ho_ten: student.full_name,
+        full_name: student.full_name,
       });
 
       this.logger.log(
-        `Auto-linked: ${pubReg.ma_dk_public} → ${student.student_code} (${student.full_name})`,
+        `Auto-linked: ${pubReg.public_registration_code} → ${student.student_code} (${student.full_name})`,
       );
     }
 
@@ -157,10 +157,10 @@ export class PublicRegistrationLinkService {
     if (student.email) {
       conditions.push({ email: student.email });
     }
-    conditions.push({ ma_sinh_vien: student.student_code });
+    conditions.push({ student_code: student.student_code });
 
     const pubReg = await this.publicRegModel.findOne({
-      trang_thai: 'Chờ xác nhận',
+      status: 'Chờ xác nhận',
       $or: conditions,
     });
 
@@ -169,35 +169,35 @@ export class PublicRegistrationLinkService {
     // Check if already has formal registration
     const existingReg = await this.registrationModel.findOne({
       student_id: (student as any)._id,
-      trang_thai: { $in: ['Chờ duyệt', 'Đã duyệt'] },
+      status: { $in: ['Chờ duyệt', 'Đã duyệt'] },
     });
 
     if (existingReg) {
-      pubReg.trang_thai = 'Đã xác nhận';
+      pubReg.status = 'Đã xác nhận';
       await pubReg.save();
       return true;
     }
 
     // Create formal registration
     const formalReg = new this.registrationModel({
-      ma_dk: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
+      registration_code: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
       student_id: (student as any)._id,
-      ky_hoc: pubReg.ky_hoc,
-      nam_hoc: pubReg.nam_hoc,
-      nguyen_vong: {
-        loai_phong: pubReg.loai_phong || undefined,
-        ghi_chu: `Tự động từ đăng ký QR (${pubReg.ma_dk_public})`,
+      semester: pubReg.semester,
+      academic_year: pubReg.academic_year,
+      preference: {
+        room_type: pubReg.room_type || undefined,
+        notes: `Tự động từ đăng ký QR (${pubReg.public_registration_code})`,
       },
-      doi_tuong_uu_tien: pubReg.doi_tuong_uu_tien || 'Không',
-      trang_thai: 'Chờ duyệt',
+      priority_group: pubReg.priority_group || 'Không',
+      status: 'Chờ duyệt',
     });
     await formalReg.save();
 
-    pubReg.trang_thai = 'Đã xác nhận';
+    pubReg.status = 'Đã xác nhận';
     await pubReg.save();
 
     this.logger.log(
-      `Single link: ${pubReg.ma_dk_public} → ${student.student_code}`,
+      `Single link: ${pubReg.public_registration_code} → ${student.student_code}`,
     );
     return true;
   }
@@ -206,12 +206,12 @@ export class PublicRegistrationLinkService {
    * Get all public registrations for admin review.
    */
   async getAllPublicRegistrations(query: {
-    trang_thai?: string;
+    status?: string;
     page?: number;
     limit?: number;
   }) {
     const filter: any = {};
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
+    if (query.status) filter.status = query.status;
 
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -222,7 +222,7 @@ export class PublicRegistrationLinkService {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate('room_id', 'ma_phong')
+        .populate('room_id', 'room_code')
         .lean(),
       this.publicRegModel.countDocuments(filter),
     ]);

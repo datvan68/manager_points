@@ -1,53 +1,54 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Building } from './building.schema';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type RoomDocument = Room & Document;
 
 @Schema({ timestamps: true })
 export class Room {
   @Prop({ required: true, unique: true })
-  ma_phong: string;
+  room_code: string;
 
   @Prop()
-  ten_phong: string;
+  room_name: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Building', required: true })
   building_id: Types.ObjectId | Building;
 
   @Prop({ required: true })
-  tang: number;
+  floor: number;
 
   @Prop({ required: true })
-  loai_phong: string; // e.g. '4 người', '6 người', '8 người'
+  room_type: string; // e.g. '4 người', '6 người', '8 người'
 
   @Prop({ required: true })
-  so_giuong: number;
+  bed_count: number;
 
   @Prop({ default: 0 })
-  so_giuong_trong: number;
+  available_bed_count: number;
 
   @Prop({ required: true })
-  gia_phong: number; // VND per kỳ
+  room_price: number; // VND per kỳ
 
   @Prop({
     required: true,
-    enum: ['Trống', 'Đầy', 'Khóa', 'Bảo trì'],
+    enum: DORMITORY_ENUMS.roomStatus,
     default: 'Trống',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop({ type: [String], default: [] })
-  tien_ich: string[]; // ['Điều hòa', 'Nóng lạnh', ...]
+  amenities: string[]; // ['Điều hòa', 'Nóng lạnh', ...]
 
   @Prop()
-  ma_qr: string; // auto-generated
+  qr_code: string; // auto-generated
 
   @Prop()
-  url_xem_nhanh: string; // auto-generated
+  public_url: string; // auto-generated
 
   @Prop()
-  mo_ta: string;
+  description: string;
 }
 
 export const RoomSchema = SchemaFactory.createForClass(Room);

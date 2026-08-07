@@ -24,9 +24,9 @@ export class ViolationsService {
   ): Promise<{ violation: Violation; threshold_exceeded: boolean }> {
     const violation = new this.violationModel({
       ...dto,
-      ma_vp: `VP-${uuidv4().substring(0, 8).toUpperCase()}`,
-      trang_thai: 'Mới',
-      nguoi_ghi_nhan_id: user._id || user.userId,
+      violation_code: `VP-${uuidv4().substring(0, 8).toUpperCase()}`,
+      status: 'Mới',
+      recorded_by_id: user._id || user.userId,
     });
 
     const saved = await violation.save();
@@ -34,7 +34,7 @@ export class ViolationsService {
     // BR4: Check if severe violation threshold is exceeded
     const severeCount = await this.violationModel.countDocuments({
       student_id: dto.student_id,
-      muc_do: 'Nghiêm trọng',
+      severity: 'Nghiêm trọng',
     });
 
     const threshold_exceeded = severeCount >= SEVERE_VIOLATION_THRESHOLD;
@@ -45,8 +45,8 @@ export class ViolationsService {
   async findAll(query: {
     student_id?: string;
     room_id?: string;
-    trang_thai?: string;
-    muc_do?: string;
+    status?: string;
+    severity?: string;
     search?: string;
     page?: number;
     limit?: number;
@@ -54,12 +54,12 @@ export class ViolationsService {
     const filter: any = {};
     if (query.student_id) filter.student_id = query.student_id;
     if (query.room_id) filter.room_id = query.room_id;
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
-    if (query.muc_do) filter.muc_do = query.muc_do;
+    if (query.status) filter.status = query.status;
+    if (query.severity) filter.severity = query.severity;
     if (query.search) {
       filter.$or = [
-        { ma_vp: { $regex: query.search, $options: 'i' } },
-        { loai_vi_pham: { $regex: query.search, $options: 'i' } },
+        { violation_code: { $regex: query.search, $options: 'i' } },
+        { violation_type: { $regex: query.search, $options: 'i' } },
       ];
     }
 
@@ -71,10 +71,10 @@ export class ViolationsService {
       this.violationModel
         .find(filter)
         .populate('student_id', 'student_code full_name')
-        .populate('room_id', 'ma_phong')
-        .populate('nguoi_ghi_nhan_id', 'user_name')
-        .populate('nguoi_xu_ly_id', 'user_name')
-        .sort({ ngay_ghi_nhan: -1 })
+        .populate('room_id', 'room_code')
+        .populate('recorded_by_id', 'user_name')
+        .populate('resolved_by_id', 'user_name')
+        .sort({ recorded_at: -1 })
         .skip(skip)
         .limit(limit)
         .exec(),
@@ -92,8 +92,8 @@ export class ViolationsService {
       .findById(id)
       .populate('student_id')
       .populate('room_id')
-      .populate('nguoi_ghi_nhan_id', 'user_name')
-      .populate('nguoi_xu_ly_id', 'user_name')
+      .populate('recorded_by_id', 'user_name')
+      .populate('resolved_by_id', 'user_name')
       .exec();
     if (!vp) {
       throw new NotFoundException(`Không tìm thấy vi phạm: ${id}`);
@@ -114,10 +114,10 @@ export class ViolationsService {
       throw new NotFoundException(`Không tìm thấy vi phạm: ${id}`);
     }
 
-    vp.hinh_thuc_xu_ly = dto.hinh_thuc_xu_ly;
-    vp.ghi_chu_xu_ly = dto.ghi_chu_xu_ly || '';
-    vp.trang_thai = 'Đã xử lý';
-    vp.nguoi_xu_ly_id = user._id || user.userId;
+    vp.resolution_type = dto.resolution_type;
+    vp.resolution_notes = dto.resolution_notes || '';
+    vp.status = 'Đã xử lý';
+    vp.resolved_by_id = user._id || user.userId;
 
     return vp.save();
   }
@@ -128,15 +128,15 @@ export class ViolationsService {
   async getStudentViolationSummary(studentId: string) {
     const violations = await this.violationModel
       .find({ student_id: studentId })
-      .sort({ ngay_ghi_nhan: -1 })
+      .sort({ recorded_at: -1 })
       .exec();
 
-    const totalDiemTru = violations.reduce((sum, v) => sum + (v.diem_tru || 0), 0);
-    const severeCount = violations.filter((v) => v.muc_do === 'Nghiêm trọng').length;
+    const totalDiemTru = violations.reduce((sum, v) => sum + (v.deducted_points || 0), 0);
+    const severeCount = violations.filter((v) => v.severity === 'Nghiêm trọng').length;
 
     return {
       total: violations.length,
-      total_diem_tru: totalDiemTru,
+      total_deducted_points: totalDiemTru,
       severe_count: severeCount,
       threshold_exceeded: severeCount >= SEVERE_VIOLATION_THRESHOLD,
       violations,

@@ -31,7 +31,11 @@
     "migration:attendance-session-owner-index:dry-run": "ts-node scripts/migrate-attendance-session-owner-index.ts",
     "migration:attendance-session-owner-index:execute": "ts-node scripts/migrate-attendance-session-owner-index.ts --execute",
     "migration:activities:rollback:dry-run": "ts-node scripts/rollback-unified-activities.ts",
-    "migration:activities:rollback:execute": "ts-node scripts/rollback-unified-activities.ts --execute"
+    "migration:activities:rollback:execute": "ts-node scripts/rollback-unified-activities.ts --execute",
+    "migration:dormitory-naming:dry-run": "ts-node scripts/migrate-dormitory-naming.ts",
+    "migration:dormitory-naming:execute": "ts-node scripts/migrate-dormitory-naming.ts --execute",
+    "migration:dormitory-naming:rollback:dry-run": "ts-node scripts/rollback-dormitory-naming.ts",
+    "migration:dormitory-naming:rollback:execute": "ts-node scripts/rollback-dormitory-naming.ts --execute"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",

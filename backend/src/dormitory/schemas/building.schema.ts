@@ -1,31 +1,32 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type BuildingDocument = Building & Document;
 
 @Schema({ timestamps: true })
 export class Building {
   @Prop({ required: true, unique: true })
-  ma_toa_nha: string;
+  building_code: string;
 
   @Prop({ required: true })
-  ten: string;
+  name: string;
 
   @Prop()
-  dia_chi: string;
+  address: string;
 
   @Prop({ default: 1 })
-  so_tang: number;
+  floor_count: number;
 
   @Prop({
     required: true,
-    enum: ['Active', 'Inactive', 'Maintenance'],
+    enum: DORMITORY_ENUMS.buildingStatus,
     default: 'Active',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop()
-  mo_ta: string;
+  description: string;
 }
 
 export const BuildingSchema = SchemaFactory.createForClass(Building);

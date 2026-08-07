@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { Room } from './room.schema';
 
 export type BedDocument = Bed & Document;
@@ -7,23 +8,23 @@ export type BedDocument = Bed & Document;
 @Schema({ timestamps: true })
 export class Bed {
   @Prop({ required: true })
-  ma_giuong: string;
+  bed_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
   room_id: Types.ObjectId | Room;
 
   @Prop()
-  vi_tri: string; // e.g. 'Tầng 1 - Trái', 'Tầng 2 - Phải'
+  position: string; // e.g. 'Tầng 1 - Trái', 'Tầng 2 - Phải'
 
   @Prop({
     required: true,
-    enum: ['Trống', 'Đang sử dụng', 'Bảo trì'],
+    enum: DORMITORY_ENUMS.bedStatus,
     default: 'Trống',
   })
-  trang_thai: string;
+  status: string;
 }
 
 export const BedSchema = SchemaFactory.createForClass(Bed);
 
-// Compound unique index: ma_giuong unique within a room
-BedSchema.index({ ma_giuong: 1, room_id: 1 }, { unique: true });
+// Compound unique index: bed_code unique within a room
+BedSchema.index({ bed_code: 1, room_id: 1 }, { unique: true });

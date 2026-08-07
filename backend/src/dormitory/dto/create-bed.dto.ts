@@ -9,7 +9,7 @@ import {
 export class CreateBedDto {
   @IsNotEmpty()
   @IsString()
-  ma_giuong: string;
+  bed_code: string;
 
   @IsNotEmpty()
   @IsMongoId()
@@ -17,9 +17,9 @@ export class CreateBedDto {
 
   @IsOptional()
   @IsString()
-  vi_tri?: string;
+  position?: string;
 
   @IsOptional()
   @IsEnum(['Trống', 'Đang sử dụng', 'Bảo trì'])
-  trang_thai?: string;
+  status?: string;
 }

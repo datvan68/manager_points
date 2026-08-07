@@ -33,13 +33,13 @@ export class BuildingsController {
   @UseGuards(JwtAuthGuard)
   findAll(
     @Query('search') search?: string,
-    @Query('trang_thai') trang_thai?: string,
+    @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.buildingsService.findAll({
       search,
-      trang_thai,
+      status,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

@@ -36,20 +36,20 @@ export class DormitoryReportsService {
    * UC13/FR13: Occupancy report by building
    */
   async getOccupancyReport() {
-    const buildings = await this.buildingModel.find({ trang_thai: 'Active' }).exec();
+    const buildings = await this.buildingModel.find({ status: 'Active' }).exec();
 
     const report = await Promise.all(
       buildings.map(async (building) => {
         const rooms = await this.roomModel.find({ building_id: building._id }).exec();
-        const totalBeds = rooms.reduce((sum, r) => sum + r.so_giuong, 0);
-        const availableBeds = rooms.reduce((sum, r) => sum + r.so_giuong_trong, 0);
+        const totalBeds = rooms.reduce((sum, r) => sum + r.bed_count, 0);
+        const availableBeds = rooms.reduce((sum, r) => sum + r.available_bed_count, 0);
         const usedBeds = totalBeds - availableBeds;
         const occupancyRate = totalBeds > 0 ? Math.round((usedBeds / totalBeds) * 100) : 0;
 
         return {
           building_id: building._id,
-          ma_toa_nha: building.ma_toa_nha,
-          ten: building.ten,
+          building_code: building.building_code,
+          name: building.name,
           total_rooms: rooms.length,
           total_beds: totalBeds,
           used_beds: usedBeds,
@@ -77,21 +77,21 @@ export class DormitoryReportsService {
   /**
    * FR14: Revenue and debt report
    */
-  async getRevenueReport(query?: { ky_thu?: string }) {
+  async getRevenueReport(query?: { billing_period?: string }) {
     const filter: any = {};
-    if (query?.ky_thu) filter.ky_thu = query.ky_thu;
+    if (query?.billing_period) filter.billing_period = query.billing_period;
 
     const invoices = await this.invoiceModel.find(filter).exec();
 
-    const paid = invoices.filter((i) => i.trang_thai === 'Đã thanh toán');
-    const unpaid = invoices.filter((i) => i.trang_thai === 'Chưa thanh toán');
-    const overdue = invoices.filter((i) => i.trang_thai === 'Quá hạn');
+    const paid = invoices.filter((i) => i.status === 'Đã thanh toán');
+    const unpaid = invoices.filter((i) => i.status === 'Chưa thanh toán');
+    const overdue = invoices.filter((i) => i.status === 'Quá hạn');
 
     return {
       total_invoices: invoices.length,
-      total_revenue: paid.reduce((sum, i) => sum + i.tong_tien, 0),
-      total_unpaid: unpaid.reduce((sum, i) => sum + i.tong_tien, 0),
-      total_overdue: overdue.reduce((sum, i) => sum + i.tong_tien, 0),
+      total_revenue: paid.reduce((sum, i) => sum + i.total_amount, 0),
+      total_unpaid: unpaid.reduce((sum, i) => sum + i.total_amount, 0),
+      total_overdue: overdue.reduce((sum, i) => sum + i.total_amount, 0),
       paid_count: paid.length,
       unpaid_count: unpaid.length,
       overdue_count: overdue.length,
@@ -108,23 +108,23 @@ export class DormitoryReportsService {
     ]);
 
     const violationByLevel = {
-      nhe: violations.filter((v) => v.muc_do === 'Nhẹ').length,
-      trung_binh: violations.filter((v) => v.muc_do === 'Trung bình').length,
-      nghiem_trong: violations.filter((v) => v.muc_do === 'Nghiêm trọng').length,
+      nhe: violations.filter((v) => v.severity === 'Nhẹ').length,
+      trung_binh: violations.filter((v) => v.severity === 'Trung bình').length,
+      nghiem_trong: violations.filter((v) => v.severity === 'Nghiêm trọng').length,
     };
 
     const maintenanceByStatus = {
-      moi: maintenance.filter((m) => m.trang_thai === 'Mới').length,
-      dang_xu_ly: maintenance.filter((m) => m.trang_thai === 'Đang xử lý').length,
-      hoan_tat: maintenance.filter((m) => m.trang_thai === 'Hoàn tất').length,
-      tu_choi: maintenance.filter((m) => m.trang_thai === 'Từ chối').length,
+      moi: maintenance.filter((m) => m.status === 'Mới').length,
+      dang_xu_ly: maintenance.filter((m) => m.status === 'Đang xử lý').length,
+      hoan_tat: maintenance.filter((m) => m.status === 'Hoàn tất').length,
+      tu_choi: maintenance.filter((m) => m.status === 'Từ chối').length,
     };
 
     return {
       violations: {
         total: violations.length,
         by_level: violationByLevel,
-        pending: violations.filter((v) => v.trang_thai === 'Mới').length,
+        pending: violations.filter((v) => v.status === 'Mới').length,
       },
       maintenance: {
         total: maintenance.length,
@@ -145,15 +145,15 @@ export class DormitoryReportsService {
       unpaidInvoices,
       pendingMaintenance,
     ] = await Promise.all([
-      this.roomModel.countDocuments({ trang_thai: { $ne: 'Khóa' } }),
-      this.roomModel.countDocuments({ so_giuong_trong: { $gt: 0 }, trang_thai: 'Trống' }),
-      this.contractModel.countDocuments({ trang_thai: 'Hiệu lực' }),
-      this.registrationModel.countDocuments({ trang_thai: 'Chờ duyệt' }),
+      this.roomModel.countDocuments({ status: { $ne: 'Khóa' } }),
+      this.roomModel.countDocuments({ available_bed_count: { $gt: 0 }, status: 'Trống' }),
+      this.contractModel.countDocuments({ status: 'Hiệu lực' }),
+      this.registrationModel.countDocuments({ status: 'Chờ duyệt' }),
       this.invoiceModel.countDocuments({
-        trang_thai: { $in: ['Chưa thanh toán', 'Quá hạn'] },
+        status: { $in: ['Chưa thanh toán', 'Quá hạn'] },
       }),
       this.maintenanceModel.countDocuments({
-        trang_thai: { $in: ['Mới', 'Đang xử lý'] },
+        status: { $in: ['Mới', 'Đang xử lý'] },
       }),
     ]);
 

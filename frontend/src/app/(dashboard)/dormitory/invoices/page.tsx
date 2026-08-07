@@ -20,12 +20,12 @@ export default function InvoicesPage() {
   const [payId, setPayId] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState('Tiền mặt');
   const [showBulk, setShowBulk] = useState(false);
-  const [bulkForm, setBulkForm] = useState({ ky_thu: '', han_thanh_toan: '' });
+  const [bulkForm, setBulkForm] = useState({ billing_period: '', due_date: '' });
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await dormitoryApi.invoices.getAll({ trang_thai: filterStatus || undefined, search: search || undefined, limit: 50 });
+      const res = await dormitoryApi.invoices.getAll({ status: filterStatus || undefined, search: search || undefined, limit: 50 });
       setInvoices(res.data);
       setMeta(res.meta);
     } catch (err: any) {
@@ -40,7 +40,7 @@ export default function InvoicesPage() {
   async function handlePay() {
     if (!payId) return;
     try {
-      await dormitoryApi.invoices.pay(payId, { phuong_thuc: payMethod });
+      await dormitoryApi.invoices.pay(payId, { payment_method: payMethod });
       toast.success('Xác nhận thanh toán thành công');
       setPayId(null);
       load();
@@ -109,17 +109,17 @@ export default function InvoicesPage() {
                 <tr><td colSpan={7} className="p-8 text-center text-gray-400">Không có hóa đơn nào</td></tr>
               ) : invoices.map(inv => (
                 <tr key={inv._id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="p-3 font-mono text-xs">{inv.ma_hoa_don}</td>
+                  <td className="p-3 font-mono text-xs">{inv.invoice_code}</td>
                   <td className="p-3">
                     <div className="font-medium text-gray-800">{inv.student_id?.full_name || '—'}</div>
                     <div className="text-xs text-gray-400">{inv.student_id?.student_code || ''}</div>
                   </td>
-                  <td className="p-3 text-gray-600">{inv.ky_thu}</td>
-                  <td className="p-3 text-right font-medium text-gray-800">{inv.tong_tien?.toLocaleString('vi-VN')}đ</td>
-                  <td className="p-3 text-gray-500 text-xs">{inv.han_thanh_toan ? new Date(inv.han_thanh_toan).toLocaleDateString('vi-VN') : '—'}</td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[inv.trang_thai] || ''}`}>{inv.trang_thai}</span></td>
+                  <td className="p-3 text-gray-600">{inv.billing_period}</td>
+                  <td className="p-3 text-right font-medium text-gray-800">{inv.total_amount?.toLocaleString('vi-VN')}đ</td>
+                  <td className="p-3 text-gray-500 text-xs">{inv.due_date ? new Date(inv.due_date).toLocaleDateString('vi-VN') : '—'}</td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[inv.status] || ''}`}>{inv.status}</span></td>
                   <td className="p-3 text-center">
-                    {inv.trang_thai !== 'Đã thanh toán' && (
+                    {inv.status !== 'Đã thanh toán' && (
                       <button onClick={() => setPayId(inv._id)} className="p-1.5 rounded-lg hover:bg-green-50 text-green-600" title="Xác nhận thanh toán">
                         <CheckCircle size={16} />
                       </button>
@@ -160,12 +160,12 @@ export default function InvoicesPage() {
             <form onSubmit={handleBulkCreate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kỳ thu (VD: T07/2026)</label>
-                <input type="text" required value={bulkForm.ky_thu} onChange={e => setBulkForm(f => ({ ...f, ky_thu: e.target.value }))}
+                <input type="text" required value={bulkForm.billing_period} onChange={e => setBulkForm(f => ({ ...f, billing_period: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Hạn thanh toán</label>
-                <input type="date" required value={bulkForm.han_thanh_toan} onChange={e => setBulkForm(f => ({ ...f, han_thanh_toan: e.target.value }))}
+                <input type="date" required value={bulkForm.due_date} onChange={e => setBulkForm(f => ({ ...f, due_date: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
               <div className="flex gap-3 pt-2">

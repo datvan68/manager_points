@@ -31,7 +31,7 @@ export class ContractsService {
     // BR1: Check max 1 active contract per student
     const activeContract = await this.contractModel.findOne({
       student_id: dto.student_id,
-      trang_thai: 'Hiệu lực',
+      status: 'Hiệu lực',
     });
     if (activeContract) {
       throw new ConflictException(
@@ -42,7 +42,7 @@ export class ContractsService {
     // BR5: Validate registration is approved and room is assigned
     if (dto.registration_id) {
       const reg = await this.registrationModel.findById(dto.registration_id);
-      if (!reg || reg.trang_thai !== 'Đã duyệt') {
+      if (!reg || reg.status !== 'Đã duyệt') {
         throw new BadRequestException(
           'Đăng ký chưa được duyệt hoặc không tồn tại',
         );
@@ -57,9 +57,9 @@ export class ContractsService {
 
     const contract = new this.contractModel({
       ...dto,
-      ma_hd: `HD-${uuidv4().substring(0, 8).toUpperCase()}`,
-      trang_thai: 'Hiệu lực',
-      nguoi_tao_id: user._id || user.userId,
+      contract_code: `HD-${uuidv4().substring(0, 8).toUpperCase()}`,
+      status: 'Hiệu lực',
+      created_by_id: user._id || user.userId,
     });
 
     return contract.save();
@@ -67,17 +67,17 @@ export class ContractsService {
 
   async findAll(query: {
     student_id?: string;
-    trang_thai?: string;
+    status?: string;
     search?: string;
     page?: number;
     limit?: number;
   }) {
     const filter: any = {};
     if (query.student_id) filter.student_id = query.student_id;
-    if (query.trang_thai) filter.trang_thai = query.trang_thai;
+    if (query.status) filter.status = query.status;
     if (query.search) {
       filter.$or = [
-        { ma_hd: { $regex: query.search, $options: 'i' } },
+        { contract_code: { $regex: query.search, $options: 'i' } },
       ];
     }
 
@@ -89,8 +89,8 @@ export class ContractsService {
       this.contractModel
         .find(filter)
         .populate('student_id', 'student_code full_name')
-        .populate('room_id', 'ma_phong')
-        .populate('bed_id', 'ma_giuong vi_tri')
+        .populate('room_id', 'room_code')
+        .populate('bed_id', 'bed_code position')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -130,17 +130,17 @@ export class ContractsService {
     if (!contract) {
       throw new NotFoundException(`Không tìm thấy hợp đồng: ${id}`);
     }
-    if (contract.trang_thai !== 'Hiệu lực') {
+    if (contract.status !== 'Hiệu lực') {
       throw new BadRequestException('Hợp đồng không còn hiệu lực');
     }
 
     // Free the bed
     await this.bedModel.findByIdAndUpdate(contract.bed_id, {
-      $set: { trang_thai: 'Trống' },
+      $set: { status: 'Trống' },
     });
 
-    contract.trang_thai = 'Đã hủy';
-    contract.ly_do_huy = dto.ly_do_huy;
+    contract.status = 'Đã hủy';
+    contract.cancellation_reason = dto.cancellation_reason;
     const saved = await contract.save();
 
     // Sync room availability
@@ -157,11 +157,11 @@ export class ContractsService {
     if (!contract) {
       throw new NotFoundException(`Không tìm thấy hợp đồng: ${id}`);
     }
-    if (contract.trang_thai !== 'Hiệu lực') {
+    if (contract.status !== 'Hiệu lực') {
       throw new BadRequestException('Chỉ gia hạn hợp đồng đang hiệu lực');
     }
 
-    contract.ngay_ket_thuc = new Date(newEndDate);
+    contract.end_date = new Date(newEndDate);
     return contract.save();
   }
 }

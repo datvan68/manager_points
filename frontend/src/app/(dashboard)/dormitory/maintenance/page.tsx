@@ -25,12 +25,12 @@ export default function MaintenancePage() {
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
   const [handleId, setHandleId] = useState<string | null>(null);
-  const [handleForm, setHandleForm] = useState({ trang_thai: 'Đang xử lý', ghi_chu_xu_ly: '' });
+  const [handleForm, setHandleForm] = useState({ status: 'Đang xử lý', resolution_notes: '' });
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await dormitoryApi.maintenance.getAll({ trang_thai: filterStatus || undefined, search: search || undefined, limit: 50 });
+      const res = await dormitoryApi.maintenance.getAll({ status: filterStatus || undefined, search: search || undefined, limit: 50 });
       setItems(res.data);
       setMeta(res.meta);
     } catch (err: any) {
@@ -101,18 +101,18 @@ export default function MaintenancePage() {
                 <tr><td colSpan={8} className="p-8 text-center text-gray-400">Không có yêu cầu bảo trì nào</td></tr>
               ) : items.map(m => (
                 <tr key={m._id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="p-3 font-mono text-xs">{m.ma_ycbt}</td>
-                  <td className="p-3 text-gray-600">{m.room_id?.ma_phong || '—'}</td>
+                  <td className="p-3 font-mono text-xs">{m.request_code}</td>
+                  <td className="p-3 text-gray-600">{m.room_id?.room_code || '—'}</td>
                   <td className="p-3">
                     <div className="font-medium text-gray-800 text-xs">{m.student_id?.full_name || '—'}</div>
                   </td>
-                  <td className="p-3 text-gray-600 text-xs">{m.loai_su_co}</td>
-                  <td className="p-3 text-gray-600 text-xs max-w-[200px] truncate">{m.mo_ta}</td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColors[m.do_uu_tien] || ''}`}>{m.do_uu_tien}</span></td>
-                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[m.trang_thai] || ''}`}>{m.trang_thai}</span></td>
+                  <td className="p-3 text-gray-600 text-xs">{m.issue_type}</td>
+                  <td className="p-3 text-gray-600 text-xs max-w-[200px] truncate">{m.description}</td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${priorityColors[m.priority] || ''}`}>{m.priority}</span></td>
+                  <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[m.status] || ''}`}>{m.status}</span></td>
                   <td className="p-3 text-center">
-                    {m.trang_thai !== 'Hoàn tất' && m.trang_thai !== 'Từ chối' && (
-                      <button onClick={() => { setHandleId(m._id); setHandleForm({ trang_thai: m.trang_thai === 'Mới' ? 'Đang xử lý' : 'Hoàn tất', ghi_chu_xu_ly: '' }); }}
+                    {m.status !== 'Hoàn tất' && m.status !== 'Từ chối' && (
+                      <button onClick={() => { setHandleId(m._id); setHandleForm({ status: m.status === 'Mới' ? 'Đang xử lý' : 'Hoàn tất', resolution_notes: '' }); }}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Cập nhật">
                         <Settings size={16} />
                       </button>
@@ -133,7 +133,7 @@ export default function MaintenancePage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                <select value={handleForm.trang_thai} onChange={e => setHandleForm(f => ({ ...f, trang_thai: e.target.value }))}
+                <select value={handleForm.status} onChange={e => setHandleForm(f => ({ ...f, status: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                   <option value="Mới">Mới</option>
                   <option value="Đang xử lý">Đang xử lý</option>
@@ -143,7 +143,7 @@ export default function MaintenancePage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú xử lý</label>
-                <textarea value={handleForm.ghi_chu_xu_ly} onChange={e => setHandleForm(f => ({ ...f, ghi_chu_xu_ly: e.target.value }))}
+                <textarea value={handleForm.resolution_notes} onChange={e => setHandleForm(f => ({ ...f, resolution_notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" rows={3} />
               </div>
               <div className="flex gap-3 pt-2">

@@ -42,8 +42,8 @@ export class InvoicesController {
   findAll(
     @Query('student_id') student_id?: string,
     @Query('contract_id') contract_id?: string,
-    @Query('trang_thai') trang_thai?: string,
-    @Query('ky_thu') ky_thu?: string,
+    @Query('status') status?: string,
+    @Query('billing_period') billing_period?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -51,8 +51,8 @@ export class InvoicesController {
     return this.invoicesService.findAll({
       student_id,
       contract_id,
-      trang_thai,
-      ky_thu,
+      status,
+      billing_period,
       search,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,

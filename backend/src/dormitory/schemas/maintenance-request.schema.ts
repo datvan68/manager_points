@@ -1,12 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 export type MaintenanceRequestDocument = MaintenanceRequest & Document;
 
 @Schema({ timestamps: true })
 export class MaintenanceRequest {
   @Prop({ required: true, unique: true })
-  ma_ycbt: string;
+  request_code: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
   room_id: Types.ObjectId;
@@ -18,35 +19,35 @@ export class MaintenanceRequest {
     required: true,
     enum: ['Điện', 'Nước', 'Thiết bị', 'Cơ sở vật chất', 'Khác'],
   })
-  loai_su_co: string;
+  issue_type: string;
 
   @Prop({ required: true })
-  mo_ta: string;
+  description: string;
 
   @Prop({ type: [String], default: [] })
-  hinh_anh: string[];
+  images: string[];
 
   @Prop({
     required: true,
-    enum: ['Mới', 'Đang xử lý', 'Hoàn tất', 'Từ chối'],
+    enum: DORMITORY_ENUMS.maintenanceStatus,
     default: 'Mới',
   })
-  trang_thai: string;
+  status: string;
 
   @Prop({
     enum: ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp'],
     default: 'Trung bình',
   })
-  do_uu_tien: string;
+  priority: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
-  ky_thuat_vien_id: Types.ObjectId;
+  technician_id: Types.ObjectId;
 
   @Prop()
-  ghi_chu_xu_ly: string;
+  resolution_notes: string;
 
   @Prop()
-  ngay_hoan_tat: Date;
+  completed_at: Date;
 }
 
 export const MaintenanceRequestSchema =

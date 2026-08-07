@@ -37,7 +37,7 @@ export class RoomAssignmentService {
     if (!reg) {
       throw new NotFoundException('Không tìm thấy đơn đăng ký');
     }
-    if (reg.trang_thai !== 'Đã duyệt') {
+    if (reg.status !== 'Đã duyệt') {
       throw new BadRequestException('Đơn đăng ký chưa được duyệt');
     }
 
@@ -47,7 +47,7 @@ export class RoomAssignmentService {
       throw new NotFoundException('Không tìm thấy phòng');
     }
     // BR2: Check room capacity
-    if (room.so_giuong_trong <= 0) {
+    if (room.available_bed_count <= 0) {
       throw new BadRequestException('Phòng đã hết chỗ trống');
     }
 
@@ -56,7 +56,7 @@ export class RoomAssignmentService {
     if (!bed) {
       throw new NotFoundException('Không tìm thấy giường');
     }
-    if (bed.trang_thai !== 'Trống') {
+    if (bed.status !== 'Trống') {
       throw new BadRequestException('Giường đã được sử dụng');
     }
     if (bed.room_id.toString() !== dto.room_id) {
@@ -64,7 +64,7 @@ export class RoomAssignmentService {
     }
 
     // Update bed status
-    bed.trang_thai = 'Đang sử dụng';
+    bed.status = 'Đang sử dụng';
     await bed.save();
 
     // Sync room availability
@@ -88,22 +88,22 @@ export class RoomAssignmentService {
     }
 
     const filter: any = {
-      so_giuong_trong: { $gt: 0 },
-      trang_thai: { $in: ['Trống'] },
+      available_bed_count: { $gt: 0 },
+      status: { $in: ['Trống'] },
     };
 
     // Apply preferences
-    if (reg.nguyen_vong?.loai_phong) {
-      filter.loai_phong = reg.nguyen_vong.loai_phong;
+    if (reg.preference?.room_type) {
+      filter.room_type = reg.preference.room_type;
     }
-    if (reg.nguyen_vong?.building_id) {
-      filter.building_id = reg.nguyen_vong.building_id;
+    if (reg.preference?.building_id) {
+      filter.building_id = reg.preference.building_id;
     }
 
     const rooms = await this.roomModel
       .find(filter)
-      .populate('building_id', 'ma_toa_nha ten')
-      .sort({ so_giuong_trong: -1 })
+      .populate('building_id', 'building_code name')
+      .sort({ available_bed_count: -1 })
       .limit(10)
       .exec();
 
@@ -118,7 +118,7 @@ export class RoomAssignmentService {
     if (!contract) {
       throw new NotFoundException('Không tìm thấy hợp đồng');
     }
-    if (contract.trang_thai !== 'Hiệu lực') {
+    if (contract.status !== 'Hiệu lực') {
       throw new BadRequestException('Hợp đồng không còn hiệu lực');
     }
 
@@ -127,18 +127,18 @@ export class RoomAssignmentService {
     if (!newBed) {
       throw new NotFoundException('Không tìm thấy giường mới');
     }
-    if (newBed.trang_thai !== 'Trống') {
+    if (newBed.status !== 'Trống') {
       throw new BadRequestException('Giường mới đã được sử dụng');
     }
 
     // Free old bed
     const oldBedId = contract.bed_id.toString();
     await this.bedModel.findByIdAndUpdate(oldBedId, {
-      $set: { trang_thai: 'Trống' },
+      $set: { status: 'Trống' },
     });
 
     // Assign new bed
-    newBed.trang_thai = 'Đang sử dụng';
+    newBed.status = 'Đang sử dụng';
     await newBed.save();
 
     // Update contract

@@ -34,18 +34,18 @@ export class MaintenanceController {
   @UseGuards(JwtAuthGuard)
   findAll(
     @Query('room_id') room_id?: string,
-    @Query('trang_thai') trang_thai?: string,
-    @Query('do_uu_tien') do_uu_tien?: string,
-    @Query('loai_su_co') loai_su_co?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('issue_type') issue_type?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.maintenanceService.findAll({
       room_id,
-      trang_thai,
-      do_uu_tien,
-      loai_su_co,
+      status,
+      priority,
+      issue_type,
       search,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
