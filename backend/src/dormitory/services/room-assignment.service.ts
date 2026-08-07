@@ -14,6 +14,7 @@ import {
 import { AssignRoomDto } from '../dto/assign-room.dto';
 import { TransferRoomDto } from '../dto/transfer-room.dto';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
+import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
 import { RoomsService } from './rooms.service';
 
 @Injectable()
@@ -25,6 +26,8 @@ export class RoomAssignmentService {
     private registrationModel: Model<RegistrationDocument>,
     @InjectModel(Contract.name)
     private contractModel: Model<ContractDocument>,
+    @InjectModel(PublicRegistration.name)
+    private publicRegistrationModel: Model<PublicRegistrationDocument>,
     private roomsService: RoomsService,
   ) {}
 
@@ -34,6 +37,22 @@ export class RoomAssignmentService {
   async assignRoom(dto: AssignRoomDto, user: any) {
     // Validate registration
     const reg = await this.registrationModel.findById(dto.registration_id);
+    if (!reg) {
+      const publicRegistration = await this.publicRegistrationModel.findById(dto.registration_id);
+      if (!publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
+      const room = await this.roomModel.findById(dto.room_id);
+      if (!room) throw new NotFoundException('Không tìm thấy phòng');
+      if (room.available_bed_count <= 0) throw new BadRequestException('Phòng đã hết chỗ trống');
+      const bed = await this.bedModel.findById(dto.bed_id);
+      if (!bed || bed.status !== 'Trống' || bed.room_id.toString() !== dto.room_id) throw new BadRequestException('Giường không hợp lệ hoặc đã được sử dụng');
+      bed.status = 'Đang sử dụng';
+      await bed.save();
+      await this.roomsService.syncRoomAvailability(dto.room_id);
+      publicRegistration.room_id = room._id as any;
+      publicRegistration.room_code = room.room_code;
+      await publicRegistration.save();
+      return { registration: publicRegistration, room, bed, message: 'Phân phòng thành công' };
+    }
     if (!reg) {
       throw new NotFoundException('Không tìm thấy đơn đăng ký');
     }
@@ -83,9 +102,8 @@ export class RoomAssignmentService {
    */
   async suggestRooms(registrationId: string) {
     const reg = await this.registrationModel.findById(registrationId);
-    if (!reg) {
-      throw new NotFoundException('Không tìm thấy đơn đăng ký');
-    }
+    const publicRegistration = reg ? null : await this.publicRegistrationModel.findById(registrationId);
+    if (!reg && !publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
 
     const filter: any = {
       available_bed_count: { $gt: 0 },
@@ -93,10 +111,10 @@ export class RoomAssignmentService {
     };
 
     // Apply preferences
-    if (reg.preference?.room_type) {
-      filter.room_type = reg.preference.room_type;
+    if (reg?.preference?.room_type || publicRegistration?.room_type) {
+      filter.room_type = reg?.preference?.room_type || publicRegistration?.room_type;
     }
-    if (reg.preference?.building_id) {
+    if (reg?.preference?.building_id) {
       filter.building_id = reg.preference.building_id;
     }
 

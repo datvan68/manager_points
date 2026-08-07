@@ -6,7 +6,7 @@ import QRCodeLib from 'qrcode';
 import { Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
-import { isAdminUser, useAuth } from '@/providers/auth-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
@@ -34,6 +34,7 @@ export const studentCode = (r: DormRegistration) => {
 export const priorityLabel = (r: DormRegistration) => r.priority_group?.trim() && r.priority_group.trim() !== 'Không' ? 'Có' : 'Không';
 export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBLIC' ? 'QR' : 'Thủ công';
 export const roomLabel = (r: DormRegistration) => (r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id || 'Chưa xếp phòng';
+export const isUnassignedRoom = (r: DormRegistration) => !((r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id);
 export const createdDateLabel = (value?: string) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -104,12 +105,13 @@ export function buildRegistrationExportRows(rows: DormRegistration[]) {
 }
 
 export default function RegistrationsPage() {
-  const { hasPermission, user } = useAuth();
+  const { hasPermission } = useAuth();
   const canCreate = hasPermission('DORM_REG_CREATE');
   const canView = hasPermission('DORM_REG_READ');
   const canUpdate = hasPermission('DORM_REG_UPDATE');
   const canDelete = hasPermission('DORM_REG_DELETE');
-  const canAssignRoom = isAdminUser(user) || hasPermission('DORM_REG_APPROVE') || hasPermission('DORM_REG_UPDATE');
+  // Temporary: room assignment is open until the permission is finalized.
+  const canAssignRoom = true;
   const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState(''); const [source, setSource] = useState('');
@@ -287,10 +289,10 @@ export default function RegistrationsPage() {
   };
   const columns: ResponsiveColumn<DormRegistration>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
-    { key: 'room', header: 'Phòng', render: (_, r) => roomLabel(r) }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
+    { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
     { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && r.source === 'FORMAL' && <Popover open={roomPickerRow === r._id} onOpenChange={open => { if (open) void openRoomPicker(r); else setRoomPickerRow(null); }}><PopoverTrigger asChild><button aria-label={`Thêm phòng cho ${studentName(r)}`} title="Thêm phòng" className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50"><DoorOpen size={16} /></button></PopoverTrigger><PopoverContent align="end" side="bottom" className="z-[120] w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl"><div className="px-2 pb-2 text-xs font-semibold text-slate-700">Chọn phòng</div>{roomPickerLoading ? <p className="px-2 py-3 text-xs text-slate-500">Đang tải phòng...</p> : roomPickerError ? <p role="alert" className="px-2 py-3 text-xs text-red-600">{roomPickerError}</p> : roomOptions.length === 0 ? <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p> : <div className="max-h-64 space-y-1 overflow-y-auto">{roomOptions.map(room => { const selectable = room.status === 'Trống' && room.available_bed_count > 0; return <button type="button" key={room._id} disabled={!selectable || assigningRoom} onClick={() => void assignRoom(r, room)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><span className="min-w-0"><span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span><span className="block text-[11px] text-slate-500">{room.available_bed_count}/{room.bed_count} giường</span></span><span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span></button>; })}</div>}</PopoverContent></Popover>}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <Popover open={roomPickerRow === r._id} onOpenChange={open => { if (open) void openRoomPicker(r); else setRoomPickerRow(null); }}><PopoverTrigger asChild><button aria-label={`Thêm phòng cho ${studentName(r)}`} title="Thêm phòng" className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50"><DoorOpen size={16} /></button></PopoverTrigger><PopoverContent align="end" side="bottom" className="z-[120] w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl"><div className="px-2 pb-2 text-xs font-semibold text-slate-700">Chọn phòng</div>{roomPickerLoading ? <p className="px-2 py-3 text-xs text-slate-500">Đang tải phòng...</p> : roomPickerError ? <p role="alert" className="px-2 py-3 text-xs text-red-600">{roomPickerError}</p> : roomOptions.length === 0 ? <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p> : <div className="max-h-64 space-y-1 overflow-y-auto">{roomOptions.map(room => { const selectable = room.status === 'Trống' && room.available_bed_count > 0; return <button type="button" key={room._id} disabled={!selectable || assigningRoom} onClick={() => void assignRoom(r, room)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><span className="min-w-0"><span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span><span className="block text-[11px] text-slate-500">{room.available_bed_count}/{room.bed_count} giường</span></span><span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span></button>; })}</div>}</PopoverContent></Popover>}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
