@@ -54,4 +54,19 @@ describe('dormitoryApi.registrations.update/delete', () => {
     expect(mockFetch.mock.calls[1][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
     expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'DELETE' });
   });
+
+  it('serializes temporary edit fields at the top level without preference', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'registration-1' })) });
+
+    await dormitoryApi.registrations.update('registration-1', 'ADMIN_TEMPORARY', {
+      full_name: 'Nguyễn A', semester: 'HK2', academic_year: '2025-2026', date_of_birth: '2003-01-15', gender: 'Female',
+      phone_number: '0912345678', room_type: 'Máy lạnh', notes: 'Gần khu học tập', priority_group: 'Không',
+    });
+
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+      full_name: 'Nguyễn A', semester: 'HK2', academic_year: '2025-2026', date_of_birth: '2003-01-15', gender: 'Female',
+      phone_number: '0912345678', room_type: 'Máy lạnh', notes: 'Gần khu học tập', priority_group: 'Không',
+    });
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).not.toHaveProperty('preference');
+  });
 });
