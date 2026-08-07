@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, Plus, QrCode, RefreshCw, Search as SearchIcon, X } from 'lucide-react';
+import { Calendar, Check, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import { CreateDormRegistrationInput, dormitoryApi, DormRegistration } from '@/api/dormitory-api';
+import { CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -18,15 +18,23 @@ import { Input } from '@/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
 export const PUBLIC_REGISTRATION_PATH = '/public/dormitory/register';
 export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\/$/, '')}${PUBLIC_REGISTRATION_PATH}`;
-const statusColors: Record<string, string> = {
-  'Chờ duyệt': 'bg-amber-100 text-amber-700', 'Đã duyệt': 'bg-green-100 text-green-700', 'Từ chối': 'bg-red-100 text-red-700',
+export const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
+export const studentCode = (r: DormRegistration) => {
+  const value = r.student_id?.student_code || r.public_registration?.student_code || (r as any).student_code;
+  return typeof value === 'string' && value.trim() ? value.trim() : 'Chưa có mã SV';
 };
-const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
-const studentCode = (r: DormRegistration) => r.student_id?.student_code || r.public_registration?.student_code || (r as any).student_code || 'Chưa có mã SV';
+export const priorityLabel = (r: DormRegistration) => r.priority_group?.trim() && r.priority_group.trim() !== 'Không' ? 'Có' : 'Không';
+export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBLIC' ? 'QR' : 'Thủ công';
+export const createdDateLabel = (value?: string) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('vi-VN');
+};
 
 export type ActiveSemesterValues = { semester: string; academic_year: string };
 
@@ -46,6 +54,21 @@ type CreateForm = ActiveSemesterValues & {
   notes: string;
 };
 
+type EditForm = {
+  full_name: string;
+  student_code: string;
+  semester: string;
+  academic_year: string;
+  date_of_birth: string;
+  gender: '' | 'Male' | 'Female' | 'Other';
+  phone_number: string;
+  room_type: 'Thường' | 'Máy lạnh';
+  notes: string;
+  priority_group: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+};
+
+const emptyEditForm = (): EditForm => ({ full_name: '', student_code: '', semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '', priority_group: 'Không' });
+
 const emptyCreateForm = (): CreateForm => ({ semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '' });
 const dateInputValue = (value?: string | Date) => {
   if (!value) return '';
@@ -62,7 +85,9 @@ const dateLabel = (value: string) => {
 export default function RegistrationsPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('DORM_REG_CREATE');
-  const canView = hasPermission('DORM_REG_VIEW');
+  const canView = hasPermission('DORM_REG_READ');
+  const canUpdate = hasPermission('DORM_REG_UPDATE');
+  const canDelete = hasPermission('DORM_REG_DELETE');
   const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState(''); const [source, setSource] = useState('');
@@ -75,6 +100,8 @@ export default function RegistrationsPage() {
   const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
+  const [editRow, setEditRow] = useState<DormRegistration | null>(null); const [editForm, setEditForm] = useState<EditForm>(emptyEditForm); const [editSaving, setEditSaving] = useState(false); const [editError, setEditError] = useState('');
+  const [deleteRow, setDeleteRow] = useState<DormRegistration | null>(null);
 
   useEffect(() => {
     if (!qrOpen) return;
@@ -150,12 +177,38 @@ export default function RegistrationsPage() {
   const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { status: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
   const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { status: 'Từ chối', rejection_reason: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
   const bulkApprove = async () => { if (!selected.length) return; try { const res = await dormitoryApi.registrations.bulkApprove({ registration_ids: selected, status: 'Đã duyệt' }); toast.success(`Đã duyệt ${res.success} đơn${res.failed ? `, ${res.failed} lỗi` : ''}`); setSelected([]); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt hàng loạt'); } };
+  const openEdit = (row: DormRegistration) => {
+    setEditRow(row); setEditError('');
+    setEditForm({
+      full_name: (row as any).full_name || row.public_registration?.full_name || '',
+      student_code: (row as any).student_code || row.public_registration?.student_code || '',
+      semester: row.semester || '', academic_year: row.academic_year || '',
+      date_of_birth: dateInputValue(row.date_of_birth || row.public_registration?.date_of_birth),
+      gender: row.gender || '', phone_number: row.phone_number || row.public_registration?.phone_number || '',
+      room_type: row.preference?.room_type || (row as any).room_type || 'Thường',
+      notes: row.preference?.notes || (row as any).notes || '', priority_group: (row.priority_group || 'Không') as EditForm['priority_group'],
+    });
+  };
+  const submitEdit = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!editRow) return; setEditError('');
+    if (editRow.source !== 'FORMAL' && !editForm.full_name.trim()) { setEditError('Vui lòng nhập họ và tên.'); return; }
+    if (!editForm.date_of_birth || !editForm.gender || !editForm.phone_number.trim()) { setEditError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
+    const payload: UpdateDormRegistrationInput = editRow.source === 'FORMAL'
+      ? { semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), priority_group: editForm.priority_group, preference: { room_type: editForm.room_type, notes: editForm.notes || undefined } }
+      : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group };
+    try { setEditSaving(true); await dormitoryApi.registrations.update(editRow._id, editRow.source as DormRegistrationSource, payload); toast.success('Đã cập nhật đơn đăng ký'); setEditRow(null); setEditForm(emptyEditForm()); await load(true); } catch (err: any) { setEditError(err?.message || 'Không thể cập nhật đơn đăng ký.'); } finally { setEditSaving(false); }
+  };
+  const deleteRegistration = async () => {
+    if (!deleteRow) return;
+    await dormitoryApi.registrations.delete(deleteRow._id, deleteRow.source as DormRegistrationSource);
+    toast.success('Đã xóa đơn đăng ký'); setSelected(ids => ids.filter(id => id !== deleteRow._id)); setDeleteRow(null); await load(true);
+  };
   const columns: ResponsiveColumn<DormRegistration>[] = [
-    { key: 'registration_code', header: 'Mã ĐK', priority: 'primary' }, { key: 'student', header: 'Sinh viên', priority: 'secondary', render: (_, r) => <><div className="font-semibold text-slate-800">{studentName(r)}</div><div className="text-xs text-slate-400">{studentCode(r)}</div></> },
-    { key: 'period', header: 'Kỳ/Năm', render: (_, r) => `${r.semester} / ${r.academic_year}` }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => r.priority_group || '—' },
-    { key: 'status', header: 'Trạng thái', render: (_, r) => <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusColors[r.status] || 'bg-slate-100 text-slate-600'}`}>{r.status}</span><span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{r.source === 'PUBLIC' ? 'QR' : r.source === 'ADMIN_TEMPORARY' ? 'Nhập tạm' : 'Chính thức'}</span>{r.classification_status === 'UNCLASSIFIED' && <span className="text-xs text-amber-600">Chưa phân lớp</span>}</div> },
-    { key: 'created', header: 'Ngày tạo', render: (_, r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString('vi-VN') : '—' },
-    { key: 'actions', header: 'Thao tác', priority: 'action', render: (_, r) => r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' ? <div className="flex gap-1"><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></div> : null },
+    { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
+    { key: 'period', header: 'Kỳ/năm', render: (_, r) => r.semester && r.academic_year ? `${r.semester} / ${r.academic_year}` : '—' }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
+    { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
+    { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
@@ -203,6 +256,36 @@ export default function RegistrationsPage() {
         <DialogFooter className="border-t border-white/60 pt-2"><Button type="button" variant="outline" onClick={() => setQrOpen(false)}>Đóng</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+    <Dialog open={Boolean(editRow)} onOpenChange={open => { if (!open && !editSaving) { setEditRow(null); setEditForm(emptyEditForm()); setEditError(''); } }}>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+        <DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>{editRow?.source === 'FORMAL' ? 'Sửa đơn đăng ký' : 'Sửa đăng ký tạm'}</DialogTitle></DialogHeader>
+        <form onSubmit={submitEdit} className="grid gap-4 py-4 sm:grid-cols-2">
+          {editRow?.source !== 'FORMAL' && <><Input label="Họ và tên" required value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} /><Input label="Mã SV" value={editForm.student_code} onChange={e => setEditForm(f => ({ ...f, student_code: e.target.value }))} placeholder="Chưa có mã SV" /></>}
+          <Input label="Kỳ" required value={editForm.semester} onChange={e => setEditForm(f => ({ ...f, semester: e.target.value }))} />
+          <Input label="Năm học" required value={editForm.academic_year} onChange={e => setEditForm(f => ({ ...f, academic_year: e.target.value }))} />
+          <Input label="Ngày sinh" required type="date" value={editForm.date_of_birth} onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))} />
+          <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={editForm.gender} onValueChange={value => setEditForm(f => ({ ...f, gender: value as EditForm['gender'] }))}><SelectTrigger aria-label="Giới tính"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+          <Input label="Số điện thoại" required type="tel" value={editForm.phone_number} onChange={e => setEditForm(f => ({ ...f, phone_number: e.target.value }))} />
+          <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Ưu tiên</label><Select value={editForm.priority_group} onValueChange={value => setEditForm(f => ({ ...f, priority_group: value as EditForm['priority_group'] }))}><SelectTrigger aria-label="Ưu tiên"><SelectValue /></SelectTrigger><SelectContent>{['Không', 'Chính sách', 'Xa nhà', 'Học lực giỏi', 'Khó khăn'].map(value => <SelectItem key={value} value={value}>{value === 'Không' ? 'Không' : `Có - ${value}`}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={editForm.room_type} onValueChange={value => setEditForm(f => ({ ...f, room_type: value as EditForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>
+          <Input label="Ghi chú" multiline rows={3} value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} containerClassName="sm:col-span-2" />
+          {editError && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{editError}</p>}
+          <DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>Hủy</Button><Button type="submit" disabled={editSaving}>{editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+    <ConfirmModal
+      isOpen={Boolean(deleteRow)}
+      onClose={() => setDeleteRow(null)}
+      onConfirm={async () => {
+        try { await deleteRegistration(); } catch (err: any) { toast.error(err?.message || 'Không thể xóa đơn đăng ký.'); throw err; }
+      }}
+      title="Xóa đơn đăng ký"
+      message={deleteRow ? <>Bạn có chắc muốn xóa đơn của <strong>{studentName(deleteRow)}</strong> ({studentCode(deleteRow)}) không?</> : null}
+      confirmLabel="Xóa đơn"
+      cancelLabel="Hủy"
+      variant="danger"
+    />
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">

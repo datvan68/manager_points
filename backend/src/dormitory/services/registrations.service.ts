@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   Registration,
   RegistrationDocument,
@@ -20,6 +20,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
 import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
+import { UpdateRegistrationDto } from '../dto/update-registration.dto';
 import { SemestersService } from '../../semesters/semesters.service';
 
 @Injectable()
@@ -183,6 +184,81 @@ export class RegistrationsService {
       throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
     }
     return reg;
+  }
+
+  private validateSource(source: string): 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY' {
+    if (source !== 'FORMAL' && source !== 'PUBLIC' && source !== 'ADMIN_TEMPORARY') {
+      throw new BadRequestException('Nguồn đăng ký không hợp lệ');
+    }
+    return source;
+  }
+
+  private validateId(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Mã đăng ký không hợp lệ');
+    }
+  }
+
+  async update(id: string, sourceValue: string, dto: UpdateRegistrationDto) {
+    this.validateId(id);
+    const source = this.validateSource(sourceValue);
+    const payload = dto as Record<string, unknown>;
+    const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group'];
+    const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes'];
+    const allowedFields = source === 'FORMAL' ? formalFields : publicFields;
+    const invalidFields = Object.keys(payload).filter((field) => !allowedFields.includes(field));
+    if (invalidFields.length) {
+      throw new BadRequestException(`Không thể cập nhật trường: ${invalidFields.join(', ')}`);
+    }
+    if (!Object.keys(payload).length) {
+      throw new BadRequestException('Không có dữ liệu cần cập nhật');
+    }
+
+    if (source === 'FORMAL') {
+      const registration = await this.registrationModel.findById(id);
+      if (!registration) throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
+      Object.assign(registration, payload);
+      if (typeof payload.phone_number === 'string') registration.phone_number = payload.phone_number.trim();
+      return registration.save();
+    }
+
+    const registration = await this.publicRegModel.findById(id);
+    if (!registration) throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
+    if (source === 'ADMIN_TEMPORARY' && registration.source !== 'ADMIN_ENTRY') {
+      throw new BadRequestException('Nguồn đăng ký tạm không hợp lệ');
+    }
+    if (source === 'PUBLIC' && registration.source === 'ADMIN_ENTRY') {
+      throw new BadRequestException('Nguồn đăng ký QR không hợp lệ');
+    }
+    const publicPayload: Record<string, unknown> = { ...payload };
+    if (typeof publicPayload.full_name === 'string') publicPayload.full_name = publicPayload.full_name.trim();
+    if (typeof publicPayload.phone_number === 'string') publicPayload.phone_number = publicPayload.phone_number.trim();
+    Object.assign(registration, publicPayload);
+    return registration.save();
+  }
+
+  async remove(id: string, sourceValue: string) {
+    this.validateId(id);
+    const source = this.validateSource(sourceValue);
+    if (source === 'FORMAL') {
+      const registration = await this.registrationModel.findById(id);
+      if (!registration) throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
+      const contract = await this.contractModel.findOne({ registration_id: id });
+      if (contract) throw new ConflictException('Không thể xóa đơn đăng ký đã liên kết với hợp đồng KTX');
+      await this.registrationModel.findByIdAndDelete(id);
+      return { success: true, id, source };
+    }
+
+    const registration = await this.publicRegModel.findById(id);
+    if (!registration) throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
+    if (registration.linked_student_id || registration.linked_registration_id) {
+      throw new ConflictException('Không thể xóa đơn đăng ký đã được liên kết');
+    }
+    if ((source === 'ADMIN_TEMPORARY') !== (registration.source === 'ADMIN_ENTRY')) {
+      throw new BadRequestException('Nguồn đăng ký không khớp với bản ghi');
+    }
+    await this.publicRegModel.findByIdAndDelete(id);
+    return { success: true, id, source };
   }
 
   async approve(

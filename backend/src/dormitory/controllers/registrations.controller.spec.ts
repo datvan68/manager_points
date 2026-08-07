@@ -11,3 +11,19 @@ describe('RegistrationsController temporary entry', () => {
     expect(registrationsService.createTemporary).toHaveBeenCalledWith(dto);
   });
 });
+
+describe('RegistrationsController registration actions', () => {
+  it('passes source and DTO to update and remove', async () => {
+    const registrationsService: any = {
+      update: jest.fn().mockResolvedValue({ _id: 'registration-1' }),
+      remove: jest.fn().mockResolvedValue({ success: true }),
+    };
+    const controller = new RegistrationsController(registrationsService, {} as any, {} as any);
+    const dto = { full_name: 'Nguyễn A' };
+
+    await expect(controller.update('registration-1', 'ADMIN_TEMPORARY', dto as any)).resolves.toEqual({ _id: 'registration-1' });
+    await expect(controller.remove('registration-1', 'ADMIN_TEMPORARY')).resolves.toEqual({ success: true });
+    expect(registrationsService.update).toHaveBeenCalledWith('registration-1', 'ADMIN_TEMPORARY', dto);
+    expect(registrationsService.remove).toHaveBeenCalledWith('registration-1', 'ADMIN_TEMPORARY');
+  });
+});

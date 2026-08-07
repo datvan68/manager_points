@@ -38,3 +38,20 @@ describe('dormitoryApi.registrations.create', () => {
     });
   });
 });
+
+describe('dormitoryApi.registrations.update/delete', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sends the source discriminator in the update and delete requests', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ success: true, id: 'registration-1', source: 'PUBLIC' })) });
+
+    await dormitoryApi.registrations.update('registration-1', 'PUBLIC', { full_name: 'Nguyễn A' });
+    await dormitoryApi.registrations.delete('registration-1', 'PUBLIC');
+
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'PATCH' });
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ full_name: 'Nguyễn A' });
+    expect(mockFetch.mock.calls[1][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
+    expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'DELETE' });
+  });
+});

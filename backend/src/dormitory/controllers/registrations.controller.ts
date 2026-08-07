@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Delete,
   Param,
   UseGuards,
   Request,
@@ -22,6 +23,7 @@ import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PublicRegistrationLinkService } from '../services/public-registration-link.service';
 import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
+import { UpdateRegistrationDto } from '../dto/update-registration.dto';
 
 @ApiTags('Dormitory - Registrations')
 @ApiBearerAuth()
@@ -68,7 +70,7 @@ export class RegistrationsController {
   }
 
   @Get('unclassified')
-  @UseGuards(checkPermission('DORM_REG_VIEW'))
+  @UseGuards(checkPermission('DORM_REG_READ'))
   findUnclassified(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
     return this.registrationsService.findUnclassified({ page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
   }
@@ -77,6 +79,22 @@ export class RegistrationsController {
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.registrationsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  update(
+    @Param('id') id: string,
+    @Query('source') source: string,
+    @Body() dto: UpdateRegistrationDto,
+  ) {
+    return this.registrationsService.update(id, source, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(checkPermission('DORM_REG_DELETE'))
+  remove(@Param('id') id: string, @Query('source') source: string) {
+    return this.registrationsService.remove(id, source);
   }
 
   @Patch(':id/approve')
@@ -111,7 +129,7 @@ export class RegistrationsController {
    * Get public QR registrations for admin review
    */
   @Get('public/list')
-  @UseGuards(checkPermission('DORM_REG_VIEW'))
+  @UseGuards(checkPermission('DORM_REG_READ'))
   getPublicRegistrations(
     @Query('status') status?: string,
     @Query('page') page?: string,

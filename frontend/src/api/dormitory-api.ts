@@ -67,6 +67,26 @@ export interface DormRegistration {
   phone_number?: string;
 }
 
+export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
+
+export interface UpdateDormRegistrationInput {
+  semester?: string;
+  academic_year?: string;
+  date_of_birth?: string;
+  gender?: 'Male' | 'Female' | 'Other';
+  phone_number?: string;
+  preference?: {
+    room_type?: string;
+    building_id?: string;
+    notes?: string;
+  };
+  priority_group?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+  full_name?: string;
+  student_code?: string;
+  room_type?: 'Thường' | 'Máy lạnh';
+  notes?: string;
+}
+
 export interface CreateDormRegistrationInput {
   student_id: string;
   semester: string;
@@ -336,6 +356,18 @@ export const dormitoryApi = {
     },
     async createTemporary(dto: { full_name: string; date_of_birth: string; gender: 'Male' | 'Female' | 'Other'; phone_number: string; room_type?: 'Thường' | 'Máy lạnh'; notes?: string }): Promise<any> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/temporary`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
+      return handleResponse(res);
+    },
+    async update(id: string, source: DormRegistrationSource, dto: UpdateDormRegistrationInput): Promise<DormRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async delete(id: string, source: DormRegistrationSource): Promise<{ success: boolean; id: string; source: DormRegistrationSource }> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`, { method: 'DELETE' });
       return handleResponse(res);
     },
     async approve(id: string, dto: { status: string; rejection_reason?: string }): Promise<DormRegistration> {

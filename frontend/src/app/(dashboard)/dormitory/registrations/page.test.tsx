@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getPublicRegistrationUrl, mapActiveSemester } from './page';
+import { createdDateLabel, getPublicRegistrationUrl, mapActiveSemester, priorityLabel, sourceLabel, studentCode } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -23,5 +23,18 @@ describe('KTX registration active semester mapping', () => {
 describe('KTX public registration QR destination', () => {
   it('uses the same-origin public registration route', () => {
     expect(getPublicRegistrationUrl('https://ktx.example.edu/')).toBe('https://ktx.example.edu/public/dormitory/register');
+  });
+});
+
+describe('KTX registration table display mapping', () => {
+  it('uses the requested student-code, priority, and source labels', () => {
+    const row = { student_id: null, priority_group: 'Không', source: 'PUBLIC' } as any;
+    expect(studentCode(row)).toBe('Chưa có mã SV');
+    expect(priorityLabel(row)).toBe('Không');
+    expect(sourceLabel(row.source)).toBe('QR');
+    expect(sourceLabel('FORMAL')).toBe('Thủ công');
+    expect(priorityLabel({ priority_group: 'Khó khăn' } as any)).toBe('Có');
+    expect(studentCode({ student_id: { student_code: '  ' } } as any)).toBe('Chưa có mã SV');
+    expect(createdDateLabel('not-a-date')).toBe('—');
   });
 });

@@ -96,3 +96,58 @@ describe('RegistrationsService temporary entry', () => {
     await expect(service.createTemporary({ full_name: 'Nguyễn Tạm', date_of_birth: '2004-02-03', gender: 'Other', phone_number: '0912345678' })).rejects.toThrow('đã có đơn đăng ký tạm');
   });
 });
+
+describe('RegistrationsService registration actions', () => {
+  it('updates only formal registration-owned fields', async () => {
+    const formal = {
+      phone_number: '0912345678',
+      save: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011' }),
+    };
+    const registrationModel: any = { findById: jest.fn().mockResolvedValue(formal) };
+    const service = new RegistrationsService(registrationModel, {} as any, {} as any, {} as any, {} as any);
+
+    await service.update('507f1f77bcf86cd799439011', 'FORMAL', {
+      phone_number: '0987654321',
+      preference: { room_type: 'Máy lạnh' },
+    });
+
+    expect(formal.phone_number).toBe('0987654321');
+    expect(formal.preference).toEqual({ room_type: 'Máy lạnh' });
+    expect(formal.save).toHaveBeenCalled();
+    await expect(service.update('507f1f77bcf86cd799439011', 'FORMAL', { full_name: 'Không được sửa' } as any)).rejects.toThrow('Không thể cập nhật trường');
+  });
+
+  it('updates temporary public entries only when the source matches', async () => {
+    const temporary = {
+      source: 'ADMIN_ENTRY',
+      full_name: 'Tên cũ',
+      save: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011' }),
+    };
+    const publicModel: any = { findById: jest.fn().mockResolvedValue(temporary) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.update('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', { full_name: 'Tên mới' });
+    expect(temporary.full_name).toBe('Tên mới');
+    await expect(service.update('507f1f77bcf86cd799439011', 'PUBLIC', { full_name: 'Sai nguồn' })).rejects.toThrow('Nguồn đăng ký QR không hợp lệ');
+  });
+
+  it('blocks deletion of referenced records and deletes unlinked public records', async () => {
+    const formal = { _id: '507f1f77bcf86cd799439011' };
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue(formal),
+      findByIdAndDelete: jest.fn().mockResolvedValue(formal),
+    };
+    const contractModel: any = { findOne: jest.fn().mockResolvedValue({ _id: 'contract-1' }) };
+    const service = new RegistrationsService(registrationModel, {} as any, contractModel, {} as any, {} as any);
+    await expect(service.remove('507f1f77bcf86cd799439011', 'FORMAL')).rejects.toThrow('đã liên kết với hợp đồng');
+
+    const publicRegistration = { source: 'QR_SCAN', linked_student_id: undefined, linked_registration_id: undefined };
+    const publicModel: any = {
+      findById: jest.fn().mockResolvedValue(publicRegistration),
+      findByIdAndDelete: jest.fn().mockResolvedValue(publicRegistration),
+    };
+    const publicService = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+    await expect(publicService.remove('507f1f77bcf86cd799439011', 'PUBLIC')).resolves.toEqual({ success: true, id: '507f1f77bcf86cd799439011', source: 'PUBLIC' });
+    expect(publicModel.findByIdAndDelete).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+  });
+});
