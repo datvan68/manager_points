@@ -1,49 +1,50 @@
 # Task Identity and Pipeline
 
-Task: `dormitory-registration-selection-room-export` | Pipeline: `feature_development` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points` | Branch/base: `main` / `04a06e54afd04c292a87bfb7d582c69d99962d38`
+Task: `dormitory-area-room-uppercase-and-floor-removal` | Pipeline: `feature_development` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points`
 
 # Risk Level
 
-Risk: medium. Development-only, reversible UI/API response enrichment; no migration, persistent-data mutation, dependency, deployment, or external effect.
+Risk: medium. The change spans the dormitory frontend and backend validation/schema defaults, but is development-only, reversible, and requires no migration or persistent-data rewrite.
 
 # Objective
 
-Allow registration rows to be selected for confirmed bulk deletion or Excel export, display assigned room instead of semester/year, and make “Thêm sinh viên” visually consistent with adjacent menu items.
+Make area and room codes uppercase by default while typing, and remove floor inputs from the “Quản lý khu vực” and “Thêm/Sửa phòng” forms without breaking room creation.
 
 # Scope Boundaries
 
-Approved/write: `backend/src/dormitory/services/registrations.service.ts`, `backend/src/dormitory/services/registrations.service.spec.ts`, `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`.
+Approved/write: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, a focused test under the same page directory, `backend/src/dormitory/dto/create-room.dto.ts`, `backend/src/dormitory/schemas/room.schema.ts`, and focused backend tests if required by the repository test layout.
 
 # Out of Scope
 
-Shared `FloatingActionBar`/`ResponsiveDataView`, database schemas/migrations, assignment workflows, other dormitory pages, and API route changes.
+Database migrations, removal of existing `floor`/`floor_count` data, public room pages, API response fields, room/building list columns, unrelated dormitory forms, and renaming domain fields.
 
 # Context and Dependencies
 
-The page already renders checkboxes and `FloatingActionBar`, but selection is limited to approvable formal rows and the bar only bulk-approves. `xlsx` is installed. Registration responses do not consistently expose the assigned room; formal assignments are represented by active contracts, while public registrations retain a room reference/code.
+Both modals are implemented in the buildings page. Area `floor_count` is already optional with a schema default of `1`. Room `floor` is currently required by both `CreateRoomDto` and `RoomSchema`, so hiding the UI field alone would make new room creation fail. Existing records and update payloads must remain compatible.
 
 # Steps
 
-1. Enrich registration list rows with the assigned room name from the active contract or public room reference, using one batched lookup and a stable optional response field.
-2. Make all visible registrations selectable; replace bulk approval with permission-aware “Xóa” and “Xuất Excel” actions. Confirm deletion with `ConfirmModal`, preserve failed selections, refresh successful deletions, and export only selected rows with Vietnamese column labels and Unicode values.
-3. Replace “Kỳ/năm” with “Phòng”, rendering the room name or “Chưa xếp phòng”. Change “Thêm sinh viên” to the same outline/translucent style as neighboring menu items.
-4. Add focused backend and frontend regression tests.
+1. Normalize `building_code` and `room_code` to uppercase in their controlled input handlers while preserving the remaining form behavior.
+2. Remove “Số tầng” from the area form and “Tầng” from the room form and mutation payload.
+3. Make room `floor` optional at the create boundary and give it a backend default of `1`, preserving existing stored values and response compatibility.
+4. Add focused frontend coverage for uppercase input and absent floor fields, plus backend coverage for creating a room without `floor`.
 
 # Acceptance Criteria
 
-- AC1: Selecting one or more visible rows opens the bar with delete and Excel actions; clearing or paging resets selection.
-- AC2: Bulk deletion requires confirmation, respects delete permission, reports full/partial failure, and retains failed row selections.
-- AC3: Excel contains only selected registrations and preserves fully accented Vietnamese text without mojibake.
-- AC4: The table shows “Phòng”; assigned rows show the room name and unassigned rows show “Chưa xếp phòng”.
-- AC5: “Thêm sinh viên” has no solid blue background and matches adjacent outline items.
+- AC1: Text entered or pasted into “Mã khu vực” is immediately represented in uppercase and the submitted payload is uppercase.
+- AC2: Text entered or pasted into “Mã phòng” is immediately represented in uppercase and the submitted payload is uppercase.
+- AC3: “Số tầng” is absent from the area create/edit form and is not sent by that form.
+- AC4: “Tầng” is absent from the room create/edit form and is not sent by that form.
+- AC5: A new room can be created without a client-supplied `floor`; the backend stores the compatibility default `1`.
+- AC6: Existing room/building records, API response shapes, and public displays remain unchanged.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts` => room enrichment tests pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => selection, export mapping, room label, and styling tests pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/buildings/page.test.tsx"` => focused modal behavior tests pass.
+- `D:\PROJECT\manager_points\backend` :: run the focused dormitory room DTO/service/schema test selected during implementation => room creation without `floor` passes.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => frontend type-checks.
-- `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md backend/src/dormitory/services/registrations.service.ts backend/src/dormitory/services/registrations.service.spec.ts "frontend/src/app/(dashboard)/dormitory/registrations/page.tsx" "frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => scoped diff has no whitespace errors.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles.
+- `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md "frontend/src/app/(dashboard)/dormitory/buildings/page.tsx" backend/src/dormitory/dto/create-room.dto.ts backend/src/dormitory/schemas/room.schema.ts` => scoped diff has no whitespace errors.
 
 # Safety Gates
 
@@ -51,8 +52,8 @@ None.
 
 # Artifacts and Checkpoints
 
-Taskscope plus focused test output and final diff/status; no checkpoint or hash artifact required.
+Taskscope, focused test output, final diff, and status. No migration or checkpoint artifact is required.
 
 # Execution Budgets
 
-One writer per path; up to 3 implementation/verification iterations and 2 remediation cycles; stop on boundary expansion, migration, dependency, destructive persistent-data work, or a new gate.
+One writer per path; up to 3 implementation/verification iterations and 2 remediation cycles. Stop on migration, persistent-data rewrite, public API removal, dependency addition, or expansion beyond the dormitory buildings/rooms boundary.

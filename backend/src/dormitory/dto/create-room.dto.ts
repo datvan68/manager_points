@@ -22,10 +22,10 @@ export class CreateRoomDto {
   @IsMongoId()
   building_id: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
   @Min(1)
-  floor: number;
+  floor?: number;
 
   @IsNotEmpty()
   @IsString()

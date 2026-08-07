@@ -16,7 +16,7 @@ export class Room {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Building', required: true })
   building_id: Types.ObjectId | Building;
 
-  @Prop({ required: true })
+  @Prop({ required: true, default: 1 })
   floor: number;
 
   @Prop({ required: true })
