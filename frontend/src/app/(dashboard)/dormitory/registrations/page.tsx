@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Calendar, Check, FileSpreadsheet, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -21,7 +21,7 @@ import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
-export const REGISTRATION_TABLE_CLASS_NAME = 'text-sm';
+export const REGISTRATION_TABLE_CLASS_NAME = 'text-xs';
 export const PUBLIC_REGISTRATION_PATH = '/public/dormitory/register';
 export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\/$/, '')}${PUBLIC_REGISTRATION_PATH}`;
 export const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
@@ -31,6 +31,7 @@ export const studentCode = (r: DormRegistration) => {
 };
 export const priorityLabel = (r: DormRegistration) => r.priority_group?.trim() && r.priority_group.trim() !== 'Không' ? 'Có' : 'Không';
 export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBLIC' ? 'QR' : 'Thủ công';
+export const roomLabel = (r: DormRegistration) => (r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id || 'Chưa xếp phòng';
 export const createdDateLabel = (value?: string) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -89,6 +90,17 @@ export function buildEditRegistrationPayload(source: DormRegistrationSource, edi
     : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group };
 }
 
+export function buildRegistrationExportRows(rows: DormRegistration[]) {
+  return rows.map(row => ({
+    'Mã SV': studentCode(row),
+    'Họ và tên': studentName(row),
+    'Phòng': roomLabel(row),
+    'Ưu tiên': priorityLabel(row),
+    'Trạng thái': sourceLabel(row.source as DormRegistrationSource),
+    'Ngày tạo': createdDateLabel(row.createdAt),
+  }));
+}
+
 export default function RegistrationsPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('DORM_REG_CREATE');
@@ -108,7 +120,7 @@ export default function RegistrationsPage() {
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
   const [editRow, setEditRow] = useState<DormRegistration | null>(null); const [editForm, setEditForm] = useState<EditForm>(emptyEditForm); const [editSaving, setEditSaving] = useState(false); const [editError, setEditError] = useState(''); const [editSemesterLoading, setEditSemesterLoading] = useState(false); const [editSemesterError, setEditSemesterError] = useState(''); const [editActiveSemesterName, setEditActiveSemesterName] = useState(''); const [editCalendarOpen, setEditCalendarOpen] = useState(false);
-  const [deleteRow, setDeleteRow] = useState<DormRegistration | null>(null);
+  const [deleteRow, setDeleteRow] = useState<DormRegistration | null>(null); const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     if (!qrOpen) return;
@@ -178,12 +190,10 @@ export default function RegistrationsPage() {
     observer.observe(target);
     return () => observer.disconnect();
   }, [loadMoreMobile]);
-  const pendingIds = useMemo(() => registrations.filter(r => r.status === 'Chờ duyệt' && r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY').map(r => r._id), [registrations]);
-  const allSelected = pendingIds.length > 0 && pendingIds.every(id => selected.includes(id));
-  const toggleAll = (checked: boolean) => setSelected(checked ? pendingIds : []);
+  const allSelected = registrations.length > 0 && registrations.every(row => selected.includes(row._id));
+  const toggleAll = (checked: boolean) => setSelected(checked ? registrations.map(row => row._id) : []);
   const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { status: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
   const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { status: 'Từ chối', rejection_reason: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
-  const bulkApprove = async () => { if (!selected.length) return; try { const res = await dormitoryApi.registrations.bulkApprove({ registration_ids: selected, status: 'Đã duyệt' }); toast.success(`Đã duyệt ${res.success} đơn${res.failed ? `, ${res.failed} lỗi` : ''}`); setSelected([]); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt hàng loạt'); } };
   const openEdit = (row: DormRegistration) => {
     setEditRow(row); setEditError(''); setEditSemesterError(''); setEditActiveSemesterName(''); setEditCalendarOpen(false);
     setEditForm({
@@ -229,9 +239,32 @@ export default function RegistrationsPage() {
     await dormitoryApi.registrations.delete(deleteRow._id, deleteRow.source as DormRegistrationSource);
     toast.success('Đã xóa đơn đăng ký'); setSelected(ids => ids.filter(id => id !== deleteRow._id)); setDeleteRow(null); await load(true);
   };
+  const removeSelected = async () => {
+    if (bulkDeleting || !selected.length) return;
+    setBulkDeleting(true);
+    const selectedIds = [...selected];
+    const results = await Promise.allSettled(selectedIds.map(id => { const row = registrations.find(item => item._id === id); return row ? dormitoryApi.registrations.delete(id, row.source as DormRegistrationSource) : Promise.reject(new Error('Không tìm thấy đơn đăng ký')); }));
+    const deletedIds = selectedIds.filter((_, index) => results[index].status === 'fulfilled');
+    const failedIds = selectedIds.filter((_, index) => results[index].status === 'rejected');
+    setSelected(failedIds); setBulkDeleteOpen(false);
+    if (deletedIds.length) await load(true);
+    if (!failedIds.length) toast.success(`Đã xóa ${deletedIds.length} đơn đăng ký`);
+    else if (deletedIds.length) toast.warning(`Đã xóa ${deletedIds.length} đơn, ${failedIds.length} đơn không thể xóa`);
+    else toast.error('Không thể xóa các đơn đăng ký đã chọn.');
+    setBulkDeleting(false);
+  };
+  const exportSelected = async () => {
+    const rows = registrations.filter(row => selected.includes(row._id));
+    if (!rows.length) return;
+    const XLSX = await import('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(buildRegistrationExportRows(rows));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Đăng ký KTX');
+    XLSX.writeFile(workbook, 'Danh_sach_dang_ky_KTX.xlsx');
+  };
   const columns: ResponsiveColumn<DormRegistration>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
-    { key: 'period', header: 'Kỳ/năm', render: (_, r) => r.semester && r.academic_year ? `${r.semester} / ${r.academic_year}` : '—' }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
+    { key: 'room', header: 'Phòng', render: (_, r) => roomLabel(r) }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
     { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
     { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
@@ -266,14 +299,14 @@ export default function RegistrationsPage() {
             </SelectContent>
           </Select>
           {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
-          {canCreate && <Button type="button" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl px-3 text-xs"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
+          {canCreate && <Button type="button" variant="outline" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
           <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>
         </div>
       </div>
     )}
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
-    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<button type="button" onClick={() => void bulkApprove()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><Check size={14} /> Duyệt</button>} />
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất Excel" onClick={() => void exportSelected()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><FileSpreadsheet size={14} /> Xuất Excel</button>}</>} />
     {rejectId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectId(null)}><div role="dialog" aria-labelledby="reject-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}><h2 id="reject-title" className="mb-4 text-lg font-bold text-gray-800">Từ chối đơn đăng ký</h2><textarea aria-label="Lý do từ chối" placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="mb-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} /><div className="flex gap-3"><button onClick={() => setRejectId(null)} className="flex-1 rounded-lg border px-4 py-2 text-sm">Hủy</button><button onClick={() => void reject()} disabled={!rejectReason} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Từ chối</button></div></div></div>}
     <Dialog open={qrOpen} onOpenChange={setQrOpen}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 font-sans shadow-2xl">
@@ -311,6 +344,7 @@ export default function RegistrationsPage() {
       cancelLabel="Hủy"
       variant="danger"
     />
+    <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={removeSelected} title="Xóa đơn đăng ký đã chọn" message={`Bạn có chắc muốn xóa ${selected.length} đơn đăng ký đã chọn?`} confirmLabel="Xóa đơn" cancelLabel="Hủy" variant="danger" />
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">

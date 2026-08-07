@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEditRegistrationPayload, createdDateLabel, getPublicRegistrationUrl, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, sourceLabel, studentCode } from './page';
+import { buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, roomLabel, sourceLabel, studentCode } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -36,6 +36,8 @@ describe('KTX registration table display mapping', () => {
     expect(priorityLabel({ priority_group: 'Khó khăn' } as any)).toBe('Có');
     expect(studentCode({ student_id: { student_code: '  ' } } as any)).toBe('Chưa có mã SV');
     expect(createdDateLabel('not-a-date')).toBe('—');
+    expect(roomLabel({ assigned_room_name: 'A101' } as any)).toBe('A101');
+    expect(roomLabel({} as any)).toBe('Chưa xếp phòng');
   });
 });
 
@@ -56,6 +58,7 @@ describe('KTX registration edit payloads', () => {
   });
 });
 
-it('uses a compact typography class for the registration table', () => {
-  expect(REGISTRATION_TABLE_CLASS_NAME).toBe('text-sm');
+it('uses compact typography and Vietnamese Unicode export rows', () => {
+  expect(REGISTRATION_TABLE_CLASS_NAME).toBe('text-xs');
+  expect(buildRegistrationExportRows([{ _id: '1', student_id: { full_name: 'Nguyễn Ánh', student_code: '012' }, source: 'PUBLIC', priority_group: 'Không', assigned_room_name: 'A101', createdAt: '2026-01-02T00:00:00.000Z' }] as any)).toEqual([expect.objectContaining({ 'Mã SV': '012', 'Họ và tên': 'Nguyễn Ánh', 'Phòng': 'A101' })]);
 });

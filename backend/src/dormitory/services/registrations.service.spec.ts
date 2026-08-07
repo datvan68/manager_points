@@ -38,6 +38,24 @@ describe('RegistrationsService unclassified roster', () => {
   });
 });
 
+describe('RegistrationsService room enrichment', () => {
+  it('adds the active contract room name to formal rows and keeps public room references', async () => {
+    const formal = { _id: 'registration-1', registration_code: 'DK-1', student_id: { student_code: '012', full_name: 'Nguyễn A' }, toObject: () => ({ _id: 'registration-1', registration_code: 'DK-1' }) };
+    const registrationModel: any = { find: jest.fn().mockReturnValue(queryResult([formal])) };
+    const contractModel: any = { find: jest.fn().mockReturnValue(queryResult([{ registration_id: 'registration-1', room_id: { room_name: 'A101' } }])) };
+    const publicModel: any = { find: jest.fn().mockReturnValue(queryResult([{ _id: 'public-1', public_registration_code: 'QR-1', full_name: 'Trần B', room_code: 'B202', source: 'QR_SCAN' }])) };
+    const service = new RegistrationsService(registrationModel, {} as any, contractModel, publicModel, {} as any);
+
+    const result = await service.findAll({});
+
+    expect(contractModel.find).toHaveBeenCalledWith({ registration_id: { $in: ['registration-1'] }, status: 'Hiệu lực' });
+    expect(result.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ registration_code: 'DK-1', assigned_room_name: 'A101' }),
+      expect.objectContaining({ registration_code: 'QR-1', assigned_room_name: 'B202' }),
+    ]));
+  });
+});
+
 describe('RegistrationsService create snapshots', () => {
   it('persists profile snapshots and the selected registration options', async () => {
     const registrationModel: any = jest.fn().mockImplementation((payload: any) => ({
