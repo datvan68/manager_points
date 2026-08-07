@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, roomLabel, sourceLabel, studentCode } from './page';
+import { buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, roomLabel, roomStatusLabel, sourceLabel, studentCode } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -61,4 +61,11 @@ describe('KTX registration edit payloads', () => {
 it('uses compact typography and Vietnamese Unicode export rows', () => {
   expect(REGISTRATION_TABLE_CLASS_NAME).toBe('text-xs');
   expect(buildRegistrationExportRows([{ _id: '1', student_id: { full_name: 'Nguyễn Ánh', student_code: '012' }, source: 'PUBLIC', priority_group: 'Không', assigned_room_name: 'A101', createdAt: '2026-01-02T00:00:00.000Z' }] as any)).toEqual([expect.objectContaining({ 'Mã SV': '012', 'Họ và tên': 'Nguyễn Ánh', 'Phòng': 'A101' })]);
+});
+
+it('formats room options and only accepts available beds', () => {
+  expect(roomStatusLabel('Trống')).toBe('Trống');
+  expect(roomStatusLabel('Bảo trì')).toBe('Bảo trì');
+  expect(isAvailableBed({ status: 'Trống' } as any)).toBe(true);
+  expect(isAvailableBed({ status: 'Đang sử dụng' } as any)).toBe(false);
 });

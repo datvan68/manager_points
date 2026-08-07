@@ -1,59 +1,60 @@
 # Task Identity and Pipeline
 
-Task: `dormitory-area-room-uppercase-and-floor-removal` | Pipeline: `feature_development` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points`
+Task: `registration-inline-room-assignment` | Pipeline: `feature_development` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points`
 
 # Risk Level
 
-Risk: medium. The change spans the dormitory frontend and backend validation/schema defaults, but is development-only, reversible, and requires no migration or persistent-data rewrite.
+Risk: medium. The change adds an interactive table action and uses the existing room/bed assignment flow across frontend and backend. It must prevent invalid or duplicate occupancy while preserving current registration behavior.
 
 # Objective
 
-Make area and room codes uppercase by default while typing, and remove floor inputs from the “Quản lý khu vực” and “Thêm/Sửa phòng” forms without breaking room creation.
+Add an “assign room” icon to the registration table action column. Clicking it opens a select-style popover directly below the icon, where each room option shows the room name, capacity/availability, and status; choosing an eligible room completes the assignment and refreshes the row.
 
 # Scope Boundaries
 
-Approved/write: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, a focused test under the same page directory, `backend/src/dormitory/dto/create-room.dto.ts`, `backend/src/dormitory/schemas/room.schema.ts`, and focused backend tests if required by the repository test layout.
+Approved/write: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, its focused test file, `frontend/src/api/dormitory-api.ts` only if typing or request behavior must change, `backend/src/dormitory/services/room-assignment.service.ts`, `backend/src/dormitory/dto/assign-room.dto.ts` only if room-only selection requires server-side bed resolution, and focused dormitory assignment tests.
 
 # Out of Scope
 
-Database migrations, removal of existing `floor`/`floor_count` data, public room pages, API response fields, room/building list columns, unrelated dormitory forms, and renaming domain fields.
+Bulk room assignment, room creation/editing, transfers between rooms, occupancy reports, database migrations, destructive contract changes, redesigning the registration table, or changing unrelated registration actions.
 
 # Context and Dependencies
 
-Both modals are implemented in the buildings page. Area `floor_count` is already optional with a schema default of `1`. Room `floor` is currently required by both `CreateRoomDto` and `RoomSchema`, so hiding the UI field alone would make new room creation fail. Existing records and update payloads must remain compatible.
+The registration table already has a right-aligned “Thao tác” column and a “Phòng” column. The existing suggestion endpoint returns rooms with `room_name`, `room_code`, `bed_count`, `available_bed_count`, and `status`. The current assignment endpoint also requires a `bed_id`; therefore implementation must safely resolve an available bed when the user selects only a room and persist the assignment so the refreshed registration row displays that room. Assignment remains subject to existing approval permission and backend validation.
 
 # Steps
 
-1. Normalize `building_code` and `room_code` to uppercase in their controlled input handlers while preserving the remaining form behavior.
-2. Remove “Số tầng” from the area form and “Tầng” from the room form and mutation payload.
-3. Make room `floor` optional at the create boundary and give it a backend default of `1`, preserving existing stored values and response compatibility.
-4. Add focused frontend coverage for uppercase input and absent floor fields, plus backend coverage for creating a room without `floor`.
+1. Add a room-assignment icon to each eligible row in the existing action group, with an accessible Vietnamese label and tooltip.
+2. On click, load suggested/available rooms and open one anchored popover below the clicked icon; handle loading, empty, and error states without shifting the table layout.
+3. Render every option with room name (falling back to room code), available/total capacity, and localized status; disable rooms that cannot accept another student.
+4. When a room is selected, resolve and reserve a valid available bed through the assignment boundary, persist the registration-room relationship, close the popover, show success/error feedback, and refresh the table.
+5. Add focused frontend interaction coverage and backend assignment coverage, including unavailable-room and concurrent/duplicate-assignment protection.
 
 # Acceptance Criteria
 
-- AC1: Text entered or pasted into “Mã khu vực” is immediately represented in uppercase and the submitted payload is uppercase.
-- AC2: Text entered or pasted into “Mã phòng” is immediately represented in uppercase and the submitted payload is uppercase.
-- AC3: “Số tầng” is absent from the area create/edit form and is not sent by that form.
-- AC4: “Tầng” is absent from the room create/edit form and is not sent by that form.
-- AC5: A new room can be created without a client-supplied `floor`; the backend stores the compatibility default `1`.
-- AC6: Existing room/building records, API response shapes, and public displays remain unchanged.
+- AC1: The “Thao tác” column contains an assign-room icon for a formal, approved, currently unassigned registration when the user has the existing assignment permission.
+- AC2: Clicking the icon opens a single select/popover visually anchored below that icon; clicking outside or pressing Escape closes it.
+- AC3: Each room option shows its name or code, available beds over total beds, and a correctly accented Vietnamese status without mojibake.
+- AC4: Full, locked, or maintenance rooms cannot be selected; loading, no-room, and request-failure states are visible and accessible.
+- AC5: Selecting an available room assigns exactly one available bed, prevents duplicate assignment, reports the result, refreshes the registration list, and updates the row’s “Phòng” value.
+- AC6: Edit, delete, approve, reject, checkbox, and responsive table behaviors remain unchanged.
 
 # Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/buildings/page.test.tsx"` => focused modal behavior tests pass.
-- `D:\PROJECT\manager_points\backend` :: run the focused dormitory room DTO/service/schema test selected during implementation => room creation without `floor` passes.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => focused icon, popover, option-detail, assignment, and failure-state tests pass.
+- `D:\PROJECT\manager_points\backend` :: run the focused room-assignment service test selected during implementation => room-only selection resolves one available bed, persists the assignment, and rejects unavailable or duplicate assignment.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => frontend type-checks.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles.
-- `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md "frontend/src/app/(dashboard)/dormitory/buildings/page.tsx" backend/src/dormitory/dto/create-room.dto.ts backend/src/dormitory/schemas/room.schema.ts` => scoped diff has no whitespace errors.
+- `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md "frontend/src/app/(dashboard)/dormitory/registrations/page.tsx" frontend/src/api/dormitory-api.ts backend/src/dormitory/services/room-assignment.service.ts backend/src/dormitory/dto/assign-room.dto.ts` => scoped diff has no whitespace errors.
 
 # Safety Gates
 
-None.
+Stop for a database migration, destructive replacement of an active contract, permission-model expansion, or a public API breaking change.
 
 # Artifacts and Checkpoints
 
-Taskscope, focused test output, final diff, and status. No migration or checkpoint artifact is required.
+Taskscope, focused frontend/backend test output, final scoped diff, and repository status. No migration or production checkpoint is authorized.
 
 # Execution Budgets
 
-One writer per path; up to 3 implementation/verification iterations and 2 remediation cycles. Stop on migration, persistent-data rewrite, public API removal, dependency addition, or expansion beyond the dormitory buildings/rooms boundary.
+One writer per path; up to 3 implementation/verification iterations and 2 remediation cycles. Preserve unrelated working-tree changes and stop if correct persistence requires work outside the approved dormitory registration/assignment boundary.
