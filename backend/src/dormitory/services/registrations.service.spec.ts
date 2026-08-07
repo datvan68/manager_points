@@ -79,6 +79,10 @@ describe('RegistrationsService create snapshots', () => {
       preference: { room_type: 'Máy lạnh' },
     }, { _id: 'user-1' });
 
+    expect(registrationModel.findOne).toHaveBeenCalledWith({
+      student_id: '507f1f77bcf86cd799439011',
+      status: { $in: ['Chờ duyệt', 'Đã duyệt'] },
+    });
     expect(registrationModel).toHaveBeenCalledWith(expect.objectContaining({
       student_id: '507f1f77bcf86cd799439011',
       date_of_birth: '2003-01-15',
@@ -86,7 +90,7 @@ describe('RegistrationsService create snapshots', () => {
       phone_number: '0912345678',
       priority_group: 'Khó khăn',
       preference: { room_type: 'Máy lạnh' },
-      status: 'Chờ duyệt',
+      status: 'Đã duyệt',
     }));
   });
 });

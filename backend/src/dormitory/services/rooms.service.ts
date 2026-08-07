@@ -43,7 +43,54 @@ export class RoomsService {
       public_url: `/public/room/${qrId}`,
     });
 
-    return room.save();
+    const savedRoom = await room.save();
+    await this.ensureRoomBeds(savedRoom._id.toString(), dto.bed_count);
+    return savedRoom;
+  }
+
+  /**
+   * Ensure a room has one persisted bed record for each configured bed.
+   * Existing custom bed codes are preserved and only missing beds are added.
+   */
+  async ensureRoomBeds(roomId: string, bedCount: number): Promise<void> {
+    const existingBeds = await this.bedModel
+      .find({ room_id: roomId })
+      .select('bed_code')
+      .lean()
+      .exec();
+    const missingCount = Math.max(0, bedCount - existingBeds.length);
+
+    if (missingCount > 0) {
+      const existingCodes = new Set(existingBeds.map((bed: any) => bed.bed_code));
+      const bedCodes: string[] = [];
+      let sequence = 1;
+
+      while (bedCodes.length < missingCount) {
+        const bedCode = `G${sequence.toString().padStart(2, '0')}`;
+        if (!existingCodes.has(bedCode)) bedCodes.push(bedCode);
+        sequence += 1;
+      }
+
+      await this.bedModel.bulkWrite(
+        bedCodes.map((bedCode, index) => ({
+          updateOne: {
+            filter: { room_id: roomId, bed_code: bedCode },
+            update: {
+              $setOnInsert: {
+                room_id: roomId as unknown as Bed['room_id'],
+                bed_code: bedCode,
+                position: `Vị trí ${existingBeds.length + index + 1}`,
+                status: 'Trống',
+              },
+            },
+            upsert: true,
+          },
+        })),
+        { ordered: false },
+      );
+    }
+
+    await this.syncRoomAvailability(roomId);
   }
 
   async findAll(query: {

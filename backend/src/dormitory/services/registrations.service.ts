@@ -70,14 +70,14 @@ export class RegistrationsService {
       );
     }
 
-    // Check existing pending registration
+    // Prevent duplicate active registrations while new records are auto-approved.
     const existing = await this.registrationModel.findOne({
       student_id: dto.student_id,
-      status: 'Chờ duyệt',
+      status: { $in: ['Chờ duyệt', 'Đã duyệt'] },
     });
     if (existing) {
       throw new ConflictException(
-        'Sinh viên đã có đơn đăng ký đang chờ duyệt',
+        'Sinh viên đã có đơn đăng ký đang hoạt động',
       );
     }
 
@@ -95,7 +95,7 @@ export class RegistrationsService {
     const registration = new this.registrationModel({
       ...dto,
       registration_code: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
-      status: 'Chờ duyệt',
+      status: 'Đã duyệt',
     });
 
     return registration.save();
@@ -124,6 +124,8 @@ export class RegistrationsService {
       this.registrationModel
         .find(filter)
         .populate('student_id', 'student_code full_name class_id')
+        .populate('room_id', 'room_name room_code')
+        .populate('bed_id', 'bed_code')
         .populate('reviewed_by_id', 'user_name')
         .sort({ createdAt: -1 })
         .exec(),
@@ -145,7 +147,7 @@ export class RegistrationsService {
     const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.registration_code, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
       ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
       student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
-      assigned_room_name: roomByRegistration.get(String(item._id)) || '',
+      assigned_room_name: item.room_id?.room_name || item.room_id?.room_code || roomByRegistration.get(String(item._id)) || '',
     }));
     const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.source !== 'ADMIN_ENTRY') && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email])).map((item: any) => ({
       ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,

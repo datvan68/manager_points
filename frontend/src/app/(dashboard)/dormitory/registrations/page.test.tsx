@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, roomLabel, roomStatusLabel, sourceLabel, studentCode } from './page';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { dormitoryApi } from '@/api/dormitory-api';
+import { applyRoomAssignment, buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, hasAssignedBed, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, RoomAssignmentPopover, roomLabel, roomQuantityLabel, roomStatusLabel, sourceLabel, studentCode } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -64,8 +66,75 @@ it('uses compact typography and Vietnamese Unicode export rows', () => {
 });
 
 it('formats room options and only accepts available beds', () => {
+  expect(roomQuantityLabel({ available_bed_count: 2 })).toBe('Còn 2 giường trống');
   expect(roomStatusLabel('Trống')).toBe('Trống');
   expect(roomStatusLabel('Bảo trì')).toBe('Bảo trì');
   expect(isAvailableBed({ status: 'Trống' } as any)).toBe(true);
   expect(isAvailableBed({ status: 'Đang sử dụng' } as any)).toBe(false);
+  expect(hasAssignedBed({ bed_id: 'bed-1' } as any)).toBe(true);
+  expect(hasAssignedBed({ source: 'FORMAL', assigned_room_name: 'A101' } as any)).toBe(true);
+  expect(hasAssignedBed({ source: 'PUBLIC', room_code: 'A101' } as any)).toBe(false);
+});
+
+it('applies a room assignment to one table row without reloading the list', () => {
+  const room = { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101' } as any;
+  const bed = { _id: 'bed-1', bed_code: 'G01', room_id: 'room-1', status: 'Đang sử dụng' } as any;
+
+  expect(applyRoomAssignment({ _id: 'registration-1' } as any, { room, bed })).toEqual(expect.objectContaining({
+    room_id: room,
+    bed_id: bed,
+    assigned_room_name: 'Phòng A101',
+  }));
+});
+
+it('opens only the room picker belonging to the clicked table layout', async () => {
+  const suggestRooms = vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
+    { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Trống', available_bed_count: 2, bed_count: 8 } as any,
+  ]);
+  const row = { _id: 'registration-1', student_id: { full_name: 'Nguyễn Văn A' } } as any;
+
+  render(
+    <>
+      <RoomAssignmentPopover row={row} onAssigned={vi.fn()} />
+      <RoomAssignmentPopover row={row} onAssigned={vi.fn()} />
+    </>,
+  );
+
+  const triggers = screen.getAllByRole('button', { name: 'Thêm phòng cho Nguyễn Văn A' });
+  fireEvent.click(triggers[0]);
+
+  await waitFor(() => expect(suggestRooms).toHaveBeenCalledTimes(1));
+  expect(triggers[0]).toHaveAttribute('aria-expanded', 'true');
+  expect(triggers[1]).toHaveAttribute('aria-expanded', 'false');
+  expect(await screen.findByText('Chọn phòng')).toBeInTheDocument();
+  expect(screen.getByText('Phòng A101')).toBeInTheDocument();
+  expect(screen.getByText('Còn 2 giường trống')).toBeInTheDocument();
+});
+
+it('assigns exactly one available bed when a room is clicked', async () => {
+  vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
+    { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Trống', available_bed_count: 2, bed_count: 8 } as any,
+  ]);
+  vi.spyOn(dormitoryApi.beds, 'getByRoom').mockResolvedValue([
+    { _id: 'bed-used', room_id: 'room-1', status: 'Đang sử dụng' } as any,
+    { _id: 'bed-free', room_id: 'room-1', status: 'Trống' } as any,
+  ]);
+  const assignRoom = vi.spyOn(dormitoryApi.registrations, 'assignRoom').mockResolvedValue({});
+  const onAssigned = vi.fn();
+
+  render(<RoomAssignmentPopover row={{ _id: 'registration-1', student_id: { full_name: 'Nguyễn Văn A' } } as any} onAssigned={onAssigned} />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Thêm phòng cho Nguyễn Văn A' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
+
+  await waitFor(() => expect(assignRoom).toHaveBeenCalledWith({
+    registration_id: 'registration-1',
+    room_id: 'room-1',
+    bed_id: 'bed-free',
+  }));
+  expect(onAssigned).toHaveBeenCalledTimes(1);
+  expect(onAssigned).toHaveBeenCalledWith(expect.objectContaining({
+    room: expect.objectContaining({ _id: 'room-1' }),
+    bed: expect.objectContaining({ _id: 'bed-free' }),
+  }));
 });

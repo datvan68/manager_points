@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -35,62 +36,70 @@ export class RoomAssignmentService {
    * UC03: Assign a room/bed to a student with an approved registration
    */
   async assignRoom(dto: AssignRoomDto, user: any) {
-    // Validate registration
     const reg = await this.registrationModel.findById(dto.registration_id);
-    if (!reg) {
-      const publicRegistration = await this.publicRegistrationModel.findById(dto.registration_id);
-      if (!publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
-      const room = await this.roomModel.findById(dto.room_id);
-      if (!room) throw new NotFoundException('Không tìm thấy phòng');
-      if (room.available_bed_count <= 0) throw new BadRequestException('Phòng đã hết chỗ trống');
-      const bed = await this.bedModel.findById(dto.bed_id);
-      if (!bed || bed.status !== 'Trống' || bed.room_id.toString() !== dto.room_id) throw new BadRequestException('Giường không hợp lệ hoặc đã được sử dụng');
-      bed.status = 'Đang sử dụng';
-      await bed.save();
-      await this.roomsService.syncRoomAvailability(dto.room_id);
-      publicRegistration.room_id = room._id as any;
-      publicRegistration.room_code = room.room_code;
-      await publicRegistration.save();
-      return { registration: publicRegistration, room, bed, message: 'Phân phòng thành công' };
-    }
-    if (!reg) {
+    const publicRegistration = reg
+      ? null
+      : await this.publicRegistrationModel.findById(dto.registration_id);
+    if (!reg && !publicRegistration) {
       throw new NotFoundException('Không tìm thấy đơn đăng ký');
     }
-    if (reg.status !== 'Đã duyệt') {
+    const activeContract = reg
+      ? await this.contractModel.findOne({
+          registration_id: dto.registration_id,
+          status: 'Hiệu lực',
+        })
+      : null;
+    if (reg?.bed_id || publicRegistration?.bed_id || activeContract) {
+      throw new ConflictException('Sinh viên đã được phân một giường');
+    }
+    if (reg && reg.status !== 'Đã duyệt') {
       throw new BadRequestException('Đơn đăng ký chưa được duyệt');
     }
 
-    // Validate room
     const room = await this.roomModel.findById(dto.room_id);
     if (!room) {
       throw new NotFoundException('Không tìm thấy phòng');
     }
-    // BR2: Check room capacity
-    if (room.available_bed_count <= 0) {
-      throw new BadRequestException('Phòng đã hết chỗ trống');
+    if (['Khóa', 'Bảo trì'].includes(room.status)) {
+      throw new BadRequestException('Phòng hiện không thể phân giường');
     }
 
-    // Validate bed
-    const bed = await this.bedModel.findById(dto.bed_id);
+    const bed = await this.bedModel.findOneAndUpdate(
+      { _id: dto.bed_id, room_id: dto.room_id, status: 'Trống' },
+      { $set: { status: 'Đang sử dụng' } },
+      { new: true },
+    );
     if (!bed) {
-      throw new NotFoundException('Không tìm thấy giường');
-    }
-    if (bed.status !== 'Trống') {
-      throw new BadRequestException('Giường đã được sử dụng');
-    }
-    if (bed.room_id.toString() !== dto.room_id) {
-      throw new BadRequestException('Giường không thuộc phòng đã chọn');
+      throw new BadRequestException('Giường không hợp lệ hoặc đã được sử dụng');
     }
 
-    // Update bed status
-    bed.status = 'Đang sử dụng';
-    await bed.save();
+    const assignmentFilter = {
+      _id: dto.registration_id,
+      $or: [{ bed_id: { $exists: false } }, { bed_id: null }],
+    };
+    const assignment = {
+      $set: {
+        room_id: room._id,
+        bed_id: bed._id,
+        ...(publicRegistration ? { room_code: room.room_code } : {}),
+      },
+    };
+    const assignedRegistration = reg
+      ? await this.registrationModel.findOneAndUpdate(assignmentFilter, assignment, { new: true })
+      : await this.publicRegistrationModel.findOneAndUpdate(assignmentFilter, assignment, { new: true });
 
-    // Sync room availability
+    if (!assignedRegistration) {
+      await this.bedModel.findOneAndUpdate(
+        { _id: bed._id, status: 'Đang sử dụng' },
+        { $set: { status: 'Trống' } },
+      );
+      throw new ConflictException('Sinh viên đã được phân một giường');
+    }
+
     await this.roomsService.syncRoomAvailability(dto.room_id);
 
     return {
-      registration: reg,
+      registration: assignedRegistration,
       room,
       bed,
       message: 'Phân phòng thành công',
@@ -105,10 +114,7 @@ export class RoomAssignmentService {
     const publicRegistration = reg ? null : await this.publicRegistrationModel.findById(registrationId);
     if (!reg && !publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
 
-    const filter: any = {
-      available_bed_count: { $gt: 0 },
-      status: { $in: ['Trống'] },
-    };
+    const filter: any = { status: { $nin: ['Khóa', 'Bảo trì'] } };
 
     // Apply preferences
     if (reg?.preference?.room_type || publicRegistration?.room_type) {
@@ -121,11 +127,31 @@ export class RoomAssignmentService {
     const rooms = await this.roomModel
       .find(filter)
       .populate('building_id', 'building_code name')
-      .sort({ available_bed_count: -1 })
-      .limit(10)
+      .lean()
       .exec();
 
-    return rooms;
+    const roomsWithAvailability = await Promise.all(
+      rooms.map(async (room: any) => {
+        await this.roomsService.ensureRoomBeds(
+          room._id.toString(),
+          room.bed_count,
+        );
+        const availableBedCount = await this.bedModel.countDocuments({
+          room_id: room._id,
+          status: 'Trống',
+        });
+        return {
+          ...room,
+          available_bed_count: availableBedCount,
+          status: availableBedCount > 0 ? 'Trống' : 'Đầy',
+        };
+      }),
+    );
+
+    return roomsWithAvailability
+      .filter((room) => room.available_bed_count > 0)
+      .sort((left, right) => right.available_bed_count - left.available_bed_count)
+      .slice(0, 10);
   }
 
   /**

@@ -12,6 +12,12 @@ export class Registration {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Student', required: true })
   student_id: Types.ObjectId;
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room' })
+  room_id?: Types.ObjectId;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Bed' })
+  bed_id?: Types.ObjectId;
+
   @Prop({ required: true })
   semester: string;
 
@@ -50,7 +56,7 @@ export class Registration {
   @Prop({
     required: true,
     enum: DORMITORY_ENUMS.registrationStatus,
-    default: 'Chờ duyệt',
+    default: 'Đã duyệt',
   })
   status: string;
 

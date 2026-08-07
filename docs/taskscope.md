@@ -1,21 +1,19 @@
-Task: `registration-room-action-visibility` | `bugfix` | Risk: medium | Profile: Quick
+Task: `registration-room-picker-popover` | `bugfix` | Risk: medium | Profile: Quick
 
-Objective: Ensure the room-assignment icon is visible in the registration table action column for every registration that the current user is allowed to assign, and display “Chưa xếp phòng” with a subtle yellow treatment.
+Objective: Clicking the room-assignment icon in the registration table opens a compact room picker directly below the icon, with each room showing its name, capacity/available quantity, and status.
 
-Boundary: Registration table presentation and assignment-action eligibility only. Preserve the existing room picker, assignment request, other row actions, permissions, and responsive behavior. | Write: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`
+Boundary: Registration room-picker UI and its focused tests only. Preserve the existing room suggestion API, bed selection and assignment flow, table actions, permissions, loading/error handling, and Vietnamese UI labels. The “small modal” is an anchored non-blocking popover, not a page-level dialog. | Write: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`
 
-Targets: The `canAssignRoom`/row eligibility condition, the `actions` column renderer, the `room` column renderer, and focused render/formatting tests.
+Targets: Room-assignment action renderer, `PopoverTrigger`/`PopoverContent` placement, room option rows, open/close state, and focused interaction tests.
 
-Context: The icon component already exists, but rendering is currently gated by both `canAssignRoom` and `r.source === 'FORMAL'`. Existing tests cover helper functions only and do not verify that the icon is rendered for an eligible row. The room column currently returns plain text for both assigned and unassigned states.
-
-Steps: Verify the effective assignment permission and eligible registration states against the existing assignment endpoint; centralize the row eligibility rule so an assignable, unassigned registration reliably renders the icon; keep unsupported or already assigned rows protected; render only the exact “Chưa xếp phòng” fallback as a compact pale-yellow badge/text treatment with readable amber text; add focused UI tests for visible/hidden icon states and assigned/unassigned room styling.
+Steps: Baseline the current room picker and room data shape; extract or simplify the dense action renderer where needed; anchor the compact picker with `side="bottom"` and suitable alignment/collision behavior so it appears beneath the clicked icon; present each option with room name/code, available beds versus total beds, and localized status; keep unavailable/full/locked/maintenance rooms visibly disabled; retain loading, empty, error, assignment-in-progress, and close-after-success behavior; add tests for opening from the icon, rendered room details, disabled states, and popover placement attributes.
 
 Verify:
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => eligible rows show the room icon, ineligible rows do not expose an unusable assignment action, and the unassigned label receives the yellow treatment.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => clicking the room icon opens the picker, room name/quantity/status are shown, and unavailable rooms cannot be selected.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => frontend type-checks.
 - `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md "frontend/src/app/(dashboard)/dormitory/registrations/page.tsx" "frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => scoped diff has no whitespace errors.
 
-Done: A permitted user can see the room-assignment icon on every eligible unassigned registration; clicking it retains the existing room picker behavior; “Chưa xếp phòng” is shown with a light yellow background and amber text; assigned room names and all other table actions remain visually and functionally unchanged.
+Done: The room icon reliably opens one compact picker beneath its trigger; every returned room displays name, available/total bed quantity, and Vietnamese status; invalid choices remain disabled; selecting an available room retains the current assignment behavior; other registration actions are unchanged.
 
-Gate: Stop if making non-formal registrations assignable requires a backend lifecycle or permission change; promote that work to a separate Full scope rather than exposing an action that cannot succeed.
+Gate: None

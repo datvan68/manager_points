@@ -34,6 +34,9 @@ export class PublicRegistration {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room' })
   room_id: Types.ObjectId;
 
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Bed' })
+  bed_id?: Types.ObjectId;
+
   @Prop()
   room_code: string;
 

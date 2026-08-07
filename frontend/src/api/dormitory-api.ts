@@ -46,6 +46,8 @@ export interface DormRegistration {
   _id: string;
   registration_code: string;
   student_id: any;
+  room_id?: Room | string;
+  bed_id?: Bed | string;
   semester: string;
   academic_year: string;
   preference?: {
@@ -65,6 +67,7 @@ export interface DormRegistration {
   date_of_birth?: string;
   gender?: 'Male' | 'Female' | 'Other';
   phone_number?: string;
+  assigned_room_name?: string;
 }
 
 export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
