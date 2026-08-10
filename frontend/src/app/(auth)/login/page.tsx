@@ -103,7 +103,7 @@ export default function LoginPage() {
           {/* Trust Badge */}
           <div className="flex justify-center w-full">
             <div className="backdrop-blur-[2px] bg-white/50 border border-white/80 flex items-center justify-center px-[29px] py-[9px] rounded-full shadow-[0px_1px_2px_rgba(0,0,0,0.05)] shrink-0">
-              <span className="font-['Inter'] font-medium text-[#64748b] text-[11px] tracking-[0.275px] whitespace-nowrap">
+              <span className="font-['Inter'] font-semibold text-slate-500 text-[11px] tracking-[1.2px] uppercase whitespace-nowrap">
                 HỌC SINH SINH VIÊN
               </span>
             </div>
@@ -111,10 +111,10 @@ export default function LoginPage() {
 
           {/* Heading Container */}
           <div className="flex flex-col gap-[8px] items-center text-center">
-            <h1 className="font-['Inter'] font-medium text-[#1e293b] text-[28px] sm:text-[36px] tracking-tight leading-[36px] sm:leading-[44px]">
+            <h1 className="font-['Inter'] font-bold text-slate-900 text-[28px] sm:text-[36px] tracking-tight leading-[36px] sm:leading-[44px]">
               Chào mừng trở lại
             </h1>
-            <p className="font-['Inter'] font-normal text-[#718096] text-[14px] leading-[20px]">
+            <p className="font-['Inter'] font-normal text-slate-500 text-[14px] leading-[20px]">
               Vui lòng nhập thông tin của bạn để tiếp tục
             </p>
           </div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
               {/* Email / Username Field */}
               <div className="flex flex-col gap-[8px] w-full">
                 <div className="pl-[16px]">
-                  <label className="font-['Inter'] font-medium text-[#566069] text-[11px] tracking-[1.1px] uppercase">
+                  <label className="font-['Inter'] font-semibold text-slate-600 text-[11px] tracking-[1.1px] uppercase">
                     Tài khoản
                   </label>
                 </div>
@@ -135,7 +135,7 @@ export default function LoginPage() {
                     <input
                       type="text"
                       placeholder="Email hoặc mã sinh viên"
-                      className="w-full h-full bg-transparent text-[#334155] text-[14px] font-['Inter'] font-medium placeholder:text-[#a3b1cc] outline-none"
+                      className="w-full h-full bg-transparent text-slate-800 text-[14px] font-['Inter'] font-medium placeholder:font-normal placeholder:text-slate-400 outline-none"
                       disabled={isLoading}
                       {...register('email')}
                     />
@@ -152,10 +152,10 @@ export default function LoginPage() {
               {/* Password Field */}
               <div className="flex flex-col gap-[8px] w-full">
                 <div className="flex justify-between items-center px-[16px]">
-                  <label className="font-['Inter'] font-medium text-[#566069] text-[11px] tracking-[1.1px] uppercase">
+                  <label className="font-['Inter'] font-semibold text-slate-600 text-[11px] tracking-[1.1px] uppercase">
                     MẬT KHẨU
                   </label>
-                  <Link href="/forgot-password" className="font-['Inter'] font-medium text-[#005bbf] text-[11px] tracking-[0.55px] hover:underline">
+                  <Link href="/forgot-password" className="font-['Inter'] font-medium text-[#1a73e8] hover:text-[#155fc0] text-[11px] tracking-[0.55px] hover:underline transition-colors">
                     Quên mật khẩu?
                   </Link>
                 </div>
@@ -164,7 +164,7 @@ export default function LoginPage() {
                     <input
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="w-full h-full bg-transparent text-[#334155] text-[14px] font-['Inter'] font-medium placeholder:text-[#a3b1cc] outline-none tracking-widest"
+                      className="w-full h-full bg-transparent text-slate-800 text-[14px] font-['Inter'] font-medium placeholder:font-normal placeholder:text-slate-400 outline-none tracking-widest"
                       disabled={isLoading}
                       {...register('password')}
                     />
@@ -197,7 +197,7 @@ export default function LoginPage() {
                 disabled={isLoading}
                 {...register('remember')}
               />
-              <label htmlFor="remember" className="font-['Inter'] font-medium text-[#64748b] text-[14px] cursor-pointer select-none">
+              <label htmlFor="remember" className="font-['Inter'] font-medium text-slate-700 text-[14px] cursor-pointer select-none">
                 Ghi nhớ đăng nhập
               </label>
             </div>
@@ -211,21 +211,9 @@ export default function LoginPage() {
               {isLoading ? (
                 <Loader2 size={20} className="animate-spin" />
               ) : (
-                <span className="font-['Inter'] font-semibold text-[14px]">Đăng nhập</span>
+                <span className="font-['Inter'] font-semibold text-[15px] tracking-wide">Đăng nhập</span>
               )}
             </button>
-
-            {/* Footer / bottom registration link */}
-            {/* 
-            <div className="flex justify-center w-full mt-2">
-              <span className="font-['Inter'] font-semibold text-[#566069] text-[14px]">
-                Chưa có tài khoản?{' '}
-                <Link href="/register" className="text-[#005bbf] font-bold hover:underline">
-                  Tạo tài khoản
-                </Link>
-              </span>
-            </div>
-            */}
 
           </form>
 

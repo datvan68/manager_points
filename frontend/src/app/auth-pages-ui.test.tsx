@@ -21,7 +21,7 @@ describe('auth and not-found pages', () => {
   it('uses lighter login typography while preserving form controls', async () => {
     const { default: LoginPage } = await import('./(auth)/login/page');
     render(<LoginPage />);
-    expect(screen.getByRole('heading', { name: 'Chào mừng trở lại' })).toHaveClass('font-medium');
+    expect(screen.getByRole('heading', { name: 'Chào mừng trở lại' })).toHaveClass('font-bold');
     expect(screen.getByText('Vui lòng nhập thông tin của bạn để tiếp tục')).toHaveClass('font-normal');
     expect(screen.getByText('Ghi nhớ đăng nhập')).toHaveClass('font-medium');
     expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeInTheDocument();
