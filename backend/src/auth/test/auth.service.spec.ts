@@ -471,18 +471,38 @@ describe('AuthService', () => {
           { _id: 'id-PERMISSION_CREATE', code: 'PERMISSION_CREATE' },
           { _id: 'id-PERMISSION_UPDATE', code: 'PERMISSION_UPDATE' },
           { _id: 'id-PERMISSION_DELETE', code: 'PERMISSION_DELETE' },
-          { _id: 'id-PERMISSION_GROUP_CREATE', code: 'PERMISSION_GROUP_CREATE' },
-          { _id: 'id-PERMISSION_GROUP_UPDATE', code: 'PERMISSION_GROUP_UPDATE' },
-          { _id: 'id-PERMISSION_GROUP_DELETE', code: 'PERMISSION_GROUP_DELETE' },
-          { _id: 'id-ROUTE_PERMISSION_CREATE', code: 'ROUTE_PERMISSION_CREATE' },
-          { _id: 'id-ROUTE_PERMISSION_UPDATE', code: 'ROUTE_PERMISSION_UPDATE' },
-          { _id: 'id-ROUTE_PERMISSION_DELETE', code: 'ROUTE_PERMISSION_DELETE' },
+          {
+            _id: 'id-PERMISSION_GROUP_CREATE',
+            code: 'PERMISSION_GROUP_CREATE',
+          },
+          {
+            _id: 'id-PERMISSION_GROUP_UPDATE',
+            code: 'PERMISSION_GROUP_UPDATE',
+          },
+          {
+            _id: 'id-PERMISSION_GROUP_DELETE',
+            code: 'PERMISSION_GROUP_DELETE',
+          },
+          {
+            _id: 'id-ROUTE_PERMISSION_CREATE',
+            code: 'ROUTE_PERMISSION_CREATE',
+          },
+          {
+            _id: 'id-ROUTE_PERMISSION_UPDATE',
+            code: 'ROUTE_PERMISSION_UPDATE',
+          },
+          {
+            _id: 'id-ROUTE_PERMISSION_DELETE',
+            code: 'ROUTE_PERMISSION_DELETE',
+          },
           { _id: 'id-SYSTEM_ADMIN', code: 'SYSTEM_ADMIN' },
         ]),
       });
-      permissionModel.findOneAndUpdate = jest.fn().mockImplementation((query) => ({
-        exec: jest.fn().mockResolvedValue({ _id: `id-${query.code}` }),
-      }));
+      permissionModel.findOneAndUpdate = jest
+        .fn()
+        .mockImplementation((query) => ({
+          exec: jest.fn().mockResolvedValue({ _id: `id-${query.code}` }),
+        }));
 
       permissionGroupModel.deleteOne = jest
         .fn()
@@ -528,7 +548,9 @@ describe('AuthService', () => {
       // 2. Verify G_ADMIN_RBAC group is upserted
       const groupCalls = permissionGroupModel.findOneAndUpdate.mock.calls;
       expect(groupCalls.length).toBeGreaterThan(0);
-      const adminRbacCall = groupCalls.find((c) => c[0].code === 'G_ADMIN_RBAC');
+      const adminRbacCall = groupCalls.find(
+        (c) => c[0].code === 'G_ADMIN_RBAC',
+      );
       expect(adminRbacCall).toBeDefined();
       expect(adminRbacCall[1].$set.code).toBe('G_ADMIN_RBAC');
 
@@ -543,13 +565,70 @@ describe('AuthService', () => {
       expect(adminRbacPerms).toContain('id-PERMISSION_GROUP_DELETE');
 
       // 4. Verify G_SYSTEM_OPERATIONS does not receive USER_CREATE, ROLE_CREATE, PERMISSION_CREATE, or ADMIN_FULL
-      const systemOpsCall = groupCalls.find((c) => c[0].code === 'G_SYSTEM_OPERATIONS');
+      const systemOpsCall = groupCalls.find(
+        (c) => c[0].code === 'G_SYSTEM_OPERATIONS',
+      );
       expect(systemOpsCall).toBeDefined();
       const systemOpsPerms = systemOpsCall[1].$addToSet.permissions.$each;
       expect(systemOpsPerms).not.toContain('id-USER_CREATE');
       expect(systemOpsPerms).not.toContain('id-ROLE_CREATE');
       expect(systemOpsPerms).not.toContain('id-PERMISSION_CREATE');
       expect(systemOpsPerms).not.toContain('id-ADMIN_FULL');
+    });
+  });
+
+  describe('startup initialization', () => {
+    const startupSteps = [
+      'migrateLegacyRoleCodes',
+      'seedDeclaredPermissions',
+      'seedRbac',
+      'seedSystemAdmin',
+      'migrateLegacyRoles',
+      'migrateLegacyUserFields',
+      'deduplicateRbacReferences',
+    ] as const;
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('keeps required dependencies ordered while allowing independent user migrations to overlap', async () => {
+      jest.restoreAllMocks();
+      const calls: string[] = [];
+
+      for (const step of startupSteps) {
+        jest.spyOn(service as any, step).mockImplementation(async () => {
+          calls.push(step);
+        });
+      }
+
+      await service.onModuleInit();
+
+      expect(calls.slice(0, 4)).toEqual([
+        'migrateLegacyRoleCodes',
+        'seedDeclaredPermissions',
+        'seedRbac',
+        'seedSystemAdmin',
+      ]);
+      expect(calls.slice(4, 6).sort()).toEqual([
+        'migrateLegacyRoles',
+        'migrateLegacyUserFields',
+      ]);
+      expect(calls[6]).toBe('deduplicateRbacReferences');
+    });
+
+    it('propagates a failed required startup step', async () => {
+      jest.restoreAllMocks();
+      const failure = new Error('seed failed');
+      jest
+        .spyOn(service as any, 'migrateLegacyRoleCodes')
+        .mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'seedDeclaredPermissions')
+        .mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'seedRbac').mockRejectedValue(failure);
+
+      await expect(service.onModuleInit()).rejects.toBe(failure);
     });
   });
 });

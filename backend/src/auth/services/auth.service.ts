@@ -5,9 +5,11 @@ import {
   ForbiddenException,
   OnModuleInit,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { performance } from 'node:perf_hooks';
 import { User, UserDocument, UserStatus } from '../schemas/user.schema';
 import { Student } from '../../students/schemas/student.schema';
 import { Class } from '../../classes/schemas/class.schema';
@@ -60,6 +62,8 @@ const INVALID_LOGIN_MESSAGE = 'Tài khoản hoặc mật khẩu không chính x�
 
 @Injectable()
 export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(LoginLog.name) private loginLogModel: Model<LoginLogDocument>,
@@ -78,13 +82,38 @@ export class AuthService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.migrateLegacyRoleCodes();
-    await this.seedDeclaredPermissions();
-    await this.seedRbac();
-    await this.seedSystemAdmin();
-    await this.migrateLegacyRoles();
-    await this.migrateLegacyUserFields();
-    await this.deduplicateRbacReferences();
+    const startupStartedAt = performance.now();
+    const runStartupStep = async (
+      name: string,
+      step: () => Promise<void>,
+    ): Promise<void> => {
+      const stepStartedAt = performance.now();
+      await step();
+      this.logger.log(
+        `[startup] ${name} completed in ${Math.round(performance.now() - stepStartedAt)}ms`,
+      );
+    };
+
+    await runStartupStep('migrateLegacyRoleCodes', () =>
+      this.migrateLegacyRoleCodes(),
+    );
+    await runStartupStep('seedDeclaredPermissions', () =>
+      this.seedDeclaredPermissions(),
+    );
+    await runStartupStep('seedRbac', () => this.seedRbac());
+    await runStartupStep('seedSystemAdmin', () => this.seedSystemAdmin());
+    await Promise.all([
+      runStartupStep('migrateLegacyRoles', () => this.migrateLegacyRoles()),
+      runStartupStep('migrateLegacyUserFields', () =>
+        this.migrateLegacyUserFields(),
+      ),
+    ]);
+    await runStartupStep('deduplicateRbacReferences', () =>
+      this.deduplicateRbacReferences(),
+    );
+    this.logger.log(
+      `[startup] auth initialization completed in ${Math.round(performance.now() - startupStartedAt)}ms`,
+    );
   }
 
   private async safeSave(doc: any) {
@@ -317,7 +346,9 @@ export class AuthService implements OnModuleInit {
   async forkSession(userId: string, remember: boolean) {
     const days = remember ? 30 : 1;
     const objectId = new Types.ObjectId(userId);
-    const access_token = this.tokenService.generateAccessToken({ user_id: userId });
+    const access_token = this.tokenService.generateAccessToken({
+      user_id: userId,
+    });
     const refresh_token = await this.tokenService.createRefreshToken(
       objectId,
       days,
@@ -1154,7 +1185,7 @@ export class AuthService implements OnModuleInit {
           { code: p.code },
           { $set: p },
           { upsert: true, returnDocument: 'after' },
-         )
+        )
         .exec();
       createdPerms[p.code] = perm._id;
     }
@@ -1254,24 +1285,26 @@ export class AuthService implements OnModuleInit {
       },
     ];
 
-    for (const r of roles) {
-      await this.roleModel
-        .findOneAndUpdate(
-          { role_code: r.role_code },
-          {
-            $set: {
-              name: r.name,
-              role_code: r.role_code,
-              description: r.description,
+    await Promise.all(
+      roles.map((r) =>
+        this.roleModel
+          .findOneAndUpdate(
+            { role_code: r.role_code },
+            {
+              $set: {
+                name: r.name,
+                role_code: r.role_code,
+                description: r.description,
+              },
+              $setOnInsert: {
+                permissions: r.permissions,
+              },
             },
-            $setOnInsert: {
-              permissions: r.permissions,
-            },
-          },
-          { upsert: true },
-        )
-        .exec();
-    }
+            { upsert: true },
+          )
+          .exec(),
+      ),
+    );
 
     const groups = [
       {
@@ -1435,25 +1468,27 @@ export class AuthService implements OnModuleInit {
       },
     ];
 
-    for (const g of groups) {
-      const validPerms = g.permissions.filter((p) => !!p);
-      await this.permissionGroupModel
-        .findOneAndUpdate(
-          { code: g.constant.code },
-          {
-            $set: {
-              code: g.constant.code,
-              name: g.constant.name,
-              description: g.constant.description,
+    await Promise.all(
+      groups.map((g) => {
+        const validPerms = g.permissions.filter((p) => !!p);
+        return this.permissionGroupModel
+          .findOneAndUpdate(
+            { code: g.constant.code },
+            {
+              $set: {
+                code: g.constant.code,
+                name: g.constant.name,
+                description: g.constant.description,
+              },
+              $addToSet: {
+                permissions: { $each: validPerms },
+              },
             },
-            $addToSet: {
-              permissions: { $each: validPerms },
-            },
-          },
-          { upsert: true },
-        )
-        .exec();
-    }
+            { upsert: true },
+          )
+          .exec();
+      }),
+    );
 
     // Seed default route permissions
     const permMap = createdPerms;
@@ -1463,9 +1498,7 @@ export class AuthService implements OnModuleInit {
         route_path: '/system',
         route_name: 'Quản trị vận hành hệ thống',
         description: 'Lịch sử đăng nhập, request vận hành và backup database',
-        permissions: [
-          permMap['SYSTEM_ADMIN'],
-        ],
+        permissions: [permMap['SYSTEM_ADMIN']],
         check_type: 'any',
         is_active: true,
         type: 'page',
@@ -1508,10 +1541,12 @@ export class AuthService implements OnModuleInit {
       },
     ];
 
-    for (const mapping of routeMappings) {
-      const validPerms = mapping.permissions.filter((p) => !!p);
-      if (validPerms.length > 0) {
-        await this.routePermissionModel
+    await Promise.all(
+      routeMappings.map((mapping) => {
+        const validPerms = mapping.permissions.filter((p) => p);
+        if (validPerms.length === 0) return Promise.resolve();
+
+        return this.routePermissionModel
           .findOneAndUpdate(
             { route_path: mapping.route_path },
             {
@@ -1530,8 +1565,8 @@ export class AuthService implements OnModuleInit {
             { upsert: true },
           )
           .exec();
-      }
-    }
+      }),
+    );
 
     // Dọn dẹp nhóm G_UNGROUPED: loại bỏ các quyền đã được phân vào nhóm nghiệp vụ khác
     try {
@@ -1588,17 +1623,18 @@ export class AuthService implements OnModuleInit {
 
     const permissionIds: Types.ObjectId[] = [];
 
-    for (const permissionSeed of DECLARED_PERMISSION_SEEDS) {
-      const permission = await this.permissionModel
-        .findOneAndUpdate(
-          { code: permissionSeed.code },
-          { $set: permissionSeed },
-          { upsert: true, returnDocument: 'after' },
-        )
-        .exec();
-
-      permissionIds.push(permission._id);
-    }
+    const permissions = await Promise.all(
+      DECLARED_PERMISSION_SEEDS.map((permissionSeed) =>
+        this.permissionModel
+          .findOneAndUpdate(
+            { code: permissionSeed.code },
+            { $set: permissionSeed },
+            { upsert: true, returnDocument: 'after' },
+          )
+          .exec(),
+      ),
+    );
+    permissionIds.push(...permissions.map((permission) => permission._id));
 
     if (permissionIds.length > 0) {
       await this.permissionGroupModel
