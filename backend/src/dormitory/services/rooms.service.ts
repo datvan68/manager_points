@@ -13,6 +13,10 @@ import { UpdateRoomDto } from '../dto/update-room.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 
+function isDuplicateKeyError(error: any): boolean {
+  return error?.code === 11000 || error?.writeErrors?.some?.((item: any) => item?.code === 11000) === true;
+}
+
 @Injectable()
 export class RoomsService {
   constructor(
@@ -71,23 +75,29 @@ export class RoomsService {
         sequence += 1;
       }
 
-      await this.bedModel.bulkWrite(
-        bedCodes.map((bedCode, index) => ({
-          updateOne: {
-            filter: { room_id: roomId, bed_code: bedCode },
-            update: {
-              $setOnInsert: {
-                room_id: roomId as unknown as Bed['room_id'],
-                bed_code: bedCode,
-                position: `Vị trí ${existingBeds.length + index + 1}`,
-                status: 'Trống',
+      try {
+        await this.bedModel.bulkWrite(
+          bedCodes.map((bedCode, index) => ({
+            updateOne: {
+              filter: { room_id: roomId, bed_code: bedCode },
+              update: {
+                $setOnInsert: {
+                  room_id: roomId as unknown as Bed['room_id'],
+                  bed_code: bedCode,
+                  position: `Vị trí ${existingBeds.length + index + 1}`,
+                  status: 'Trống',
+                },
               },
+              upsert: true,
             },
-            upsert: true,
-          },
-        })),
-        { ordered: false },
-      );
+          })),
+          { ordered: false },
+        );
+      } catch (error) {
+        // Concurrent ensure/legacy calls can race on the compound unique index.
+        // A duplicate means another caller created the same deterministic beds.
+        if (!isDuplicateKeyError(error)) throw error;
+      }
     }
 
     await this.syncRoomAvailability(roomId);
@@ -162,11 +172,29 @@ export class RoomsService {
   }
 
   async update(id: string, dto: UpdateRoomDto, user: any): Promise<Room> {
+    const currentRoom = await this.roomModel.findById(id).exec();
+    if (!currentRoom) {
+      throw new NotFoundException(`KhĂ´ng tĂ¬m tháº¥y phĂ²ng: ${id}`);
+    }
+
+    if (dto.bed_count !== undefined) {
+      const existingBedCount = await this.bedModel.countDocuments({ room_id: id });
+      if (dto.bed_count < existingBedCount) {
+        throw new ConflictException(
+          `Room capacity cannot be reduced below the ${existingBedCount} persisted beds`,
+        );
+      }
+    }
+
     const room = await this.roomModel
       .findByIdAndUpdate(id, { $set: dto }, { returnDocument: 'after' })
       .exec();
     if (!room) {
       throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
+    }
+    if (dto.bed_count !== undefined) {
+      await this.ensureRoomBeds(id, dto.bed_count);
+      return this.roomModel.findById(id).exec() as Promise<Room>;
     }
     return room;
   }

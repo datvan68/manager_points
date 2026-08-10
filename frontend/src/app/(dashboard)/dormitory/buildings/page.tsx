@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, ExternalLink, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Building, Room, dormitoryApi } from '@/api/dormitory-api';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '@/components/modals/ConfirmModal';
@@ -238,7 +238,7 @@ export default function BuildingsPage() {
     { key: 'bed_count', header: 'Giường', render: value => String(value ?? 0) },
     { key: 'total_students', header: 'Số sinh viên', render: value => String(value ?? 0) },
     { key: 'room_price', header: 'Giá phòng', render: value => formatRoomPrice(value) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, room) => <div className="flex items-center justify-end gap-1"><a aria-label={`Mở QR phòng ${room.room_code}`} title="Mở trang phòng" href={room.public_url || `/public/room/${room.qr_code}`} target="_blank" rel="noreferrer" className="rounded-xl p-1.5 text-slate-500 hover:bg-blue-50"><ExternalLink size={15} /></a>{canUpdateRoom && <button aria-label={`Sửa phòng ${room.room_code}`} title="Sửa" onClick={() => openRoom(room)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteRoom && <button aria-label={`Xóa phòng ${room.room_code}`} title="Xóa" onClick={() => setRoomToDelete(room)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, room) => <div className="flex items-center justify-end gap-1">{canUpdateRoom && <button aria-label={`Sửa phòng ${room.room_code}`} title="Sửa" onClick={() => openRoom(room)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteRoom && <button aria-label={`Xóa phòng ${room.room_code}`} title="Xóa" onClick={() => setRoomToDelete(room)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div> },
   ], [canDeleteRoom, canUpdateRoom]);
 
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">

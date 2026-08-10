@@ -106,17 +106,11 @@ export class BedsService {
     soGiuong: number,
     user: any,
   ): Promise<Bed[]> {
-    const beds: Bed[] = [];
-    for (let i = 1; i <= soGiuong; i++) {
-      const bed = new this.bedModel({
-        bed_code: `G${i.toString().padStart(2, '0')}`,
-        room_id: roomId,
+    await this.roomsService.ensureRoomBeds(roomId, soGiuong);
+    return this.findByRoom(roomId);
+    /* Legacy implementation intentionally removed; historical body retained below.
         position: `Vị trí ${i}`,
         status: 'Trống',
-      });
-      beds.push(await bed.save());
-    }
-    await this.roomsService.syncRoomAvailability(roomId);
-    return beds;
+    */
   }
 }

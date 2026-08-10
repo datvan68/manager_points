@@ -1,6 +1,7 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
 import { ConflictException } from '@nestjs/common';
 import { RoomAssignmentService } from './room-assignment.service';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 function roomsQuery(value: any[]) {
   const query: any = {
@@ -84,5 +85,103 @@ describe('RoomAssignmentService', () => {
     expect(roomsService.ensureRoomBeds).toHaveBeenCalledWith('room-1', 4);
     expect(roomsService.ensureRoomBeds).toHaveBeenCalledWith('room-2', 4);
     expect(bedModel.countDocuments).toHaveBeenCalledWith({ room_id: 'room-1', status: 'Trống' });
+  });
+
+  it('releases the bed when registration persistence fails', async () => {
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: DORMITORY_ENUMS.registrationStatus[1] }),
+      findOneAndUpdate: jest.fn().mockRejectedValueOnce(new Error('registration write failed')),
+    };
+    const roomModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'room-1', room_code: 'A101', status: DORMITORY_ENUMS.roomStatus[0] }),
+    };
+    const bedModel: any = {
+      findOneAndUpdate: jest.fn()
+        .mockResolvedValueOnce({ _id: 'bed-1', room_id: 'room-1', status: DORMITORY_ENUMS.bedStatus[1] })
+        .mockResolvedValueOnce({ _id: 'bed-1', room_id: 'room-1', status: DORMITORY_ENUMS.bedStatus[0] }),
+    };
+    const service = new RoomAssignmentService(
+      roomModel,
+      bedModel,
+      registrationModel,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      {} as any,
+      { syncRoomAvailability: jest.fn() } as any,
+    );
+
+    await expect(service.assignRoom({ registration_id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' }, {})).rejects.toThrow('registration write failed');
+    expect(bedModel.findOneAndUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('compensates registration and bed writes when availability synchronization fails', async () => {
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: DORMITORY_ENUMS.registrationStatus[1] }),
+      findOneAndUpdate: jest.fn()
+        .mockResolvedValueOnce({ _id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' })
+        .mockResolvedValueOnce({ _id: 'registration-1' }),
+    };
+    const roomModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'room-1', room_code: 'A101', status: DORMITORY_ENUMS.roomStatus[0] }),
+    };
+    const bedModel: any = {
+      findOneAndUpdate: jest.fn()
+        .mockResolvedValueOnce({ _id: 'bed-1', room_id: 'room-1', status: DORMITORY_ENUMS.bedStatus[1] })
+        .mockResolvedValueOnce({ _id: 'bed-1', room_id: 'room-1', status: DORMITORY_ENUMS.bedStatus[0] }),
+    };
+    const syncRoomAvailability = jest.fn()
+      .mockRejectedValueOnce(new Error('availability write failed'))
+      .mockResolvedValue(undefined);
+    const service = new RoomAssignmentService(
+      roomModel,
+      bedModel,
+      registrationModel,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      {} as any,
+      { syncRoomAvailability } as any,
+    );
+
+    await expect(service.assignRoom({ registration_id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' }, {})).rejects.toThrow('availability write failed');
+    expect(registrationModel.findOneAndUpdate).toHaveBeenLastCalledWith(
+      { _id: 'registration-1', bed_id: 'bed-1' },
+      { $unset: { room_id: '', bed_id: '' } },
+      { new: true },
+    );
+    expect(bedModel.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    expect(syncRoomAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets only one concurrent request reserve a shared bed', async () => {
+    let bedStatus = DORMITORY_ENUMS.bedStatus[0];
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: DORMITORY_ENUMS.registrationStatus[1] }),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ _id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' }),
+    };
+    const roomModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'room-1', room_code: 'A101', status: DORMITORY_ENUMS.roomStatus[0] }),
+    };
+    const bedModel: any = {
+      findOneAndUpdate: jest.fn(async () => {
+        if (bedStatus !== DORMITORY_ENUMS.bedStatus[0]) return null;
+        bedStatus = DORMITORY_ENUMS.bedStatus[1];
+        return { _id: 'bed-1', room_id: 'room-1', status: bedStatus };
+      }),
+    };
+    const service = new RoomAssignmentService(
+      roomModel,
+      bedModel,
+      registrationModel,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      {} as any,
+      { syncRoomAvailability: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+
+    const results = await Promise.allSettled([
+      service.assignRoom({ registration_id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' }, {}),
+      service.assignRoom({ registration_id: 'registration-2', room_id: 'room-1', bed_id: 'bed-1' }, {}),
+    ]);
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    expect(bedStatus).toBe(DORMITORY_ENUMS.bedStatus[1]);
   });
 });

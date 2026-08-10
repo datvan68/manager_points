@@ -17,6 +17,7 @@ import { TransferRoomDto } from '../dto/transfer-room.dto';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
 import { RoomsService } from './rooms.service';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 @Injectable()
 export class RoomAssignmentService {
@@ -84,9 +85,18 @@ export class RoomAssignmentService {
         ...(publicRegistration ? { room_code: room.room_code } : {}),
       },
     };
-    const assignedRegistration = reg
-      ? await this.registrationModel.findOneAndUpdate(assignmentFilter, assignment, { new: true })
-      : await this.publicRegistrationModel.findOneAndUpdate(assignmentFilter, assignment, { new: true });
+    const assignmentModel: any = reg ? this.registrationModel : this.publicRegistrationModel;
+    let assignedRegistration;
+    try {
+      assignedRegistration = await assignmentModel.findOneAndUpdate(
+        assignmentFilter,
+        assignment,
+        { new: true },
+      );
+    } catch (error) {
+      await this.releaseReservedBed(bed._id);
+      throw error;
+    }
 
     if (!assignedRegistration) {
       await this.bedModel.findOneAndUpdate(
@@ -96,7 +106,23 @@ export class RoomAssignmentService {
       throw new ConflictException('Sinh viên đã được phân một giường');
     }
 
-    await this.roomsService.syncRoomAvailability(dto.room_id);
+    try {
+      await this.roomsService.syncRoomAvailability(dto.room_id);
+    } catch (error) {
+      await this.rollbackRegistrationAssignment(
+        assignmentModel,
+        dto.registration_id,
+        bed._id,
+        Boolean(publicRegistration),
+      );
+      await this.releaseReservedBed(bed._id);
+      try {
+        await this.roomsService.syncRoomAvailability(dto.room_id);
+      } catch {
+        // The bed and registration rollback above restores the prior state.
+      }
+      throw error;
+    }
 
     return {
       registration: assignedRegistration,
@@ -104,6 +130,28 @@ export class RoomAssignmentService {
       bed,
       message: 'Phân phòng thành công',
     };
+  }
+
+  private async releaseReservedBed(bedId: any): Promise<void> {
+    await this.bedModel.findOneAndUpdate(
+      { _id: bedId, status: DORMITORY_ENUMS.bedStatus[1] },
+      { $set: { status: DORMITORY_ENUMS.bedStatus[0] } },
+    );
+  }
+
+  private async rollbackRegistrationAssignment(
+    model: any,
+    registrationId: string,
+    bedId: any,
+    isPublicRegistration: boolean,
+  ): Promise<void> {
+    const unset: Record<string, string> = { room_id: '', bed_id: '' };
+    if (isPublicRegistration) unset.room_code = '';
+    await model.findOneAndUpdate(
+      { _id: registrationId, bed_id: bedId },
+      { $unset: unset },
+      { new: true },
+    );
   }
 
   /**
