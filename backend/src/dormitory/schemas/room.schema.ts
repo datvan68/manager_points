@@ -16,9 +16,6 @@ export class Room {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Building', required: true })
   building_id: Types.ObjectId | Building;
 
-  @Prop({ required: true, default: 1 })
-  floor: number;
-
   @Prop({ required: true })
   room_type: string; // e.g. '4 người', '6 người', '8 người'
 

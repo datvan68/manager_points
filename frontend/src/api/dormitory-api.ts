@@ -8,7 +8,6 @@ export interface Building {
   building_code: string;
   name: string;
   address?: string;
-  floor_count: number;
   status: 'Active' | 'Inactive' | 'Maintenance';
   description?: string;
   createdAt?: string;
@@ -20,9 +19,10 @@ export interface Room {
   room_code: string;
   room_name?: string;
   building_id: Building | string;
-  floor: number;
   room_type: string;
   bed_count: number;
+  max_students: number;
+  current_students: number;
   available_bed_count: number;
   room_price: number;
   status: 'Trống' | 'Đầy' | 'Khóa' | 'Bảo trì';
@@ -31,7 +31,6 @@ export interface Room {
   public_url: string;
   description?: string;
   createdAt?: string;
-  total_students?: number;
 }
 
 export interface Bed {
@@ -68,6 +67,7 @@ export interface DormRegistration {
   gender?: 'Male' | 'Female' | 'Other';
   phone_number?: string;
   assigned_room_name?: string;
+  active_contract_id?: string;
 }
 
 export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
@@ -389,7 +389,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async assignRoom(dto: { registration_id: string; room_id: string; bed_id: string }): Promise<any> {
+    async assignRoom(dto: { registration_id: string; room_id: string; bed_id: string }): Promise<{ registration?: DormRegistration; room?: Room; bed?: Bed; active_contract_id?: string; message?: string }> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/assign-room`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

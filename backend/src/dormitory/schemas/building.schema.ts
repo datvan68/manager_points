@@ -15,9 +15,6 @@ export class Building {
   @Prop()
   address: string;
 
-  @Prop({ default: 1 })
-  floor_count: number;
-
   @Prop({
     required: true,
     enum: DORMITORY_ENUMS.buildingStatus,

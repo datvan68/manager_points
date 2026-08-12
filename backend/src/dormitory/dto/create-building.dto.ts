@@ -21,11 +21,6 @@ export class CreateBuildingDto {
   address?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  floor_count?: number;
-
-  @IsOptional()
   @IsEnum(['Active', 'Inactive', 'Maintenance'])
   status?: string;
 

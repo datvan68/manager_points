@@ -47,16 +47,21 @@ describe('RoomAssignmentService', () => {
     expect(result.registration).toBe(assignedRegistration);
   });
 
-  it('does not reserve another bed for an already assigned student', async () => {
+  it('reassigns an already assigned student through the same command', async () => {
     const registrationModel: any = {
       findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: 'Đã duyệt', bed_id: 'bed-existing' }),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ _id: 'registration-1', room_id: 'room-2', bed_id: 'bed-2' }),
     };
-    const bedModel: any = { findOneAndUpdate: jest.fn() };
+    const bedModel: any = { findOneAndUpdate: jest.fn()
+      .mockResolvedValueOnce({ _id: 'bed-2', room_id: 'room-2', status: 'Đang sử dụng' })
+      .mockResolvedValueOnce({ _id: 'bed-existing', room_id: 'room-1', status: 'Trống' }) };
+    const roomModel: any = { findById: jest.fn().mockResolvedValue({ _id: 'room-2', room_code: 'A102', status: 'Trống' }) };
     const contractModel: any = { findOne: jest.fn().mockResolvedValue(null) };
-    const service = new RoomAssignmentService({} as any, bedModel, registrationModel, contractModel, {} as any, {} as any);
+    const roomsService: any = { syncRoomAvailability: jest.fn().mockResolvedValue(undefined) };
+    const service = new RoomAssignmentService(roomModel, bedModel, registrationModel, contractModel, {} as any, roomsService);
 
-    await expect(service.assignRoom({ registration_id: 'registration-1', room_id: 'room-1', bed_id: 'bed-2' }, {})).rejects.toBeInstanceOf(ConflictException);
-    expect(bedModel.findOneAndUpdate).not.toHaveBeenCalled();
+    await expect(service.assignRoom({ registration_id: 'registration-1', room_id: 'room-2', bed_id: 'bed-2' }, {})).resolves.toEqual(expect.objectContaining({ message: 'Chuyển phòng thành công' }));
+    expect(bedModel.findOneAndUpdate).toHaveBeenCalledTimes(2);
   });
 
   it('calculates free-bed counts when room suggestions are opened', async () => {
@@ -71,8 +76,8 @@ describe('RoomAssignmentService', () => {
     };
     const bedModel: any = {
       countDocuments: jest.fn()
-        .mockResolvedValueOnce(2)
-        .mockResolvedValueOnce(0),
+        .mockResolvedValueOnce(4).mockResolvedValueOnce(2).mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(4).mockResolvedValueOnce(4).mockResolvedValueOnce(0),
     };
     const roomsService: any = {
       ensureRoomBeds: jest.fn().mockResolvedValue(undefined),
@@ -80,10 +85,9 @@ describe('RoomAssignmentService', () => {
     const service = new RoomAssignmentService(roomModel, bedModel, registrationModel, {} as any, {} as any, roomsService);
 
     await expect(service.suggestRooms('registration-1')).resolves.toEqual([
-      expect.objectContaining({ _id: 'room-1', available_bed_count: 2 }),
+      expect.objectContaining({ _id: 'room-1', max_students: 4, current_students: 2, available_bed_count: 2 }),
     ]);
-    expect(roomsService.ensureRoomBeds).toHaveBeenCalledWith('room-1', 4);
-    expect(roomsService.ensureRoomBeds).toHaveBeenCalledWith('room-2', 4);
+    expect(roomsService.ensureRoomBeds).not.toHaveBeenCalled();
     expect(bedModel.countDocuments).toHaveBeenCalledWith({ room_id: 'room-1', status: 'Trống' });
   });
 

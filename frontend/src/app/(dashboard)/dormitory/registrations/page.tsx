@@ -25,7 +25,9 @@ export const REGISTRATION_TABLE_CLASS_NAME = 'text-xs';
 export const PUBLIC_REGISTRATION_PATH = '/public/dormitory/register';
 export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\/$/, '')}${PUBLIC_REGISTRATION_PATH}`;
 export const roomStatusLabel = (status: Room['status']) => ({ 'Trống': 'Trống', 'Đầy': 'Đầy', 'Khóa': 'Khóa', 'Bảo trì': 'Bảo trì' }[status] || status);
-export const roomQuantityLabel = (room: Pick<Room, 'available_bed_count'>) => `Còn ${room.available_bed_count} giường trống`;
+export const roomQuantityLabel = (room: Pick<Room, 'available_bed_count'> & Partial<Pick<Room, 'max_students'>>) => room.max_students === undefined
+  ? `Còn ${room.available_bed_count} giường trống`
+  : `Còn ${room.available_bed_count}/${room.max_students} giường trống`;
 export const isAvailableBed = (bed: Bed) => bed.status === 'Trống';
 export const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
 export const studentCode = (r: DormRegistration) => {
@@ -37,12 +39,14 @@ export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBL
 export const roomLabel = (r: DormRegistration) => (r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id || 'Chưa xếp phòng';
 export const isUnassignedRoom = (r: DormRegistration) => !((r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id);
 export const hasAssignedBed = (r: DormRegistration) => Boolean(r.bed_id || (r.source === 'FORMAL' && (r as any).assigned_room_name));
-export type RoomAssignment = { room: Room; bed: Bed };
+export type RoomAssignment = { room: Room; bed: Bed; registration?: DormRegistration; active_contract_id?: string };
 export const applyRoomAssignment = (row: DormRegistration, assignment: RoomAssignment): DormRegistration => ({
   ...row,
+  ...(assignment.registration || {}),
   room_id: assignment.room,
   bed_id: assignment.bed,
   assigned_room_name: assignment.room.room_name || assignment.room.room_code,
+  active_contract_id: assignment.active_contract_id || assignment.registration?.active_contract_id || row.active_contract_id,
 });
 export const createdDateLabel = (value?: string) => {
   if (!value) return '—';
@@ -124,6 +128,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const currentRoomId = typeof row.room_id === 'object' ? row.room_id._id : row.room_id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -133,7 +138,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     setError('');
     setLoading(true);
     void dormitoryApi.registrations.suggestRooms(row._id)
-      .then(setRooms)
+      .then((nextRooms) => setRooms(nextRooms.filter(room => room._id !== currentRoomId)))
       .catch((err: any) => setError(err?.message || 'Không thể tải danh sách phòng.'))
       .finally(() => setLoading(false));
   };
@@ -146,10 +151,10 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
       const beds = await dormitoryApi.beds.getByRoom(room._id);
       const bed = beds.find(isAvailableBed);
       if (!bed) throw new Error('Phòng không còn giường trống.');
-      await dormitoryApi.registrations.assignRoom({ registration_id: row._id, room_id: room._id, bed_id: bed._id });
-      toast.success('Đã phân phòng cho sinh viên');
+      const result = await dormitoryApi.registrations.assignRoom({ registration_id: row._id, room_id: room._id, bed_id: bed._id });
+      toast.success(currentRoomId ? 'Đã đổi phòng cho sinh viên' : 'Đã phân phòng cho sinh viên');
       setOpen(false);
-      onAssigned({ room, bed });
+      onAssigned({ room: result.room || room, bed: result.bed || bed, registration: result.registration, active_contract_id: result.active_contract_id });
     } catch (err: any) {
       setError(err?.message || 'Không thể phân phòng.');
     } finally {
@@ -160,7 +165,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" aria-label={`Thêm phòng cho ${studentName(row)}`} title="Thêm phòng" className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50">
+        <button type="button" aria-label={`${currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} cho ${studentName(row)}`} title={currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50">
           <DoorOpen size={16} />
         </button>
       </PopoverTrigger>
@@ -175,7 +180,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
         ) : (
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {rooms.map(room => {
-              const selectable = room.status === 'Trống' && room.available_bed_count > 0;
+              const selectable = room._id !== currentRoomId && room.status === 'Trống' && room.available_bed_count > 0;
               return (
                 <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => void assignRoom(room)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
                   <span className="min-w-0">
@@ -361,7 +366,7 @@ export default function RegistrationsPage() {
     { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
     { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && !hasAssignedBed(r) && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (

@@ -22,11 +22,6 @@ export class CreateRoomDto {
   @IsMongoId()
   building_id: string;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  floor?: number;
-
   @IsNotEmpty()
   @IsString()
   room_type: string;

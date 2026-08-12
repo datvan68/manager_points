@@ -67,6 +67,7 @@ it('uses compact typography and Vietnamese Unicode export rows', () => {
 
 it('formats room options and only accepts available beds', () => {
   expect(roomQuantityLabel({ available_bed_count: 2 })).toBe('Còn 2 giường trống');
+  expect(roomQuantityLabel({ available_bed_count: 2, max_students: 8 })).toBe('Còn 2/8 giường trống');
   expect(roomStatusLabel('Trống')).toBe('Trống');
   expect(roomStatusLabel('Bảo trì')).toBe('Bảo trì');
   expect(isAvailableBed({ status: 'Trống' } as any)).toBe(true);

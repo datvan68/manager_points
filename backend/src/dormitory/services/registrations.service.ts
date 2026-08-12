@@ -138,17 +138,25 @@ export class RegistrationsService {
 
     const formalIds = formalData.map((item: any) => item._id).filter(Boolean);
     const activeContracts = formalIds.length && typeof (this.contractModel as any).find === 'function'
-      ? await (this.contractModel as any).find({ registration_id: { $in: formalIds }, status: 'Hiệu lực' }).populate('room_id', 'room_name room_code').lean()
+      ? await (this.contractModel as any).find({ registration_id: { $in: formalIds }, status: 'Hiệu lực' }).populate('room_id', 'room_name room_code').populate('bed_id', 'bed_code').lean()
       : [];
-    const roomByRegistration = new Map((activeContracts || []).map((contract: any) => [String(contract.registration_id), contract.room_id?.room_name || contract.room_id?.room_code || '']));
+    const contractByRegistration = new Map<string, any>((activeContracts || []).map((contract: any) => [String(contract.registration_id), contract]));
 
     const normalizedSearch = search?.toLocaleLowerCase();
     const matches = (values: unknown[]) => !normalizedSearch || values.some(value => String(value ?? '').toLocaleLowerCase().includes(normalizedSearch));
-    const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.registration_code, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => ({
-      ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
-      student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
-      assigned_room_name: item.room_id?.room_name || item.room_id?.room_code || roomByRegistration.get(String(item._id)) || '',
-    }));
+    const formalRows = (query.source && query.source !== 'FORMAL' ? [] : formalData).filter((item: any) => matches([item.registration_code, item.student_id?.full_name, item.student_id?.student_code])).map((item: any) => {
+      const activeContract = contractByRegistration.get(String(item._id));
+      const effectiveRoom = activeContract?.room_id || item.room_id;
+      const effectiveBed = activeContract?.bed_id || item.bed_id;
+      return {
+        ...item.toObject(), source: 'FORMAL', classification_status: item.student_id?.class_id ? 'CLASSIFIED' : 'MISSING_CLASS',
+        student_code: item.student_id?.student_code ?? null, full_name: item.student_id?.full_name ?? null, class_id: item.student_id?.class_id ?? null,
+        room_id: effectiveRoom || null,
+        bed_id: effectiveBed || null,
+        active_contract_id: activeContract?._id || null,
+        assigned_room_name: effectiveRoom?.room_name || effectiveRoom?.room_code || '',
+      };
+    });
     const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.source !== 'ADMIN_ENTRY') && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email])).map((item: any) => ({
       ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,
       source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.student_code ? 'MISSING_CLASS' : 'UNCLASSIFIED',
