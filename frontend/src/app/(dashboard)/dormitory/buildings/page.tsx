@@ -43,6 +43,7 @@ const toRoomMutationPayload = (form: FormValue): RoomMutationInput => ({
   description: form.description ? String(form.description) : undefined,
 });
 const formatRoomPrice = (value: unknown) => `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} VNĐ`;
+export const roomBedCountLabel = (room: Pick<Room, 'max_students'>) => String(room.max_students ?? 0);
 
 const mergeUnique = (current: Room[], incoming: Room[]) => {
   const byId = new Map(current.map(room => [room._id, room]));
@@ -235,7 +236,7 @@ export default function BuildingsPage() {
     { key: 'room_code', header: 'Mã phòng', priority: 'primary' },
     { key: 'room_name', header: 'Tên phòng', priority: 'secondary', render: (value, room) => value || room.room_code },
     { key: 'room_type', header: 'Loại phòng', render: value => String(value || 'Thường') },
-    { key: 'max_students', header: 'Số SV tối đa', render: value => String(value ?? 0) },
+    { key: 'max_students', header: 'Giường', render: (_, room) => roomBedCountLabel(room) },
     { key: 'current_students', header: 'Số SV hiện tại', render: value => String(value ?? 0) },
     { key: 'room_price', header: 'Giá phòng', render: value => formatRoomPrice(value) },
     { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, room) => <div className="flex items-center justify-end gap-1">{canUpdateRoom && <button aria-label={`Sửa phòng ${room.room_code}`} title="Sửa" onClick={() => openRoom(room)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteRoom && <button aria-label={`Xóa phòng ${room.room_code}`} title="Xóa" onClick={() => setRoomToDelete(room)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div> },

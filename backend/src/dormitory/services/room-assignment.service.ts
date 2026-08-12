@@ -224,11 +224,17 @@ export class RoomAssignmentService {
     const publicRegistration = reg ? null : await this.publicRegistrationModel.findById(registrationId);
     if (!reg && !publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
 
+    const activeContract = reg && typeof (this.contractModel as any).findOne === 'function'
+      ? await this.contractModel.findOne({ registration_id: registrationId, status: DORMITORY_ENUMS.contractStatus[0] })
+      : null;
+    const currentRoomId = this.id(activeContract?.room_id || reg?.room_id || publicRegistration?.room_id);
+
     const filter: any = { status: { $nin: [DORMITORY_ENUMS.roomStatus[2], DORMITORY_ENUMS.roomStatus[3]] } };
     if (reg?.preference?.room_type || publicRegistration?.room_type) filter.room_type = reg?.preference?.room_type || publicRegistration?.room_type;
     if (reg?.preference?.building_id) filter.building_id = reg.preference.building_id;
 
-    const rooms = await this.roomModel.find(filter).populate('building_id', 'building_code name').lean().exec();
+    const roomQuery = currentRoomId ? { $or: [{ _id: currentRoomId }, filter] } : filter;
+    const rooms = await this.roomModel.find(roomQuery).populate('building_id', 'building_code name').lean().exec();
     const roomsWithAvailability = await Promise.all(rooms.map(async (room: any) => {
       const [maxStudents, currentStudents, availableBedCount] = await Promise.all([
         this.bedModel.countDocuments({ room_id: room._id }),
@@ -245,10 +251,15 @@ export class RoomAssignmentService {
       };
     }));
 
-    return roomsWithAvailability
-      .filter((room) => room.available_bed_count > 0)
+    const sortedRooms = roomsWithAvailability
+      .filter((room) => room.available_bed_count > 0 || this.id(room._id) === currentRoomId)
       .sort((left, right) => right.available_bed_count - left.available_bed_count)
-      .slice(0, 10);
+    const suggestedRooms = sortedRooms.slice(0, 10);
+    if (currentRoomId && !suggestedRooms.some((room) => this.id(room._id) === currentRoomId)) {
+      const currentRoom = sortedRooms.find((room) => this.id(room._id) === currentRoomId);
+      if (currentRoom) suggestedRooms[suggestedRooms.length - 1] = currentRoom;
+    }
+    return suggestedRooms;
   }
 
   async transferRoom(dto: TransferRoomDto, user: any) {

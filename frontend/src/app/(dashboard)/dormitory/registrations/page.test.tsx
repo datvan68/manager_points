@@ -112,7 +112,7 @@ it('opens only the room picker belonging to the clicked table layout', async () 
   expect(screen.getByText('Còn 2 giường trống')).toBeInTheDocument();
 });
 
-it('assigns exactly one available bed when a room is clicked', async () => {
+it('shows every bed and assigns exactly one available bed after a room is selected', async () => {
   vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
     { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Trống', available_bed_count: 2, bed_count: 8 } as any,
   ]);
@@ -127,7 +127,10 @@ it('assigns exactly one available bed when a room is clicked', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: 'Thêm phòng cho Nguyễn Văn A' }));
   fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
+  expect(await screen.findByText('bed-used')).toBeInTheDocument();
+  expect(await screen.findByText('bed-free')).toBeInTheDocument();
 
+  fireEvent.click(screen.getByRole('button', { name: /bed-free/ }));
   await waitFor(() => expect(assignRoom).toHaveBeenCalledWith({
     registration_id: 'registration-1',
     room_id: 'room-1',
@@ -138,4 +141,22 @@ it('assigns exactly one available bed when a room is clicked', async () => {
     room: expect.objectContaining({ _id: 'room-1' }),
     bed: expect.objectContaining({ _id: 'bed-free' }),
   }));
+});
+
+it('keeps the current bed visible and marks it as selected without submitting it', async () => {
+  vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
+    { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Đầy', available_bed_count: 0, max_students: 1 } as any,
+  ]);
+  vi.spyOn(dormitoryApi.beds, 'getByRoom').mockResolvedValue([
+    { _id: 'bed-current', bed_code: 'G01', room_id: 'room-1', status: 'Đang sử dụng' } as any,
+  ]);
+  const assignRoom = vi.spyOn(dormitoryApi.registrations, 'assignRoom').mockResolvedValue({});
+
+  render(<RoomAssignmentPopover row={{ _id: 'registration-1', room_id: 'room-1', bed_id: 'bed-current', student_id: { full_name: 'Nguyễn Văn A' } } as any} onAssigned={vi.fn()} />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Đổi phòng cho Nguyễn Văn A' }));
+  fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
+  expect(await screen.findByText('Đang chọn')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /G01/ })).toBeDisabled();
+  expect(assignRoom).not.toHaveBeenCalled();
 });

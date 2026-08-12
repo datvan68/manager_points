@@ -125,32 +125,50 @@ type RoomAssignmentPopoverProps = {
 export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopoverProps) {
   const [open, setOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [beds, setBeds] = useState<Bed[]>([]);
   const [loading, setLoading] = useState(false);
+  const [bedsLoading, setBedsLoading] = useState(false);
   const [error, setError] = useState('');
   const [assigning, setAssigning] = useState(false);
   const currentRoomId = typeof row.room_id === 'object' ? row.room_id._id : row.room_id;
+  const currentBedId = typeof row.bed_id === 'object' ? row.bed_id._id : row.bed_id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) return;
 
     setRooms([]);
+    setSelectedRoom(null);
+    setBeds([]);
     setError('');
     setLoading(true);
     void dormitoryApi.registrations.suggestRooms(row._id)
-      .then((nextRooms) => setRooms(nextRooms.filter(room => room._id !== currentRoomId)))
+      .then(setRooms)
       .catch((err: any) => setError(err?.message || 'Không thể tải danh sách phòng.'))
       .finally(() => setLoading(false));
   };
 
-  const assignRoom = async (room: Room) => {
-    if (assigning || room.available_bed_count <= 0 || room.status !== 'Trống') return;
+  const selectRoom = async (room: Room) => {
+    if (assigning) return;
+    setSelectedRoom(room);
+    setBeds([]);
+    setError('');
+    setBedsLoading(true);
+    try {
+      setBeds(await dormitoryApi.beds.getByRoom(room._id));
+    } catch (err: any) {
+      setError(err?.message || 'Không thể tải danh sách giường.');
+    } finally {
+      setBedsLoading(false);
+    }
+  };
+
+  const assignBed = async (room: Room, bed: Bed) => {
+    if (assigning || bed._id === currentBedId || !isAvailableBed(bed) || room.status !== 'Trống') return;
     setAssigning(true);
     setError('');
     try {
-      const beds = await dormitoryApi.beds.getByRoom(room._id);
-      const bed = beds.find(isAvailableBed);
-      if (!bed) throw new Error('Phòng không còn giường trống.');
       const result = await dormitoryApi.registrations.assignRoom({ registration_id: row._id, room_id: room._id, bed_id: bed._id });
       toast.success(currentRoomId ? 'Đã đổi phòng cho sinh viên' : 'Đã phân phòng cho sinh viên');
       setOpen(false);
@@ -178,19 +196,45 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
         ) : rooms.length === 0 ? (
           <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p>
         ) : (
-          <div className="max-h-64 space-y-1 overflow-y-auto">
-            {rooms.map(room => {
-              const selectable = room._id !== currentRoomId && room.status === 'Trống' && room.available_bed_count > 0;
-              return (
-                <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => void assignRoom(room)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
-                    <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}</span>
-                  </span>
-                  <span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span>
-                </button>
-              );
-            })}
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            <div className="space-y-1">
+              {rooms.map(room => {
+                const isCurrentRoom = room._id === currentRoomId;
+                const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
+                return (
+                  <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => void selectRoom(room)} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
+                      <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
+                    </span>
+                    <span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedRoom && (
+              <div className="border-t border-slate-200 pt-2">
+                <p className="px-2 pb-1 text-[11px] font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
+                {bedsLoading ? (
+                  <p className="px-2 py-2 text-xs text-slate-500">Đang tải giường...</p>
+                ) : beds.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-slate-500">Phòng chưa có giường.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {beds.map(bed => {
+                      const isCurrentBed = bed._id === currentBedId;
+                      const selectable = !isCurrentBed && selectedRoom.status === 'Trống' && isAvailableBed(bed);
+                      return (
+                        <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => void assignBed(selectedRoom, bed)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60">
+                          <span className="font-semibold text-slate-700">{bed.bed_code || bed._id}</span>
+                          <span className={`text-[11px] ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </PopoverContent>

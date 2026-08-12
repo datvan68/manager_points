@@ -1,97 +1,88 @@
 # Task Identity and Pipeline
 
-- Task: `dormitory-registration-reassignment-capacity-floor-removal`
-- Pipeline: `feature_development` + `bug_fix` + `data_migration`
+- Task: `dormitory-bed-capacity-and-explicit-bed-picker`
+- Pipeline: `feature_development` + `bug_fix`
 - Profile: Full; rules version `3.2.0`
-- Repository: `D:\PROJECT\manager_points`; branch `main`; base commit `b487b5eb1772c40c12fae3ed7615b169d6290450`; initial worktree clean.
+- Repository: `D:\PROJECT\manager_points`; branch `main`; base commit `13333a7d`; initial worktree clean.
 
 # Risk Level
 
-- Risk: high for the complete task because it changes room-assignment invariants across frontend/backend and includes optional persistent MongoDB repair/removal; source-only work and read-only audit are medium risk.
-- Reversibility: source/test changes are Git-revertible. Executed bed reconciliation and `$unset` of floor fields require a reviewed backup/rollback artifact.
-- Blast radius: dormitory registrations, rooms/buildings, public room response/UI, and the `buildings`, `rooms`, `beds`, registrations, and contracts collections. No production execution or deployment is authorized by this scope.
+- Risk: medium. The task changes room-capacity presentation and assignment selection across the dormitory frontend/backend, but does not authorize persistent-data repair, migration, deployment, or production changes.
+- Main risks: displaying a declared bed count instead of persisted beds, accidentally allowing selection of occupied/maintenance beds, hiding the student's current bed, or submitting a reassignment when the current bed is clicked.
+- Reversibility: all scoped source and test changes are Git-revertible.
 
 # Objective
 
-The registrations table continues to offer an explicit room-change action after assignment; assignment/reassignment leaves exactly one effective bed per student; displayed free/maximum capacity is derived from persisted bed records and agrees across registrations/buildings; and unused floor/storey fields are removed from dormitory frontend, backend, API contracts, and—only after a separate gate—from stored MongoDB documents.
+The buildings table has one `Giường` column whose value is the room's actual persisted bed count and therefore the maximum number of students the room can receive. The room-assignment picker shows every bed in the relevant room, including the student's current bed, marks that bed `Đang chọn`, and only submits a valid different available bed.
 
 # Scope Boundaries
 
-- Approved frontend: `frontend/src/app/(dashboard)/dormitory/registrations/**`, `frontend/src/app/(dashboard)/dormitory/buildings/**`, `frontend/src/app/public/room/[qrId]/page.tsx`, `frontend/src/api/dormitory-api.ts`, and their focused tests.
-- Approved backend: `backend/src/dormitory/**` plus a focused `backend/scripts/**` audit/migration script and package script entries if required.
-- Known targets: `RoomAssignmentPopover`, registration action visibility and row reconciliation; registration list normalization; `RoomAssignmentService.assignRoom/transferRoom/suggestRooms`; `RoomsService.findAll/ensureRoomBeds/syncRoomAvailability`; building/room schemas and DTOs; QR room response; frontend `Building`/`Room` types and building/public-room rendering.
-- Database audit is read-only by default and may report only room/building codes and aggregate counts; no student PII or connection string is logged.
-- Capacity contract:
-  - `current_students` is effective occupied-bed/active-assignment count.
-  - `max_students` is the count of persisted bed documents for the room.
-  - `available_bed_count` is the count of persisted beds with status `Trống`.
-  - `rooms.bed_count` remains declared capacity for create/update/reconciliation, but runtime maximum/free displays must not trust it when persisted beds disagree.
+- Frontend: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `frontend/src/api/dormitory-api.ts` only if the response typing must be aligned, and focused tests beside/in `frontend/src/api/dormitory-api.test.ts`.
+- Backend: `backend/src/dormitory/services/room-assignment.service.ts`, `backend/src/dormitory/services/rooms.service.ts`, their focused tests, and a response DTO/type only if required to identify the current room/bed without ambiguity.
+- Capacity source of truth: the count of persisted `beds` documents for a room. Existing projected `max_students` may remain an internal/API field, but the buildings UI must present it under the single heading `Giường`; it must not add or retain a `Số SV tối đa` column.
+- Assignment source of truth: the effective `room_id` and `bed_id` from the registration list response, including active-contract normalization already implemented.
+- Bed picker states:
+  - current effective bed: visible, disabled, text `Đang chọn`;
+  - other `Trống` bed in an assignable room: visible and selectable;
+  - `Đang sử dụng` or `Bảo trì` bed: visible, disabled, with its status shown;
+  - the current room remains visible even when it has no other free bed.
 
 # Out of Scope
 
-- Deployment, production mutation, deleting rooms/buildings/students/contracts, changing pricing or room types, and unrelated dormitory screens.
-- Changing bed `position` values unless a verified stored value is specifically a floor/storey artifact; the current audited bed contains no such text.
-- Silent repair during GET/list/suggestion requests. Read paths must not create or delete beds.
-- Automatically choosing whether to modify production data. Migration execution requires the Safety Gate below.
+- Creating, deleting, reconciling, or migrating bed records; changing `rooms.bed_count`; database writes outside the normal assignment transaction.
+- Removing `max_students` from the backend/API if other consumers still require it. This task changes the user-facing column name and mapping, not the established capacity projection contract.
+- Changing assignment concurrency/rollback rules, room pricing, permissions, registration approval, floor removal, deployment, or production data.
+- Allowing the current bed, another occupied bed, or a maintenance bed to be submitted.
 
 # Context and Dependencies
 
-- Frontend currently hides room assignment after assignment with `canAssignRoom && !hasAssignedBed(r)`. Backend `assignRoom()` also rejects an existing bed or active contract, so removing the UI condition alone cannot satisfy reassignment.
-- Existing `transferRoom()` handles active contracts but updates only the contract; registration list normalization can prefer stale registration room data. The effective room/bed source must be deterministic and returned to the UI, including an active contract identifier when needed.
-- `suggestRooms()` currently calls `ensureRoomBeds()`, so a GET-like suggestion request can mutate data. It must become read-only; repair belongs in the explicit migration path.
-- Buildings currently show stored `bed_count` and an active-contract count named `total_students`; they do not expose persisted-bed-derived maximum capacity.
-- Floor/storey fields still exist in `Building.floor_count`, `Room.floor`, create/update DTOs, frontend API types/defaults/list text, the QR response, the public room page, and a room schema test. Removing schema fields alone will not remove existing MongoDB keys.
-- Read-only local database audit on 2026-08-12 found one room, `KTX01`: declared `bed_count = 5`, one persisted bed, zero persisted free beds, cached `available_bed_count = 0`, and the one bed is in use. The single room has `floor`; the single building has `floor_count`. This confirms a real declared-versus-persisted bed mismatch without exposing PII.
+- The buildings table currently renders `max_students` under `Số SV tối đa` and also shows `current_students`. The requested change is to rename only the maximum-capacity column to `Giường`, still using persisted-bed-derived `max_students`; `rooms.bed_count` must not be used as a fallback when it disagrees with persisted beds.
+- `RoomAssignmentPopover` currently presents rooms, removes the current room from suggestions, fetches beds only after a room click, automatically chooses the first free bed, and never renders individual beds. This cannot display or label the current bed.
+- Registration list rows already carry populated/effective `room_id` and `bed_id`. `beds.getByRoom(roomId)` returns all bed records and includes `bed_code` and `status`.
+- `suggestRooms()` currently filters out rooms with zero free beds. It must include the effective current room for display while preserving existing eligibility filters for other suggested rooms; read paths must remain read-only.
+- The assignment endpoint already accepts an explicit `{ registration_id, room_id, bed_id }` and rejects reselecting the current bed or reserving a non-free bed. Those backend safeguards remain authoritative.
 
 # Steps
 
-1. Baseline focused tests and add a read-only, non-production-safe audit that reports per-room declared beds, persisted total/free/used beds, effective assignments/contracts, cached availability, and presence of `floor`/`floor_count`.
-2. Define one backend capacity projection from `beds`; return `max_students`, `current_students`, and `available_bed_count` consistently from room listing and room suggestions. Remove bed creation from `suggestRooms()` and keep create/update provisioning explicit and idempotent.
-3. Implement one reassignment command for registrations:
-   - without an active contract, atomically reserve the new bed, conditionally replace the matching old assignment, release the old bed, and sync both rooms;
-   - with an active contract, transfer the effective contract room/bed and keep registration/list projection consistent;
-   - on any conflict or intermediate failure, preserve the complete old assignment and availability state.
-4. Keep the room action visible after assignment, label it “Đổi phòng” when applicable, exclude the current effective room/bed from invalid choices, call the correct assignment/reassignment contract, and refresh/reconcile the row from the server response. Display room availability as `Còn X/Y giường trống` using persisted counts.
-5. In buildings, expose “Số SV tối đa” from `max_students` (persisted beds), retain current occupancy only as a separately named value if shown, and never substitute active-contract count for maximum capacity.
-6. Remove floor/storey fields and rendering from backend schemas/DTOs/QR projection, frontend API types/defaults/building/public-room UI, obsolete tests, and relevant dormitory field-mapping artifacts. Add migration tests proving new payloads reject/ignore obsolete fields according to the global validation contract.
-7. Add a dry-run-first migration with non-production guard, backup manifest, execute flag, and rollback support to reconcile missing bed documents up to declared `bed_count`, recalculate cached availability, and `$unset` `rooms.floor`/`buildings.floor_count`. Stop at the Human Gate before execute.
-8. Run focused tests, builds/typecheck, repeat the read-only audit, and review the final diff/status for unintended changes.
+1. Add focused failing tests for the `Giường` column mapping and for a bed-level assignment picker that shows all bed states, including the current bed labelled `Đang chọn`.
+2. Adjust the room suggestion projection so the effective current room is returned even when full, without admitting unrelated full/locked/maintenance rooms or performing writes during the read request.
+3. Refactor `RoomAssignmentPopover` into explicit room-and-bed selection: load/render every bed for the chosen room, identify the current effective bed by normalized ID, and keep unavailable beds visible but disabled.
+4. Submit assignment only when the user clicks a different `Trống` bed. Keep the current bed disabled with `Đang chọn`; show the backend bed status for other disabled beds; preserve loading, empty, and error states.
+5. Replace the buildings table heading `Số SV tối đa` with `Giường` and render the persisted-bed-derived maximum (`max_students`). Do not introduce a second maximum-capacity column and do not fall back to declared `bed_count`.
+6. Run focused frontend/backend tests, frontend typecheck, backend build, and inspect the final diff/status for unintended changes.
 
 # Acceptance Criteria
 
-- AC1: Every registration row eligible for assignment retains an action after initial assignment; its label changes to “Đổi phòng”, and a successful change displays the server-confirmed new room/bed without a page reload.
-- AC2: Reassignment is safe under concurrency: one bed cannot be assigned twice, one student has exactly one effective bed, and the previous bed is released only after the new assignment succeeds. A failed change leaves registration, active contract, both beds, and both room counts unchanged.
-- AC3: Active-contract and non-contract registrations both use the effective current room/bed in list responses and UI; stale registration fields cannot override an active contract transfer.
-- AC4: Registrations display `Còn X/Y giường trống`, where `X` and `Y` are counted from persisted `beds`; buildings display `max_students = Y`. `current_students <= max_students`, and cached availability is not used as an unverified source of truth.
-- AC5: Room create/update provisioning remains idempotent; suggestion/list GET requests perform no inserts, updates, or deletes. Mismatch repair occurs only through the explicit gated migration.
-- AC6: No supported backend DTO/schema/response or frontend type/UI contains `floor` or `floor_count`; building and public room views contain no floor text. Post-migration audit finds neither key in `rooms`/`buildings`.
-- AC7: Dry-run reports `KTX01` as declared 5 versus persisted 1 before repair. After separately approved execution, it reports five unique persisted beds, four free/one used for the audited state, matching cached availability and maximum capacity; rerunning execute makes no further changes.
+- AC1: The buildings table contains `Giường` and does not contain `Số SV tối đa`; its displayed value equals the backend count of persisted beds (`max_students`), which is the maximum students accepted for that room.
+- AC2: A room with declared `bed_count = 5` but one persisted bed displays `Giường = 1`; the UI does not silently show 5.
+- AC3: Opening assignment/change-room shows the effective current room and every persisted bed in a selected room, including free, occupied, maintenance, and current beds.
+- AC4: The effective current bed is visually labelled exactly `Đang chọn`, remains visible even when its status is `Đang sử dụng`, and cannot trigger an API request.
+- AC5: A different free bed is selectable and sends its exact `room_id` and `bed_id`. Occupied/maintenance beds remain visible but disabled and send no request.
+- AC6: If the current room has no other free bed, it is still present so the current bed can be seen; unrelated rooms with no assignable beds are not offered as choices.
+- AC7: Assignment errors keep the picker state understandable and do not optimistically change the table row; successful assignment applies the server-confirmed room/bed and closes the picker.
+- AC8: Suggestion and bed-list reads perform no inserts, updates, deletes, or automatic reconciliation.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/room-assignment.service.spec.ts dormitory/services/registrations.service.spec.ts dormitory/services/rooms.service.spec.ts dormitory/schemas/room.schema.spec.ts` => assignment, reassignment, rollback, concurrency, capacity projection, and removed-floor cases pass.
-- `D:\PROJECT\manager_points\backend` :: repository-native audit/migration dry-run command added by implementation => reports mismatches and floor keys, performs zero writes, masks the connection string, and refuses production.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/room-assignment.service.spec.ts dormitory/services/rooms.service.spec.ts` => current-room suggestion inclusion, unrelated-full-room exclusion, read-only behavior, and persisted-bed capacity projection pass.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/api/dormitory-api.test.ts"` => persistent change-room action, `X/Y` capacity, maximum-student, API contract, and no-floor regressions pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/api/dormitory-api.test.ts"` => explicit bed states/selection, `Đang chọn`, exact assignment DTO, error behavior, and `Giường` mapping pass. Create the missing buildings test file within scope.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => TypeScript passes.
-- Manual development check: assign and then change a student between two rooms; simulate a taken-bed conflict; confirm the old assignment survives failure and both tabs show the same persisted capacity.
-- After separately approved migration execute: rerun audit and compare to the reviewed before/after manifest; verify idempotent second run and absence of `floor`/`floor_count` keys.
+- Manual development check: open a student's room picker, verify the current bed plus all sibling beds and statuses, click the current/occupied/maintenance beds and confirm no request, then select another free bed and confirm the row updates to the server-confirmed assignment.
 
 # Safety Gates
 
-- Gate A — None: source/test implementation, builds, and read-only database audit in development.
-- Gate B — Human approval required before any migration `--execute`, including local/development data, because it inserts bed documents and removes stored fields. Required evidence: target database/environment, masked URI, dry-run output, backup path/hash, exact affected counts, rollback command, and non-production guard result.
-- Production migration, deployment, or persistent repair is not authorized by this taskscope and requires an additional explicit request and environment-specific approval.
+- Gate: None for scoped source edits, tests, builds, and read-only development inspection.
+- Persistent database repair/migration, deployment, production mutation, or destructive cleanup is not authorized and requires a separate explicit request and applicable Human Gate.
 
 # Artifacts and Checkpoints
 
-- Base checkpoint: commit `b487b5eb1772c40c12fae3ed7615b169d6290450`; clean status before planning edit.
-- Planning evidence: redacted read-only audit summarized in Context and Dependencies.
-- Execution artifacts: focused test/build/typecheck outputs, audit dry-run report, migration before/after manifest, backup/rollback evidence, and final `git diff`/status.
-- Do not include database credentials or student PII in repository artifacts or logs.
+- Base checkpoint: commit `13333a7d`; clean worktree before this planning edit.
+- Required execution evidence: focused test/build/typecheck outputs and final `git diff`/status.
+- Do not log connection strings, credentials, or student PII.
 
 # Execution Budgets
 
-- One writer per path. Serialize backend contract/invariant changes before frontend alignment; migration execute cannot overlap application writes.
-- Step deadline: 900 seconds (maximum 1,800); retries: 2; engineering loops: 3; review-remediation cycles: 2.
-- Stop and amend scope for a new collection/schema redesign, public API break beyond removing floor fields, a fourth application module outside dormitory, destructive cleanup beyond the enumerated `$unset`/bed reconciliation, production effects, or security-sensitive expansion.
+- Serialize backend suggestion-contract changes before frontend picker alignment; one writer per path.
+- Step deadline: 900 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.
+- Stop and amend scope if implementation requires a new collection/schema, persistent bed repair, a public breaking API change, modules outside the listed dormitory boundary, production effects, or security-sensitive work.

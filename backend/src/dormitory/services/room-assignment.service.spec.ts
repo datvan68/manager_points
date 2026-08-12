@@ -91,6 +91,36 @@ describe('RoomAssignmentService', () => {
     expect(bedModel.countDocuments).toHaveBeenCalledWith({ room_id: 'room-1', status: 'Trống' });
   });
 
+  it('keeps the effective current room visible when it has no free beds', async () => {
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'registration-1', room_id: 'room-current', preference: {} }),
+    };
+    const roomModel: any = {
+      find: jest.fn().mockReturnValue(roomsQuery([
+        { _id: 'room-current', room_code: 'A101', status: 'Đầy' },
+        { _id: 'room-other', room_code: 'A102', status: 'Trống' },
+      ])),
+    };
+    const bedModel: any = {
+      countDocuments: jest.fn()
+        .mockResolvedValueOnce(1).mockResolvedValueOnce(1).mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(2).mockResolvedValueOnce(0).mockResolvedValueOnce(2),
+    };
+    const service = new RoomAssignmentService(
+      roomModel,
+      bedModel,
+      registrationModel,
+      { findOne: jest.fn().mockResolvedValue(null) } as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.suggestRooms('registration-1')).resolves.toEqual([
+      expect.objectContaining({ _id: 'room-other', available_bed_count: 2 }),
+      expect.objectContaining({ _id: 'room-current', available_bed_count: 0 }),
+    ]);
+  });
+
   it('releases the bed when registration persistence fails', async () => {
     const registrationModel: any = {
       findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: DORMITORY_ENUMS.registrationStatus[1] }),
