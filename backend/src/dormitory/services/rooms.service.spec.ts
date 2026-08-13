@@ -40,9 +40,11 @@ describe('RoomsService', () => {
 
   it('adds only missing bed records for an existing room', async () => {
     const bedModel: any = {
-      find: jest.fn().mockReturnValue(bedsQuery([
+      find: jest.fn().mockReturnValueOnce(bedsQuery([
         { bed_code: 'CUSTOM' },
         { bed_code: 'G01' },
+      ])).mockReturnValueOnce(bedsQuery([
+        { bed_code: 'A101-G1' }, { bed_code: 'A101-G2' }, { bed_code: 'A101-G3' }, { bed_code: 'A101-G4' },
       ])),
       bulkWrite: jest.fn().mockResolvedValue(undefined),
     };
@@ -97,7 +99,7 @@ describe('RoomsService', () => {
     expect(roomModel.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
-  it('treats a duplicate-key race during bed provisioning as idempotent', async () => {
+  it('rejects a partial duplicate-key result after the final postcondition check', async () => {
     const bedModel: any = {
       find: jest.fn().mockReturnValue(bedsQuery([])),
       bulkWrite: jest.fn().mockRejectedValue({ code: 11000 }),
@@ -106,7 +108,28 @@ describe('RoomsService', () => {
     const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
     jest.spyOn(service, 'syncRoomAvailability').mockResolvedValue(undefined);
 
+    await expect(service.ensureRoomBeds('room-1', 2)).rejects.toThrow();
+    expect(service.syncRoomAvailability).not.toHaveBeenCalled();
+  });
+
+  it('accepts a duplicate-key race only when the final canonical beds exist', async () => {
+    const bedModel: any = {
+      find: jest.fn().mockReturnValueOnce(bedsQuery([])).mockReturnValueOnce(bedsQuery([
+        { bed_code: 'A101-G1' }, { bed_code: 'A101-G2' },
+      ])),
+      bulkWrite: jest.fn().mockRejectedValue({ code: 11000 }),
+    };
+    const roomModel: any = { findById: jest.fn().mockResolvedValue({ room_code: 'A101' }) };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
+    jest.spyOn(service, 'syncRoomAvailability').mockResolvedValue(undefined);
+
     await expect(service.ensureRoomBeds('room-1', 2)).resolves.toBeUndefined();
     expect(service.syncRoomAvailability).toHaveBeenCalledWith('room-1');
+  });
+
+  it('rejects invalid bed counts', async () => {
+    const service = new RoomsService({} as any, {} as any, {} as any, {} as any);
+    await expect(service.ensureRoomBeds('room-1', 0)).rejects.toThrow();
+    await expect(service.ensureRoomBeds('room-1', 1.5)).rejects.toThrow();
   });
 });

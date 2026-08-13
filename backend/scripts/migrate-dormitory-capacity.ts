@@ -38,22 +38,14 @@ export type DormitoryCapacityReport = {
   has_floor_value?: unknown;
   planned_bed_codes?: string[];
   mismatch_categories?: string[];
+  missing_expected_codes?: string[];
+  protected_beds?: string[];
 };
 
 const roomStatus = { empty: 'Trống', full: 'Đầy', locked: 'Khóa', maintenance: 'Bảo trì' };
 const bedStatus = { free: 'Trống', used: 'Đang sử dụng' };
 
-const plannedBedCodes = (existingCodes: string[], missingCount: number) => {
-  const existing = new Set(existingCodes);
-  const result: string[] = [];
-  let sequence = 1;
-  while (result.length < missingCount) {
-    const code = `G${sequence.toString().padStart(2, '0')}`;
-    if (!existing.has(code)) result.push(code);
-    sequence += 1;
-  }
-  return result;
-};
+const expectedBedCodes = (roomCode: string, count: number) => Array.from({ length: count }, (_, i) => `${roomCode}-G${i + 1}`);
 
 export async function collectCapacityReport(db: Db): Promise<DormitoryCapacityReport[]> {
   const buildings = await db.collection('buildings').find({}, { projection: { building_code: 1, floor_count: 1 } }).toArray();
@@ -62,30 +54,39 @@ export async function collectCapacityReport(db: Db): Promise<DormitoryCapacityRe
   const reports: DormitoryCapacityReport[] = [];
 
   for (const room of rooms as any[]) {
-    const beds = await db.collection('beds').find({ room_id: room._id }, { projection: { bed_code: 1, status: 1 } }).toArray();
+    const beds = await db.collection('beds').find({ room_id: room._id }, { projection: { bed_code: 1, status: 1, has_history: 1 } }).toArray();
+    const activeBeds = beds.filter((bed: any) => bed.status !== 'Đã nghỉ');
+    const expectedCodes = expectedBedCodes(String(room.room_code || '').trim().toUpperCase(), Number(room.bed_count || 0));
+    const activeCodes = new Set(activeBeds.map((bed: any) => String(bed.bed_code || '').toUpperCase()));
+    const missingExpectedCodes = expectedCodes.filter((code) => !activeCodes.has(code));
     const registrations = await db.collection('registrations').countDocuments({ room_id: room._id, bed_id: { $exists: true, $ne: null } });
     const contracts = await db.collection('contracts').countDocuments({ room_id: room._id, status: 'Hiệu lực' });
     const mismatch_categories: string[] = [];
-    if (Number(room.bed_count || 0) !== beds.length) mismatch_categories.push(beds.length < Number(room.bed_count || 0) ? 'missing_beds' : 'surplus_beds');
-    if (typeof room.available_bed_count === 'number' && room.available_bed_count !== beds.filter((bed: any) => bed.status === bedStatus.free).length) mismatch_categories.push('cached_available_mismatch');
-    if (new Set(beds.map((bed: any) => bed.bed_code)).size !== beds.length) mismatch_categories.push('duplicate_bed_codes');
-    if (registrations > beds.filter((bed: any) => bed.status === bedStatus.used).length || contracts > beds.filter((bed: any) => bed.status === bedStatus.used).length) mismatch_categories.push('occupancy_mismatch');
+    if (Number(room.bed_count || 0) !== activeBeds.length) mismatch_categories.push(activeBeds.length < Number(room.bed_count || 0) ? 'missing_beds' : 'surplus_beds');
+    if (missingExpectedCodes.length) mismatch_categories.push('missing_expected_codes');
+    if (typeof room.available_bed_count === 'number' && room.available_bed_count !== activeBeds.filter((bed: any) => bed.status === bedStatus.free).length) mismatch_categories.push('cached_available_mismatch');
+    if (new Set(activeBeds.map((bed: any) => bed.bed_code)).size !== activeBeds.length) mismatch_categories.push('duplicate_bed_codes');
+    if (registrations > activeBeds.filter((bed: any) => bed.status === bedStatus.used).length || contracts > activeBeds.filter((bed: any) => bed.status === bedStatus.used).length) mismatch_categories.push('occupancy_mismatch');
+    const protectedBeds = beds.filter((bed: any) => bed.status === bedStatus.used || bed.has_history).map((bed: any) => bed.bed_code);
+    if (protectedBeds.length) mismatch_categories.push('protected_occupied_or_history');
     reports.push({
       room_code: room.room_code || '(unknown)',
       building_code: buildingCodes.get(String(room.building_id))?.code || '(unknown)',
       has_floor_count: buildingCodes.get(String(room.building_id))?.has_floor_count || false,
       declared_beds: Number(room.bed_count || 0),
-      persisted_total: beds.length,
-      persisted_free: beds.filter((bed: any) => bed.status === bedStatus.free).length,
-      persisted_used: beds.filter((bed: any) => bed.status === bedStatus.used).length,
+      persisted_total: activeBeds.length,
+      persisted_free: activeBeds.filter((bed: any) => bed.status === bedStatus.free).length,
+      persisted_used: activeBeds.filter((bed: any) => bed.status === bedStatus.used).length,
       registration_assignments: registrations,
       active_contracts: contracts,
       status: room.status || roomStatus.empty,
       cached_available: typeof room.available_bed_count === 'number' ? room.available_bed_count : null,
       has_floor: Object.prototype.hasOwnProperty.call(room, 'floor'),
       has_floor_value: room.floor,
-      planned_bed_codes: plannedBedCodes(beds.map((bed: any) => bed.bed_code), Math.max(0, Number(room.bed_count || 0) - beds.length)),
+      planned_bed_codes: missingExpectedCodes,
       mismatch_categories,
+      missing_expected_codes: missingExpectedCodes,
+      protected_beds: protectedBeds,
     });
   }
   return reports;

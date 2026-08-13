@@ -94,6 +94,9 @@ export class RoomsService {
 
   /** Provisioning is explicit and idempotent; read paths never call this method. */
   async ensureRoomBeds(roomId: string, bedCount: number): Promise<void> {
+    if (!Number.isInteger(bedCount) || bedCount <= 0) {
+      throw new ConflictException('Số lượng giường phải là số nguyên dương');
+    }
     let room: any = null;
     if (typeof (this.roomModel as any).findById === 'function') {
       const query: any = (this.roomModel as any).findById(roomId);
@@ -157,6 +160,26 @@ export class RoomsService {
       } catch (error) {
         if (!isDuplicateKeyError(error)) throw error;
       }
+    }
+
+    const finalBeds = await this.bedModel
+      .find({ room_id: roomId })
+      .select('bed_code status')
+      .lean()
+      .exec();
+    const finalActiveBeds = finalBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]);
+    const canonicalActiveCodes = finalActiveBeds
+      .map((bed: any) => String(bed.bed_code || '').toUpperCase())
+      .filter((code) => code.startsWith(`${roomCode}-G`) && /^\d+$/.test(code.slice(`${roomCode}-G`.length)));
+    const expectedCodes = new Set(canonicalActiveCodes);
+    for (let sequence = 1; expectedCodes.size < bedCount && sequence <= bedCount * 2; sequence += 1) {
+      expectedCodes.add(`${roomCode}-G${sequence}`);
+    }
+    const finalCodes = new Set(finalActiveBeds.map((bed: any) => String(bed.bed_code || '').toUpperCase()));
+    const hasExpectedCodes = expectedCodes.size === bedCount && [...expectedCodes].every((code) => finalCodes.has(code));
+    const allCodesCanonical = finalActiveBeds.every((bed: any) => String(bed.bed_code || '').toUpperCase().startsWith(`${roomCode}-G`));
+    if (finalActiveBeds.length !== bedCount || !hasExpectedCodes || !allCodesCanonical) {
+      throw new ConflictException(`Không thể đảm bảo ${bedCount} giường hoạt động cho phòng ${roomCode}`);
     }
 
     await this.syncRoomAvailability(roomId);

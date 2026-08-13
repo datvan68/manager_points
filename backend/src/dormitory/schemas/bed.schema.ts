@@ -31,3 +31,4 @@ export const BedSchema = SchemaFactory.createForClass(Bed);
 
 // Compound unique index: bed_code unique within a room
 BedSchema.index({ bed_code: 1, room_id: 1 }, { unique: true });
+// Legacy ma_giuong indexes are removed by the guarded dormitory migration.

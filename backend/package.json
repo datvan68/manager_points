@@ -40,6 +40,8 @@
     "migration:dormitory-capacity:dry-run": "ts-node scripts/migrate-dormitory-capacity.ts",
     "migration:dormitory-capacity:execute": "ts-node scripts/migrate-dormitory-capacity.ts --execute",
     "migration:dormitory-capacity:rollback:execute": "ts-node scripts/migrate-dormitory-capacity.ts --rollback --execute"
+    ,"migration:dormitory-bed-index:dry-run": "ts-node scripts/migrate-dormitory-bed-index.ts"
+    ,"migration:dormitory-bed-index:execute": "ts-node scripts/migrate-dormitory-bed-index.ts --execute"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",
