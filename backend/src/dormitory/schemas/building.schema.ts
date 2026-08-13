@@ -18,7 +18,7 @@ export class Building {
   @Prop({
     required: true,
     enum: DORMITORY_ENUMS.buildingStatus,
-    default: 'Active',
+    default: 'Trống',
   })
   status: string;
 

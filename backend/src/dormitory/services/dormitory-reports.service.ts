@@ -36,7 +36,7 @@ export class DormitoryReportsService {
    * UC13/FR13: Occupancy report by building
    */
   async getOccupancyReport() {
-    const buildings = await this.buildingModel.find({ status: 'Active' }).exec();
+      const buildings = await this.buildingModel.find({ status: 'Trống' }).exec();
 
     const roomCounts = await this.bedModel.aggregate([
       { $match: { status: { $ne: 'Đã nghỉ' } } },

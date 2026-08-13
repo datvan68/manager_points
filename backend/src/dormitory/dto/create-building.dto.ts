@@ -21,7 +21,7 @@ export class CreateBuildingDto {
   address?: string;
 
   @IsOptional()
-  @IsEnum(['Active', 'Inactive', 'Maintenance'])
+  @IsEnum(['Trống', 'Đầy'])
   status?: string;
 
   @IsOptional()

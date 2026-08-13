@@ -1,103 +1,87 @@
 # Task Identity and Pipeline
 
-- Task: `fix-room-capacity-update-bed-guarantee-warning`
-- Pipeline: `bug_fix` + `data_migration`
+- Task: `fix-room-create-bed-provisioning-and-building-statuses`
+- Pipeline: `bug_fix` + `feature_development` + `data_migration`
 - Profile: Full; rules version `3.2.0`
-- Repository: `D:\PROJECT\manager_points`; branch `main`.
+- Repository: `D:\PROJECT\manager_points`; current branch/worktree only.
 
 # Risk Level
 
-- Risk: high. The warning is caused by a database index that blocks bed provisioning, while the room update flow can persist part of a capacity change before provisioning succeeds.
-- Source changes are Git-revertible. Dropping an index or reconciling room/bed data is a persistent database mutation and requires an explicit Human Gate.
+- Risk: high. The change spans room creation, bed persistence, backend/frontend enum contracts, and existing MongoDB indexes/data.
+- Code changes are Git-revertible. Index or persisted-status changes require explicit Human Gates.
 
 # Objective
 
-Allow an authorized capacity change for room `KTX01` to complete only when the room and its active bed records reach one consistent final state. A requested capacity of 5 must result in exactly five active beds, `KTX01-G1` through `KTX01-G5`, without the warning `Khong the dam bao 5 giuong hoat dong cho phong KTX01` and without replacing the occupied `KTX01-G1` record.
+Creating room `KTX01` with `bed_count = 3` succeeds only after exactly three active beds with unique codes `KTX01-G1`, `KTX01-G2`, and `KTX01-G3` exist. Buildings accept and expose only `Trống` and `Đầy` as status values across schema, validation, API typing, and the buildings page.
 
 # Scope Boundaries
 
-- Capacity-update orchestration in `backend/src/dormitory/services/rooms.service.ts`.
-- Focused regression tests in `backend/src/dormitory/services/rooms.service.spec.ts`.
-- Guarded legacy-index migration in `backend/scripts/migrate-dormitory-bed-index.ts` and its focused tests.
-- A focused, idempotent reconciliation path for room `KTX01`; do not reuse the broad capacity migration execute path unchanged.
-- Read-only development database audits before and after any approved mutation.
-- Invariant after success: `room.bed_count === count(non-retired beds for room)` and every active bed code is unique within that room.
+- Room/bed provisioning: `backend/src/dormitory/services/rooms.service.ts` and focused tests in `rooms.service.spec.ts`.
+- Bed index repair: guarded changes/tests for `backend/scripts/migrate-dormitory-bed-index.ts` and package scripts only if required.
+- Building status contract: backend dormitory enums, building schema, create/update DTOs, and focused backend tests.
+- Buildings UI/API contract: `frontend/src/api/dormitory-api.ts`, `frontend/src/api/dormitory-enums.ts`, `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, and focused tests.
+- A guarded, idempotent migration for existing building statuses, with dry-run and rollback evidence.
 
 # Out of Scope
 
-- Bed-management UI, room-table redesign, student reassignment, contract changes, or unrelated dormitory cleanup.
-- Deleting, renaming, retiring, or replacing occupied/historical bed `KTX01-G1`.
-- Executing the existing broad capacity migration when it would also change unrelated room/building fields.
-- Production deployment or production database mutation.
+- Manual database edits, production execution/deployment, unrelated dormitory cleanup, room-status reduction, or changing occupied/historical bed identity.
+- Suppressing the warning without satisfying the final bed invariant.
+- Automatically deriving building status from room occupancy unless separately requested; this scope limits and migrates the stored/API values.
 
-# Confirmed Evidence
+# Context and Dependencies
 
-- Read-only capacity audit on 2026-08-13: `KTX01` declares 5 beds but has 1 persisted active bed; that bed is occupied and cached availability is 0.
-- Read-only index audit on 2026-08-13: `beds` still contains legacy unique index `ma_giuong_1_room_id_1` and canonical unique index `bed_code_1_room_id_1`.
-- New bed documents use `bed_code` and do not populate `ma_giuong`. The legacy unique compound index therefore rejects additional beds in the same room as duplicate missing `ma_giuong` values.
-- `ensureRoomBeds()` now re-queries the final bed state and intentionally throws the reported warning when the requested count was not reached. The warning is a correct safety failure; suppressing or weakening it is not a valid fix.
-- `RoomsService.update()` currently persists the room update before calling `ensureRoomBeds()`. If provisioning fails, the request returns an error after part of the update may already be stored.
-- The existing `migration:dormitory-capacity:execute` path has broader side effects, including unrelated room/building field cleanup, so it is not approved for this focused repair.
+- `ensureRoomBeds()` already generates canonical codes using the uppercase room code plus `-G1`, `-G2`, and so on, performs idempotent upserts, then verifies the final active-bed count and codes.
+- `RoomsService.create()` saves the room, provisions beds, and attempts to remove the new room and its beds when provisioning fails.
+- The verified development database previously contained both canonical unique index `{ bed_code, room_id }` and legacy unique index `{ ma_giuong, room_id }`. New beds omit `ma_giuong`, so the legacy index can reject the second and third bed and cause the reported warning.
+- Building status currently uses `Active`, `Inactive`, and `Maintenance` in backend enum/schema/DTOs and frontend types/UI. Existing documents therefore require an audited mapping before the enum is narrowed.
+- Proposed migration mapping: `Active -> Trống`; `Inactive` and `Maintenance` must be reported separately in dry-run and require an explicitly reviewed mapping because collapsing them loses operational meaning.
 
 # Steps
 
-1. Add a regression test for updating `KTX01` to capacity 5 while only `KTX01-G1` exists and the legacy index causes new-bed writes to fail. Assert that the API does not report success and that no partial room-capacity change is left behind.
-2. Make capacity updates atomic from the service contract perspective:
-   - capture the original room capacity and affected bed state;
-   - validate increases and decreases before persisting the room field;
-   - provision or retire only the required beds;
-   - persist `room.bed_count` only after the bed postcondition succeeds;
-   - if a later write fails, compensate only beds changed by this request and restore the original room state;
-   - never compensate by deleting or modifying an occupied or historical bed.
-3. Keep the strict `ensureRoomBeds()` postcondition and improve failure classification/logging so an index conflict is distinguishable from an invalid count or protected-bed constraint. Preserve the user-safe API message and do not expose database/index details to clients.
-4. Complete focused tests for:
-   - increase from one active bed to five;
-   - retry/idempotency when all five beds already exist;
-   - legacy-index duplicate failure with compensation;
-   - room-update failure after bed provisioning with compensation;
-   - decrease using only empty beds without history;
-   - refusal to decrease when occupied or historical beds would be affected.
-5. Verify `migrate-dormitory-bed-index.ts` remains guarded and idempotent: exact legacy key/name match, canonical unique index required, dry-run has zero writes, already-absent legacy index is a no-op, and rollback recreates the reviewed definition.
-6. After explicit development approval, execute only the guarded bed-index migration to remove `ma_giuong_1_room_id_1`; preserve `bed_code_1_room_id_1`.
-7. After separate explicit development-data approval, reconcile only `KTX01`: preserve the existing occupied `KTX01-G1` document and create missing empty beds `KTX01-G2` through `KTX01-G5` idempotently. Synchronize cached availability from persisted bed statuses.
-8. Re-run the capacity/index audits and focused backend verification, then inspect the final diff and repository status.
+1. Add a regression test that creates `KTX01` with capacity 3 and asserts one room plus exactly three distinct active beds named `KTX01-G1..G3`.
+2. Add failure tests for a legacy-index duplicate error: no success response, no orphan room, and no partially inserted beds. Confirm retry/idempotency does not create duplicates.
+3. Keep canonical per-room code generation and the strict postcondition. Strengthen create compensation so it only removes records created by that request and preserves pre-existing or protected data.
+4. Validate the guarded bed-index migration: exact legacy index match, canonical unique index required, zero-write dry-run, idempotent rerun, and reviewed rollback command.
+5. Replace the building status enum/default/DTO validation/API type/UI options with only `Trống` and `Đầy`; default new buildings to `Trống`. Add rejection tests for legacy and arbitrary values.
+6. Add a building-status migration dry-run that reports counts/IDs by old value and the proposed mapping without writes. Stop if `Inactive`, `Maintenance`, or unknown values exist until their mapping is explicitly approved.
+7. After the applicable approvals, execute the index migration and building-status migration in development only, then run read-only post-migration audits.
+8. Run focused backend/frontend tests, type checks/builds, and final diff/status inspection.
 
 # Acceptance Criteria
 
-- AC1: The guarded index dry-run reports legacy `ma_giuong_1_room_id_1` and canonical `bed_code_1_room_id_1` and performs zero writes.
-- AC2: After approved index migration, only the verified legacy index is absent; the canonical compound index remains unique.
-- AC3: After approved reconciliation, `KTX01` has exactly five non-retired beds with codes `KTX01-G1` through `KTX01-G5`.
-- AC4: `KTX01-G1` retains its original `_id`, occupied status, relationships, and history; `G2` through `G5` are newly created empty beds.
-- AC5: Repeating the same capacity update or reconciliation creates no duplicate beds and returns a consistent room projection.
-- AC6: A failed increase leaves both `room.bed_count` and the active bed set at their pre-request values; no partial success is returned.
-- AC7: A failed decrease restores any beds retired by that request and does not alter occupied or historical beds.
-- AC8: The strict warning is no longer raised for a valid update after the index repair and reconciliation; it remains raised when the requested final invariant genuinely cannot be satisfied.
-- AC9: No unrelated room, building, registration, contract, or student data is changed.
+- AC1: Creating `KTX01` with `bed_count = 3` persists exactly `KTX01-G1`, `KTX01-G2`, and `KTX01-G3`, all unique within the room.
+- AC2: Repeating provisioning is idempotent and never creates a fourth bed or duplicate code.
+- AC3: A provisioning failure returns an error and leaves neither the newly created room nor partial beds behind.
+- AC4: The warning is absent when all three beds exist and remains a valid failure when the invariant cannot be met.
+- AC5: The canonical `{ bed_code, room_id }` unique index remains; only the exact verified legacy `{ ma_giuong, room_id }` index is removed after approval.
+- AC6: Backend schema/DTOs and frontend types/forms allow only `Trống` and `Đầy`; a new building defaults to `Trống`.
+- AC7: Existing building documents contain only the two approved values after an approved migration; unknown or unapproved legacy values are not silently coerced.
+- AC8: No occupied/historical beds or unrelated room, building, registration, contract, or student data are changed.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/services/rooms.service.spec.ts` => capacity increase/decrease, compensation, idempotency, and protected-bed tests pass.
-- `D:\PROJECT\manager_points\backend` :: run the focused bed-index migration spec => definition guard, canonical-index requirement, no-op rerun, rollback output, and zero-write dry-run tests pass.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/services/rooms.service.spec.ts` => create, unique-code, idempotency, postcondition, and compensation tests pass.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/building-status.spec.ts` => only the two statuses validate and the migration planner rejects unapproved legacy mappings.
+- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-bed-index:dry-run` => exact index plan, canonical index preserved, zero writes.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles.
-- Development read-only :: `npm run migration:dormitory-bed-index:dry-run` => reviewed index state, no writes.
-- Development read-only :: `npm run migration:dormitory-capacity:dry-run` => reports the current `KTX01` 5-versus-1 mismatch before repair and 5-versus-5 after approved repair.
-- After approved mutations, query `rooms`, `beds`, and `beds` indexes read-only => room capacity, active count, bed codes, protected `G1`, availability cache, and index state satisfy AC2-AC4.
-- Repository root :: `git diff --check` and `git status --short` => no malformed or unintended changes.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/buildings/page.test.tsx" src/api/dormitory-api.test.ts` => two UI options and API behavior pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => updated status union compiles.
+- Repository root :: `git diff --check` and `git status --short` => only intended files are changed.
 
 # Safety Gates
 
-- Gate A - development index migration: explicit approval required after reviewing the exact database, index definitions, execute command, and rollback command.
-- Gate B - `KTX01` data reconciliation: separate explicit approval required after reviewing the exact room ID, protected `G1`, proposed inserted codes, and backup evidence.
-- Gate C - production migration, reconciliation, or deployment: separate explicit approval with environment, backup, monitoring, and rollback evidence.
-- This taskscope authorizes no database write. Do not run either execute command from this planning task.
+- Gate A — development bed-index mutation: approve the exact database, legacy/canonical definitions, execute command, and rollback command.
+- Gate B — development building-status data migration: approve the dry-run inventory and exact mapping for every legacy value, plus backup and rollback evidence.
+- Gate C — any production migration or deployment: separate approval with environment, backup, monitoring, and rollback evidence.
+- This taskscope authorizes no code implementation or database write.
 
 # Artifacts and Checkpoints
 
-- Required evidence: focused regression-test output, pre/post index reports, pre/post `KTX01` capacity reports, backup manifest/hash for data reconciliation, post-repair read-only query, backend build output, and final diff/status.
-- Stop and amend scope if the legacy index definition differs, another index blocks canonical beds, any missing bed has protected historical identity, compensation cannot be isolated to the current request, or production-only action is required.
+- Required evidence: focused test outputs, pre/post index audits, building-status dry-run inventory and approved mapping, backup/rollback record, backend build, frontend typecheck, and final diff/status.
+- Stop and amend scope if another index blocks canonical beds, cleanup cannot isolate records from the failed create request, legacy building values cannot be mapped safely, or production-only action is required.
 
 # Execution Budgets
 
-- Dependency order: regression tests -> atomic/compensating update change -> focused verification -> index dry-run -> Gate A -> index execute -> reconciliation dry-run/backup -> Gate B -> focused reconciliation -> final audits.
-- One writer per path. Serialize service, migration, and reconciliation changes.
+- Dependency order: regression baseline -> source/test changes -> dry-runs -> Gate A/B -> approved development migrations -> post-audits -> final verification.
+- One writer per path; serialize shared enum/API contract changes.
 - Step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.

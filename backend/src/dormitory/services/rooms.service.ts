@@ -87,7 +87,7 @@ export class RoomsService {
         : savedRoom;
     } catch (error) {
       if (savedRoom?._id) {
-        await this.bedModel.deleteMany({ room_id: savedRoom._id });
+        await this.bedModel.deleteMany({ room_id: savedRoom._id, status: { $ne: DORMITORY_ENUMS.bedStatus[1] }, has_history: { $ne: true } });
         await this.roomModel.deleteOne({ _id: savedRoom._id });
       }
       throw error;
@@ -171,13 +171,7 @@ export class RoomsService {
       .lean()
       .exec();
     const finalActiveBeds = finalBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]);
-    const canonicalActiveCodes = finalActiveBeds
-      .map((bed: any) => String(bed.bed_code || '').toUpperCase())
-      .filter((code) => code.startsWith(`${roomCode}-G`) && /^\d+$/.test(code.slice(`${roomCode}-G`.length)));
-    const expectedCodes = new Set(canonicalActiveCodes);
-    for (let sequence = 1; expectedCodes.size < bedCount && sequence <= bedCount * 2; sequence += 1) {
-      expectedCodes.add(`${roomCode}-G${sequence}`);
-    }
+    const expectedCodes = new Set(Array.from({ length: bedCount }, (_, index) => `${roomCode}-G${index + 1}`));
     const finalCodes = new Set(finalActiveBeds.map((bed: any) => String(bed.bed_code || '').toUpperCase()));
     const hasExpectedCodes = expectedCodes.size === bedCount && [...expectedCodes].every((code) => finalCodes.has(code));
     const allCodesCanonical = finalActiveBeds.every((bed: any) => String(bed.bed_code || '').toUpperCase().startsWith(`${roomCode}-G`));
@@ -246,7 +240,7 @@ export class RoomsService {
       if (key !== 'bed_count' && (currentRoom as any)[key] !== undefined) originalRoomFields[key] = (currentRoom as any)[key];
     }
     if (capacityChange && (!Number.isInteger(dto.bed_count) || (dto.bed_count as number) <= 0)) {
-      throw new ConflictException('Sá»‘ lÆ°á»£ng giÆ°á»ng pháº£i lĂ  sá»‘ nguyĂªn dÆ°Æ¡ng');
+      throw new ConflictException('Số lượng giường phải là số nguyên dương');
     }
     if (!currentRoom) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
 

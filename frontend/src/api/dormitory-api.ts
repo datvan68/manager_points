@@ -8,7 +8,7 @@ export interface Building {
   building_code: string;
   name: string;
   address?: string;
-  status: 'Active' | 'Inactive' | 'Maintenance';
+  status: 'Trống' | 'Đầy';
   description?: string;
   createdAt?: string;
   updatedAt?: string;
