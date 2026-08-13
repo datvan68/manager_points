@@ -1,79 +1,74 @@
 # Task Identity and Pipeline
 
-- Task: `fix-room-bed-provisioning-and-registration-room-unselect`
-- Pipeline: `bug_fix` + `feature_development`
-- Profile: Full; rules version `3.2.0`.
-- Repository: `D:\PROJECT\manager_points`; branch `main`; base commit `27fcbc97172ec063b4f141a7b9f765e2e5eede8c`; initial worktree clean.
+- Task: `fix-registration-edit-room-display-live-assignment-and-bed-regrowth`
+- Pipeline: `bug_fix`; Profile: Full; rules version: `3.2.0`.
+- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `4fe355b02a5add51d3d188a626271fdbca512edf`; initial worktree: clean.
 
 # Risk Level
 
-- Risk: high. The work crosses backend persistence and frontend UI, includes a MongoDB index repair, and changes room/bed assignment state.
-- Source changes are Git-revertible. Index mutation and any non-test persistent-data execution require Human Gates.
+- Risk: high. The fix crosses frontend/backend boundaries and changes persisted registration assignment and room-capacity behavior.
+- Source changes are Git-revertible. No database migration, deployment, or production mutation is authorized.
 
 # Objective
 
-Creating `KTX01` with `bed_count = 2` succeeds with exactly two canonical active beds, and the registrations room picker lets an operator explicitly remove an assignment so another room can be chosen or the registration can remain unassigned without corrupting bed, room, or contract state.
+Temporary registrations can be edited without a `preference` field error; the registrations table consistently shows the room name and updates assignment state in place without a white flash; and a room whose capacity was reduced can later be increased while preserving valid bed identities and occupancy.
 
 # Scope Boundaries
 
-- Room provisioning and regression tests: `backend/src/dormitory/services/rooms.service.ts`, `rooms.service.spec.ts`.
-- Verified legacy bed-index repair: `backend/scripts/migrate-dormitory-bed-index.ts` and its existing package scripts/tests if adjustment is required.
-- Assignment cancellation: `room-assignment.service.ts`, its focused tests, registrations controller/DTO tests, and a narrowly owned cancellation DTO if needed.
-- Registrations UI/API: `frontend/src/api/dormitory-api.ts`, its focused API test, `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, and `page.test.tsx`.
+- Backend registration contract, enrichment, and tests: `backend/src/dormitory/dto/update-registration.dto.ts`, `backend/src/dormitory/services/registrations.service.ts`, `backend/src/dormitory/services/registrations.service.spec.ts`.
+- Backend capacity reconciliation and tests: `backend/src/dormitory/services/rooms.service.ts`, `backend/src/dormitory/services/rooms.service.spec.ts`.
+- Frontend registrations state/payload/display and tests: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `page.test.tsx`, `frontend/src/api/dormitory-api.ts`, and `dormitory-api.test.ts` only if the API contract changes.
+- Buildings UI tests may be updated only to cover the existing room edit flow; no visual redesign is included.
 
 # Out of Scope
 
-- Production migration/deployment, manual database edits, unrelated buildings-page redesign, registration deletion/rejection, contract cancellation, or changing occupied/historical bed identity.
-- Allowing a room assignment to be removed while an active contract exists; those records must use the contract transfer/cancellation workflow.
+- Schema/index migration, manual data repair, deployment, unrelated dormitory tabs, redesign of registrations/buildings, deletion of occupied or historical beds, and changes to contract transfer/cancellation behavior.
 
 # Context and Dependencies
 
-- `RoomsService.create()` saves the room, calls `ensureRoomBeds()`, validates the final active-bed count/canonical codes, and compensates on failure.
-- Provisioning uses `bed_code` plus `room_id`; the guarded migration identifies legacy unique index `ma_giuong_1_room_id_1`, which can reject the second insert when new beds omit `ma_giuong`. Canonical unique index `bed_code_1_room_id_1` must remain.
-- The picker currently assigns immediately when a free bed is clicked. The current bed is disabled, direct reassignment is supported, and no unassign API exists.
-- Registration/public-registration room and bed fields are optional; active-contract room and bed fields are required.
+- Formal edits own nested `preference`; public/admin-temporary records own flat `room_type` and `notes`. Backend source validation currently rejects `preference` for temporary records, so client serialization and server normalization must agree and remain backward-compatible where safe.
+- Formal rows already derive `assigned_room_name` from populated registration/active-contract rooms. Public rows fall back to stored `room_code`; their `room_id` must be enriched to obtain the current `room_name`.
+- Assignment uses a local row patch, but unassign currently supplies the released bed to the same patch shape, which can leave `bed_id` truthy. Assignment results must distinguish an assigned bed from release metadata and must not trigger list-level loading.
+- Capacity reduction retires eligible free, history-free beds. Growth counts those beds as inactive but also reserves their canonical suffixes, so it can create later suffixes and then fail the exact `ROOM-G1..Gn` postcondition. Reconciliation must reactivate eligible canonical retired beds before inserting new ones.
 
 # Steps
 
-1. Reproduce room creation in a focused service test for `KTX01`/two beds and establish exact legacy-index failure and compensation behavior.
-2. Keep strict, idempotent canonical provisioning (`KTX01-G1`, `KTX01-G2`), repair only concrete provisioning/compensation defects, and preserve the canonical uniqueness invariant.
-3. Validate the guarded bed-index dry-run and exact-index checks; execute no index change without Gate A.
-4. Add an authenticated unassign command that conditionally clears registration/public-registration assignment fields, releases only the matching used bed, synchronizes room availability, rejects active-contract records, and compensates partial failure/concurrent change.
-5. Add `Bỏ chọn phòng` to the picker only for an existing cancellable assignment, require explicit confirmation, refresh row state after success, and preserve direct reassignment and stale-request protection.
-6. Add focused backend/API/UI regression coverage, run affected verification, and inspect final diff/status.
+1. Add regression baselines for temporary-edit payload validation, room-name enrichment, immediate assign/unassign row transitions, and reduce-then-grow capacity.
+2. Align registration update serialization and source-aware backend normalization so temporary edits persist flat fields and unsupported fields still fail clearly.
+3. Enrich public/admin-temporary rows from their referenced room and expose `assigned_room_name` as the room name, using the room code only as a missing-name fallback.
+4. Make assign/unassign UI updates atomic and explicit: patch only the affected row, clear both `room_id` and `bed_id` on unassign, retain released-bed data only for availability handling, and keep existing rows rendered during any background reconciliation.
+5. Reconcile room growth by reactivating the required eligible canonical retired beds first, then creating only genuinely missing canonical beds; preserve occupied, maintenance, historical, and unrelated custom beds and compensate partial failure.
+6. Run focused tests, affected builds/type checks, and final diff/status review.
 
 # Acceptance Criteria
 
-- AC1: Creating `KTX01` with `bed_count = 2` persists exactly two distinct active beds: `KTX01-G1` and `KTX01-G2`.
-- AC2: Repeating provisioning is idempotent; a failed create leaves no new room or partial unprotected beds.
-- AC3: The exact legacy index is removable only when the reviewed canonical unique index exists; dry-run performs zero writes.
-- AC4: Confirmed unassign clears `room_id`/`bed_id` (and public `room_code`), releases the previously assigned bed, and recalculates room availability.
-- AC5: After unassign, the row shows no room and the operator may assign another room or close the picker with no selection.
-- AC6: Direct reassignment still reserves the new bed before releasing the old bed and never leaves two effective beds.
-- AC7: Unassign is rejected for an active contract with a clear UI/API message and no persisted changes.
-- AC8: Failure or concurrent modification restores/preserves the prior assignment; occupied/historical beds and unrelated data remain unchanged.
+- AC1: Editing an `ADMIN_TEMPORARY` registration succeeds without sending or rejecting `preference`; `room_type` and `notes` persist correctly. Formal nested-preference editing remains valid.
+- AC2: The `PHÒNG` column and export use `room_name` for formal, public, and admin-temporary assignments; `room_code` is only a fallback when the name is absent.
+- AC3: Successful assign/reassign updates the affected row immediately without clearing or replacing the table, and shows the selected room name.
+- AC4: Successful unassign immediately clears `room_id`, `bed_id`, and the displayed room from the affected row; the released bed is not treated as still assigned, and no white loading frame appears.
+- AC5: Background refresh, stale response, or API failure cannot overwrite a newer assignment state; failure retains the prior row and shows an actionable error.
+- AC6: Reducing a room from `N` to `M` and increasing it back to `N` succeeds with exactly canonical active beds `ROOM-G1..ROOM-GN`, preferring safe reactivation over insertion.
+- AC7: Growth is idempotent and never changes occupied, maintenance, historical, or unrelated-room beds; a partial failure restores the previous capacity/status state.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/rooms.service.spec.ts dormitory/services/room-assignment.service.spec.ts dormitory/controllers/registrations.controller.spec.ts` => AC1, AC2, AC4, AC6-AC8 pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-bed-index:dry-run` => reviewed index inventory and zero writes (AC3).
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts dormitory/services/rooms.service.spec.ts` => AC1, AC2, AC6, and AC7 pass.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" src/api/dormitory-api.test.ts` => unassign, confirmation, refresh, error, and reassignment UI/API cases pass (AC4-AC7).
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => updated API/UI types compile.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx" src/api/dormitory-api.test.ts` => AC1-AC5 and the room-edit regression pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => assignment/result and registration types compile.
 - Repository root :: `git diff --check` and `git status --short` => only scoped changes exist.
 
 # Safety Gates
 
-- Gate A: approve the exact development database, inspected index definitions, execute command, backup/rollback evidence, and resume point before dropping the legacy index.
-- Gate B: separate approval for any production migration or deployment.
-- This taskscope authorizes no implementation, database write, deployment, or contract cancellation.
+- None for scoped source implementation and development verification.
+- Any database migration/data repair or deployment discovered during implementation requires a separate taskscope amendment and explicit approval before execution.
 
 # Artifacts and Checkpoints
 
-- Record focused test outputs, pre/post index inventory if Gate A is approved, rollback command, build/typecheck results, and final diff/status.
-- Checkpoint after an approved development index mutation and before final affected verification. Stop for an unexpected index, active-contract unassign requirement, non-isolatable compensation, or boundary expansion.
+- Record focused test/build/typecheck results and final diff/status. Checkpoint after backend behavior/tests before frontend integration.
+- Stop for a required schema migration, occupied/historical-bed mutation, contract behavior change, or non-isolatable concurrency/rollback defect.
 
 # Execution Budgets
 
-- Dependency order: regression baseline -> backend changes/tests -> frontend changes/tests -> gated index action if approved -> final verification/review.
-- One writer per path; serialize assignment service/API/UI changes. Step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.
+- Order: regression baseline -> backend fixes/tests -> frontend fixes/tests -> affected verification -> independent review.
+- One writer per path; step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.

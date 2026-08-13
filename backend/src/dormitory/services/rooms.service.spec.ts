@@ -1,5 +1,6 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
 import { RoomsService } from './rooms.service';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 function resolvedQuery<T>(value: T) {
   return { exec: jest.fn().mockResolvedValue(value) };
@@ -85,6 +86,26 @@ describe('RoomsService', () => {
 
     await expect(service.update('room-1', { bed_count: 4 } as any, {})).resolves.toBe(updatedRoom);
     expect(service.ensureRoomBeds).toHaveBeenCalledWith('room-1', 4);
+  });
+
+  it('reactivates canonical retired beds when capacity grows again', async () => {
+    const bedModel: any = {
+      find: jest.fn().mockReturnValueOnce(bedsQuery([
+        { _id: 'bed-1', bed_code: 'KTX01-G1', status: DORMITORY_ENUMS.bedStatus[3], has_history: false },
+        { _id: 'bed-2', bed_code: 'KTX01-G2', status: DORMITORY_ENUMS.bedStatus[0], has_history: false },
+      ])).mockReturnValueOnce(bedsQuery([
+        { bed_code: 'KTX01-G1', status: 'Trống' }, { bed_code: 'KTX01-G2', status: 'Trống' },
+      ])),
+      updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      bulkWrite: jest.fn(),
+    };
+    const roomModel: any = { findById: jest.fn().mockResolvedValue({ room_code: 'KTX01' }) };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
+    jest.spyOn(service, 'syncRoomAvailability').mockResolvedValue(undefined);
+
+    await expect(service.ensureRoomBeds('room-1', 2)).resolves.toBeUndefined();
+    expect(bedModel.updateMany).toHaveBeenCalledWith(expect.objectContaining({ _id: { $in: ['bed-1'] } }), expect.any(Object));
+    expect(bedModel.bulkWrite).not.toHaveBeenCalled();
   });
 
   it('rejects capacity shrink below the existing bed records without updating the room', async () => {

@@ -44,7 +44,7 @@ export const applyRoomAssignment = (row: DormRegistration, assignment: RoomAssig
   ...row,
   ...(assignment.registration || {}),
   room_id: assignment.room || undefined,
-  bed_id: assignment.bed || undefined,
+  bed_id: assignment.room ? assignment.bed || undefined : undefined,
   assigned_room_name: assignment.room ? assignment.room.room_name || assignment.room.room_code : undefined,
   active_contract_id: assignment.active_contract_id || assignment.registration?.active_contract_id || row.active_contract_id,
 });

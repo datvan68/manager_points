@@ -88,6 +88,15 @@ it('applies a room assignment to one table row without reloading the list', () =
   }));
 });
 
+it('clears both room and bed when applying an unassignment result', () => {
+  const row = { _id: 'registration-1', room_id: { _id: 'room-1' }, bed_id: { _id: 'bed-1' }, assigned_room_name: 'Phòng A101' } as any;
+  expect(applyRoomAssignment(row, { room: null, bed: { _id: 'bed-1' } as any })).toEqual(expect.objectContaining({
+    room_id: undefined,
+    bed_id: undefined,
+    assigned_room_name: undefined,
+  }));
+});
+
 it('opens only the room picker belonging to the clicked table layout', async () => {
   const suggestRooms = vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
     { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Trống', available_bed_count: 2, bed_count: 8 } as any,

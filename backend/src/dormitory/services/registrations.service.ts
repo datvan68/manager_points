@@ -133,7 +133,7 @@ export class RegistrationsService {
         ...(query.source === 'ADMIN_TEMPORARY' ? { source: 'ADMIN_ENTRY' } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(search ? { $or: ['public_registration_code', 'full_name', 'student_code', 'phone_number', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
-      }).sort({ createdAt: -1 }).lean(),
+      }).populate('room_id', 'room_name room_code').sort({ createdAt: -1 }).lean(),
     ]);
 
     const formalIds = formalData.map((item: any) => item._id).filter(Boolean);
@@ -160,7 +160,7 @@ export class RegistrationsService {
     const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.source !== 'ADMIN_ENTRY') && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email])).map((item: any) => ({
       ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,
       source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.student_code ? 'MISSING_CLASS' : 'UNCLASSIFIED',
-      assigned_room_name: item.room_name || item.room_code || '',
+      assigned_room_name: item.room_id?.room_name || item.room_name || item.room_code || '',
     }));
     const data = [...formalRows, ...publicRows]
       .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -220,9 +220,15 @@ export class RegistrationsService {
   async update(id: string, sourceValue: string, dto: UpdateRegistrationDto) {
     this.validateId(id);
     const source = this.validateSource(sourceValue);
-    const payload = dto as Record<string, unknown>;
+    const payload = { ...(dto as Record<string, unknown>) };
     const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group'];
     const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes'];
+    if (source !== 'FORMAL' && payload.preference && typeof payload.preference === 'object') {
+      const preference = payload.preference as Record<string, unknown>;
+      if (payload.room_type === undefined && preference.room_type !== undefined) payload.room_type = preference.room_type;
+      if (payload.notes === undefined && preference.notes !== undefined) payload.notes = preference.notes;
+      delete payload.preference;
+    }
     const allowedFields = source === 'FORMAL' ? formalFields : publicFields;
     const invalidFields = Object.keys(payload).filter((field) => !allowedFields.includes(field));
     if (invalidFields.length) {

@@ -113,16 +113,31 @@ export class RoomsService {
     if (!roomCode) throw new ConflictException('Không xác định được mã phòng để tạo mã giường');
     const existingBeds = await this.bedModel
       .find({ room_id: roomId })
-      .select('bed_code status')
+      .select('_id bed_code status has_history')
       .lean()
       .exec();
     const activeBeds = existingBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]);
     const missingCount = Math.max(0, bedCount - activeBeds.length);
+    const prefix = `${roomCode}-G`;
+    const expectedCodes = Array.from({ length: bedCount }, (_, index) => `${prefix}${index + 1}`);
 
-    if (missingCount > 0) {
+    // A previous capacity reduction retires free canonical beds. Reuse those
+    // records before inserting new ones so growth restores ROOM-G1..ROOM-Gn.
+    const restorable = existingBeds.filter((bed: any) =>
+      bed.status === DORMITORY_ENUMS.bedStatus[3] && bed.has_history !== true && expectedCodes.includes(String(bed.bed_code || '').toUpperCase()),
+    );
+    const restorableIds = restorable.slice(0, missingCount).map((bed: any) => bed._id).filter(Boolean);
+    if (restorableIds.length && typeof (this.bedModel as any).updateMany === 'function') {
+      await (this.bedModel as any).updateMany({ _id: { $in: restorableIds }, room_id: roomId, status: DORMITORY_ENUMS.bedStatus[3], has_history: { $ne: true } }, { $set: { status: DORMITORY_ENUMS.bedStatus[0] } });
+      for (const bed of restorable) {
+        if (restorableIds.some((id: any) => String(id) === String(bed._id))) bed.status = DORMITORY_ENUMS.bedStatus[0];
+      }
+    }
+
+    const remainingMissingCount = Math.max(0, bedCount - existingBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]).length);
+    if (remainingMissingCount > 0) {
       const existingCodes = new Set(existingBeds.map((bed: any) => bed.bed_code));
       const usedSuffixes = new Set<number>();
-      const prefix = `${roomCode}-G`;
       for (const bed of existingBeds as any[]) {
         const value = String(bed.bed_code || '');
         if (value.toUpperCase().startsWith(prefix)) {
@@ -132,7 +147,7 @@ export class RoomsService {
       }
       const bedCodes: string[] = [];
       let sequence = 1;
-      while (bedCodes.length < missingCount) {
+      while (bedCodes.length < remainingMissingCount) {
         const bedCode = `${prefix}${sequence}`;
         if (!usedSuffixes.has(sequence) && !existingCodes.has(bedCode)) {
           bedCodes.push(bedCode);
@@ -171,9 +186,9 @@ export class RoomsService {
       .lean()
       .exec();
     const finalActiveBeds = finalBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]);
-    const expectedCodes = new Set(Array.from({ length: bedCount }, (_, index) => `${roomCode}-G${index + 1}`));
+    const expectedCodeSet = new Set(expectedCodes);
     const finalCodes = new Set(finalActiveBeds.map((bed: any) => String(bed.bed_code || '').toUpperCase()));
-    const hasExpectedCodes = expectedCodes.size === bedCount && [...expectedCodes].every((code) => finalCodes.has(code));
+    const hasExpectedCodes = expectedCodeSet.size === bedCount && [...expectedCodeSet].every((code) => finalCodes.has(code));
     const allCodesCanonical = finalActiveBeds.every((bed: any) => String(bed.bed_code || '').toUpperCase().startsWith(`${roomCode}-G`));
     if (finalActiveBeds.length !== bedCount || !hasExpectedCodes || !allCodesCanonical) {
       throw new ConflictException(`Không thể đảm bảo ${bedCount} giường hoạt động cho phòng ${roomCode}`);
@@ -285,7 +300,7 @@ export class RoomsService {
           const restorableIds = originalBeds.filter((bed) => bed.status === DORMITORY_ENUMS.bedStatus[0]).map((bed) => bed._id);
           if (restorableIds.length) await this.bedModel.updateMany({ _id: { $in: restorableIds }, room_id: id }, { $set: { status: DORMITORY_ENUMS.bedStatus[0] } });
           for (const bed of originalBeds) {
-            if (bed.bed_code) await this.bedModel.updateOne({ _id: bed._id, room_id: id }, { $set: { bed_code: bed.bed_code } });
+            if (bed.bed_code) await this.bedModel.updateOne({ _id: bed._id, room_id: id }, { $set: { bed_code: bed.bed_code, status: bed.status } });
           }
         }
         await this.roomModel.findByIdAndUpdate(id, { $set: { ...originalRoomFields, bed_count: originalBedCount } });

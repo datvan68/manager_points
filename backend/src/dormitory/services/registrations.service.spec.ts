@@ -43,7 +43,7 @@ describe('RegistrationsService room enrichment', () => {
     const formal = { _id: 'registration-1', registration_code: 'DK-1', student_id: { student_code: '012', full_name: 'Nguyễn A' }, toObject: () => ({ _id: 'registration-1', registration_code: 'DK-1' }) };
     const registrationModel: any = { find: jest.fn().mockReturnValue(queryResult([formal])) };
     const contractModel: any = { find: jest.fn().mockReturnValue(queryResult([{ registration_id: 'registration-1', room_id: { room_name: 'A101' } }])) };
-    const publicModel: any = { find: jest.fn().mockReturnValue(queryResult([{ _id: 'public-1', public_registration_code: 'QR-1', full_name: 'Trần B', room_code: 'B202', source: 'QR_SCAN' }])) };
+    const publicModel: any = { find: jest.fn().mockReturnValue(queryResult([{ _id: 'public-1', public_registration_code: 'QR-1', full_name: 'Trần B', room_id: { room_name: 'Phòng B', room_code: 'B202' }, source: 'QR_SCAN' }])) };
     const service = new RegistrationsService(registrationModel, {} as any, contractModel, publicModel, {} as any);
 
     const result = await service.findAll({});
@@ -51,7 +51,7 @@ describe('RegistrationsService room enrichment', () => {
     expect(contractModel.find).toHaveBeenCalledWith({ registration_id: { $in: ['registration-1'] }, status: 'Hiệu lực' });
     expect(result.data).toEqual(expect.arrayContaining([
       expect.objectContaining({ registration_code: 'DK-1', assigned_room_name: 'A101' }),
-      expect.objectContaining({ registration_code: 'QR-1', assigned_room_name: 'B202' }),
+      expect.objectContaining({ registration_code: 'QR-1', assigned_room_name: 'Phòng B' }),
     ]));
   });
 });
@@ -151,6 +151,17 @@ describe('RegistrationsService registration actions', () => {
     await service.update('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', { full_name: 'Tên mới' });
     expect(temporary.full_name).toBe('Tên mới');
     await expect(service.update('507f1f77bcf86cd799439011', 'PUBLIC', { full_name: 'Sai nguồn' })).rejects.toThrow('Nguồn đăng ký QR không hợp lệ');
+  });
+
+  it('normalizes a legacy nested preference when updating a temporary entry', async () => {
+    const temporary = { source: 'ADMIN_ENTRY', save: jest.fn().mockResolvedValue({}) };
+    const publicModel: any = { findById: jest.fn().mockResolvedValue(temporary) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.update('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', { preference: { room_type: 'Máy lạnh', notes: 'Gần lớp' } } as any);
+    expect(temporary.room_type).toBe('Máy lạnh');
+    expect(temporary.notes).toBe('Gần lớp');
+    expect(temporary.preference).toBeUndefined();
   });
 
   it('blocks deletion of referenced records and deletes unlinked public records', async () => {
