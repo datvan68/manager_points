@@ -4,12 +4,14 @@ import { Model } from 'mongoose';
 import { Building, BuildingDocument } from '../schemas/building.schema';
 import { CreateBuildingDto } from '../dto/create-building.dto';
 import { UpdateBuildingDto } from '../dto/update-building.dto';
+import { Room, RoomDocument } from '../schemas/room.schema';
 
 @Injectable()
 export class BuildingsService {
   constructor(
     @InjectModel(Building.name)
     private buildingModel: Model<BuildingDocument>,
+    @InjectModel(Room.name) private roomModel: Model<RoomDocument>,
   ) {}
 
   async create(dto: CreateBuildingDto, user: any): Promise<Building> {
@@ -67,6 +69,9 @@ export class BuildingsService {
   }
 
   async remove(id: string, user: any): Promise<Building> {
+    if (await this.roomModel.exists({ building_id: id })) {
+      throw new ConflictException('Không thể xóa tòa nhà còn phòng tham chiếu');
+    }
     const building = await this.buildingModel.findByIdAndDelete(id).exec();
     if (!building) {
       throw new NotFoundException(`Không tìm thấy tòa nhà với ID: ${id}`);

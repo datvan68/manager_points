@@ -37,6 +37,7 @@ export type DormitoryCapacityReport = {
   has_floor: boolean;
   has_floor_value?: unknown;
   planned_bed_codes?: string[];
+  mismatch_categories?: string[];
 };
 
 const roomStatus = { empty: 'Trống', full: 'Đầy', locked: 'Khóa', maintenance: 'Bảo trì' };
@@ -64,6 +65,11 @@ export async function collectCapacityReport(db: Db): Promise<DormitoryCapacityRe
     const beds = await db.collection('beds').find({ room_id: room._id }, { projection: { bed_code: 1, status: 1 } }).toArray();
     const registrations = await db.collection('registrations').countDocuments({ room_id: room._id, bed_id: { $exists: true, $ne: null } });
     const contracts = await db.collection('contracts').countDocuments({ room_id: room._id, status: 'Hiệu lực' });
+    const mismatch_categories: string[] = [];
+    if (Number(room.bed_count || 0) !== beds.length) mismatch_categories.push(beds.length < Number(room.bed_count || 0) ? 'missing_beds' : 'surplus_beds');
+    if (typeof room.available_bed_count === 'number' && room.available_bed_count !== beds.filter((bed: any) => bed.status === bedStatus.free).length) mismatch_categories.push('cached_available_mismatch');
+    if (new Set(beds.map((bed: any) => bed.bed_code)).size !== beds.length) mismatch_categories.push('duplicate_bed_codes');
+    if (registrations > beds.filter((bed: any) => bed.status === bedStatus.used).length || contracts > beds.filter((bed: any) => bed.status === bedStatus.used).length) mismatch_categories.push('occupancy_mismatch');
     reports.push({
       room_code: room.room_code || '(unknown)',
       building_code: buildingCodes.get(String(room.building_id))?.code || '(unknown)',
@@ -79,6 +85,7 @@ export async function collectCapacityReport(db: Db): Promise<DormitoryCapacityRe
       has_floor: Object.prototype.hasOwnProperty.call(room, 'floor'),
       has_floor_value: room.floor,
       planned_bed_codes: plannedBedCodes(beds.map((bed: any) => bed.bed_code), Math.max(0, Number(room.bed_count || 0) - beds.length)),
+      mismatch_categories,
     });
   }
   return reports;

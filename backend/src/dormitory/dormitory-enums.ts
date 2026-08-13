@@ -6,7 +6,8 @@
 export const DORMITORY_ENUMS = {
   buildingStatus: ['Active', 'Inactive', 'Maintenance'] as const,
   roomStatus: ['Trống', 'Đầy', 'Khóa', 'Bảo trì'] as const,
-  bedStatus: ['Trống', 'Đang sử dụng', 'Bảo trì'] as const,
+  // `Đã nghỉ` is the persisted compatibility label for retired beds.
+  bedStatus: ['Trống', 'Đang sử dụng', 'Bảo trì', 'Đã nghỉ'] as const,
   registrationStatus: ['Chờ duyệt', 'Đã duyệt', 'Từ chối'] as const,
   contractStatus: ['Hiệu lực', 'Hết hạn', 'Đã hủy'] as const,
   invoiceStatus: ['Chưa thanh toán', 'Đã thanh toán', 'Quá hạn'] as const,

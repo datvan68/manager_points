@@ -38,26 +38,31 @@ export class DormitoryReportsService {
   async getOccupancyReport() {
     const buildings = await this.buildingModel.find({ status: 'Active' }).exec();
 
-    const report = await Promise.all(
-      buildings.map(async (building) => {
-        const rooms = await this.roomModel.find({ building_id: building._id }).exec();
-        const totalBeds = rooms.reduce((sum, r) => sum + r.bed_count, 0);
-        const availableBeds = rooms.reduce((sum, r) => sum + r.available_bed_count, 0);
-        const usedBeds = totalBeds - availableBeds;
+    const roomCounts = await this.bedModel.aggregate([
+      { $match: { status: { $ne: 'Đã nghỉ' } } },
+      { $lookup: { from: 'rooms', localField: 'room_id', foreignField: '_id', as: 'room' } },
+      { $unwind: '$room' },
+      { $group: { _id: '$room.building_id', totalBeds: { $sum: 1 }, availableBeds: { $sum: { $cond: [{ $eq: ['$status', 'Trống'] }, 1, 0] } }, usedBeds: { $sum: { $cond: [{ $eq: ['$status', 'Đang sử dụng'] }, 1, 0] } } } },
+    ]);
+    const byBuilding = new Map(roomCounts.map((item: any) => [String(item._id), item]));
+    const report = buildings.map((building) => {
+        const counts: any = byBuilding.get(String(building._id)) || { totalBeds: 0, availableBeds: 0, usedBeds: 0 };
+        const totalBeds = counts.totalBeds;
+        const availableBeds = counts.availableBeds;
+        const usedBeds = counts.usedBeds;
         const occupancyRate = totalBeds > 0 ? Math.round((usedBeds / totalBeds) * 100) : 0;
 
         return {
           building_id: building._id,
           building_code: building.building_code,
           name: building.name,
-          total_rooms: rooms.length,
+          total_rooms: 0,
           total_beds: totalBeds,
           used_beds: usedBeds,
           available_beds: availableBeds,
           occupancy_rate: occupancyRate,
         };
-      }),
-    );
+      });
 
     const totalAll = report.reduce((sum, b) => sum + b.total_beds, 0);
     const usedAll = report.reduce((sum, b) => sum + b.used_beds, 0);

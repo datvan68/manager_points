@@ -22,6 +22,9 @@ export class Bed {
     default: 'Trống',
   })
   status: string;
+
+  @Prop({ default: false })
+  has_history: boolean;
 }
 
 export const BedSchema = SchemaFactory.createForClass(Bed);

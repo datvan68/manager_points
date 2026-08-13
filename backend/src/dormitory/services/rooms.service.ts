@@ -30,17 +30,29 @@ export class RoomsService {
   /** Runtime capacity is always projected from persisted bed records. */
   private async projectRoom(room: any): Promise<any> {
     const roomId = room._id;
-    const [maxStudents, currentStudents, availableBedCount] = await Promise.all([
-      this.bedModel.countDocuments({ room_id: roomId }),
+    const [counts] = typeof (this.bedModel as any).aggregate === 'function' ? await this.bedModel.aggregate([
+      { $match: { room_id: roomId } },
+      { $group: { _id: null, physical: { $sum: { $cond: [{ $ne: ['$status', DORMITORY_ENUMS.bedStatus[3]] }, 1, 0] } }, assignable: { $sum: { $cond: [{ $in: ['$status', [DORMITORY_ENUMS.bedStatus[0], DORMITORY_ENUMS.bedStatus[1]]] }, 1, 0] } }, occupied: { $sum: { $cond: [{ $eq: ['$status', DORMITORY_ENUMS.bedStatus[1]] }, 1, 0] } }, available: { $sum: { $cond: [{ $eq: ['$status', DORMITORY_ENUMS.bedStatus[0]] }, 1, 0] } }, maintenance: { $sum: { $cond: [{ $eq: ['$status', DORMITORY_ENUMS.bedStatus[2]] }, 1, 0] } } } },
+    ]) : [null];
+    const fallback = !counts ? await Promise.all([
+      this.bedModel.countDocuments({ room_id: roomId, status: { $ne: DORMITORY_ENUMS.bedStatus[3] } }),
       this.bedModel.countDocuments({ room_id: roomId, status: DORMITORY_ENUMS.bedStatus[1] }),
       this.bedModel.countDocuments({ room_id: roomId, status: DORMITORY_ENUMS.bedStatus[0] }),
-    ]);
+      this.bedModel.countDocuments({ room_id: roomId, status: DORMITORY_ENUMS.bedStatus[2] }),
+    ]) : null;
+    const maxStudents = counts?.physical ?? fallback?.[0] ?? 0;
+    const currentStudents = counts?.occupied ?? fallback?.[1] ?? 0;
+    const availableBedCount = counts?.available ?? fallback?.[2] ?? 0;
     const item = room.toObject ? room.toObject() : { ...room };
     const protectedStatuses: string[] = [DORMITORY_ENUMS.roomStatus[2], DORMITORY_ENUMS.roomStatus[3]];
     return {
       ...item,
       room_name: item.room_name || item.room_code,
       max_students: maxStudents,
+      physical_capacity: maxStudents,
+      assignable_capacity: counts?.assignable ?? ((fallback?.[1] || 0) + (fallback?.[2] || 0)),
+      occupied_count: currentStudents,
+      maintenance_count: counts?.maintenance ?? fallback?.[3] ?? 0,
       current_students: currentStudents,
       available_bed_count: availableBedCount,
       status: protectedStatuses.includes(item.status)
@@ -64,9 +76,18 @@ export class RoomsService {
       public_url: `/public/room/${qrId}`,
     });
 
-    const savedRoom = await room.save();
-    await this.ensureRoomBeds(savedRoom._id.toString(), dto.bed_count);
-    return savedRoom;
+    let savedRoom: any;
+    try {
+      savedRoom = await room.save();
+      await this.ensureRoomBeds(savedRoom._id.toString(), dto.bed_count);
+      return this.findOne(savedRoom._id.toString());
+    } catch (error) {
+      if (savedRoom?._id) {
+        await this.bedModel.deleteMany({ room_id: savedRoom._id });
+        await this.roomModel.deleteOne({ _id: savedRoom._id });
+      }
+      throw error;
+    }
   }
 
   /** Provisioning is explicit and idempotent; read paths never call this method. */
@@ -166,7 +187,10 @@ export class RoomsService {
     if (dto.bed_count !== undefined) {
       const existingBedCount = await this.bedModel.countDocuments({ room_id: id });
       if (dto.bed_count < existingBedCount) {
-        throw new ConflictException(`Room capacity cannot be reduced below the ${existingBedCount} persisted beds`);
+        const retireCount = existingBedCount - dto.bed_count;
+        const eligible = await this.bedModel.find({ room_id: id, status: DORMITORY_ENUMS.bedStatus[0], has_history: { $ne: true } }).sort({ bed_code: -1 }).limit(retireCount).exec();
+        if (eligible.length < retireCount) throw new ConflictException('Không đủ giường trống chưa có lịch sử để giảm sức chứa');
+        await this.bedModel.updateMany({ _id: { $in: eligible.map((bed: any) => bed._id) } }, { $set: { status: DORMITORY_ENUMS.bedStatus[3] } });
       }
     }
 
@@ -174,14 +198,15 @@ export class RoomsService {
     if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
     if (dto.bed_count !== undefined) {
       await this.ensureRoomBeds(id, dto.bed_count);
-      return this.roomModel.findById(id).exec() as Promise<Room>;
+      return this.findOne(id) as Promise<Room>;
     }
     return room;
   }
 
   async remove(id: string, user: any): Promise<Room> {
     const bedsInUse = await this.bedModel.countDocuments({ room_id: id, status: DORMITORY_ENUMS.bedStatus[1] });
-    if (bedsInUse > 0) throw new ConflictException(`Phòng còn ${bedsInUse} giường đang sử dụng, không thể xóa`);
+    const historicalBeds = await this.bedModel.countDocuments({ room_id: id, has_history: true });
+    if (bedsInUse > 0 || historicalBeds > 0) throw new ConflictException('Phòng còn occupancy hoặc lịch sử giường được bảo vệ, không thể xóa');
     const room = await this.roomModel.findByIdAndDelete(id).exec();
     if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
     await this.bedModel.deleteMany({ room_id: id });

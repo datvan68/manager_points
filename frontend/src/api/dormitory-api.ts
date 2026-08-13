@@ -22,6 +22,10 @@ export interface Room {
   room_type: string;
   bed_count: number;
   max_students: number;
+  physical_capacity?: number;
+  assignable_capacity?: number;
+  occupied_count?: number;
+  maintenance_count?: number;
   current_students: number;
   available_bed_count: number;
   room_price: number;
@@ -38,7 +42,8 @@ export interface Bed {
   bed_code: string;
   room_id: Room | string;
   position?: string;
-  status: 'Trống' | 'Đang sử dụng' | 'Bảo trì';
+  status: 'Trống' | 'Đang sử dụng' | 'Bảo trì' | 'Đã nghỉ';
+  has_history?: boolean;
 }
 
 export interface DormRegistration {
