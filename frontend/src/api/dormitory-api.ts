@@ -402,6 +402,14 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
+    async unassignRoom(registration_id: string): Promise<{ registration?: DormRegistration; room?: Room | null; bed?: Bed; message?: string }> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/unassign-room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id }),
+      });
+      return handleResponse(res);
+    },
     async suggestRooms(registrationId: string): Promise<Room[]> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/${registrationId}/suggest-rooms`);
       return handleResponse(res);

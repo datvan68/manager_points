@@ -13,6 +13,34 @@ function roomsQuery(value: any[]) {
 }
 
 describe('RoomAssignmentService', () => {
+  it('unassigns a registration and releases its bed', async () => {
+    const registrationModel: any = {
+      findById: jest.fn().mockResolvedValue({ _id: 'registration-1', status: DORMITORY_ENUMS.registrationStatus[1], room_id: 'room-1', bed_id: 'bed-1' }),
+      findOneAndUpdate: jest.fn().mockResolvedValue({ _id: 'registration-1' }),
+    };
+    const bedModel: any = { findOneAndUpdate: jest.fn().mockResolvedValue({ _id: 'bed-1', status: DORMITORY_ENUMS.bedStatus[0] }) };
+    const roomsService: any = { syncRoomAvailability: jest.fn().mockResolvedValue(undefined) };
+    const service = new RoomAssignmentService({} as any, bedModel, registrationModel, { findOne: jest.fn().mockResolvedValue(null) } as any, {} as any, roomsService);
+
+    await expect(service.unassignRoom('registration-1', {})).resolves.toEqual(expect.objectContaining({ message: 'Đã bỏ chọn phòng' }));
+    expect(registrationModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: 'registration-1', bed_id: 'bed-1' },
+      { $unset: { room_id: '', bed_id: '' } },
+      { new: true },
+    );
+    expect(bedModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: 'bed-1', status: DORMITORY_ENUMS.bedStatus[1] },
+      { $set: { status: DORMITORY_ENUMS.bedStatus[0] } },
+    );
+    expect(roomsService.syncRoomAvailability).toHaveBeenCalledWith('room-1');
+  });
+
+  it('rejects unassigning a registration with an active contract', async () => {
+    const registrationModel: any = { findById: jest.fn().mockResolvedValue({ _id: 'registration-1', room_id: 'room-1', bed_id: 'bed-1' }) };
+    const service = new RoomAssignmentService({} as any, {} as any, registrationModel, { findOne: jest.fn().mockResolvedValue({ _id: 'contract-1' }) } as any, {} as any, {} as any);
+    await expect(service.unassignRoom('registration-1', {})).rejects.toThrow('hợp đồng đang hiệu lực');
+  });
+
   it('reserves one available bed and persists it on the registration', async () => {
     const registration = { _id: 'registration-1', status: 'Đã duyệt' };
     const assignedRegistration = { ...registration, room_id: 'room-1', bed_id: 'bed-1' };

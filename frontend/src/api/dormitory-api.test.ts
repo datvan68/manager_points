@@ -70,3 +70,13 @@ describe('dormitoryApi.registrations.update/delete', () => {
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).not.toHaveProperty('preference');
   });
 });
+
+describe('dormitoryApi.registrations.unassignRoom', () => {
+  it('posts the registration id to the unassign endpoint', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'ok' })) });
+    await dormitoryApi.registrations.unassignRoom('registration-1');
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/unassign-room');
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'POST' });
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ registration_id: 'registration-1' });
+  });
+});

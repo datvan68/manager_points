@@ -165,6 +165,44 @@ export class RoomAssignmentService {
     };
   }
 
+  async unassignRoom(registrationId: string, user: any) {
+    void user;
+    const reg = await this.registrationModel.findById(registrationId);
+    const publicRegistration = reg ? null : await this.publicRegistrationModel.findById(registrationId);
+    if (!reg && !publicRegistration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
+
+    const activeContract = reg
+      ? await this.contractModel.findOne({ registration_id: registrationId, status: DORMITORY_ENUMS.contractStatus[0] })
+      : null;
+    if (activeContract) throw new ConflictException('Không thể bỏ chọn phòng khi hợp đồng đang hiệu lực');
+
+    const currentRoomId = reg?.room_id || publicRegistration?.room_id;
+    const currentBedId = reg?.bed_id || publicRegistration?.bed_id;
+    if (!currentBedId) return { registration: reg || publicRegistration, room: null, bed: null, message: 'Đơn đăng ký chưa được phân phòng' };
+
+    const assignmentModel: any = reg ? this.registrationModel : this.publicRegistrationModel;
+    const filter: any = { _id: registrationId, bed_id: currentBedId };
+    const unset: any = { room_id: '', bed_id: '' };
+    if (publicRegistration) unset.room_code = '';
+    const cleared = await assignmentModel.findOneAndUpdate(filter, { $unset: unset }, { new: true });
+    if (!cleared) throw new ConflictException('Đơn đăng ký đã thay đổi, vui lòng tải lại');
+
+    try {
+      const released = await this.bedModel.findOneAndUpdate(
+        { _id: currentBedId, status: DORMITORY_ENUMS.bedStatus[1] },
+        { $set: { status: DORMITORY_ENUMS.bedStatus[0] } },
+      );
+      if (!released) throw new ConflictException('Giường hiện tại không thể được giải phóng');
+      await this.syncRooms(currentRoomId, null);
+      return { registration: cleared, room: null, bed: released, message: 'Đã bỏ chọn phòng' };
+    } catch (error) {
+      const restore: any = { $set: { room_id: currentRoomId, bed_id: currentBedId } };
+      if (publicRegistration?.room_code) restore.$set.room_code = publicRegistration.room_code;
+      await assignmentModel.findOneAndUpdate({ _id: registrationId, bed_id: { $exists: false } }, restore, { new: true });
+      throw error;
+    }
+  }
+
   private async reassignActiveContract(args: {
     contract: any;
     registration: any;

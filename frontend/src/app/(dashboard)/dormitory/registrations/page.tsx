@@ -39,13 +39,13 @@ export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBL
 export const roomLabel = (r: DormRegistration) => (r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id || 'Chưa xếp phòng';
 export const isUnassignedRoom = (r: DormRegistration) => !((r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id);
 export const hasAssignedBed = (r: DormRegistration) => Boolean(r.bed_id || (r.source === 'FORMAL' && (r as any).assigned_room_name));
-export type RoomAssignment = { room: Room; bed: Bed; registration?: DormRegistration; active_contract_id?: string };
+export type RoomAssignment = { room: Room | null; bed?: Bed; registration?: DormRegistration; active_contract_id?: string };
 export const applyRoomAssignment = (row: DormRegistration, assignment: RoomAssignment): DormRegistration => ({
   ...row,
   ...(assignment.registration || {}),
-  room_id: assignment.room,
-  bed_id: assignment.bed,
-  assigned_room_name: assignment.room.room_name || assignment.room.room_code,
+  room_id: assignment.room || undefined,
+  bed_id: assignment.bed || undefined,
+  assigned_room_name: assignment.room ? assignment.room.room_name || assignment.room.room_code : undefined,
   active_contract_id: assignment.active_contract_id || assignment.registration?.active_contract_id || row.active_contract_id,
 });
 export const createdDateLabel = (value?: string) => {
@@ -189,6 +189,21 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     }
   };
 
+  const unassignRoom = async () => {
+    if (assigning || !currentBedId) return;
+    if (!window.confirm('Bỏ chọn phòng hiện tại? Giường sẽ được trả về trạng thái trống.')) return;
+    setAssigning(true);
+    setError('');
+    try {
+      const result = await dormitoryApi.registrations.unassignRoom(row._id);
+      toast.success('Đã bỏ chọn phòng');
+      setOpen(false);
+      onAssigned({ room: null, bed: result.bed, registration: result.registration });
+    } catch (err: any) {
+      setError(err?.message || 'Không thể bỏ chọn phòng.');
+    } finally { setAssigning(false); }
+  };
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -211,7 +226,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
                 const isCurrentRoom = room._id === currentRoomId;
                 const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
                 return (
-                  <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => void selectRoom(room)} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
+                  <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
                       <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
@@ -243,6 +258,9 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
                   </div>
                 )}
               </div>
+            )}
+            {currentBedId && (
+              <button type="button" disabled={assigning} onClick={() => void unassignRoom()} className="mt-2 w-full rounded-lg border border-red-200 px-2 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
             )}
           </div>
         )}

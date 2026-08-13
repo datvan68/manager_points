@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PublicRegistrationLinkService } from '../services/public-registration-link.service';
 import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
 import { UpdateRegistrationDto } from '../dto/update-registration.dto';
+import { UnassignRoomDto } from '../dto/unassign-room.dto';
 
 @ApiTags('Dormitory - Registrations')
 @ApiBearerAuth()
@@ -117,6 +118,12 @@ export class RegistrationsController {
   @UseGuards(checkPermission('DORM_REG_APPROVE'))
   assignRoom(@Body() dto: AssignRoomDto, @Request() req: any) {
     return this.roomAssignmentService.assignRoom(dto, req.user);
+  }
+
+  @Post('unassign-room')
+  @UseGuards(checkPermission('DORM_REG_APPROVE'))
+  unassignRoom(@Body() dto: UnassignRoomDto, @Request() req: any) {
+    return this.roomAssignmentService.unassignRoom(dto.registration_id, req.user);
   }
 
   @Get(':id/suggest-rooms')
