@@ -223,10 +223,13 @@ export class RegistrationsService {
     const payload = { ...(dto as Record<string, unknown>) };
     const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group'];
     const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes'];
-    if (source !== 'FORMAL' && payload.preference && typeof payload.preference === 'object') {
-      const preference = payload.preference as Record<string, unknown>;
-      if (payload.room_type === undefined && preference.room_type !== undefined) payload.room_type = preference.room_type;
-      if (payload.notes === undefined && preference.notes !== undefined) payload.notes = preference.notes;
+    if (source !== 'FORMAL' && Object.prototype.hasOwnProperty.call(payload, 'preference')) {
+      const preference = payload.preference;
+      if (preference && typeof preference === 'object' && !Array.isArray(preference)) {
+        const values = preference as Record<string, unknown>;
+        if (payload.room_type === undefined && values.room_type !== undefined) payload.room_type = values.room_type;
+        if (payload.notes === undefined && values.notes !== undefined) payload.notes = values.notes;
+      }
       delete payload.preference;
     }
     const allowedFields = source === 'FORMAL' ? formalFields : publicFields;

@@ -111,6 +111,9 @@ export class BedsService {
     if (bed.status === 'Đang sử dụng') {
       throw new ConflictException('Không thể xóa giường đang sử dụng');
     }
+    if ((bed as any).has_history) {
+      throw new ConflictException('Không thể xóa giường đã có lịch sử sử dụng');
+    }
 
     const roomId = bed.room_id.toString();
     await this.bedModel.findByIdAndDelete(id);
