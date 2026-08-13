@@ -247,7 +247,9 @@ export class RoomAssignmentService {
         max_students: maxStudents,
         current_students: currentStudents,
         available_bed_count: availableBedCount,
-        status: availableBedCount > 0 ? DORMITORY_ENUMS.roomStatus[0] : DORMITORY_ENUMS.roomStatus[1],
+        status: [DORMITORY_ENUMS.roomStatus[2], DORMITORY_ENUMS.roomStatus[3]].includes(room.status)
+          ? room.status
+          : availableBedCount > 0 ? DORMITORY_ENUMS.roomStatus[0] : DORMITORY_ENUMS.roomStatus[1],
       };
     }));
 

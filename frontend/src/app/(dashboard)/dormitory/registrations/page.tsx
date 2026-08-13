@@ -131,13 +131,18 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   const [bedsLoading, setBedsLoading] = useState(false);
   const [error, setError] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const bedRequestRef = useRef(0);
   const currentRoomId = typeof row.room_id === 'object' ? row.room_id._id : row.room_id;
   const currentBedId = typeof row.bed_id === 'object' ? row.bed_id._id : row.bed_id;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (!nextOpen) return;
+    if (!nextOpen) {
+      bedRequestRef.current += 1;
+      return;
+    }
 
+    bedRequestRef.current += 1;
     setRooms([]);
     setSelectedRoom(null);
     setBeds([]);
@@ -151,16 +156,20 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
 
   const selectRoom = async (room: Room) => {
     if (assigning) return;
+    const requestId = ++bedRequestRef.current;
     setSelectedRoom(room);
     setBeds([]);
     setError('');
     setBedsLoading(true);
     try {
-      setBeds(await dormitoryApi.beds.getByRoom(room._id));
+      const nextBeds = await dormitoryApi.beds.getByRoom(room._id);
+      if (bedRequestRef.current === requestId) setBeds(nextBeds);
     } catch (err: any) {
-      setError(err?.message || 'Không thể tải danh sách giường.');
+      if (bedRequestRef.current === requestId) {
+        setError(err?.message || 'Không thể tải danh sách giường.');
+      }
     } finally {
-      setBedsLoading(false);
+      if (bedRequestRef.current === requestId) setBedsLoading(false);
     }
   };
 
