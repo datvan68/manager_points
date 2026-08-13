@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -20,6 +21,7 @@ function isDuplicateKeyError(error: any): boolean {
 
 @Injectable()
 export class RoomsService {
+  private readonly logger = new Logger(RoomsService.name);
   constructor(
     @InjectModel(Room.name) private roomModel: Model<RoomDocument>,
     @InjectModel(Bed.name) private bedModel: Model<BedDocument>,
@@ -159,6 +161,7 @@ export class RoomsService {
         );
       } catch (error) {
         if (!isDuplicateKeyError(error)) throw error;
+        this.logger.warn(`Bed provisioning index conflict for room ${roomCode}`);
       }
     }
 
@@ -232,6 +235,19 @@ export class RoomsService {
 
   async update(id: string, dto: UpdateRoomDto, user: any): Promise<Room> {
     const currentRoom = await this.roomModel.findById(id).exec();
+    const capacityChange = dto.bed_count !== undefined;
+    const originalBeds: any[] = capacityChange && typeof (this.bedModel as any).find === 'function'
+      ? await this.bedModel.find({ room_id: id }).lean().exec()
+      : [];
+    const originalBedIds = new Set(originalBeds.map((bed) => String(bed._id)));
+    const originalBedCount = (currentRoom as any)?.bed_count;
+    const originalRoomFields: Record<string, any> = {};
+    for (const key of Object.keys(dto as any)) {
+      if (key !== 'bed_count' && (currentRoom as any)[key] !== undefined) originalRoomFields[key] = (currentRoom as any)[key];
+    }
+    if (capacityChange && (!Number.isInteger(dto.bed_count) || (dto.bed_count as number) <= 0)) {
+      throw new ConflictException('Sá»‘ lÆ°á»£ng giÆ°á»ng pháº£i lĂ  sá»‘ nguyĂªn dÆ°Æ¡ng');
+    }
     if (!currentRoom) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
 
     if (dto.bed_count !== undefined) {
@@ -248,6 +264,7 @@ export class RoomsService {
     const nextRoomCode = dto.room_code ? String(dto.room_code).trim().toUpperCase() : previousRoomCode;
     const roomCodeChanged = nextRoomCode !== previousRoomCode;
     const updateDto = { ...dto, ...(dto.room_code ? { room_code: nextRoomCode } : {}) };
+    if (capacityChange) delete (updateDto as any).bed_count;
     if (roomCodeChanged) {
       const beds = await this.bedModel.find({ room_id: id }).select('_id bed_code').lean().exec();
       const targetCodes = (beds as any[]).map((bed) => {
@@ -262,9 +279,24 @@ export class RoomsService {
     }
     const room = await this.roomModel.findByIdAndUpdate(id, { $set: updateDto }, { returnDocument: 'after' }).exec();
     if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
-    if (dto.bed_count !== undefined) {
-      await this.ensureRoomBeds(id, dto.bed_count);
-      await this.roomModel.findByIdAndUpdate(id, { $set: { bed_count: dto.bed_count } });
+    if (capacityChange) {
+      try {
+        await this.ensureRoomBeds(id, dto.bed_count as number);
+        await this.roomModel.findByIdAndUpdate(id, { $set: { bed_count: dto.bed_count } });
+      } catch (error) {
+        if (originalBeds.length) {
+          const currentBeds: any[] = await this.bedModel.find({ room_id: id }).lean().exec();
+          const insertedIds = currentBeds.filter((bed) => !originalBedIds.has(String(bed._id)) && bed.status !== DORMITORY_ENUMS.bedStatus[1] && !bed.has_history).map((bed) => bed._id);
+          if (insertedIds.length) await this.bedModel.deleteMany({ _id: { $in: insertedIds }, room_id: id, status: { $ne: DORMITORY_ENUMS.bedStatus[1] }, has_history: { $ne: true } });
+          const restorableIds = originalBeds.filter((bed) => bed.status === DORMITORY_ENUMS.bedStatus[0]).map((bed) => bed._id);
+          if (restorableIds.length) await this.bedModel.updateMany({ _id: { $in: restorableIds }, room_id: id }, { $set: { status: DORMITORY_ENUMS.bedStatus[0] } });
+          for (const bed of originalBeds) {
+            if (bed.bed_code) await this.bedModel.updateOne({ _id: bed._id, room_id: id }, { $set: { bed_code: bed.bed_code } });
+          }
+        }
+        await this.roomModel.findByIdAndUpdate(id, { $set: { ...originalRoomFields, bed_count: originalBedCount } });
+        throw error;
+      }
       if (roomCodeChanged) {
         const beds = await this.bedModel.find({ room_id: id }).select('_id bed_code').lean().exec();
         for (const bed of beds as any[]) {
