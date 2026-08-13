@@ -5,8 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import TabNavigation from '@/components/ui/TabNavigation';
 
 const dormitoryTabs = [
-  { id: 'registrations', href: '/dormitory/registrations', label: 'Đăng ký' },
   { id: 'overview', href: '/dormitory/overview', label: 'Tổng quan' },
+  { id: 'registrations', href: '/dormitory/registrations', label: 'Đăng ký' },
   { id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' },
   { id: 'contracts', href: '/dormitory/contracts', label: 'Hợp đồng' },
   { id: 'invoices', href: '/dormitory/invoices', label: 'Hóa đơn' },
@@ -18,7 +18,7 @@ const dormitoryTabs = [
 export default function DormitoryLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const activeTab = dormitoryTabs.find((tab) => pathname?.startsWith(tab.href))?.id || 'registrations';
+  const activeTab = dormitoryTabs.find((tab) => pathname?.startsWith(tab.href))?.id || 'overview';
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

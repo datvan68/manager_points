@@ -24,7 +24,7 @@ describe('DormitoryLayout', () => {
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
-    expect(screen.getAllByRole('button')[0]).toHaveTextContent('Đăng ký');
+    expect(screen.getAllByRole('button')[0]).toHaveTextContent('Tổng quan');
     screen.getByRole('button', { name: 'Báo cáo' }).click();
     expect(push).toHaveBeenCalledWith('/dormitory/reports');
   });

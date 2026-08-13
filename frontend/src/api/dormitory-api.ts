@@ -217,6 +217,12 @@ export interface DormDashboardStats {
   pending_registrations: number;
   unpaid_invoices: number;
   pending_maintenance: number;
+  rooms: { occupied: number; available: number; air_conditioned: number; standard: number };
+  beds: { used: number; free: number };
+  students: { registered: number; residing: number };
+  dormitory_fees: { paid: number; unpaid: number };
+  utilities: { paid: number; unpaid: number };
+  monthly: Array<{ month: string; registrations: number; move_ins: number; dormitory_fee_paid: number; dormitory_fee_unpaid: number; utility_paid: number; utility_unpaid: number }>;
 }
 
 interface PaginatedResponse<T> {

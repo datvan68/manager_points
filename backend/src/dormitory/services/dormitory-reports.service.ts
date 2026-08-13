@@ -142,33 +142,43 @@ export class DormitoryReportsService {
    * Dashboard overview stats
    */
   async getDashboardStats() {
-    const [
-      totalRooms,
-      availableRooms,
-      activeContracts,
-      pendingRegistrations,
-      unpaidInvoices,
-      pendingMaintenance,
-    ] = await Promise.all([
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+      return { date, month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` };
+    });
+    const monthly = months.map(({ month }) => ({ month, registrations: 0, move_ins: 0, dormitory_fee_paid: 0, dormitory_fee_unpaid: 0, utility_paid: 0, utility_unpaid: 0 }));
+    const [rooms, beds, contracts, registrations, invoices, pendingMaintenance, totalRooms, availableRooms] = await Promise.all([
+      this.roomModel.find({ status: { $ne: 'Khóa' } }).lean().exec(),
+      this.bedModel.find({ status: { $ne: 'Đã nghỉ' } }).lean().exec(),
+      this.contractModel.find({ status: 'Hiệu lực' }).lean().exec(),
+      this.registrationModel.find().lean().exec(),
+      this.invoiceModel.find().lean().exec(),
+      this.maintenanceModel.countDocuments({ status: { $in: ['Mới', 'Đang xử lý'] } }),
       this.roomModel.countDocuments({ status: { $ne: 'Khóa' } }),
       this.roomModel.countDocuments({ available_bed_count: { $gt: 0 }, status: 'Trống' }),
-      this.contractModel.countDocuments({ status: 'Hiệu lực' }),
-      this.registrationModel.countDocuments({ status: 'Chờ duyệt' }),
-      this.invoiceModel.countDocuments({
-        status: { $in: ['Chưa thanh toán', 'Quá hạn'] },
-      }),
-      this.maintenanceModel.countDocuments({
-        status: { $in: ['Mới', 'Đang xử lý'] },
-      }),
     ]);
-
-    return {
-      total_rooms: totalRooms,
-      available_rooms: availableRooms,
-      active_contracts: activeContracts,
-      pending_registrations: pendingRegistrations,
-      unpaid_invoices: unpaidInvoices,
-      pending_maintenance: pendingMaintenance,
-    };
+    const roomList: any[] = rooms as any[];
+    const bedList: any[] = beds as any[];
+    const invoiceList: any[] = invoices as any[];
+    const category = (type: string) => type === 'Phí phòng' ? 'fee' : type === 'Điện' || type === 'Nước' ? 'utility' : null;
+    const summary = { fee: { paid: 0, unpaid: 0 }, utility: { paid: 0, unpaid: 0 } };
+    for (const registration of registrations as any[]) {
+      const created = new Date(registration.createdAt);
+      const bucket = monthly.find(item => item.month === `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`);
+      if (bucket) bucket.registrations++;
+    }
+    for (const contract of contracts as any[]) {
+      const date = new Date(contract.start_date);
+      const bucket = monthly.find(item => item.month === `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+      if (bucket) bucket.move_ins++;
+    }
+    for (const invoice of invoiceList) {
+      const paid = invoice.status === 'Đã thanh toán';
+      for (const item of invoice.items || []) { const group = category(item.type); if (!group) continue; summary[group][paid ? 'paid' : 'unpaid']++; const raw = /^T(\d{2})\/(\d{4})$/.exec(String(invoice.billing_period || '')); const bucket = raw ? monthly.find(row => row.month === `${raw[2]}-${raw[1]}`) : undefined; if (bucket) bucket[`${group === 'fee' ? 'dormitory_fee' : 'utility'}_${paid ? 'paid' : 'unpaid'}`]++; }
+    }
+    const occupiedRooms = new Set((contracts as any[]).map(contract => String(contract.room_id))).size;
+    const air = roomList.filter(room => (room.amenities || []).includes('Điều hòa')).length;
+    return { total_rooms: totalRooms, available_rooms: availableRooms, active_contracts: contracts.length, pending_registrations: (registrations as any[]).filter(item => item.status === 'Chờ duyệt').length, unpaid_invoices: invoiceList.filter(item => item.status !== 'Đã thanh toán').length, pending_maintenance: pendingMaintenance, rooms: { occupied: occupiedRooms, available: roomList.filter(room => room.available_bed_count > 0).length, air_conditioned: air, standard: Math.max(0, roomList.length - air) }, beds: { used: bedList.filter(bed => bed.status === 'Đang sử dụng').length, free: bedList.filter(bed => bed.status === 'Trống').length }, students: { registered: (registrations as any[]).length, residing: contracts.length }, dormitory_fees: summary.fee, utilities: summary.utility, monthly };
   }
 }
