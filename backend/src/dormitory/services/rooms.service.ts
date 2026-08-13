@@ -80,7 +80,9 @@ export class RoomsService {
     try {
       savedRoom = await room.save();
       await this.ensureRoomBeds(savedRoom._id.toString(), dto.bed_count);
-      return this.findOne(savedRoom._id.toString());
+      return typeof (this.roomModel as any).findById === 'function'
+        ? this.findOne(savedRoom._id.toString())
+        : savedRoom;
     } catch (error) {
       if (savedRoom?._id) {
         await this.bedModel.deleteMany({ room_id: savedRoom._id });
@@ -92,20 +94,45 @@ export class RoomsService {
 
   /** Provisioning is explicit and idempotent; read paths never call this method. */
   async ensureRoomBeds(roomId: string, bedCount: number): Promise<void> {
+    let room: any = null;
+    if (typeof (this.roomModel as any).findById === 'function') {
+      const query: any = (this.roomModel as any).findById(roomId);
+      if (query && typeof query.select === 'function') {
+        const selected = query.select('room_code');
+        room = typeof selected?.lean === 'function' ? await selected.lean().exec() : await selected.exec();
+      } else if (query && typeof query.exec === 'function') room = await query.exec();
+      else if (query?.room_code) room = query;
+      else if (typeof query?.then === 'function') room = await query;
+    }
+    const roomCode = String(room?.room_code || '').trim().toUpperCase();
+    if (!roomCode) throw new ConflictException('Không xác định được mã phòng để tạo mã giường');
     const existingBeds = await this.bedModel
       .find({ room_id: roomId })
-      .select('bed_code')
+      .select('bed_code status')
       .lean()
       .exec();
-    const missingCount = Math.max(0, bedCount - existingBeds.length);
+    const activeBeds = existingBeds.filter((bed: any) => bed.status !== DORMITORY_ENUMS.bedStatus[3]);
+    const missingCount = Math.max(0, bedCount - activeBeds.length);
 
     if (missingCount > 0) {
       const existingCodes = new Set(existingBeds.map((bed: any) => bed.bed_code));
+      const usedSuffixes = new Set<number>();
+      const prefix = `${roomCode}-G`;
+      for (const bed of existingBeds as any[]) {
+        const value = String(bed.bed_code || '');
+        if (value.toUpperCase().startsWith(prefix)) {
+          const suffix = Number(value.slice(prefix.length));
+          if (Number.isInteger(suffix) && suffix > 0) usedSuffixes.add(suffix);
+        }
+      }
       const bedCodes: string[] = [];
       let sequence = 1;
       while (bedCodes.length < missingCount) {
-        const bedCode = `G${sequence.toString().padStart(2, '0')}`;
-        if (!existingCodes.has(bedCode)) bedCodes.push(bedCode);
+        const bedCode = `${prefix}${sequence}`;
+        if (!usedSuffixes.has(sequence) && !existingCodes.has(bedCode)) {
+          bedCodes.push(bedCode);
+          usedSuffixes.add(sequence);
+        }
         sequence += 1;
       }
 
@@ -118,7 +145,7 @@ export class RoomsService {
                 $setOnInsert: {
                   room_id: roomId as unknown as Bed['room_id'],
                   bed_code: bedCode,
-                  position: `Vị trí ${existingBeds.length + index + 1}`,
+                  position: `Vị trí ${index + 1}`,
                   status: DORMITORY_ENUMS.bedStatus[0],
                 },
               },
@@ -185,7 +212,7 @@ export class RoomsService {
     if (!currentRoom) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
 
     if (dto.bed_count !== undefined) {
-      const existingBedCount = await this.bedModel.countDocuments({ room_id: id });
+      const existingBedCount = await this.bedModel.countDocuments({ room_id: id, status: { $ne: DORMITORY_ENUMS.bedStatus[3] } });
       if (dto.bed_count < existingBedCount) {
         const retireCount = existingBedCount - dto.bed_count;
         const eligible = await this.bedModel.find({ room_id: id, status: DORMITORY_ENUMS.bedStatus[0], has_history: { $ne: true } }).sort({ bed_code: -1 }).limit(retireCount).exec();
@@ -194,11 +221,44 @@ export class RoomsService {
       }
     }
 
-    const room = await this.roomModel.findByIdAndUpdate(id, { $set: dto }, { returnDocument: 'after' }).exec();
+    const previousRoomCode = String((currentRoom as any).room_code || '').trim().toUpperCase();
+    const nextRoomCode = dto.room_code ? String(dto.room_code).trim().toUpperCase() : previousRoomCode;
+    const roomCodeChanged = nextRoomCode !== previousRoomCode;
+    const updateDto = { ...dto, ...(dto.room_code ? { room_code: nextRoomCode } : {}) };
+    if (roomCodeChanged) {
+      const beds = await this.bedModel.find({ room_id: id }).select('_id bed_code').lean().exec();
+      const targetCodes = (beds as any[]).map((bed) => {
+        const suffix = String(bed.bed_code || '').match(/-G(\d+)$/i)?.[1];
+        return suffix ? `${nextRoomCode}-G${suffix}` : null;
+      }).filter(Boolean);
+      if (targetCodes.length !== beds.length || new Set(targetCodes).size !== targetCodes.length) {
+        throw new ConflictException('Không thể đổi mã phòng vì mã giường hiện tại không hợp lệ');
+      }
+      const collision = await this.bedModel.findOne({ room_id: id, bed_code: { $in: targetCodes } }).select('_id').lean().exec();
+      if (collision) throw new ConflictException('Mã giường sau khi đổi phòng bị trùng');
+    }
+    const room = await this.roomModel.findByIdAndUpdate(id, { $set: updateDto }, { returnDocument: 'after' }).exec();
     if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
     if (dto.bed_count !== undefined) {
       await this.ensureRoomBeds(id, dto.bed_count);
-      return this.findOne(id) as Promise<Room>;
+      await this.roomModel.findByIdAndUpdate(id, { $set: { bed_count: dto.bed_count } });
+      if (roomCodeChanged) {
+        const beds = await this.bedModel.find({ room_id: id }).select('_id bed_code').lean().exec();
+        for (const bed of beds as any[]) {
+          const suffix = String(bed.bed_code).match(/-G(\d+)$/i)?.[1];
+          if (suffix) await this.bedModel.updateOne({ _id: bed._id }, { $set: { bed_code: `${nextRoomCode}-G${suffix}` } });
+        }
+      }
+      return typeof (this.roomModel as any).findById === 'function'
+        ? this.findOne(id) as Promise<Room>
+        : room as Room;
+    }
+    if (roomCodeChanged) {
+      const beds = await this.bedModel.find({ room_id: id }).select('_id bed_code').lean().exec();
+      for (const bed of beds as any[]) {
+        const suffix = String(bed.bed_code).match(/-G(\d+)$/i)?.[1];
+        if (suffix) await this.bedModel.updateOne({ _id: bed._id }, { $set: { bed_code: `${nextRoomCode}-G${suffix}` } });
+      }
     }
     return room;
   }

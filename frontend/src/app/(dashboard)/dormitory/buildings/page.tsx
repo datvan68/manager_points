@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
-import { Building, Room, dormitoryApi } from '@/api/dormitory-api';
+import { Bed, Building, Room, dormitoryApi } from '@/api/dormitory-api';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -56,6 +56,10 @@ export default function BuildingsPage() {
   const canCreateRoom = hasPermission('DORM_ROOM_CREATE');
   const canUpdateRoom = hasPermission('DORM_ROOM_UPDATE');
   const canDeleteRoom = hasPermission('DORM_ROOM_DELETE');
+  const canManageBeds = hasPermission('DORM_BED_CREATE') || hasPermission('DORM_BED_UPDATE') || hasPermission('DORM_BED_DELETE');
+  const canCreateBed = hasPermission('DORM_BED_CREATE');
+  const canUpdateBed = hasPermission('DORM_BED_UPDATE');
+  const canDeleteBed = hasPermission('DORM_BED_DELETE');
   const canCreateBuilding = hasPermission('DORM_BUILDING_CREATE');
   const canUpdateBuilding = hasPermission('DORM_BUILDING_UPDATE');
   const canDeleteBuilding = hasPermission('DORM_BUILDING_DELETE');
@@ -88,6 +92,11 @@ export default function BuildingsPage() {
   const [buildingToDelete, setBuildingToDelete] = useState<Building | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bedRoom, setBedRoom] = useState<Room | null>(null);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [bedsLoading, setBedsLoading] = useState(false);
+  const [bedForm, setBedForm] = useState({ bed_code: '', position: '' });
+  const [bedSaving, setBedSaving] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)');
@@ -207,6 +216,28 @@ export default function BuildingsPage() {
     } catch (err: any) { toast.error(err?.message || 'Không thể xóa khu vực.'); throw err; }
   };
 
+  const openBedManager = async (room: Room) => {
+    setBedRoom(room); setBedsLoading(true);
+    try { setBeds(await dormitoryApi.beds.getByRoom(room._id)); }
+    catch (err: any) { toast.error(err?.message || 'Không thể tải danh sách giường.'); }
+    finally { setBedsLoading(false); }
+  };
+  const refreshBeds = async () => { if (bedRoom) await openBedManager(bedRoom); await load(true); };
+  const saveBed = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!bedRoom || bedSaving) return; setBedSaving(true);
+    try { await dormitoryApi.beds.create({ ...bedForm, room_id: bedRoom._id, status: 'Trống' }); setBedForm({ bed_code: '', position: '' }); await refreshBeds(); toast.success('Đã thêm giường'); }
+    catch (err: any) { toast.error(err?.message || 'Không thể thêm giường.'); }
+    finally { setBedSaving(false); }
+  };
+  const changeBedStatus = async (bed: Bed, status: string) => {
+    try { await dormitoryApi.beds.updateStatus(bed._id, status); await refreshBeds(); toast.success('Đã cập nhật trạng thái giường'); }
+    catch (err: any) { toast.error(err?.message || 'Không thể cập nhật giường.'); }
+  };
+  const removeBed = async (bed: Bed) => {
+    try { await dormitoryApi.beds.delete(bed._id); await refreshBeds(); toast.success('Đã xóa giường'); }
+    catch (err: any) { toast.error(err?.message || 'Không thể xóa giường.'); }
+  };
+
   const removeSelectedRooms = async () => {
     if (bulkDeleting || selected.length === 0) return;
     setBulkDeleting(true);
@@ -239,8 +270,8 @@ export default function BuildingsPage() {
     { key: 'max_students', header: 'Giường', render: (_, room) => roomBedCountLabel(room) },
     { key: 'current_students', header: 'Số SV hiện tại', render: value => String(value ?? 0) },
     { key: 'room_price', header: 'Giá phòng', render: value => formatRoomPrice(value) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, room) => <div className="flex items-center justify-end gap-1">{canUpdateRoom && <button aria-label={`Sửa phòng ${room.room_code}`} title="Sửa" onClick={() => openRoom(room)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteRoom && <button aria-label={`Xóa phòng ${room.room_code}`} title="Xóa" onClick={() => setRoomToDelete(room)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div> },
-  ], [canDeleteRoom, canUpdateRoom]);
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, room) => <div className="flex items-center justify-end gap-1">{canManageBeds && <button aria-label={`Quản lý giường ${room.room_code}`} title="Quản lý giường" onClick={() => void openBedManager(room)} className="rounded-xl px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50">Giường</button>}{canUpdateRoom && <button aria-label={`Sửa phòng ${room.room_code}`} title="Sửa" onClick={() => openRoom(room)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteRoom && <button aria-label={`Xóa phòng ${room.room_code}`} title="Xóa" onClick={() => setRoomToDelete(room)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div> },
+  ], [canDeleteRoom, canManageBeds, canUpdateRoom]);
 
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     <div className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
@@ -257,6 +288,8 @@ export default function BuildingsPage() {
     <Dialog open={roomOpen} onOpenChange={setRoomOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>{roomEdit ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle></DialogHeader><form onSubmit={saveRoom} className="grid gap-4 py-4 sm:grid-cols-2">{field('Mã phòng', 'room_code', 'text', true)}{field('Tên phòng', 'room_name', 'text', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Khu vực</label><Select value={roomForm.building_id} onValueChange={value => setRoomForm(current => ({ ...current, building_id: value }))}><SelectTrigger><SelectValue placeholder="Chọn khu vực" /></SelectTrigger><SelectContent>{buildings.map(building => <SelectItem key={building._id} value={building._id}>{building.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={roomForm.room_type} onValueChange={value => setRoomForm(current => ({ ...current, room_type: value }))}><SelectTrigger><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>{field('Tổng số giường', 'bed_count', 'number', true)}{field('Giá phòng', 'room_price', 'number', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={roomForm.status} onValueChange={value => setRoomForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['Trống', 'Đầy', 'Khóa', 'Bảo trì'].map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div><div className="sm:col-span-2"><Input label="Mô tả" multiline rows={3} value={roomForm.description ?? ''} onChange={event => setRoomForm(current => ({ ...current, description: event.target.value }))} /></div><DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setRoomOpen(false)}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu phòng'}</Button></DialogFooter></form></DialogContent></Dialog>
 
     <Dialog open={areaOpen} onOpenChange={setAreaOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>Quản lý khu vực</DialogTitle></DialogHeader><div className="space-y-3 py-4"><div className="flex items-center justify-between"><p className="text-sm font-semibold text-slate-600">Danh sách khu vực</p>{canCreateBuilding && <Button variant="outline" size="icon" aria-label="Thêm khu vực" title="Thêm khu vực" onClick={startCreateArea} className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0"><Plus size={15} /></Button>}</div>{buildings.length === 0 ? <p className="rounded-xl border border-white/60 bg-white/40 p-6 text-center text-sm text-slate-500">Chưa có khu vực nào.</p> : <div className="space-y-2">{buildings.map(building => <div key={building._id} className="flex items-center justify-between rounded-xl border border-white/70 bg-white/45 px-3 py-2"><div><p className="font-semibold text-slate-800">{building.name}</p><p className="text-xs text-slate-500">{building.building_code}</p></div><div className="flex gap-1">{canUpdateBuilding && <button aria-label={`Sửa khu vực ${building.name}`} onClick={() => openArea(building)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteBuilding && <button aria-label={`Xóa khu vực ${building.name}`} onClick={() => setBuildingToDelete(building)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div></div>)}</div>}{areaFormOpen && <form onSubmit={saveArea} className="grid gap-4 border-t border-white/60 pt-4 sm:grid-cols-2">{areaField('Mã khu vực', 'building_code', 'text', true)}{areaField('Tên khu vực', 'name', 'text', true)}{areaField('Địa chỉ', 'address')}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={buildingForm.status} onValueChange={value => setBuildingForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Active">Active</SelectItem><SelectItem value="Inactive">Inactive</SelectItem><SelectItem value="Maintenance">Maintenance</SelectItem></SelectContent></Select></div>{areaField('Mô tả', 'description', 'text', false, true)}<DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => { setAreaFormOpen(false); setBuildingEdit(null); }}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : buildingEdit ? 'Lưu khu vực' : 'Thêm khu vực'}</Button></DialogFooter></form>}</div></DialogContent></Dialog>
+
+    <Dialog open={Boolean(bedRoom)} onOpenChange={open => !open && setBedRoom(null)}><DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader><DialogTitle>Quản lý giường {bedRoom?.room_code}</DialogTitle></DialogHeader><div className="space-y-3">{bedsLoading ? <p className="py-6 text-center text-sm text-slate-500">Đang tải giường...</p> : beds.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">Phòng chưa có giường.</p> : <div className="space-y-2">{beds.map(bed => <div key={bed._id} className="flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2"><div><p className="font-semibold text-slate-800">{bed.bed_code}</p><p className="text-xs text-slate-500">{bed.position || 'Chưa có vị trí'} · {bed.status}</p></div><div className="flex gap-1">{canUpdateBed && bed.status !== 'Đang sử dụng' && bed.status !== 'Đã nghỉ' && <button type="button" className="rounded-lg px-2 py-1 text-xs text-amber-700 hover:bg-amber-50" onClick={() => void changeBedStatus(bed, bed.status === 'Bảo trì' ? 'Trống' : 'Bảo trì')}>{bed.status === 'Bảo trì' ? 'Mở lại' : 'Bảo trì'}</button>}{canDeleteBed && bed.status === 'Trống' && <button type="button" className="rounded-lg px-2 py-1 text-xs text-red-700 hover:bg-red-50" onClick={() => void removeBed(bed)}>Xóa</button>}</div></div>)}</div>}{canCreateBed && <form onSubmit={saveBed} className="grid gap-2 border-t border-white/60 pt-3 sm:grid-cols-[1fr_1fr_auto]"><Input label="Mã giường" required value={bedForm.bed_code} onChange={e => setBedForm(v => ({ ...v, bed_code: e.target.value.toUpperCase() }))} /><Input label="Vị trí" value={bedForm.position} onChange={e => setBedForm(v => ({ ...v, position: e.target.value }))} /><Button type="submit" disabled={bedSaving} className="self-end">Thêm</Button></form>}</div></DialogContent></Dialog>
 
     <ConfirmModal isOpen={Boolean(roomToDelete)} onClose={() => setRoomToDelete(null)} onConfirm={removeRoom} title="Xóa phòng" message={roomToDelete ? `Bạn có chắc chắn muốn xóa phòng ${roomToDelete.room_code}?` : ''} confirmLabel="Xóa phòng" variant="danger" />
     <ConfirmModal isOpen={Boolean(buildingToDelete)} onClose={() => setBuildingToDelete(null)} onConfirm={removeBuilding} title="Xóa khu vực" message={buildingToDelete ? `Bạn có chắc chắn muốn xóa khu vực ${buildingToDelete.name}?` : ''} confirmLabel="Xóa khu vực" variant="danger" />

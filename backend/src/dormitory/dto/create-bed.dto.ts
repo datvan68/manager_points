@@ -20,6 +20,6 @@ export class CreateBedDto {
   position?: string;
 
   @IsOptional()
-  @IsEnum(['Trống', 'Đang sử dụng', 'Bảo trì'])
+  @IsEnum(['Trống', 'Đang sử dụng', 'Bảo trì', 'Đã nghỉ'])
   status?: string;
 }

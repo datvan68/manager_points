@@ -9,6 +9,7 @@ import { Bed, BedDocument } from '../schemas/bed.schema';
 import { Room, RoomDocument } from '../schemas/room.schema';
 import { CreateBedDto } from '../dto/create-bed.dto';
 import { RoomsService } from './rooms.service';
+import { DORMITORY_ENUMS } from '../dormitory-enums';
 
 @Injectable()
 export class BedsService {
@@ -25,19 +26,27 @@ export class BedsService {
       throw new NotFoundException(`Không tìm thấy phòng: ${dto.room_id}`);
     }
 
-    // Check duplicate bed code within room
-    const existing = await this.bedModel.findOne({
-      bed_code: dto.bed_code,
-      room_id: dto.room_id,
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Giường "${dto.bed_code}" đã tồn tại trong phòng`,
-      );
+    const roomCode = String((room as any).room_code || '').trim().toUpperCase();
+    if (!roomCode) throw new ConflictException('Phòng chưa có mã hợp lệ để tạo giường');
+    const existingBeds = await this.bedModel.find({ room_id: dto.room_id }).select('bed_code').lean().exec();
+    const prefix = `${roomCode}-G`;
+    const used = new Set<number>();
+    for (const item of existingBeds as any[]) {
+      const value = String(item.bed_code || '');
+      if (value.toUpperCase().startsWith(prefix)) {
+        const suffix = Number(value.slice(prefix.length));
+        if (Number.isInteger(suffix) && suffix > 0) used.add(suffix);
+      }
     }
+    let suffix = 1;
+    while (used.has(suffix)) suffix += 1;
+    const bedCode = `${prefix}${suffix}`;
 
-    const bed = new this.bedModel(dto);
+    const bed = new this.bedModel({ ...dto, bed_code: bedCode });
     const saved = await bed.save();
+    if (saved.status !== DORMITORY_ENUMS.bedStatus[3]) {
+      await this.roomModel.findByIdAndUpdate(dto.room_id, { $inc: { bed_count: 1 } });
+    }
 
     // Sync room availability
     await this.roomsService.syncRoomAvailability(dto.room_id);
@@ -65,11 +74,25 @@ export class BedsService {
     status: string,
     user: any,
   ): Promise<Bed> {
+    if (!(DORMITORY_ENUMS.bedStatus as readonly string[]).includes(status)) {
+      throw new ConflictException('Trạng thái giường không hợp lệ');
+    }
+    const current = await this.bedModel.findById(id);
+    if (!current) throw new NotFoundException(`Không tìm thấy giường: ${id}`);
+    if (current.status === DORMITORY_ENUMS.bedStatus[1] && status === DORMITORY_ENUMS.bedStatus[3]) {
+      throw new ConflictException('Không thể ngừng sử dụng giường đang có sinh viên');
+    }
     const bed = await this.bedModel
       .findByIdAndUpdate(id, { $set: { status } }, { returnDocument: 'after' })
       .exec();
     if (!bed) {
       throw new NotFoundException(`Không tìm thấy giường: ${id}`);
+    }
+
+    const wasRetired = current.status === DORMITORY_ENUMS.bedStatus[3];
+    const isRetired = status === DORMITORY_ENUMS.bedStatus[3];
+    if (wasRetired !== isRetired) {
+      await this.roomModel.findByIdAndUpdate(current.room_id, { $inc: { bed_count: isRetired ? -1 : 1 } });
     }
 
     // Sync room availability after bed status change
@@ -91,6 +114,9 @@ export class BedsService {
 
     const roomId = bed.room_id.toString();
     await this.bedModel.findByIdAndDelete(id);
+    if (bed.status !== DORMITORY_ENUMS.bedStatus[3]) {
+      await this.roomModel.findByIdAndUpdate(roomId, { $inc: { bed_count: -1 } });
+    }
 
     // Sync room availability
     await this.roomsService.syncRoomAvailability(roomId);

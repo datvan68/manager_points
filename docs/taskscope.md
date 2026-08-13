@@ -1,108 +1,117 @@
 # Task Identity and Pipeline
 
-- Task: `dormitory-bed-source-of-truth-and-management`
-- Pipeline: `feature_development` + `bug_fix`
+- Task: `dormitory-room-bed-provisioning-and-code-convention`
+- Pipeline: `bug_fix` + `feature_development`
 - Profile: Full; rules version `3.2.0`
-- Repository: `D:\PROJECT\manager_points`; branch `main`; base commit `d0c46a3cb1832421f7db8e976d2fd62d141aed79`; worktree clean before this planning edit.
+- Repository: `D:\PROJECT\manager_points`; branch `main`; base commit `db525a9ad0854e5546613866dac28cdf3c7e5917`.
 
 # Risk Level
 
-- Risk: high because the change spans frontend/backend, alters persisted dormitory invariants, and may require reconciling existing rooms and beds.
-- Main risks: duplicate or missing beds, deleting historical/occupied beds, inconsistent room counters/status, partial room creation, orphan rooms after building deletion, and incorrect occupancy reports.
-- Source changes are Git-revertible. Persistent-data execution is separately gated and must use a reviewed backup manifest and rollback path.
+- Risk: high. The task changes persisted room/bed invariants across backend and frontend and may require reconciliation of existing data.
+- Main risks: configured quantity differing from active beds, partial room/bed creation, duplicate or malformed bed codes, code collisions during room-code changes, repeated shrink retiring too many beds, growth counting retired beds as capacity, and invalid actions on occupied beds.
+- Source changes are Git-revertible. Any persistent-data reconciliation or migration execution requires a Human Gate.
 
 # Objective
 
-Make each persisted `Bed` the authoritative unit of room capacity: creating a room with five beds atomically provisions five identifiable bed records; staff can manage those beds from the room UI; capacity changes, assignment, deletion, and reporting preserve occupancy and history without conflicting counters.
+Guarantee that creating a room with `bed_count = N` creates exactly `N` non-retired bed records and assigns each bed a server-generated, room-qualified code in the format `<ROOM_CODE>-G<n>` (for example, room `P201` with two beds creates `P201-G1` and `P201-G2`). Preserve this quantity/code contract through retries and later capacity changes while occupied/historical beds remain protected.
 
 # Scope Boundaries
 
-- Backend domain: `backend/src/dormitory/**`, including room/bed/building schemas, DTOs, controllers, services, enums, reports, assignment logic, module registration, and focused tests.
-- Backend migration tooling: `backend/scripts/migrate-dormitory-capacity.ts` and `backend/package.json` only where audit/dry-run/execute/rollback behavior or commands must be aligned.
-- Frontend: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, focused components/tests created under that page or `frontend/src/components/dormitory/**`, and `frontend/src/api/dormitory-api.ts` plus its focused tests.
-- `Bed` is the capacity source of truth. A room-creation/update request may accept a desired bed quantity, but persisted `Room.bed_count` and `Room.available_bed_count` must not independently determine runtime capacity.
-- Capacity definitions:
-  - physical capacity: non-retired bed records;
-  - assignable capacity: active, non-maintenance beds;
-  - occupied count: assignable beds with an effective occupant;
-  - available count: assignable beds without an effective occupant.
-- Bed lifecycle must distinguish operational state (`Active`, `Maintenance`, `Retired`) from occupancy. If backward compatibility requires retaining the existing `status` field temporarily, expose one canonical mapping and prohibit contradictory states.
+- Backend: `backend/src/dormitory/schemas/bed.schema.ts`, `dormitory-enums.ts`, room/bed DTOs, `controllers/beds.controller.ts`, `services/rooms.service.ts`, `services/beds.service.ts`, related module wiring, and focused tests under `backend/src/dormitory/**`.
+- Existing-data audit/reconciliation: `backend/scripts/migrate-dormitory-capacity.ts` and related focused tests/package commands only when required to detect or repair legacy mismatches.
+- Frontend: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`, a focused bed-manager component under that page or `frontend/src/components/dormitory/**`, `frontend/src/api/dormitory-api.ts`, and focused tests.
+- Capacity invariant: `room.bed_count === count(beds where room_id = room._id and status != 'Đã nghỉ')` after every successful scoped mutation.
+- Bed-code invariant: every server-managed bed code is `<normalized room.room_code>-G<positive integer>`; its numeric suffix is unique inside the room and is never reused after retirement or deletion when history may exist.
+- Runtime capacity remains bed-derived. `room.bed_count` is the requested/configured quantity and must be synchronized in the same operation, never used to conceal missing or extra active beds.
 
 # Out of Scope
 
-- Asset inventory or moving a physical bed between rooms; beds remain room-owned and are created for a room.
-- Redesigning registration, contract, billing, maintenance-request, permission, or QR workflows except for compatibility with the canonical bed/capacity contract.
-- Deployment, production database mutation, or execution of migration/rollback without explicit Human Gate approval.
-- Hard-deleting a bed with occupancy/history, silently reassigning students, or cascading deletion of an occupied building.
-- Broad dormitory UI redesign unrelated to room/bed management.
+- Moving beds between rooms or treating beds as transferable inventory assets.
+- Redesigning registration, contracts, billing, QR, or the full dormitory interface beyond compatibility with the bed-count invariant.
+- Hard-deleting occupied or historically referenced beds, automatically moving students, or guessing how to resolve ambiguous legacy data.
+- Deployment, production mutation, or executing reconciliation/migration without explicit approval.
 
 # Context and Dependencies
 
-- `RoomsService.create()` currently saves the room and then provisions beds, so failure can leave partial state. `ensureRoomBeds()` only grows the set.
-- Runtime room projection already counts persisted beds, but `Room.bed_count`, `Room.available_bed_count`, public QR responses, and reports still consume cached/declared values in places.
-- The existing bed API supports create, list-by-room, status update, delete, and auto-create. The buildings page has only a numeric `Tổng số giường` field and no bed-management UI.
-- Assignment reserves a free bed with a conditional update. This concurrency guarantee must remain authoritative and must use the new canonical lifecycle/occupancy rules.
-- `migrate-dormitory-capacity.ts` already supports audit, dry-run, execute, backup manifest, and rollback for non-production connections; extend it rather than introducing an unrelated migration mechanism.
-- MongoDB transactions require a transaction-capable deployment. If unavailable in the development/test environment, implement a tested compensating rollback while keeping the service interface transaction-ready.
+- No bed-management UI exists on the buildings page. The room dialog only exposes `Tổng số giường`; room-row actions only edit or delete the room.
+- Room creation calls `ensureRoomBeds(roomId, bed_count)` and compensates by deleting the new room/beds on provisioning failure. Existing tests mock provisioning and do not verify that requesting `N` creates exactly `N` persisted non-retired beds or that rollback is complete.
+- `ensureRoomBeds()` currently compares the requested quantity with all bed documents, including `Đã nghỉ`. Consequently, increasing capacity after a shrink may create no beds even though active capacity is too low.
+- Room shrink currently compares against all bed documents and retires before updating the room. Repeating the same quantity can retire additional beds, and a subsequent room-update failure can leave beds retired while `room.bed_count` remains unchanged.
+- Direct bed create/delete/status endpoints can change bed records without synchronizing `room.bed_count`; the UI must not expose a path that violates the invariant.
+- `ensureRoomBeds()` currently generates `G01`, `G02`, ... without the room code, so different rooms expose duplicate-looking bed codes even though `(room_id, bed_code)` is already unique.
+- `Room.room_code` is globally unique and is currently editable through `UpdateRoomDto`; the implementation must define an atomic rename strategy so room and bed codes cannot diverge.
+- Assignment uses conditional reservation of a `Trống` bed and must continue rejecting occupied, maintenance, and retired beds.
 
 # Steps
 
-1. Establish focused regression tests for current provisioning, assignment reservation, room projection, report totals, building deletion, and the buildings page before changing contracts.
-2. Define the canonical bed lifecycle and capacity response fields. Add indexes/invariants needed to keep `(room_id, bed_code)` unique and prevent invalid lifecycle/occupancy combinations; preserve a documented compatibility mapping for existing Vietnamese status values.
-3. Refactor room creation so a request for `N` beds creates the room and exactly `N` beds (`G01..GN`) atomically or rolls the room creation back. Return the server-projected room rather than stale declared counters.
-4. Implement safe capacity adjustment:
-   - growth provisions only missing unique beds;
-   - shrink retires explicitly selected eligible beds, or deterministically selects never-used/free beds when the API contract permits it;
-   - reject shrink when insufficient eligible beds exist;
-   - never hard-delete occupied or historically referenced beds.
-5. Make room read/list, assignment suggestions, QR payloads, occupancy/dashboard reports, and room status derive their counts from beds using bounded aggregation rather than per-room query fan-out. Keep locked/maintenance room status protected from automatic occupancy status updates.
-6. Guard building deletion when any room references the building. Preserve the existing room deletion guard and extend it to block deletion when active occupancy/contracts or protected bed history make deletion unsafe; retire/archive where required by the lifecycle contract.
-7. Add an in-context `Quản lý giường` UI from each room row/detail. Show code, position, operational state, occupancy/student summary allowed by current permissions, and actions to add, edit, maintain/activate, or retire eligible beds. Disable invalid actions and show backend conflict messages.
-8. Keep the room form as the normal fast path: entering `Số giường = 5` creates five beds automatically. Display room metrics as `Đang ở / Sức chứa`, available beds, and maintenance count; do not require manual creation of five separate beds.
-9. Extend the existing capacity migration to report declared/persisted/lifecycle/occupancy mismatches, produce a reviewed backup manifest, idempotently backfill only unambiguous missing beds, and support verified rollback. Ambiguous surplus, occupied, duplicate, or historically referenced records must be reported for manual resolution rather than guessed.
-10. Run focused tests, affected frontend/backend checks, dry-run migration against an approved development database only, independent review, and final diff/status inspection. Stop before any execute-mode data mutation until its Human Gate is approved.
+1. Add failing backend tests that count actual generated operations/records and verify exact codes for room creation, retry, rollback, growth, shrink, repeated identical updates, retired-bed presence, room-code changes, and mutation failure.
+2. Replace the current reconciliation math with `activeCount = count(status != 'Đã nghỉ')`:
+   - desired equals active: no bed mutation;
+   - desired greater than active: create exactly the delta as new `Trống` beds;
+   - desired lower than active: retire exactly the delta from eligible `Trống`, `has_history != true` beds;
+   - reject before writes when insufficient eligible beds exist.
+3. Centralize bed-code generation in the backend:
+   - normalize the room code once using the same canonical value persisted on `Room`;
+   - generate `<ROOM_CODE>-G1` through `<ROOM_CODE>-GN` on initial creation, with no zero padding;
+   - on growth, derive the next suffix from all current and retired bed codes for that room and never reuse an issued suffix;
+   - reject client-supplied codes that do not match the selected room, or remove arbitrary `bed_code` input from normal create flows;
+   - retain the compound unique index and add a global unique `bed_code` index only after the legacy audit proves all values can be migrated safely.
+4. Make capacity adjustment and `room.bed_count` update atomic with a MongoDB session/transaction. If the configured development database cannot transact, use a tested compensating rollback that restores both room and bed states on every failure.
+5. When `room_code` changes, update every bed prefix in the same atomic operation while retaining bed IDs, suffixes, occupancy, and history. Preflight every target code and reject the entire update on collision; no partial rename is allowed.
+6. Close invariant-breaking bed API paths:
+   - status changes between `Trống` and `Bảo trì` do not change physical capacity;
+   - retiring/reactivating or adding/removing a bed must use one capacity-adjustment service that synchronizes the room quantity;
+   - occupied or protected-history beds cannot be deleted/retired/reactivated through unsafe generic endpoints.
+7. Return canonical room metrics after mutations: configured/physical capacity, assignable capacity, occupied, available, and maintenance counts. Reload the buildings table from the server-confirmed response/data.
+8. Add a `Quản lý giường` action on each room row, permission-gated with existing bed permissions. The dialog/drawer must list every bed with code, position, status, and allowed actions; show loading, empty, error, and conflict states.
+9. Keep `Tổng số giường` as the normal capacity control. Saving `2` creates/maintains exactly two non-retired beds without requiring manual bed creation. The bed manager may edit metadata and toggle maintenance; any add/retire/reactivate action must update capacity through the same canonical backend operation.
+10. Add frontend tests for opening the manager, loading beds, rendering room-qualified codes and all statuses, disabling protected actions, refreshing counts after success, and preserving UI state after conflicts.
+11. Extend the existing capacity audit/dry-run to report quantity mismatches, legacy codes such as `G01`, malformed prefixes/suffixes, duplicate target codes, and proposed `<ROOM_CODE>-G<n>` mappings. Do not execute writes in this task without approval.
+12. Run focused backend/frontend verification, build/typecheck, independent review of the persistence/code invariants, and final diff/status inspection.
 
 # Acceptance Criteria
 
-- AC1: Creating a room with desired quantity `5` leaves either no new room or one room with exactly five unique beds `G01`–`G05`; no partial room/bed state remains after an injected provisioning failure.
-- AC2: Runtime physical, assignable, occupied, available, and maintenance counts are derived from persisted beds according to the documented lifecycle rules, not from stale room counters.
-- AC3: Increasing a five-bed room to seven creates only `G06` and `G07`, remains idempotent on retry, and preserves all existing bed identifiers and assignments.
-- AC4: Reducing capacity cannot retire/delete an occupied, maintenance-in-progress, or historically protected bed. An eligible free bed is retired predictably, remains auditable, and is excluded from physical/assignable capacity as defined.
-- AC5: The room-management UI lists all beds and accurately disables invalid state changes. A normal user creates a five-bed room through one quantity input without manually creating five records.
-- AC6: Assignment accepts only an active, available bed belonging to the requested assignable room and remains safe under concurrent attempts; maintenance/retired/occupied beds cannot be reserved.
-- AC7: Building deletion is rejected while rooms reference it. Room deletion is rejected when active occupancy/contracts or protected bed history exist, with a clear conflict response.
-- AC8: Buildings table and reports show consistent bed-derived values; a room with five physical beds, one maintenance bed, and three occupants reports physical `5`, assignable `4`, occupied `3`, available `1`.
-- AC9: Room-list/report implementation avoids three per-room count queries; focused tests verify a bounded aggregation/query strategy for a multi-room page.
-- AC10: Migration dry-run performs no writes, identifies every mismatch category, masks connection details, and produces deterministic proposed actions. Execute mode is idempotent, non-production guarded, backup-backed, and not run without approval.
-- AC11: Existing registration/contract/QR consumers either receive backward-compatible fields or are updated together; backend build, frontend typecheck, and focused suites pass.
+- AC1: The buildings page exposes `Quản lý giường` for authorized users and lists all persisted beds for the selected room with code, position, and status.
+- AC2: Creating room `P201` with `bed_count = 2` results in exactly two non-retired beds, `P201-G1` and `P201-G2`. An injected failure leaves neither the room nor partial beds.
+- AC3: Retrying the same create/provision request does not create duplicates and preserves the exact active quantity.
+- AC4: Updating `P201` from two to four beds creates exactly `P201-G3` and `P201-G4`. If a prior suffix is retired or historically used, it is not silently reused.
+- AC5: Updating seven to five retires exactly two eligible beds. Repeating `bed_count = 5` performs no additional retirement.
+- AC6: Shrink is rejected without changing the room or any bed when the delta exceeds eligible free, history-free beds. Occupied, maintenance, and protected-history beds are never selected automatically.
+- AC7: Any failure during growth, retirement, or room update restores the prior `room.bed_count` and bed states. No observable partial state remains.
+- AC8: Toggling a bed between `Trống` and `Bảo trì` changes assignable/available metrics but not `room.bed_count` or physical capacity.
+- AC9: Direct bed mutations cannot violate `room.bed_count === non-retired bed count`; unsafe delete/retire operations return a conflict.
+- AC10: After each successful UI action, the room row and bed manager show server-derived consistent counts and statuses without an optimistic mismatch.
+- AC11: Assignment still accepts only a `Trống` non-retired bed belonging to the requested room and remains concurrency-safe.
+- AC12: Changing room code `P201` to `P301` atomically changes its bed codes to `P301-G<n>` without changing bed IDs, status, occupancy, or history; a collision rejects the whole operation.
+- AC13: The backend rejects or canonicalizes any direct bed-create request that could produce a code with another room's prefix, an invalid suffix, or a duplicate target code.
+- AC14: Capacity/code audit dry-run performs no writes and deterministically reports configured count, active count, delta, current code, proposed code, collision, and manual-review reason where applicable.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/rooms.service.spec.ts dormitory/services/room-assignment.service.spec.ts dormitory/services/buildings.service.spec.ts dormitory/services/beds.service.spec.ts dormitory/services/dormitory-reports.service.spec.ts` => provisioning rollback, lifecycle, capacity adjustment, reservation, deletion guards, and aggregation tests pass. Create missing focused spec files within the backend boundary.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/migration-capacity.spec.ts` => dry-run planning, mismatch handling, idempotency, backup, and rollback logic pass; use the actual focused migration spec path if repository convention places it elsewhere.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/rooms.service.spec.ts dormitory/services/beds.service.spec.ts dormitory/services/room-assignment.service.spec.ts` => exact `P201-G1`/`P201-G2` provisioning, retry, growth suffixing, room-code rename, collision rollback, grow/shrink/no-op behavior, API invariants, and assignment protection pass. Create `beds.service.spec.ts` if absent.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/migration-capacity.spec.ts` => mismatch classification and no-write dry-run pass; use the final repository-native spec path if named differently.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/api/dormitory-api.test.ts"` => automatic quantity workflow, bed manager states/actions, count display, and conflict handling pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/api/dormitory-api.test.ts"` => bed-manager visibility, states, permissions, actions, conflicts, and refreshed counts pass.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => TypeScript passes.
-- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-capacity:dry-run` against an explicitly approved development connection => zero writes and reviewed deterministic report. Do not run if database access was not separately authorized/configured.
-- Manual development check: create a five-bed room, grow to seven, mark one bed maintenance, assign students concurrently, attempt invalid shrink/delete operations, and confirm UI/API/report values remain consistent.
+- Optional approved development audit only: `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-capacity:dry-run` => zero writes and a reviewed mismatch report; do not run without an explicitly configured/approved development connection.
+- Manual development check: create `P201` at 2, confirm only `P201-G1` and `P201-G2`, retry, grow 2→4, rename to `P301`, shrink 4→2→2, toggle maintenance, and confirm both invariants after every step.
 - Repository root :: `git diff --check` and `git status --short` => no malformed or unintended changes.
 
 # Safety Gates
 
-- Gate A — schema/index mutation in a database: approval required before applying indexes or lifecycle changes to persistent data. Review artifact: schema diff, compatibility notes, validation results, and rollback procedure.
-- Gate B — migration execute: approval required after reviewing the dry-run report and backup manifest. Action: run the exact non-production execute command; impact: create/retire/reclassify bed records and synchronize derived room fields; rollback: verified manifest-based command; resume point: post-migration audit.
-- Gate C — production/deployment: separate explicit approval required with environment, release plan, backup, monitoring, and rollback evidence.
-- Source implementation, unit tests, builds, and migration dry-run logic do not themselves authorize any database write.
+- Gate A — persistent reconciliation/migration execute: explicit approval required after review of the dry-run report, exact targets, backup manifest, rollback command, and ambiguous records.
+- Gate B — production deployment or data mutation: separate explicit approval required with environment, impact, monitoring, and rollback evidence.
+- Source implementation, unit tests, builds, and migration dry-run code do not authorize persistent database writes.
 
 # Artifacts and Checkpoints
 
-- Base checkpoint: commit `d0c46a3cb1832421f7db8e976d2fd62d141aed79`; clean worktree before this taskscope edit.
-- Required review artifacts: API/lifecycle contract, schema/index diff, focused test output, query/aggregation evidence, migration dry-run report, redacted backup-manifest metadata, final diff/status, and independent review findings.
-- Create a checkpoint before gated migration execution and record the reviewed script revision plus manifest path/hash. Never record credentials or student PII.
+- Base checkpoint: commit `db525a9ad0854e5546613866dac28cdf3c7e5917`.
+- Required evidence: invariant/API contract, focused test outputs, transaction or compensating-rollback tests, UI test output, redacted dry-run report if authorized, independent review, and final diff/status.
+- Before any gated execute, record the reviewed script revision and backup-manifest path/hash without credentials or student PII.
 
 # Execution Budgets
 
-- Dependency order: contract/tests -> backend invariants and atomic provisioning -> lifecycle/capacity adjustment -> projections/reports/deletion guards -> frontend UI -> migration dry-run -> independent review -> gated execute if separately approved.
-- One writer per path; serialize schema/service/migration work that shares dormitory invariants. Parallelize only disjoint read-only review or frontend work after the API contract stabilizes.
+- Dependency order: quantity/code contract tests -> centralized code generator -> reconciliation service/atomicity -> safe bed API and room-code rename -> frontend manager -> audit dry-run logic -> affected verification -> independent review.
+- One writer per path; serialize room/bed persistence changes. Frontend work begins after the API contract is stable.
 - Step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.
-- Stop and amend scope for a new collection, asset-transfer workflow, public breaking API, production-only transaction dependency, modules outside the listed boundaries, ambiguous automated data repair, or any unapproved persistent-data mutation.
+- Stop and amend scope for a new collection, transferable-bed inventory, public breaking API outside dormitory, production-only transaction dependency, ambiguous automated data repair, or any unapproved persistent-data mutation.

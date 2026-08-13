@@ -5,7 +5,7 @@ function resolvedQuery<T>(value: T) {
   return { exec: jest.fn().mockResolvedValue(value) };
 }
 
-function bedsQuery(value: Array<{ bed_code: string }>) {
+function bedsQuery(value: Array<{ bed_code: string; status?: string }>) {
   const query: any = {
     select: jest.fn(() => query),
     lean: jest.fn(() => query),
@@ -46,7 +46,8 @@ describe('RoomsService', () => {
       ])),
       bulkWrite: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new RoomsService({} as any, bedModel, {} as any, {} as any);
+    const roomModel: any = { findById: jest.fn().mockResolvedValue({ room_code: 'A101' }) };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
     jest.spyOn(service, 'syncRoomAvailability').mockResolvedValue(undefined);
 
     await service.ensureRoomBeds('room-1', 4);
@@ -54,12 +55,12 @@ describe('RoomsService', () => {
     expect(bedModel.bulkWrite).toHaveBeenCalledWith([
       expect.objectContaining({
         updateOne: expect.objectContaining({
-          filter: { room_id: 'room-1', bed_code: 'G02' },
+          filter: { room_id: 'room-1', bed_code: 'A101-G1' },
         }),
       }),
       expect.objectContaining({
         updateOne: expect.objectContaining({
-          filter: { room_id: 'room-1', bed_code: 'G03' },
+          filter: { room_id: 'room-1', bed_code: 'A101-G2' },
         }),
       }),
     ], { ordered: false });
@@ -78,6 +79,7 @@ describe('RoomsService', () => {
     const bedModel: any = { countDocuments: jest.fn().mockResolvedValue(2) };
     const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
     jest.spyOn(service, 'ensureRoomBeds').mockResolvedValue(undefined);
+    jest.spyOn(service, 'findOne').mockResolvedValue(updatedRoom as any);
 
     await expect(service.update('room-1', { bed_count: 4 } as any, {})).resolves.toBe(updatedRoom);
     expect(service.ensureRoomBeds).toHaveBeenCalledWith('room-1', 4);
@@ -100,7 +102,8 @@ describe('RoomsService', () => {
       find: jest.fn().mockReturnValue(bedsQuery([])),
       bulkWrite: jest.fn().mockRejectedValue({ code: 11000 }),
     };
-    const service = new RoomsService({} as any, bedModel, {} as any, {} as any);
+    const roomModel: any = { findById: jest.fn().mockResolvedValue({ room_code: 'A101' }) };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
     jest.spyOn(service, 'syncRoomAvailability').mockResolvedValue(undefined);
 
     await expect(service.ensureRoomBeds('room-1', 2)).resolves.toBeUndefined();
