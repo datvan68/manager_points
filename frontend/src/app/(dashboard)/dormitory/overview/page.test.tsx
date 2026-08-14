@@ -22,7 +22,6 @@ const mockStats = {
   total_rooms: 40,
   available_rooms: 12,
   active_contracts: 110,
-  pending_registrations: 5,
   unpaid_invoices: 8,
   pending_maintenance: 3,
   rooms: { occupied: 28, available: 12, air_conditioned: 16, standard: 24 },
@@ -83,7 +82,6 @@ describe('DormitoryOverviewPage', () => {
     // Check KPI metrics
     expect(screen.getByText('Tỷ lệ lấp đầy')).toBeInTheDocument();
     expect(screen.getAllByText('81%').length).toBeGreaterThan(0);
-    expect(screen.getByText('Đơn chờ duyệt')).toBeInTheDocument();
     expect(screen.getByText('SV Đang nội trú')).toBeInTheDocument();
     expect(screen.getByText('Hóa đơn chưa thu')).toBeInTheDocument();
     expect(screen.getByText('Bảo trì đang mở')).toBeInTheDocument();

@@ -202,6 +202,41 @@ export class PublicRegistrationLinkService {
     return true;
   }
 
+  async linkRegistrationToStudent(publicRegistrationId: string, studentId: string) {
+    const pubReg = await this.publicRegModel.findOne({ _id: publicRegistrationId, linked_student_id: { $exists: false } });
+    if (!pubReg) throw new Error('Unclassified registration is missing or already linked');
+    const student = await this.studentModel.findById(studentId);
+    if (!student) throw new Error('Student not found');
+    const existing = await this.registrationModel.findOne({ student_id: studentId, status: { $in: ['Chờ duyệt', 'Đã duyệt'] } });
+    if (existing) {
+      pubReg.linked_student_id = student._id as any;
+      pubReg.linked_registration_id = existing._id as any;
+      pubReg.status = 'Đã xác nhận';
+      await pubReg.save();
+      return existing;
+    }
+    const formalReg = new this.registrationModel({
+      registration_code: `DK-${uuidv4().substring(0, 8).toUpperCase()}`,
+      student_id: student._id,
+      semester: pubReg.semester,
+      academic_year: pubReg.academic_year,
+      date_of_birth: pubReg.date_of_birth,
+      gender: pubReg.gender,
+      phone_number: pubReg.phone_number,
+      room_id: pubReg.room_id,
+      bed_id: pubReg.bed_id,
+      preference: { room_type: pubReg.room_type, notes: pubReg.notes },
+      priority_group: pubReg.priority_group,
+      status: 'Đã duyệt',
+    });
+    await formalReg.save();
+    pubReg.linked_student_id = student._id as any;
+    pubReg.linked_registration_id = formalReg._id as any;
+    pubReg.status = 'Đã xác nhận';
+    await pubReg.save();
+    return formalReg;
+  }
+
   /**
    * Get all public registrations for admin review.
    */

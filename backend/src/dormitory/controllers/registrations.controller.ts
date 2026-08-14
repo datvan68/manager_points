@@ -146,4 +146,13 @@ export class RegistrationsController {
   checkStudentLink(@Param('studentId') studentId: string) {
     return this.publicLinkService.checkStudentLink(studentId);
   }
+
+  @Post('public/:publicRegistrationId/link-student/:studentId')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  linkPublicRegistration(
+    @Param('publicRegistrationId') publicRegistrationId: string,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.publicLinkService.linkRegistrationToStudent(publicRegistrationId, studentId);
+  }
 }

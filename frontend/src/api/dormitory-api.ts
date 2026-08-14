@@ -131,6 +131,7 @@ export interface UnclassifiedRegistration {
   _id: string;
   public_registration_code: string;
   full_name: string;
+  date_of_birth?: string;
   phone_number: string;
   email?: string;
   student_code?: string;
@@ -399,6 +400,10 @@ export const dormitoryApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registration_id }),
       });
+      return handleResponse(res);
+    },
+    async linkPublicRegistration(publicRegistrationId: string, studentId: string): Promise<DormRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/link-student/${studentId}`, { method: 'POST' });
       return handleResponse(res);
     },
     async suggestRooms(registrationId: string): Promise<Room[]> {

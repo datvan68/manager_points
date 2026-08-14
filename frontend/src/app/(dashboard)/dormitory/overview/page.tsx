@@ -131,7 +131,6 @@ export default function DormitoryOverviewPage() {
   const airConditionedRooms = stats?.rooms?.air_conditioned || 0;
   const standardRooms = stats?.rooms?.standard || Math.max(0, totalRooms - airConditionedRooms);
 
-  const pendingRegistrations = stats?.pending_registrations || 0;
   const activeResidents = stats?.students?.residing || stats?.active_contracts || 0;
   const unpaidInvoices = stats?.unpaid_invoices || 0;
   const pendingMaintenance = stats?.pending_maintenance || 0;
@@ -223,7 +222,7 @@ export default function DormitoryOverviewPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/70 hover:bg-white text-slate-700 hover:text-blue-700 text-xs font-semibold border border-white/80 shadow-sm transition backdrop-blur-sm"
           >
             <ClipboardCheck size={15} className="text-blue-600" />
-            Xét duyệt đơn
+            Quản lý đăng ký
           </Link>
           <Link
             href="/dormitory/buildings"
@@ -289,35 +288,6 @@ export default function DormitoryOverviewPage() {
               <span>Trống: {freeBeds}</span>
             </div>
           </div>
-        </div>
-
-        {/* Card 2: Đơn đăng ký chờ duyệt */}
-        <div
-          onClick={() => router.push('/dormitory/registrations')}
-          className="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/75 bg-white/50 p-5 shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/70 hover:shadow-md"
-        >
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-xs font-semibold text-slate-500">Đơn chờ duyệt</span>
-              <div className="flex items-center gap-2 mt-0.5">
-                <h3 className="text-2xl font-black text-slate-900">{pendingRegistrations}</h3>
-                {pendingRegistrations > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
-                    Cần xử lý
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
-              <ClipboardCheck className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-500 font-medium mt-3 flex items-center justify-between">
-            <span>Tổng đơn: {stats?.students?.registered || 0}</span>
-            <span className="text-blue-600 group-hover:underline flex items-center gap-0.5">
-              Chi tiết <ChevronRight size={12} />
-            </span>
-          </p>
         </div>
 
         {/* Card 3: Sinh viên nội trú */}
@@ -773,29 +743,6 @@ export default function DormitoryOverviewPage() {
             </div>
 
             <div className="space-y-3">
-              {/* Item 1: Pending Registrations */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/70 border border-white/80 shadow-xs hover:bg-white transition">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
-                    <ClipboardCheck size={16} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">Đơn đăng ký mới</h4>
-                    <p className="text-[11px] text-slate-500">
-                      {pendingRegistrations > 0
-                        ? `${pendingRegistrations} hồ sơ sinh viên chờ duyệt & xếp phòng`
-                        : 'Không có đơn nào đang chờ'}
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/dormitory/registrations"
-                  className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 text-xs font-semibold transition"
-                >
-                  Duyệt ngay
-                </Link>
-              </div>
-
               {/* Item 2: Pending Maintenance */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-white/70 border border-white/80 shadow-xs hover:bg-white transition">
                 <div className="flex items-center gap-3">
@@ -878,7 +825,7 @@ export default function DormitoryOverviewPage() {
               </div>
               <div>
                 <h3 className="text-xs font-bold text-slate-800 group-hover:text-blue-600">Đăng ký KTX</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">Xét duyệt hồ sơ sinh viên</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">Quản lý thông tin đăng ký</p>
               </div>
             </Link>
 
