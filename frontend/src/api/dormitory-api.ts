@@ -142,6 +142,7 @@ export interface UnclassifiedRegistration {
   status: string;
   source: 'PUBLIC' | 'ADMIN_TEMPORARY';
   classification_status: 'UNCLASSIFIED';
+  createdAt?: string;
 }
 
 export interface DormContract {
@@ -382,22 +383,6 @@ export const dormitoryApi = {
     },
     async delete(id: string, source: DormRegistrationSource): Promise<{ success: boolean; id: string; source: DormRegistrationSource }> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`, { method: 'DELETE' });
-      return handleResponse(res);
-    },
-    async approve(id: string, dto: { status: string; rejection_reason?: string }): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}/approve`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
-      return handleResponse(res);
-    },
-    async bulkApprove(dto: { registration_ids: string[]; status: string; rejection_reason?: string }): Promise<{ success: number; failed: number }> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/bulk-approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
       return handleResponse(res);
     },
     async assignRoom(dto: { registration_id: string; room_id: string; bed_id: string }): Promise<{ registration?: DormRegistration; room?: Room; bed?: Bed; active_contract_id?: string; message?: string }> {

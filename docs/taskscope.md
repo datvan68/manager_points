@@ -1,77 +1,80 @@
 # Task Identity and Pipeline
 
-- Task: `redesign-dormitory-overview-and-refine-bed-modal`; pipeline: `feature_development`; profile: Full; rules version: `3.2.0`.
-- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `a3a9905a6d7cce68497c0ffe5d7d2e2383b2c229`; initial worktree: clean.
+- Task: `confirm-room-unassignment-remove-registration-approval-and-align-unclassified-ui`; pipeline: `feature_development`; profile: Full; rules version: `3.2.0`.
+- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `ad0b6011d4265765bcebbddf268c8d837c88450c`; initial worktree: clean.
 
 # Risk Level
 
-- Risk: high. The work crosses frontend/backend modules, changes a persisted-record deletion interaction, and adds financial/occupancy aggregation whose counting semantics must remain deterministic.
-- Source changes are Git-revertible. No live deletion, migration, deployment, or production mutation is authorized by this planning task.
+- Risk: high. The work changes a room-unassignment interaction, removes authenticated API operations and an RBAC permission, and aligns two student-list experiences backed by different record types.
+- Source changes are Git-revertible. No migration, live-data rewrite, deployment, or destructive verification is authorized by this planning task.
 
 # Objective
 
-Deliver a homepage-inspired dormitory overview as the first tab, with accurate current KPI breakdowns and six-month comparisons, while making bed deletion immediate and keeping the bed-management modal open after success.
+Require explicit modal confirmation before unassigning a dormitory room, remove the unused registration approval/rejection workflow while preserving information capture and room assignment, and present unclassified registrations with the same responsive list language as a normal class except that they have no student code.
 
 # Scope Boundaries
 
-- Dormitory ordering/default route and tests: `frontend/src/app/(dashboard)/dormitory/layout.tsx`, `layout.test.tsx`, and `page.tsx`.
-- Bed-modal behavior and regression tests: `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx` and `page.test.tsx`.
-- Overview UI, loading/error/empty states, chart components if separation is useful, and tests: `frontend/src/app/(dashboard)/dormitory/overview/page.tsx` plus a focused `page.test.tsx`; use the visual language of `frontend/src/app/(dashboard)/page.tsx` and existing `frontend/src/components/dashboard/**` as read-only design references.
-- Typed client contract and tests: `frontend/src/api/dormitory-api.ts` and `dormitory-api.test.ts`.
-- Dashboard aggregation/API and focused tests: `backend/src/dormitory/services/dormitory-reports.service.ts`, `backend/src/dormitory/controllers/dormitory-reports.controller.ts`, and new or existing focused specs for those units.
+- Registration page behavior and focused tests: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx` and `page.test.tsx`.
+- Typed dormitory client and tests: `frontend/src/api/dormitory-api.ts` and `dormitory-api.test.ts`.
+- Registration approval API removal, room-operation authorization, and focused tests: `backend/src/dormitory/controllers/registrations.controller.ts`, `controllers/registrations.controller.spec.ts`, `services/registrations.service.ts`, `services/registrations.service.spec.ts`, and removal of `backend/src/dormitory/dto/approve-registration.dto.ts` when no references remain.
+- Dormitory permission registry/bootstrap and its focused permission/registry tests, if present: `backend/src/auth/permissions.registry.ts`, `backend/src/auth/services/auth.service.ts`, and directly related specs.
+- Unclassified class card/list UI and focused tests: `frontend/src/app/(dashboard)/students/page.tsx`, `frontend/src/app/(dashboard)/students/unclassified/page.tsx`, and a new or existing test beside each changed page. Use `frontend/src/app/(dashboard)/students/[classId]/page.tsx` and shared list components as read-only UI references unless a small shared extraction is proven necessary.
 
 # Out of Scope
 
-- Redesigning the main homepage or other dormitory tabs; changing room, registration, contract, invoice, or payment workflows; partial-payment support; database schema/index changes; historical snapshot backfill; deletion-policy changes in the backend; deployment; and deletion of real records during verification.
-- Room/bed history charts are excluded because the current models do not preserve monthly capacity snapshots. The comparison chart uses date-backed registration, residency, and invoice activity only.
+- Changing room-assignment or unassignment domain rules, deleting registrations, converting unclassified registrations into student records, assigning classes/student codes, redesigning ordinary class pages, changing dormitory public-registration submission, schema migrations, historical status cleanup, deployment, or persistent-data mutation.
+- Do not copy student-only class actions into the unclassified list: create/import/transfer/delete student, account actions, discipline summaries, and student detail drawers remain excluded unless backed by an actual `Student` record.
 
 # Context and Dependencies
 
-- Tab order is currently `Registrations -> Overview -> Rooms...`, the fallback tab is `registrations`, and `/dormitory` redirects to registrations; all three must change together.
-- Bed deletion currently sets `bedToDelete`, opens `ConfirmModal`, then refreshes the room and clears both deletion and room state. Only the bed-delete confirmation path is removed; room-delete confirmation remains unchanged.
-- Current dashboard data exposes six coarse counts. Rooms provide `available_bed_count` and `amenities`; beds expose statuses; active contracts represent residents; registrations have timestamps/status; invoice items distinguish `Phí phòng`, `Điện`, and `Nước`, while payment status is invoice-wide.
-- KPI counting contract: occupied rooms have at least one used bed; available rooms have at least one free bed; air-conditioned rooms contain the canonical `Điều hòa` amenity and remaining active rooms are standard. Beds count `Đang sử dụng` versus `Trống`. Student registration and active-resident counts remain separate. A fee or utility invoice is counted once in its category and split into paid versus unpaid/overdue by invoice status.
-- The monthly API returns six chronological calendar buckets, including zero-filled months. Registrations use creation time, resident move-ins use contract `start_date`, and paid/unpaid fee and utility activity uses `billing_period` with a documented fallback only when the period is invalid. Amounts and record counts must not be mixed in one series.
+- `RoomAssignmentPopover` currently calls `window.confirm` before `unassignRoom`; the registration page already imports and uses the shared `ConfirmModal` for deletion flows.
+- New formal registrations are already stored as `Đã duyệt`, so the visible approve/reject actions and the single/bulk approval API are a redundant workflow. Existing records may still contain legacy `Chờ duyệt` or `Từ chối` values and must remain readable without a data migration.
+- `DORM_REG_APPROVE` currently guards approve/reject, assign room, unassign room, public auto-link, and single-student link checks. Removing approval must not disable the non-approval operations: move those guards to the existing `DORM_REG_UPDATE` permission, update the permission description if needed, and remove `DORM_REG_APPROVE` from the registry only after all runtime references are gone.
+- The students index renders “Chưa phân loại” as a special amber card. Its destination currently uses a standalone 50-item list, while a normal class uses the shared responsive data view, search, loading/empty states, and desktop/mobile list behavior.
+- Unclassified rows are public/admin-temporary registration records, not `Student` entities. Their list should omit the `MÃ SV` column/value and expose only fields supported by that contract, such as name, contact, room, source/status, and registration code.
 
 # Steps
 
-1. Add regression tests for tab order/default redirect, immediate bed deletion with an open modal, current KPI semantics, six zero-filled monthly buckets, API serialization, and overview loading/error/empty/responsive rendering.
-2. Reorder tabs to `Overview -> Registrations -> Rooms -> ...`, change the layout fallback and `/dormitory` redirect to overview, and preserve nested-route activation.
-3. Replace the bed-delete `ConfirmModal` state/flow with a direct, loading-safe delete action. On success, update/refetch the bed list and room counters without clearing `bedRoom`; on failure keep the row/modal and show the existing actionable error. Prevent duplicate requests while deletion is pending.
-4. Extend `GET /dormitory/reports/dashboard` with typed snapshot groups and a six-month trend contract. Implement database-side bounded aggregations where practical, normalize invoice categories/statuses once, and avoid loading unbounded collections into memory.
-5. Redesign the overview using the homepage's max-width layout, translucent cards, spacing, typography, refresh treatment, responsive grids, skeletons, and non-blocking refresh. Render five KPI groups: rooms, beds, students, dormitory fees, and electricity/water; add an accessible responsive monthly comparison chart with legend, labels/tooltips, zero and error states.
-6. Run focused frontend/backend tests, type/build checks, independent review of aggregation semantics and destructive UI behavior, then inspect the final diff/status.
+1. Add regression tests for confirm-before-unassign behavior, approval UI/client/API removal, continued authorization of assign/unassign/link operations, legacy registration rendering, and the unclassified card/list responsive states.
+2. Replace the native unassignment confirmation with controlled `ConfirmModal` state. Keep the room picker open when confirmation is cancelled, call the API only after confirmation, block duplicate submission, surface failure without losing the current selection, and apply the existing successful unassignment update without a full-page flash.
+3. Remove approve/reject handlers, buttons, rejection dialog/state, approval-only client methods and DTO/service/controller endpoints. Remove approval-specific imports and tests while retaining registration create/edit/delete, information fields, source labels, room selection, and legacy record display.
+4. Reauthorize assign room, unassign room, public auto-link, and student link-check endpoints with `DORM_REG_UPDATE`; remove the unused `DORM_REG_APPROVE` registry entry and verify no source reference remains. Do not rename persisted registration statuses or rewrite existing records.
+5. Restyle the “Chưa phân loại” class card to follow the same card anatomy and responsive grid behavior as an ordinary class while retaining a clear unclassified badge/count and no class edit/delete actions.
+6. Rebuild `/students/unclassified` with the ordinary class page's header/back-navigation, search, responsive table/mobile cards, loading, empty, error, and pagination/infinite-loading language. Omit `MÃ SV`, map only registration-backed fields, preserve URL/list navigation context where practical, and prevent stale search responses or white flashes.
+7. Run focused frontend/backend tests, type/build checks, search for removed approval references, then inspect the final diff/status.
 
 # Acceptance Criteria
 
-- AC1: The first visible tab is `Tổng quan`, followed by `Đăng ký` and `Phòng`; `/dormitory` and the layout fallback resolve to overview, while nested routes select their correct tab.
-- AC2: Clicking `Xóa` for an eligible bed calls delete directly without rendering or invoking `ConfirmModal`; rapid repeated clicks cannot send duplicate deletes.
-- AC3: After successful deletion, `Quản lý giường` remains open for the same room, the deleted row disappears, and room/bed counts refresh consistently. Failure keeps the modal and row visible with an actionable message.
-- AC4: The overview reports room occupied/available/air-conditioned/standard, bed used/free, student registered/currently residing, dormitory-fee paid/unpaid, and electricity/water paid/unpaid values using the documented mutually consistent rules.
-- AC5: The endpoint returns exactly six ordered, zero-filled monthly buckets and separate count-based series for registrations, move-ins, dormitory-fee paid/unpaid, and utility paid/unpaid; tests cover mixed invoice items, overdue status, invalid periods, and empty data.
-- AC6: The page follows the main homepage's design system without copying unrelated homepage business panels, remains usable from mobile through desktop, and provides accessible headings, chart legend/tooltips, refresh, skeleton, empty, and retry states.
-- AC7: Initial loading does not show stale zero KPIs as real data; refresh retains the current dashboard instead of flashing a blank page, and stale or duplicate responses cannot overwrite newer data.
-- AC8: Existing report consumers remain compatible or are updated atomically; room deletion still uses its existing confirmation flow and backend bed-deletion safety rules are unchanged.
+- AC1: Clicking “Bỏ chọn phòng” opens the shared `ConfirmModal`; cancelling makes no API call and leaves the current room selection and picker available.
+- AC2: Confirming sends exactly one unassignment request, disables repeated confirmation while pending, and updates the row in place on success. Failure keeps the current assignment visible and shows an actionable error.
+- AC3: Registration rows expose no approve or reject actions/dialogs, and the frontend client no longer exposes single or bulk registration approval methods.
+- AC4: The backend no longer exposes `PATCH /dormitory/registrations/:id/approve` or `POST /dormitory/registrations/bulk-approve`, contains no approval DTO/service implementation, and has no `DORM_REG_APPROVE` runtime or registry reference.
+- AC5: Room assignment, room unassignment, public auto-link, and student link checking continue to work for users with `DORM_REG_UPDATE`; unrelated registration permissions and room-assignment business rules remain unchanged.
+- AC6: New registrations still capture and display their information without an approval step. Legacy `Chờ duyệt`, `Đã duyệt`, and `Từ chối` records remain listable/searchable and are not migrated or silently deleted.
+- AC7: The “Chưa phân loại” card visually follows an ordinary class card at supported breakpoints, shows the unclassified count, routes to `/students/unclassified`, and provides no class edit/delete controls.
+- AC8: The unclassified destination follows the normal class list's responsive presentation and interaction quality, including back navigation, search, loading, empty/error, desktop table, mobile cards, and complete paginated loading without a 50-row truncation.
+- AC9: Unclassified rows do not render a `MÃ SV` column, placeholder student code, or student-only actions; supported registration information remains visible and accessible.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/dormitory-reports.service.spec.ts dormitory/controllers/dormitory-reports.controller.spec.ts` => AC4, AC5, and the dashboard endpoint contract pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/layout.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/app/(dashboard)/dormitory/overview/page.test.tsx" src/api/dormitory-api.test.ts` => AC1-AC3 and AC6-AC8 pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => modified navigation, UI, and API types compile.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" src/api/dormitory-api.test.ts "src/app/(dashboard)/students/page.test.tsx" "src/app/(dashboard)/students/unclassified/page.test.tsx"` => AC1-AC3 and AC7-AC9 pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => changed registration and student-list code compiles.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/registrations.controller.spec.ts dormitory/services/registrations.service.spec.ts` => AC4-AC6 and non-approval endpoint authorization pass.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS compiles after DTO/method/permission removal.
+- Repository root :: `rg -n "DORM_REG_APPROVE|bulkApprove|approve-registration\.dto|registrations\.approve" backend/src frontend/src` => no obsolete registration-approval references remain.
 - Repository root :: `git diff --check` and `git status --short` => only scoped changes exist and unrelated work is preserved.
 
 # Safety Gates
 
-- Development implementation with mocked/in-memory verification requires no additional gate. Do not exercise deletion against persistent user data.
-- Any migration, historical backfill, production deployment, live-data correction/deletion, or broadened payment semantics requires a scope amendment and explicit approval before execution.
+- Development implementation with mocked/in-memory verification requires no additional gate. Do not call unassignment or deletion endpoints against persistent user data during verification.
+- Any status/schema migration, live permission reassignment, production deployment, or persistent-data correction requires a scope amendment and explicit approval before execution.
 
 # Artifacts and Checkpoints
 
-- Record the KPI/counting contract, representative aggregation fixtures, focused test/build/typecheck results, and final diff/status. Checkpoint after backend contract tests before frontend integration.
-- Stop for inconsistent canonical Vietnamese enum values, inability to distinguish invoice categories, a required schema migration, or a conflict with unrelated edits in scoped paths.
+- Record focused regression fixtures for confirm/cancel/pending/failure, endpoint authorization, legacy statuses, and unclassified pagination. Checkpoint after backend approval removal and permission tests before completing the UI alignment.
+- Stop for evidence that an external consumer still calls the approval endpoints, `DORM_REG_UPDATE` cannot safely authorize room/link operations, unclassified records lack fields required by the agreed list, or unrelated edits conflict in scoped paths.
 
 # Execution Budgets
 
-- Order: regression baseline -> aggregation contract -> navigation/bed behavior -> overview UI -> affected verification -> independent review.
+- Order: regression baseline -> backend approval removal/authorization -> room confirmation -> unclassified card/list -> affected verification -> final review.
 - One writer per path; step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.

@@ -13,10 +13,6 @@ import {
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { CreateRegistrationDto } from '../dto/create-registration.dto';
-import {
-  ApproveRegistrationDto,
-  BulkApproveRegistrationDto,
-} from '../dto/approve-registration.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
 import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
@@ -288,51 +284,4 @@ export class RegistrationsService {
     return { success: true, id, source };
   }
 
-  async approve(
-    id: string,
-    dto: ApproveRegistrationDto,
-    user: any,
-  ): Promise<Registration> {
-    const reg = await this.registrationModel.findById(id);
-    if (!reg) {
-      throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
-    }
-    if (reg.status !== 'Chờ duyệt') {
-      throw new BadRequestException('Đơn đăng ký không ở trạng thái chờ duyệt');
-    }
-
-    if (dto.status === 'Từ chối' && !dto.rejection_reason) {
-      throw new BadRequestException('Vui lòng nhập lý do từ chối');
-    }
-
-    reg.status = dto.status;
-    reg.rejection_reason = dto.rejection_reason || '';
-    reg.reviewed_by_id = user._id || user.userId;
-    reg.reviewed_at = new Date();
-
-    return reg.save();
-  }
-
-  async bulkApprove(
-    dto: BulkApproveRegistrationDto,
-    user: any,
-  ): Promise<{ success: number; failed: number }> {
-    let success = 0;
-    let failed = 0;
-
-    for (const regId of dto.registration_ids) {
-      try {
-        await this.approve(
-          regId,
-          { status: dto.status, rejection_reason: dto.rejection_reason },
-          user,
-        );
-        success++;
-      } catch {
-        failed++;
-      }
-    }
-
-    return { success, failed };
-  }
 }

@@ -14,10 +14,6 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { RegistrationsService } from '../services/registrations.service';
 import { RoomAssignmentService } from '../services/room-assignment.service';
 import { CreateRegistrationDto } from '../dto/create-registration.dto';
-import {
-  ApproveRegistrationDto,
-  BulkApproveRegistrationDto,
-} from '../dto/approve-registration.dto';
 import { AssignRoomDto } from '../dto/assign-room.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -98,30 +94,14 @@ export class RegistrationsController {
     return this.registrationsService.remove(id, source);
   }
 
-  @Patch(':id/approve')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
-  approve(
-    @Param('id') id: string,
-    @Body() dto: ApproveRegistrationDto,
-    @Request() req: any,
-  ) {
-    return this.registrationsService.approve(id, dto, req.user);
-  }
-
-  @Post('bulk-approve')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
-  bulkApprove(@Body() dto: BulkApproveRegistrationDto, @Request() req: any) {
-    return this.registrationsService.bulkApprove(dto, req.user);
-  }
-
   @Post('assign-room')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
   assignRoom(@Body() dto: AssignRoomDto, @Request() req: any) {
     return this.roomAssignmentService.assignRoom(dto, req.user);
   }
 
   @Post('unassign-room')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
   unassignRoom(@Body() dto: UnassignRoomDto, @Request() req: any) {
     return this.roomAssignmentService.unassignRoom(dto.registration_id, req.user);
   }
@@ -153,7 +133,7 @@ export class RegistrationsController {
    * Trigger auto-link: match pending public registrations with enrolled students
    */
   @Post('public/auto-link')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
   autoLinkPublicRegistrations() {
     return this.publicLinkService.autoLinkPendingRegistrations();
   }
@@ -162,7 +142,7 @@ export class RegistrationsController {
    * Check single student against pending public registrations
    */
   @Post('public/check-student/:studentId')
-  @UseGuards(checkPermission('DORM_REG_APPROVE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
   checkStudentLink(@Param('studentId') studentId: string) {
     return this.publicLinkService.checkStudentLink(studentId);
   }

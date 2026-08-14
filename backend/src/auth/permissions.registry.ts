@@ -646,12 +646,6 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép xóa đơn đăng ký ở KTX.',
   },
   {
-    code: 'DORM_REG_APPROVE',
-    name: 'Duyệt đăng ký KTX',
-    module: DORMITORY_MANAGER_GROUP.name,
-    description: 'Cho phép duyệt hoặc từ chối đơn đăng ký ở KTX, phân phòng.',
-  },
-  {
     code: 'DORM_CONTRACT_READ',
     name: 'Xem hợp đồng KTX',
     module: DORMITORY_MANAGER_GROUP.name,

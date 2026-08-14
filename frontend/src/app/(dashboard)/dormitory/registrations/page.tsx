@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, Check, DoorOpen, FileSpreadsheet, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
+import { Calendar, DoorOpen, FileSpreadsheet, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -131,6 +131,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   const [bedsLoading, setBedsLoading] = useState(false);
   const [error, setError] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [unassignConfirmOpen, setUnassignConfirmOpen] = useState(false);
   const bedRequestRef = useRef(0);
   const currentRoomId = typeof row.room_id === 'object' ? row.room_id._id : row.room_id;
   const currentBedId = typeof row.bed_id === 'object' ? row.bed_id._id : row.bed_id;
@@ -191,7 +192,6 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
 
   const unassignRoom = async () => {
     if (assigning || !currentBedId) return;
-    if (!window.confirm('Bỏ chọn phòng hiện tại? Giường sẽ được trả về trạng thái trống.')) return;
     setAssigning(true);
     setError('');
     try {
@@ -260,11 +260,12 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
               </div>
             )}
             {currentBedId && (
-              <button type="button" disabled={assigning} onClick={() => void unassignRoom()} className="mt-2 w-full rounded-lg border border-red-200 px-2 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
+              <button type="button" disabled={assigning} onClick={() => setUnassignConfirmOpen(true)} className="mt-2 w-full rounded-lg border border-red-200 px-2 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
             )}
           </div>
         )}
       </PopoverContent>
+      <ConfirmModal isOpen={unassignConfirmOpen} onClose={() => setUnassignConfirmOpen(false)} onConfirm={unassignRoom} title="Bỏ chọn phòng" message="Bạn có chắc muốn bỏ chọn phòng hiện tại? Giường sẽ được trả về trạng thái trống." confirmLabel="Bỏ chọn phòng" cancelLabel="Hủy" variant="warning" />
     </Popover>
   );
 }
@@ -275,13 +276,12 @@ export default function RegistrationsPage() {
   const canView = hasPermission('DORM_REG_READ');
   const canUpdate = hasPermission('DORM_REG_UPDATE');
   const canDelete = hasPermission('DORM_REG_DELETE');
-  // Temporary: room assignment is open until the permission is finalized.
-  const canAssignRoom = true;
+  const canAssignRoom = hasPermission('DORM_REG_UPDATE');
   const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const [filterStatus, setFilterStatus] = useState(''); const [source, setSource] = useState('');
+  const [source, setSource] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
-  const [selected, setSelected] = useState<string[]>([]); const [rejectId, setRejectId] = useState<string | null>(null); const [rejectReason, setRejectReason] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
@@ -338,21 +338,21 @@ export default function RegistrationsPage() {
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
   };
   const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
-  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ status: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [filterStatus, source, search, page, pageSize]);
+  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [source, search, page, pageSize]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
-  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [filterStatus, source, search, pageSize]);
+  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [source, search, pageSize]);
   const loadMoreMobile = useCallback(async () => {
     if (mobileLoadingMore || !mobileHasMoreRef.current) return;
     setMobileLoadingMore(true);
     const nextPage = mobilePageRef.current + 1;
     try {
-      const res = await dormitoryApi.registrations.getAll({ status: filterStatus || undefined, source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      const res = await dormitoryApi.registrations.getAll({ source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
       mobilePageRef.current = nextPage;
       mobileHasMoreRef.current = next.length === pageSize && nextPage * pageSize < res.meta.total;
     } catch { setError('Không thể tải thêm đăng ký.'); } finally { setMobileLoadingMore(false); }
-  }, [filterStatus, source, search, pageSize, mobileLoadingMore]);
+  }, [source, search, pageSize, mobileLoadingMore]);
   useEffect(() => {
     const target = mobileSentinelRef.current;
     if (!target) return;
@@ -362,8 +362,6 @@ export default function RegistrationsPage() {
   }, [loadMoreMobile]);
   const allSelected = registrations.length > 0 && registrations.every(row => selected.includes(row._id));
   const toggleAll = (checked: boolean) => setSelected(checked ? registrations.map(row => row._id) : []);
-  const approve = async (id: string) => { try { await dormitoryApi.registrations.approve(id, { status: 'Đã duyệt' }); toast.success('Đã duyệt đơn đăng ký'); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi duyệt đơn'); } };
-  const reject = async () => { if (!rejectId || !rejectReason) return; try { await dormitoryApi.registrations.approve(rejectId, { status: 'Từ chối', rejection_reason: rejectReason }); toast.success('Đã từ chối đơn đăng ký'); setRejectId(null); setRejectReason(''); void load(true); } catch (err: any) { toast.error(err?.message || 'Lỗi từ chối đơn'); } };
   const openEdit = (row: DormRegistration) => {
     setEditRow(row); setEditError(''); setEditSemesterError(''); setEditActiveSemesterName(''); setEditCalendarOpen(false);
     setEditForm({
@@ -437,7 +435,7 @@ export default function RegistrationsPage() {
     { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
     { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}{r.source !== 'PUBLIC' && r.source !== 'ADMIN_TEMPORARY' && r.status === 'Chờ duyệt' && <><button aria-label="Duyệt" title="Duyệt" onClick={() => void approve(r._id)} className="rounded-xl p-1.5 text-green-600 hover:bg-green-50"><Check size={16} /></button><button aria-label="Từ chối" title="Từ chối" onClick={() => setRejectId(r._id)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><X size={16} /></button></>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
@@ -450,15 +448,6 @@ export default function RegistrationsPage() {
         <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden sm:flex shrink-0 w-[231px]" />
         <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>
         <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
-          <Select value={filterStatus || 'ALL'} onValueChange={v => { setFilterStatus(v === 'ALL' ? '' : v); reset(); }}>
-            <SelectTrigger aria-label="Lọc trạng thái" className="h-9 min-w-[140px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none"><SelectValue placeholder="Tất cả trạng thái" /></SelectTrigger>
-            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100]">
-              <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
-              <SelectItem value="Chờ duyệt">Chờ duyệt</SelectItem>
-              <SelectItem value="Đã duyệt">Đã duyệt</SelectItem>
-              <SelectItem value="Từ chối">Từ chối</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={source || 'ALL'} onValueChange={v => { setSource(v === 'ALL' ? '' : v); reset(); }}>
             <SelectTrigger aria-label="Lọc nguồn" className="h-9 min-w-[115px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none"><SelectValue placeholder="Tất cả nguồn" /></SelectTrigger>
             <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100]">
@@ -477,7 +466,6 @@ export default function RegistrationsPage() {
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
     <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất Excel" onClick={() => void exportSelected()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><FileSpreadsheet size={14} /> Xuất Excel</button>}</>} />
-    {rejectId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRejectId(null)}><div role="dialog" aria-labelledby="reject-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}><h2 id="reject-title" className="mb-4 text-lg font-bold text-gray-800">Từ chối đơn đăng ký</h2><textarea aria-label="Lý do từ chối" placeholder="Nhập lý do từ chối..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="mb-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} /><div className="flex gap-3"><button onClick={() => setRejectId(null)} className="flex-1 rounded-lg border px-4 py-2 text-sm">Hủy</button><button onClick={() => void reject()} disabled={!rejectReason} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Từ chối</button></div></div></div>}
     <Dialog open={qrOpen} onOpenChange={setQrOpen}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 font-sans shadow-2xl">
         <DialogHeader className="border-b border-white/60 pb-2"><DialogTitle className="flex items-center gap-2 text-sm font-bold text-[#1E293B]"><QrCode className="h-4 w-4 text-blue-600" />QR đăng ký KTX</DialogTitle></DialogHeader>
