@@ -238,7 +238,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
     // Edit phone number
-    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0999999999' } });
     const ethnicityInput = screen.getByText('Dân tộc').parentElement?.querySelector('input');
@@ -275,7 +275,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
-    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0977777777' } });
 
@@ -332,7 +332,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
-    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0988776655' } });
 

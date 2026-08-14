@@ -29,8 +29,8 @@ describe('DormitoryRegistrationEditModal', () => {
     const { rerender } = render(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
 
     expect(getSemesters).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
-    expect(screen.getByDisplayValue('2025-2026')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
+    expect(screen.getByText('2025-2026')).toBeInTheDocument();
 
     rerender(<DormitoryRegistrationEditModal open={false} registration={registration()} onOpenChange={onOpenChange} />);
     rerender(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
@@ -61,7 +61,7 @@ describe('DormitoryRegistrationEditModal', () => {
     const row = { ...registration(source), full_name: 'Applicant', student_code: 'APP-1' };
     render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi/i }));
     await waitFor(() => expect(update).toHaveBeenCalledWith('registration-1', source, expect.objectContaining({ semester: 'HK2', academic_year: '2025-2026' })));
   });
