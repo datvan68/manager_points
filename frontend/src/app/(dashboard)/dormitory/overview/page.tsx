@@ -155,7 +155,7 @@ export default function DormitoryOverviewPage() {
   // Loading skeleton
   if (loading && !stats && !occupancy) {
     return (
-      <div className="mx-auto w-full max-w-7xl space-y-6 pb-12">
+      <div className="w-full space-y-5 pb-6">
         {/* Header Skeleton */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-2">
@@ -199,7 +199,7 @@ export default function DormitoryOverviewPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 pb-12">
+    <div className="w-full space-y-5 pb-6">
       {/* ── 1. HEADER & QUICK ACTIONS ── */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
