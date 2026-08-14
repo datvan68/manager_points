@@ -1,87 +1,101 @@
 # Task Identity and Pipeline
 
-- Task: `remove-overview-approval-ui-and-classify-unclassified-students`; pipeline: `feature_development`; profile: Full; rules version: `3.2.0`.
-- Repository: `D:\PROJECT\manager_points`; branch: `main`; planning date: `2026-08-14`.
+- Task: `extend-dormitory-student-profile-and-application-pdf`; pipeline: `feature_development`; profile: Full; rules version: `3.2.0`.
+- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `2f30963dd15e737aa748cc777c25714faf20b2d3`; planning date: `2026-08-14`; environment: development.
+- Planning-only authority: this file defines the implementation scope and does not authorize implementation, migration, deployment, or live-data mutation.
+- Effective Rules Manifest (SHA-256): `safety.md` `6A3F283B835394B1AF1F6380D94CBA260ACBED8A60D3065DD5365BB15806A772`; `global.md` `67806F70A5F89ADF42E3BE88413CC76CC27A02C90FAD0609AE71DE34D046A43F`; operating contract `51F3677C7E44121529CC0A4B17E5667BCBD2147EE63C6F30207C10D5DEB51790`; orchestrator `B782109E896B2FA48A6523358A788A9DB9B81B72F3D8FC66F70019395738D716`; pipeline `0419C072380887F96B37FE4EB48DAE764306F46FB03190B176A43EBCEA3F41F3`.
 
 # Risk Level
 
-- Risk: high. The work spans dormitory and student modules and introduces identity merging during individual creation and bulk import.
-- Source changes are Git-revertible. No deployment, schema migration, production-data rewrite, or destructive verification is authorized by this planning task.
+- Risk: high. The feature spans student identity, dormitory persistence, authorization, public-to-formal registration conversion, profile UI, and server-generated PDF containing personal data.
+- Source changes are Git-revertible. New optional MongoDB fields are additive, but a historical backfill, index change, or production rollout is a persistent-data/schema action and requires the gate below.
+- Blast radius is limited to student/KTX profile and registration flows. Existing room assignment, contract, billing, violation, maintenance, authentication, and unrelated student behavior must remain unchanged.
 
 # Objective
 
-Remove approval-oriented content from the dormitory Overview, make the Unclassified page behave like a normal class student table, and allow individual creation or Excel import to convert an unclassified dormitory registration into a classified student without duplicating the person or losing dormitory information.
+Capture every student-provided field in the supplied dormitory application, expose a secure editable KTX section on the personal profile of a student who has registered, and let authorized users preview and export an A4 PDF that is populated from canonical server data and matches `D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).docx`.
 
 # Scope Boundaries
 
-- Dormitory Overview UI and tests: `frontend/src/app/(dashboard)/dormitory/overview/page.tsx` and `page.test.tsx`.
-- Normal-class and Unclassified student list UI, navigation state, and focused tests: `frontend/src/app/(dashboard)/students/[classId]/page.tsx`, `frontend/src/app/(dashboard)/students/unclassified/page.tsx`, and tests beside the changed pages.
-- Individual student modal, import preview/result UI, and focused tests: `frontend/src/components/popups/StudentPopup.tsx`, `ImportStudentPopup.tsx`, `ImportResultPopup.tsx`, and colocated tests.
-- Typed clients and tests: `frontend/src/api/student-api.ts`, `frontend/src/api/dormitory-api.ts`, and their focused test files.
-- Student create/import endpoints, DTOs, merge orchestration, and tests: `backend/src/students/students.controller.ts`, `students.service.ts`, `students.module.ts`, `dto/create-student.dto.ts`, `dto/import-student.dto.ts`, and `test/students.service.spec.ts`.
-- Explicit unclassified lookup/linking behavior and focused tests: `backend/src/dormitory/controllers/registrations.controller.ts`, `services/registrations.service.ts`, `services/public-registration-link.service.ts`, `dormitory.module.ts`, and directly related specs. Schema changes are excluded unless implementation evidence proves an idempotency field or index is necessary; that requires a scope amendment before writing it.
+- Backend registration data and validation: `backend/src/dormitory/schemas/registration.schema.ts`, `public-registration.schema.ts`, `dto/create-registration.dto.ts`, `update-registration.dto.ts`, `public-register.dto.ts`, plus a new shared nested DTO/schema for applicant and parent information if that avoids duplication.
+- Backend self-service, conversion, PDF generation, and tests: `backend/src/dormitory/controllers/registrations.controller.ts`, `services/registrations.service.ts`, `services/public-registration-link.service.ts`, `dormitory.module.ts`, existing focused specs, and new KTX application PDF template/service/spec files under `backend/src/dormitory/**`.
+- Student lookup used by self-service: `backend/src/students/students.service.ts` and focused student tests only if the existing user-to-student lookup cannot be reused without change.
+- Frontend typed API and tests: `frontend/src/api/dormitory-api.ts` and `dormitory-api.test.ts`.
+- Personal profile: `frontend/src/app/(dashboard)/profile/page.tsx`, a new focused `frontend/src/components/profile/StudentDormitorySection.tsx` (or equivalent owned component), and focused tests. `normalize-profile.ts` changes only if required by the chosen fetch composition.
+- KTX registration page and public form consistency: `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, its test, `frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx`, and its test.
+- Supplied-form field inventory, stored as English `snake_case` under an applicant subdocument while preserving current top-level fields:
+  - canonical read-only student values: full name, date of birth, gender, student code, class, and faculty/department;
+  - current registration values: phone number, semester, academic year, room/building preference, room type, notes, priority group, registration status, assigned room/bed, and active-contract dates where available;
+  - new student-editable application values: ethnicity, religion, citizen ID number, citizen ID issue date, citizen ID issue place, permanent address, father full name/age/permanent address/contact address/occupation/phone number, mother full name/age/permanent address/contact address/occupation/phone number, and priority-certificate details.
+- PDF output: national header, title, recipient, all supplied-form fields, commitment paragraph, parent/guardian signature block for students under 18, applicant signature block, A4 portrait size, and margins matching the sample (top/right/bottom 20 mm; left 30 mm).
 
 # Out of Scope
 
-- Reintroducing registration approval/rejection, changing room assignment, altering invoices/contracts, redesigning unrelated dormitory tabs, changing the Excel template columns, account activation, training-point creation rules, schema migration, historical bulk cleanup, deployment, or running merges against real user data.
-- Fuzzy or accent-insensitive identity merging, name-only matching, silent automatic merging when multiple candidates exist, deleting the source registration, or overwriting dormitory room/bed/preference/contact information with blank import fields.
+- Editing the supplied DOCX; uploading/scanning certificates; electronic or handwritten signature capture; approval workflow redesign; bulk PDF export; email delivery; PDF archival; multilingual templates; OCR; payment; room transfer/assignment changes; contract creation; billing; violations; maintenance; or redesigning unrelated profile/KTX pages.
+- Allowing students to edit student identity keys, class/faculty, registration code, student ID, status/review metadata, rejection reason, assigned room/bed, contract dates/status, or other administrator-controlled fields.
+- Adding parent/application fields directly to the global `Student` schema unless implementation evidence proves they are used outside KTX; otherwise they remain owned by the dormitory registration.
+- Historical data cleanup/backfill, MongoDB index migration, deployment, production execution, or dependency upgrades. Existing incomplete records use nullable fields and progressive completion unless a separately approved migration is required.
 
 # Context and Dependencies
 
-- The Overview still renders `Xét duyệt đơn`, `Đơn chờ duyệt`, approval wording in activity/quick-link cards, and tests around `pending_registrations`, although registration approval is no longer part of the intended workflow.
-- `/students/unclassified` reads unlinked `PublicRegistration` records. It already uses `ResponsiveDataView`, but its columns and available interactions differ from the normal class table.
-- `StudentPopup` currently uses a plain text input for `fullName` and sends a normal `POST /students`; it does not retain the selected unclassified registration identity.
-- `StudentsService.importPreview` currently validates student-code duplicates and stores valid rows in an in-memory import session. `importConfirm` inserts new students asynchronously, but preview/confirm contracts have no merge decisions.
-- Unclassified records have `full_name`, `date_of_birth`, gender/contact/dormitory information and link fields. Formal `Student` records use `full_name`, `date_bir`, `student_code`, and `class_id`. Existing `PublicRegistrationLinkService` links primarily by student code/email and must gain an explicit source-record link path for records whose student code is blank.
-- Matching for this feature is deterministic: normalize Unicode text, trim and collapse whitespace, compare names case-insensitively, and compare the calendar date exactly. Do not strip accents or use partial/fuzzy matching. Zero matches means create normally; one match may be proposed for merge; multiple matches are ambiguous and require an explicit user selection for individual creation and remain unresolved during import.
+- The DOCX structurally contains: full name; birth date; gender; class; faculty; ethnicity; religion; phone; citizen ID/date/place of issue; permanent address; complete father and mother contact/occupation blocks; priority certificates; commitment text; and two signature blocks. It contains no embedded images, headers, or footers. LibreOffice is unavailable in the current environment, so visual render QA of the source was not completed; structure and page geometry were inspected directly.
+- `Registration` currently stores student/room/bed, semester/year, birth date, gender, phone, preference, priority, and review state. `PublicRegistration` additionally stores name/email/student code and link fields, but neither schema contains the new application/parent fields.
+- `PublicRegistrationLinkService` has multiple public-to-formal conversion paths. Some paths currently omit birth date, gender, and phone; every conversion path must use one shared mapper and preserve all legacy and new form fields.
+- The profile page currently reads `auth/me` and updates only user name, phone, and birth date. `studentApi.getMyStudent()` exists, but no self-scoped dormitory registration endpoint exists. Admin list/detail endpoints must not be exposed to students.
+- The server already uses Puppeteer for another PDF flow. Reuse the installed dependency and its safe browser lifecycle; do not add a client-side PDF dependency. The preview must display the exact server-generated PDF blob that is later downloaded, avoiding separate preview/export templates.
+- Self-service current-record selection is deterministic: active contract first; otherwise the newest non-rejected/non-cancelled formal registration; otherwise the newest historical formal registration. `has_dormitory_registration` is true when any formal registration is linked to the authenticated student. Historical/final records remain visible but are read-only.
+- Student-editable fields are the student-provided application/contact/parent fields and, before assignment/active contract, room preference, notes, and priority details. Administrative state, assignment, and contract fields are always read-only. All writes are allow-listed and re-resolve the student from `req.user.userId`; client-supplied `student_id` is never trusted.
 
 # Steps
 
-1. Add regression coverage for approval-free Overview content, normal-class-equivalent Unclassified table states/actions, creatable student selection, deterministic match handling, idempotent linking, and import preview/confirm merge decisions.
-2. Remove approval-specific Overview calculations, icons, labels, calls to action, activity wording, and KPI cards. Keep a neutral `Đăng ký KTX` navigation entry if useful, labelled as registration management rather than approval, and preserve the requested room/bed/student/fee/utility/monthly-trend dashboard content.
-3. Align `/students/unclassified` with the normal class page container, header, search, responsive table/mobile cards, loading/empty/error states, pagination or infinite loading, selection behavior, and permission-aware actions. Use the same column names/order where the underlying data permits: `MÃ SV`, `HỌ VÀ TÊN`, `NGÀY SINH`, `GIỚI TÍNH`, `ĐRL`, `TRẠNG THÁI`, `TÀI KHOẢN`, and `HÀNH ĐỘNG`. Render `MÃ SV` as empty/`—`, `ĐRL` as `N/A`, status as `Chưa phân loại`, and account as `Chưa active`; never fabricate values.
-4. Map Unclassified actions to registration semantics: view supported details, edit supported registration fields, delete only through the existing permission/confirmation policy, and open the classification flow. Do not call student detail/update/delete/account endpoints until a real `Student` exists. Preserve URL/search/scroll state and refresh the row in place after mutation.
-5. Replace the create-mode `Họ và tên` input in `StudentPopup` with a searchable creatable combobox built from the paginated Unclassified API. Users can select an existing unclassified person or type a new name. Selecting a person stores its source registration ID and fills supported profile fields such as date of birth, gender, email, and phone without overriding the target class/student code; users can clear the selection and return to manual entry. Edit mode remains the existing student form.
-6. Add a dedicated, permission-checked create-from-unclassified contract. Validate the source record is still unlinked, re-read it server-side, create the student with the supplied unique student code and target class, explicitly link/convert the selected registration, and return the created student. Make retries idempotent and ensure partial failure cannot leave two students or two formal registrations for one source; use a transaction where supported or a documented compensating/idempotent sequence otherwise.
-7. Extend import preview to search unlinked candidates using the deterministic name-and-birth-date rule. Return row-level outcomes for `CREATE`, `MERGE_CANDIDATE`, `AMBIGUOUS`, and `INVALID`, including the source registration ID and safe display fields only. Update the preview UI to show merge candidates separately and let the user include/exclude each proposed merge before confirmation; ambiguous rows cannot be committed as merges.
-8. Extend import confirmation/session data with server-validated merge decisions. For an accepted unique candidate, create the Student and link/convert that exact unclassified registration while preserving dormitory data; for declined/no-match rows, create normally; for stale/already-linked/ambiguous candidates, skip the row with an actionable result instead of creating a duplicate. Report created, merged, skipped, duplicate, and failed counts accurately in progress and result UI.
-9. Reuse one backend linking implementation for individual and import flows. Preserve source registration audit/link fields, room/bed/preference/contact data, and existing formal-registration uniqueness rules. Remove the record from Unclassified results only after a successful link and ensure it appears in the target class after refresh.
-10. Run focused frontend/backend tests, type/build checks, approval-copy searches, final diff inspection, and status review.
+1. Add regression fixtures and contract tests for the full field inventory, old records with missing fields, self authorization, editable-field allow-list, registration selection, conversion preservation, preview/download headers, Vietnamese glyphs, and A4 output.
+2. Define one reusable applicant profile shape and nested validators. Add optional fields to formal and public registration storage without changing current field names or enum values. Normalize strings, validate dates/phone/age/ID length, reject future dates and unknown keys, and keep missing legacy fields nullable.
+3. Extend create, update, temporary/public registration DTOs and the existing admin/public forms so all entry points can capture the same student-provided fields. Preserve canonical name/student/class/faculty data from Student when a linked student exists.
+4. Replace every public-to-formal conversion object with a shared mapping function that copies birth date, gender, phone, preference, priority, room/bed references, and the complete applicant profile. Add idempotency and no-data-loss tests for auto-link, check/link, and manual link flows.
+5. Add authenticated, route-order-safe self endpoints before `:id`: `GET /dormitory/registrations/me` for the selected current record plus history/status/assignment summary, and `PATCH /dormitory/registrations/me` for allow-listed student fields. Enforce the authenticated user-to-student link and reject arbitrary IDs, privileged fields, unlinked users, and updates to final historical records.
+6. Build the profile KTX section. Fetch student and self-registration data only for Student users; hide the section when no formal registration exists; show loading/error/empty states; render all application and KTX fields; allow editing only where the API reports `editable_fields`; preserve unsaved values on validation failure; and refresh from the server after save.
+7. Build a dedicated server PDF view model from canonical populated Student, Class, Department, Registration, Contract, Room, Bed, and applicant-profile data. Escape all values before HTML interpolation, embed a Vietnamese-capable font available to the runtime, render A4 with the sample margins/layout, leave signature areas blank, and never log form values.
+8. Add an authorized PDF endpoint for a registration selected on the KTX registration page. It must load data by registration ID server-side, enforce the existing registration-view permission, return `application/pdf`, and support safe `inline` preview and `attachment` download filenames without accepting rendered personal fields from the client.
+9. Add `Xem trước đơn` and `Xuất PDF` actions to the existing KTX registration page. The preview modal creates and revokes a blob URL, displays the same generated PDF, handles loading/error/retry/close, and downloads the same bytes with a sanitized filename. Disable the actions with an actionable message when mandatory data is incomplete.
+10. Run focused tests, backend build, frontend typecheck, final diff/status review, and a manual render comparison of representative adult/under-18/long-text/Vietnamese records against the supplied DOCX.
 
 # Acceptance Criteria
 
-- AC1: The Overview contains no approval/rejection action, `Xét duyệt`, `chờ duyệt`, approval badge, or approval-oriented activity copy. Its non-approval KPIs, monthly comparison, navigation, loading, error, and responsive states continue to work.
-- AC2: Unclassified uses the normal class page's table/card structure, column names, search, loading/empty/error handling, pagination/infinite loading, row selection, and responsive behavior. Unsupported fields show honest empty values rather than fabricated data.
-- AC3: Unclassified row actions obey permissions and operate on the registration contract. No student-only API receives a public-registration ID.
-- AC4: In create mode, `Họ và tên` is a searchable creatable selector. It supports loading more candidates, selecting one candidate, clearing it, and entering a completely new name manually. Existing student edit behavior is unchanged.
-- AC5: Selecting an unclassified person fills supported profile information, while the entered student code and target class remain authoritative. Submission creates exactly one Student and links exactly the selected source registration.
-- AC6: A successful individual merge removes the source row from Unclassified, shows the Student in the target class, preserves dormitory registration/room/bed/preference data, and does not duplicate formal registrations. Cancel or validation failure makes no persistent change.
-- AC7: Import preview proposes a merge only for exactly one deterministic full-name plus birth-date match, labels ambiguous matches separately, and requires visible user confirmation of proposed merges before commit.
-- AC8: Import commit revalidates candidates and decisions server-side. Accepted matches are merged, declined/no-match rows are created normally, and stale, linked, ambiguous, duplicate-code, or invalid rows are skipped/reported without silently creating duplicate people.
-- AC9: Import progress and result UI distinguish `created`, `merged`, `skipped`, `duplicated`, and `failed`; totals reconcile with processed rows and a retry does not repeat a completed merge.
-- AC10: Manual and import paths use the same linking rules and permissions, and no source registration is deleted as part of classification.
+- AC1: Formal and public registrations accept, return, and preserve every field enumerated in Scope Boundaries; legacy records with absent new fields still load and can be completed without migration.
+- AC2: All public-to-formal conversion paths produce the same mapped result and do not drop existing birth date, gender, phone, room/bed, preference, priority, notes, or new applicant/parent data.
+- AC3: A Student with any linked formal registration sees a KTX section on the personal profile; a Student without one and non-Student roles do not. Current/historical selection follows the documented deterministic rule.
+- AC4: The KTX section displays all student-provided fields and current KTX status/assignment information. Student-editable fields save and reload correctly; administrative fields are read-only in UI and rejected by the API if submitted.
+- AC5: Self endpoints return only the authenticated student's records, reject unlinked/non-Student users, ignore no privileged field silently, and never accept a client-selected `student_id`.
+- AC6: Existing admin and public registration forms expose the new fields with consistent labels, validation, nullable behavior, and responsive/loading/error states; existing registration behavior remains functional.
+- AC7: `Xem trước đơn` displays the exact PDF bytes produced for export, supports close/retry without leaking blob URLs, and never sends canonical personal values back to the server for rendering.
+- AC8: The downloaded file is a non-empty valid PDF with `application/pdf`, a sanitized deterministic filename, A4 portrait geometry, sample margins, Vietnamese text, all populated values, commitment text, and the correct parent/applicant signature blocks.
+- AC9: Long names/addresses/occupations/certificate text wrap without clipping, overlap, missing glyphs, or accidental extra blank pages. Empty optional values render as blank lines/placeholders rather than `undefined`, `null`, or fabricated data.
+- AC10: Unauthorized registration IDs return the repository-standard forbidden/not-found response without revealing whether another student's record exists. PDF and API logs contain no raw citizen ID, address, phone, or parent information.
+- AC11: No room assignment, contract, billing, review status, or global Student identity behavior changes outside this scope, and the final diff contains no unrelated edits.
 
 # Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/overview/page.test.tsx" "src/app/(dashboard)/students/unclassified/page.test.tsx" "src/components/popups/StudentPopup.test.tsx" "src/components/popups/ImportStudentPopup.test.tsx" src/api/student-api.test.ts src/api/dormitory-api.test.ts` => AC1-AC5 and AC7-AC9 pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => changed pages, popups, and API contracts compile.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand students/test/students.service.spec.ts dormitory/services/registrations.service.spec.ts dormitory/services/public-registration-link.service.spec.ts dormitory/controllers/registrations.controller.spec.ts` => deterministic matching, authorization, idempotency, stale/ambiguous handling, preservation, and result counters pass. Create the focused link-service spec if absent.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS modules and extended DTOs compile without circular dependency errors.
-- Repository root :: `rg -n -i "xét duyệt|chờ duyệt|approval|pending_registrations" "frontend/src/app/(dashboard)/dormitory/overview"` => no approval-oriented Overview runtime copy or obsolete test expectation remains.
-- Repository root :: `git diff --check` and `git status --short` => only scoped changes exist and unrelated user work is preserved.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts dormitory/controllers/registrations.controller.spec.ts dormitory/services/room-assignment.service.spec.ts students/test/students.service.spec.ts` plus new focused link/PDF specs => AC1-AC5, AC8, and AC10 pass.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS DTOs, schemas, controller ordering, providers, and Puppeteer service compile without circular dependencies.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run src/api/dormitory-api.test.ts "src/app/(dashboard)/dormitory/registrations/page.test.tsx" src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx "src/app/(dashboard)/profile/_lib/normalize-profile.test.ts"` plus new profile KTX tests => AC3, AC4, AC6, and AC7 pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => all changed API, profile, form, modal, and blob-lifecycle contracts compile.
+- Manual PDF QA in a development/test database :: create fixtures for adult, under-18, missing optional values, and maximum practical Vietnamese text; preview/download each PDF; inspect every rendered page at 100%; compare header, field order, commitment, margins, wrapping, and signature blocks with the supplied DOCX => AC8 and AC9 pass.
+- Repository root :: `git diff --check` and `git status --short` => only approved paths changed; no malformed whitespace or unrelated user changes.
 
 # Safety Gates
 
-- Development implementation with mocks/test databases requires no additional gate. Tests must not call merge, delete, or import endpoints against persistent user data.
-- Any schema/index migration, historical-data merge, production execution, deployment, or live-data repair requires a scope amendment and explicit approval before execution.
+- Gate G1 — required before any historical backfill, index/schema migration, staging/production database change, or deployment. Review artifact: dry-run counts with no personal values, affected collections/fields, backup reference, rollback procedure, environment, and exact command. Approval: explicit user authorization for that environment. Rollback: restore backup or run the separately reviewed idempotent rollback. Resume point: after G1 approval and immediately before the first persistent mutation.
+- Normal implementation and tests against mocks/ephemeral development databases need no additional gate. Tests and manual QA must use synthetic personal data only.
+- Stop and amend scope if implementation requires certificate uploads, digital signatures, a new dependency, global Student schema ownership, public unauthenticated PDF access, destructive migration, or exposure of additional personal data.
 
 # Artifacts and Checkpoints
 
-- Record fixtures for: zero/one/multiple matches, accents and whitespace, same name with different birth dates, stale link, existing formal registration, duplicate student code, partial link failure, retry, declined merge, pagination, and permission denial.
-- Checkpoint after the backend individual merge is idempotent and tested; checkpoint again after import preview/confirm counters reconcile before wiring final UI refreshes.
-- Stop for evidence that transactions are mandatory but unavailable, a safe compensating sequence cannot be guaranteed, public registrations lack a reliable birth date, permissions cannot authorize classification without broadening access, or unrelated edits conflict in scoped paths.
+- Keep a field-mapping matrix: DOCX label -> API key -> formal/public schema path -> source of truth -> editable role -> PDF location -> validation -> test ID. Do not store real sample values.
+- Required fixtures: adult, under 18, old record with missing fields, public-to-formal conversion through every path, active contract, assigned without contract, historical-only, unauthorized student, long Vietnamese values, incomplete mandatory PDF data, and preview URL cleanup.
+- Checkpoint after shared schema/DTO/mapping tests pass; after self-service authorization/edit tests pass; and after the same PDF bytes pass both preview and download QA. Record commit identity and hashes only at these material synchronization points.
+- Review must independently inspect authorization, field allow-listing, HTML escaping, filename sanitization, Puppeteer cleanup/timeouts, personal-data logging, conversion data preservation, and the final PDF render.
 
 # Execution Budgets
 
-- Order: regression baseline -> shared matching/linking contract -> individual classify flow -> import preview/commit flow -> Unclassified table alignment -> Overview cleanup -> affected verification -> final review.
-- One writer per path; step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2.
+- Dependency order: baseline/tests -> field model/DTOs -> shared conversion mapper -> self API -> profile UI -> PDF service/endpoint -> preview/export UI -> affected verification -> independent review -> final verification.
+- One writer per path; disjoint frontend/backend writes may run concurrently only after shared API/field contracts are frozen. Step deadline: 1200 seconds; retries: 2; engineering loops: 3; review-remediation cycles: 2; no unapproved branch/worktree creation.

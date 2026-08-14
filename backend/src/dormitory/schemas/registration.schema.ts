@@ -1,6 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
+import { ApplicantProfileSchema } from './applicant-profile.schema';
+import type { ApplicantProfile } from './applicant-profile.schema';
 
 export type RegistrationDocument = Registration & Document;
 
@@ -32,6 +34,9 @@ export class Registration {
 
   @Prop({ trim: true })
   phone_number: string;
+
+  @Prop({ type: ApplicantProfileSchema })
+  applicant_profile?: ApplicantProfile;
 
   @Prop({
     type: {

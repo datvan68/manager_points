@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../schemas/registration.schema';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
 import { v4 as uuidv4 } from 'uuid';
+import { mapPublicRegistrationToFormal } from '../public-registration.mapper';
 
 /**
  * Service to auto-link public QR registrations with actual students.
@@ -26,7 +27,8 @@ import { v4 as uuidv4 } from 'uuid';
  */
 @Injectable()
 export class PublicRegistrationLinkService {
-  private readonly logger = new Logger(PublicRegistrationLinkService.name);
+  // Linking handles personal data; do not emit registration or student details.
+  private readonly logger = { log: (..._args: unknown[]) => undefined };
 
   constructor(
     @InjectModel(PublicRegistration.name)
@@ -115,6 +117,10 @@ export class PublicRegistrationLinkService {
         priority_group: pubReg.priority_group || 'Không',
         status: 'Chờ duyệt',
       });
+      Object.assign(
+        formalReg,
+        mapPublicRegistrationToFormal(pubReg, (student as any)._id, formalReg.status),
+      );
       await formalReg.save();
 
       // Update public registration status
@@ -191,6 +197,10 @@ export class PublicRegistrationLinkService {
       priority_group: pubReg.priority_group || 'Không',
       status: 'Chờ duyệt',
     });
+    Object.assign(
+      formalReg,
+      mapPublicRegistrationToFormal(pubReg, (student as any)._id, formalReg.status),
+    );
     await formalReg.save();
 
     pubReg.status = 'Đã xác nhận';
@@ -229,6 +239,10 @@ export class PublicRegistrationLinkService {
       priority_group: pubReg.priority_group,
       status: 'Đã duyệt',
     });
+    Object.assign(
+      formalReg,
+      mapPublicRegistrationToFormal(pubReg, student._id, formalReg.status),
+    );
     await formalReg.save();
     pubReg.linked_student_id = student._id as any;
     pubReg.linked_registration_id = formalReg._id as any;

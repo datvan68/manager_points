@@ -80,3 +80,22 @@ describe('dormitoryApi.registrations.unassignRoom', () => {
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ registration_id: 'registration-1' });
   });
 });
+
+describe('dormitoryApi self-service and PDF endpoints', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('uses self-scoped endpoints without a client supplied student id', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ has_dormitory_registration: false, registration: null, history: [] })) });
+    await dormitoryApi.registrations.getMine();
+    await dormitoryApi.registrations.updateMine({ phone_number: '0912345678' });
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/me');
+    expect(mockFetch.mock.calls[1][0]).toContain('/dormitory/registrations/me');
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({ phone_number: '0912345678' });
+  });
+
+  it('requests server-generated application PDF with the selected disposition', async () => {
+    mockFetch.mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' })) });
+    await dormitoryApi.registrations.getApplicationPdf('registration-1', 'inline');
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1/application-pdf?disposition=inline');
+  });
+});

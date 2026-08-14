@@ -73,6 +73,22 @@ export interface DormRegistration {
   phone_number?: string;
   assigned_room_name?: string;
   active_contract_id?: string;
+  applicant_profile?: ApplicantProfile;
+  active_contract?: DormContract | null;
+  editable_fields?: string[];
+}
+
+export interface ParentApplicantProfile {
+  full_name?: string; age?: string | number; permanent_address?: string; contact_address?: string; occupation?: string; phone_number?: string;
+}
+export interface ApplicantProfile {
+  ethnicity?: string; religion?: string; citizen_id_number?: string; citizen_id_issue_date?: string; citizen_id_issue_place?: string; permanent_address?: string;
+  priority_certificate_details?: string; father?: ParentApplicantProfile; mother?: ParentApplicantProfile;
+}
+export interface SelfDormitoryRegistration {
+  has_dormitory_registration: boolean;
+  registration: DormRegistration | null;
+  history: Array<Pick<DormRegistration, '_id' | 'registration_code' | 'status' | 'semester' | 'academic_year' | 'createdAt'>>;
 }
 
 export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
@@ -93,6 +109,7 @@ export interface UpdateDormRegistrationInput {
   student_code?: string;
   room_type?: 'Thường' | 'Máy lạnh';
   notes?: string;
+  applicant_profile?: ApplicantProfile;
 }
 
 export interface CreateDormRegistrationInput {
@@ -108,6 +125,7 @@ export interface CreateDormRegistrationInput {
     notes?: string;
   };
   priority_group?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+  applicant_profile?: ApplicantProfile;
 }
 
 export interface PublicDormitorySemester {
@@ -125,6 +143,7 @@ export interface PublicDormitoryRegistrationInput {
   room_type?: 'Thường' | 'Máy lạnh';
   notes?: string;
   qr_room_id?: string;
+  applicant_profile?: ApplicantProfile;
 }
 
 export interface UnclassifiedRegistration {
@@ -350,6 +369,16 @@ export const dormitoryApi = {
 
   // ── Registrations ──
   registrations: {
+    async getMine(): Promise<SelfDormitoryRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/me`);
+      return handleResponse(res);
+    },
+    async updateMine(dto: Pick<UpdateDormRegistrationInput, 'phone_number' | 'preference' | 'priority_group' | 'applicant_profile'>): Promise<DormRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/me`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
     async getAll(params?: QueryParams): Promise<PaginatedResponse<DormRegistration>> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations${buildQuery(params)}`);
       return handleResponse(res);
@@ -361,6 +390,11 @@ export const dormitoryApi = {
     async getOne(id: string): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}`);
       return handleResponse(res);
+    },
+    async getApplicationPdf(id: string, disposition: 'inline' | 'attachment' = 'inline'): Promise<Blob> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/${encodeURIComponent(id)}/application-pdf${buildQuery({ disposition })}`);
+      if (!res.ok) return handleResponse(res);
+      return res.blob();
     },
     async create(dto: CreateDormRegistrationInput): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations`, {

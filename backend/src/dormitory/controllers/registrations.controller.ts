@@ -9,7 +9,10 @@ import {
   UseGuards,
   Request,
   Query,
+  Res,
+  ForbiddenException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { RegistrationsService } from '../services/registrations.service';
 import { RoomAssignmentService } from '../services/room-assignment.service';
@@ -70,6 +73,39 @@ export class RegistrationsController {
   @UseGuards(checkPermission('DORM_REG_READ'))
   findUnclassified(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
     return this.registrationsService.findUnclassified({ page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
+  }
+
+  // Keep self-scoped routes above :id so "me" can never be interpreted as an id.
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  findMine(@Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.registrationsService.findMine(req.user.userId);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateMine(@Body() dto: UpdateRegistrationDto, @Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.registrationsService.updateMine(req.user.userId, dto as unknown as Record<string, unknown>);
+  }
+
+  @Get(':id/application-pdf')
+  @UseGuards(checkPermission('DORM_REG_READ'))
+  async applicationPdf(
+    @Param('id') id: string,
+    @Query('disposition') disposition: string | undefined,
+    @Res() res: Response,
+  ) {
+    const result = await this.registrationsService.generateApplicationPdf(id);
+    const mode = disposition === 'attachment' ? 'attachment' : 'inline';
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(result.buffer.length),
+      'Content-Disposition': `${mode}; filename="${result.filename}"`,
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(result.buffer);
   }
 
   @Get(':id')

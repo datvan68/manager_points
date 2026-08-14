@@ -9,6 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApplicantProfileDto } from './applicant-profile.dto';
 
 class UpdateRegistrationPreferenceDto {
   @IsOptional()
@@ -47,6 +48,11 @@ export class UpdateRegistrationDto {
   @IsString()
   @Matches(/^[0-9+().\s-]{8,20}$/, { message: 'Số điện thoại không hợp lệ' })
   phone_number?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicantProfileDto)
+  applicant_profile?: ApplicantProfileDto;
 
   @IsOptional()
   @ValidateNested()

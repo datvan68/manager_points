@@ -1,4 +1,6 @@
-import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApplicantProfileDto } from './applicant-profile.dto';
 
 export class CreateTemporaryRegistrationDto {
   @IsNotEmpty()
@@ -18,6 +20,11 @@ export class CreateTemporaryRegistrationDto {
   @IsString()
   @Matches(/^[0-9+().\s-]{8,20}$/, { message: 'Số điện thoại không hợp lệ' })
   phone_number: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicantProfileDto)
+  applicant_profile?: ApplicantProfileDto;
 
   @IsOptional()
   @IsEnum(['Thường', 'Máy lạnh'])

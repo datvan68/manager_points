@@ -5,7 +5,10 @@ import {
   IsEmail,
   IsEnum,
   IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApplicantProfileDto } from './applicant-profile.dto';
 
 /**
  * DTO for public (unauthenticated) KTX registration via QR scan.
@@ -19,6 +22,11 @@ export class PublicRegisterDto {
   @IsNotEmpty({ message: 'Vui lòng nhập số điện thoại' })
   @IsString()
   phone_number: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicantProfileDto)
+  applicant_profile?: ApplicantProfileDto;
 
   @IsOptional()
   @IsEmail({}, { message: 'Email không hợp lệ' })

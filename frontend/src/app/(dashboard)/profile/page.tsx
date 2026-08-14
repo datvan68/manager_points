@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { normalizeProfile, NormalizedProfile } from "./_lib/normalize-profile";
+import { StudentDormitorySection } from "@/components/profile/StudentDormitorySection";
 import { useLocationPermission } from "@/hooks/useLocationPermission";
 
 export default function ProfilePage() {
@@ -384,6 +385,7 @@ export default function ProfilePage() {
 
             {/* Content Tabs */}
             {activeTab === "Thông tin cá nhân" ? (
+              <>
               <div className="grid grid-cols-12 gap-6">
                 {/* Form chỉnh sửa */}
                 <motion.div
@@ -620,6 +622,8 @@ export default function ProfilePage() {
                   </div>
                 </motion.div>
               </div>
+              {isStudentRole(profile) && <StudentDormitorySection />}
+              </>
             ) : (
               // Tab Vai trò & Quyền hạn
               <div className="grid grid-cols-12 gap-6">

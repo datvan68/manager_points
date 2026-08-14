@@ -8,6 +8,7 @@ import {
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApplicantProfileDto } from './applicant-profile.dto';
 
 class NguyenVongDto {
   @IsOptional()
@@ -47,6 +48,11 @@ export class CreateRegistrationDto {
   @IsNotEmpty()
   @IsString()
   phone_number: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicantProfileDto)
+  applicant_profile?: ApplicantProfileDto;
 
   @IsOptional()
   @ValidateNested()
