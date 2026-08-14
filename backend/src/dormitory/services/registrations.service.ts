@@ -162,13 +162,22 @@ export class RegistrationsService {
       @page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; }
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; }
-      body { color: #000; font-family: "Times New Roman", Times, serif; font-size: 14pt; line-height: 1.15; }
+      body { color: #000; font-family: "Times New Roman", Times, serif; font-size: 15pt; line-height: 1.75; letter-spacing: 0.25pt; }
       .document { width: 100%; }
-      .national-heading { text-align: center; font-size: 14pt; font-weight: 700; line-height: 1.15; }
-      .document-title { margin: 14pt 0 12pt; text-align: center; font-size: 15pt; font-weight: 700; line-height: 1.15; }
-      .recipient { margin: 0 0 7pt; }
-      .details { line-height: 1.5; }
-      .detail-row { height: 1.5em; white-space: nowrap; }
+      .national-heading { text-align: center; font-size: 15.5pt; font-weight: 700; line-height: 1.15; }
+      .national-motto { display: inline-block; border-bottom: 1px solid #000; padding-bottom: 4pt; }
+      .document-title { margin: 28pt 0 15pt; text-align: center; font-size: 17pt; font-weight: 700; line-height: 1.15; }
+      .recipient { margin: 0 0 13pt 28.5mm; text-align: left; }
+      .details { line-height: 1.75; }
+      .detail-row { height: 1.75em; white-space: nowrap; }
+      .student-layout { display: grid; grid-template-columns: 39mm minmax(0, 1fr); column-gap: 3mm; margin-bottom: 10pt; }
+      .photo-frame { width: 35.7mm; height: 41.8mm; margin-top: 11.5pt; margin-left: 2.3mm; border: 1px solid #000; }
+      .student-details { min-width: 0; position: relative; top: 5.5pt; }
+      .student-details .field-name { width: 100mm; }
+      .student-details .field-ethnicity, .student-details .field-religion { width: 18mm; }
+      .student-details .field-phone { width: 25mm; }
+      .student-details .field-citizen { width: 20mm; }
+      .student-details .field-issue-date { width: 18mm; }
       .field { display: inline-block; min-height: 1.25em; padding: 0 2pt; border-bottom: 1px dotted #000; vertical-align: baseline; overflow: hidden; white-space: nowrap; }
       .field-name { width: 81mm; }
       .field-date { width: 37mm; }
@@ -181,19 +190,19 @@ export class RegistrationsService {
       .field-citizen { width: 32mm; }
       .field-issue-date { width: 28mm; }
       .field-issue-place { width: 38mm; }
-      .field-address { width: 117mm; }
-      .field-parent-name { width: 72mm; }
-      .field-parent-age { width: 17mm; }
-      .field-parent-address { width: 112mm; }
-      .field-parent-contact { width: 112mm; }
-      .field-parent-occupation { width: 57mm; }
-      .field-parent-phone { width: 29mm; }
+      .field-address { width: 130mm; }
+      .field-parent-name { width: 82mm; }
+      .field-parent-age { width: 44mm; }
+      .field-parent-address { width: 130mm; }
+      .field-parent-contact { width: 130mm; }
+      .field-parent-occupation { width: 60mm; }
+      .field-parent-phone { width: 44mm; }
       .priority-line { margin-top: 2pt; line-height: 1.5; white-space: nowrap; }
-      .field-priority { width: 73mm; }
+      .field-priority { width: 105mm; }
       .commitment { margin: 7pt 0 0; line-height: 1.5; text-align: justify; }
-      .signature-table { width: 100%; margin-top: 18pt; border-collapse: collapse; table-layout: fixed; font-size: 14pt; line-height: 1.15; }
+      .signature-table { width: 100%; margin-top: 24pt; border-collapse: collapse; table-layout: fixed; font-size: 14pt; line-height: 1.15; }
       .signature-cell { width: 50%; padding: 0; text-align: center; vertical-align: top; }
-      .signature-space { height: 27mm; }
+      .signature-space { height: 0; }
       .signature-label, .signature-note { margin: 0; }
       .signature-label { font-weight: 400; }
       .signature-note { font-style: normal; }
@@ -203,14 +212,17 @@ export class RegistrationsService {
       <div class="national-heading">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM<br><span class="national-motto">Độc lập - Tự do - Hạnh phúc</span></div>
       <h1 class="document-title">ĐƠN XIN VÀO KÝ TÚC XÁ</h1>
       <p class="recipient">Kính gửi: Phòng Học sinh sinh viên.</p>
-      <section class="details student-details">
-        <div class="detail-row">Họ và tên HSSV: ${field(data.full_name, 'field-name')}</div>
-        <div class="detail-row">Ngày, tháng, năm sinh: ${field(data.date_of_birth, 'field-date')} Nam(nữ): ${field(data.gender, 'field-gender')}</div>
-        <div class="detail-row">Lớp: ${field(data.class_name, 'field-class')} Khoa ${field(data.department_name, 'field-faculty')}</div>
-        <div class="detail-row">Dân tộc: ${field(data.ethnicity, 'field-ethnicity')} Tôn giáo: ${field(data.religion, 'field-religion')} Điện thoại ${field(data.phone_number, 'field-phone')}</div>
-        <div class="detail-row">CCCD: ${field(data.citizen_id_number, 'field-citizen')} Ngày cấp: ${field(data.citizen_id_issue_date, 'field-issue-date')} Nơi cấp: ${field(data.citizen_id_issue_place, 'field-issue-place')}</div>
-        <div class="detail-row">Hộ khẩu thường trú: ${field(data.permanent_address, 'field-address')}</div>
-      </section>
+      <div class="student-layout">
+        <div class="photo-frame" aria-label="Khung ảnh"></div>
+        <section class="details student-details">
+          <div class="detail-row">Họ và tên HSSV: ${field(data.full_name, 'field-name')}</div>
+          <div class="detail-row">Ngày, tháng, năm sinh: ${field(data.date_of_birth, 'field-date')} Nam(nữ): ${field(data.gender, 'field-gender')}</div>
+          <div class="detail-row">Lớp: ${field(data.class_name, 'field-class')} Khoa ${field(data.department_name, 'field-faculty')}</div>
+          <div class="detail-row">Dân tộc: ${field(data.ethnicity, 'field-ethnicity')} Tôn giáo: ${field(data.religion, 'field-religion')} Điện thoại ${field(data.phone_number, 'field-phone')}</div>
+          <div class="detail-row">CCCD: ${field(data.citizen_id_number, 'field-citizen')} Ngày cấp: ${field(data.citizen_id_issue_date, 'field-issue-date')} Nơi cấp: ${field(data.citizen_id_issue_place, 'field-issue-place')}</div>
+        </section>
+      </div>
+      <div class="detail-row">Hộ khẩu thường trú: ${field(data.permanent_address, 'field-address')}</div>
       <section class="details parent-details">
         <div class="detail-row">Họ tên Cha: ${field(parent('father', 'full_name'), 'field-parent-name')}Tuổi: ${field(parent('father', 'age'), 'field-parent-age')}</div>
         <div class="detail-row">Hộ khẩu thường trú: ${field(parent('father', 'permanent_address'), 'field-parent-address')}</div>

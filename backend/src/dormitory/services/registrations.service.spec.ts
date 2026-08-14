@@ -305,10 +305,14 @@ describe('RegistrationsService application PDF source matrix', () => {
       previous = current;
     }
     expect(html).toContain('@page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; }');
-    expect(html).toContain('font-family: "Times New Roman", Times, serif; font-size: 14pt;');
-    expect(html).toContain('font-size: 15pt; font-weight: 700;');
+    expect(html).toContain('font-family: "Times New Roman", Times, serif; font-size: 15pt;');
+    expect(html).toContain('font-size: 17pt; font-weight: 700;');
     expect(html).toContain('border-bottom: 1px dotted #000;');
-    expect(html).toContain('line-height: 1.5;');
+    expect(html).toContain('line-height: 1.75;');
+    expect(html).toContain('grid-template-columns: 39mm minmax(0, 1fr);');
+    expect(html).toContain('height: 41.8mm;');
+    expect(html).toContain('class="photo-frame"');
+    expect(html).toContain('.signature-space { height: 0; }');
     expect(html).toContain('table-layout: fixed;');
     expect((html.match(/class="signature-cell\b/g) || []).length).toBe(2);
     expect(html).not.toContain('BỘ GIÁO DỤC VÀ ĐÀO TẠO');
@@ -335,6 +339,7 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(html).not.toMatch(/>undefined<|>null<|Invalid Date|>Unknown</);
     expect(html).toContain('field field-name"></span>');
     expect(html).toContain('field field-parent-name"></span>');
+    expect(html).toContain('class="photo-frame" aria-label="Khung ảnh"></div>');
     expect(html).toContain('parent-signature');
     expect(html).toContain('applicant-signature');
   });

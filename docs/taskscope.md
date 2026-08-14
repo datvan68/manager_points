@@ -1,127 +1,102 @@
 # Task Identity and Pipeline
 
-- Task: `match-dormitory-application-template-and-remove-pdf-icons`; pipeline: `bug_fix`; profile: Full; rules version: `3.2.0`.
-- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `1b884a21ad971a0e6dc9221793b56669d721d25f`; planning date: `2026-08-14`; environment: development.
-- Planning-only authority: this document defines implementation and verification but does not authorize source-code changes, dependency changes, deployment, or persistent-data mutation. A separate explicit implementation request is required.
-- Reference DOCX: `D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).docx`; SHA-256: `07BB674AC7C5DA874D36A32F3070B11C336D09FE3A1215F302457BB35267A711`.
-- UI reference image: `C:\Users\hoang\AppData\Local\Temp\codex-clipboard-78e92833-d4de-40cc-b19e-28089175b579.png`; the prohibited glyphs are the outlined eye and download-arrow icons.
+- Task: `remove-registration-row-pdf-actions-and-match-reference-pdf`; pipeline: `bug_fix`; profile: Full; rules version: `3.2.0`.
+- Repository: `D:\PROJECT\manager_points`; branch: `main`; base commit: `56eda59d149bf470b74a4c1a1f8a224948512cfa`; planning date: `2026-08-14`; environment: development.
+- Planning-only authority: tài liệu này chỉ mô tả phạm vi triển khai và kiểm chứng; chưa cho phép sửa mã nguồn, triển khai, hoặc thay đổi dữ liệu.
+- Reference PDF: `D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).pdf`; SHA-256: `B527F4F28AF2A9ACAB4B936C830071DE635FCFF8C1A3CB0EECB641E7CA9FA9AC`.
+- UI reference: `C:\Users\hoang\AppData\Local\Temp\codex-clipboard-2ace71c2-5902-4f1e-a9f8-2a51a3c528e0.png`; cặp nút cần bỏ là `Xem trước` và `Xuất PDF` trong thao tác từng dòng.
 - Effective Rules Manifest (SHA-256): `safety.md` `6A3F283B835394B1AF1F6380D94CBA260ACBED8A60D3065DD5365BB15806A772`; `global.md` `67806F70A5F89ADF42E3BE88413CC76CC27A02C90FAD0609AE71DE34D046A43F`; operating contract `51F3677C7E44121529CC0A4B17E5667BCBD2147EE63C6F30207C10D5DEB51790`; orchestrator `B782109E896B2FA48A6523358A788A9DB9B81B72F3D8FC66F70019395738D716`; pipeline `0419C072380887F96B37FE4EB48DAE764306F46FB03190B176A43EBCEA3F41F3`.
 
 # Risk Level
 
-- Risk: high. The change crosses frontend/backend boundaries, changes an official form layout, and renders student and parent personal data.
-- Source changes are Git-revertible. No database schema, migration, stored PDF, permission, or registration-state change is expected.
-- Exact visual fidelity is a release gate, not a best-effort goal. The PDF cannot be accepted from HTML assertions alone.
-- Preserve the current in-progress fixes in the dirty worktree, including source-aware PDF lookup, TargetClose retry/cleanup behavior, and top-toolbar PDF-button removal. Do not overwrite or regress unrelated user changes.
+- Risk: high. Thay đổi đi qua frontend/backend, tác động mẫu đơn hành chính và ánh xạ dữ liệu cá nhân của HSSV/phụ huynh.
+- Mã nguồn có thể hoàn tác bằng Git; không có migration, thay đổi schema, ghi PDF lâu dài, thay đổi quyền, hoặc thay đổi trạng thái đăng ký.
+- Yêu cầu “giống mẫu 100%” bắt buộc có kiểm tra render trực quan toàn trang; assertion HTML hoặc text đơn thuần không đủ.
 
 # Objective
 
-Remove the eye and download glyphs shown in the supplied screenshot from the KTX registration UI while preserving their preview/download actions as clear text controls, and make every generated KTX application PDF visually and textually match the supplied DOCX template with no observable deviation. Registration data that is unavailable must leave the corresponding template field blank without changing the template's geometry.
+Loại bỏ đúng hai nút theo từng dòng `Xem trước` và `Xuất PDF` khỏi tab registrations, đồng thời tạo PDF đơn KTX một trang có nội dung và hình học tĩnh trùng mẫu PDF được cung cấp; dữ liệu có sẵn được điền đúng vị trí, dữ liệu thiếu để trống mà không làm dịch chuyển bố cục.
 
 # Scope Boundaries
 
-- Backend PDF template, mapping, and focused regression tests:
-  - `backend/src/dormitory/services/registrations.service.ts`
-  - `backend/src/dormitory/services/registrations.service.spec.ts`
-- Frontend KTX PDF action presentation and focused tests:
+- Frontend và test tập trung:
   - `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`
   - `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`
-- The supplied DOCX is the sole design and wording authority. It remains read-only and must not be modified.
-- Remove use of the `Eye` and `Download` Lucide glyphs throughout the KTX registrations page. Keep the same permission checks and handlers, but render the affected preview/export actions as text-only controls with explicit accessible labels.
-- Keep the standalone top-menu/toolbar PDF button absent. Retain per-row preview/download, selected-row `FloatingActionBar` PDF, and preview-dialog download behavior unless the user separately requests removal.
-- Consolidate the KTX application form into one active template implementation; remove the unused `legacyApplicationHtml` duplicate.
+- Backend template/mapping PDF và test tập trung:
+  - `backend/src/dormitory/services/registrations.service.ts`
+  - `backend/src/dormitory/services/registrations.service.spec.ts`
+- PDF mẫu là nguồn duy nhất quyết định nội dung, font, kích thước, khoảng cách, đường chấm, khung ảnh và vùng chữ ký; giữ nguyên file mẫu.
+- Bỏ cặp nút trong cell `Thao tác` của từng dòng và các JSX/nhánh quyền chỉ phục vụ cặp nút đó. Giữ nguyên Sửa, Xóa và Xếp phòng.
+- Giữ endpoint PDF, API client, luồng PDF khi chọn đúng một dòng qua `FloatingActionBar`, dialog xem trước và nút tải trong dialog. Nếu sau khi bỏ cặp nút có helper/state thực sự không còn được dùng, chỉ xóa phần đã được chứng minh là dead code.
 
 # Out of Scope
 
-- Removing PDF preview/download capabilities, changing `DORM_REG_READ`, changing the endpoint contract, changing source-aware lookup for `FORMAL|PUBLIC|ADMIN_TEMPORARY`, or changing filename/content-disposition behavior.
-- Removing or redesigning unrelated icons such as edit, delete, refresh, QR, search, calendar, loading, or room assignment.
-- Changing registration forms, schemas, DTOs, profile fields, room assignment, contracts, Excel behavior outside this page, or the shared `FloatingActionBar` component.
-- Adding a PDF library, changing Puppeteer versions, browser pooling, infrastructure or font installation, storing generated PDFs, bulk/merged PDF export, migrations, deployment, or real-data processing.
-- Adding static text, branding, fields, dates, status, source, room, registration code, or explanatory copy that does not appear in the supplied DOCX.
+- Xóa toàn bộ khả năng tạo PDF, xóa endpoint `GET /dormitory/registrations/:id/application-pdf`, thay đổi `DORM_REG_READ`, source lookup `FORMAL|PUBLIC|ADMIN_TEMPORARY`, tên file hoặc `Content-Disposition`.
+- Đổi thiết kế bảng, `FloatingActionBar`, dialog, thao tác Sửa/Xóa/Xếp phòng, form đăng ký, schema/DTO, phân phòng, hợp đồng hoặc xuất Excel.
+- Thêm thư viện PDF/font, lưu PDF, gộp PDF, migration, triển khai, xử lý dữ liệu thật hoặc sao chép PDF mẫu vào artifact chạy production.
+- Sáng tạo nội dung, logo, trường dữ liệu hoặc placeholder không có trong mẫu.
 
 # Context and Dependencies
 
-- Structural audit of the reference confirms one A4 portrait section (`210 x 297 mm`) with margins `left 30 mm`, `right 20 mm`, `top 20 mm`, and `bottom 20 mm`; no header/footer text.
-- The reference uses Times New Roman throughout: `14 pt` for the national heading, recipient, body fields, commitment, and signatures; `15 pt bold` for `ĐƠN XIN VÀO KÝ TÚC XÁ`. Student/parent field paragraphs use approximately `1.5` line spacing.
-- Exact reference text/flow is: national heading; `Độc lập - Tự do - Hạnh phúc`; title; `Kính gửi: Phòng Học sinh sinh viên.`; student details; father details; mother details; priority-certificate line; the exact commitment paragraph; then the two-column signature block.
-- The reference contains no school/ministry block and no `Mã số sinh viên` line. The current HTML incorrectly adds both, uses `Ban Quản lý Ký túc xá`, uses Arial at `11 pt`, changes labels/field grouping, changes commitment wording, adds a date line, and conditionally hides the parent-signature column.
-- Exact reference field labels/order are:
-  1. `Họ và tên HSSV:`
-  2. `Ngày, tháng, năm sinh:` and `Nam(nữ):`
-  3. `Lớp:` and `Khoa`
-  4. `Dân tộc:`, `Tôn giáo:`, and `Điện thoại`
-  5. `CCCD:`, `Ngày cấp:`, and `Nơi cấp:`
-  6. student `Hộ khẩu thường trú:`
-  7. father name/age, permanent address, contact address, occupation/phone
-  8. mother name/age, permanent address, contact address, occupation/phone
-  9. `Các giấy chứng nhận ưu tiên (nếu có):`
-- Exact commitment text: `Nay tôi làm đơn này kính đề nghị Phòng Học sinh sinh viên xem xét cho tôi được vào ở Ký túc xá. Nếu được giải quyết, tôi cam kết thực hiện Nội quy Ký túc xá của Nhà trường./.`
-- Exact signature labels are always present: left `PHHS ký và ghi rõ họ tên` plus `(Dành cho HSSV dưới 18 tuổi)`; right `NGƯỜI LÀM ĐƠN` plus `(Ký tên, ghi rõ họ, tên)`. The template contains no date line above the applicant signature.
-- The reference uses tabs, dotted writing lines, a two-column signature table, and two anchored drawing objects. These must be measured from the DOCX package/render rather than approximated from extracted text.
-- Current source contains an active `applicationHtml` and an unused `legacyApplicationHtml`; keeping two variants risks future drift.
-- Current row actions use icon-only `Eye` and `Download` buttons, while the selected-row bar and preview dialog also render the `Download` glyph. The prohibited glyphs must disappear without removing the actions.
-- The current environment has no callable LibreOffice executable, so reference PNG rendering was not available during planning. Structural audit succeeded, but implementation acceptance requires an environment with Microsoft Word or LibreOffice capable of rendering the DOCX baseline.
+- PDF mẫu được tạo bởi Microsoft Word 2019, PDF 1.7, không mã hóa, không JavaScript/AcroForm, gồm đúng 1 trang A4 dọc (`595.32 x 842.04 pt`).
+- Render 144 DPI xác nhận: quốc hiệu và tiêu ngữ căn giữa; tiêu đề `ĐƠN XIN VÀO KÝ TÚC XÁ`; dòng kính gửi; khung ảnh đứng bên trái; năm dòng thông tin đầu nằm bên phải khung; địa chỉ thường trú HSSV và các dòng cha/mẹ chạy toàn chiều rộng; đoạn cam kết; hai cột chữ ký ở cuối nội dung.
+- Mẫu dùng Times New Roman, chữ đen trên nền trắng; tiêu đề/quốc hiệu và `NGƯỜI LÀM ĐƠN` in đậm; ghi chú chữ ký người làm đơn in nghiêng; các slot nhập liệu là dòng chấm.
+- Template hiện tại đã có phần lớn wording và ánh xạ nhưng chưa tái tạo khung ảnh/bố cục bao quanh khung theo mẫu; CSS kích thước dòng/slot phải được đo từ raster tham chiếu, không ước lượng theo browser default.
+- PDF hiện được dựng bằng HTML/CSS và Puppeteer; `applicationViewModel`, escaping, chờ font, retry TargetClose và cleanup đã có test hồi quy, phải được bảo toàn.
+- Frontend hiện có cặp nút theo dòng tại column `actions`; ngoài ra còn có hành động PDF sau khi chọn một dòng và dialog. Hai nhóm sau không phải hai nút trong ảnh và được giữ nguyên.
 
 # Steps
 
-1. Preserve the supplied DOCX byte-for-byte and distill it into a task-local fidelity contract: page geometry, paragraph positions, tabs, dotted lines, font metrics, table widths, cell alignment, anchored drawings, static text, field slots, and expected single-page flow.
-2. Render the reference DOCX to a reference PDF and page PNG using Microsoft Word or LibreOffice. Record renderer/version, page count, dimensions, and SHA-256 of the reference artifacts; inspect the full page at 100% zoom.
-3. Add focused backend tests that capture generated HTML and assert the exact reference wording/order, Times New Roman sizing, A4 margins, unconditional two-column signature block, absence of non-template content, escaped values, and blank behavior.
-4. Replace the active HTML/CSS form with a faithful reconstruction of the DOCX. Use fixed, explicit measurements derived from the fidelity contract for page box, paragraph rhythm, tab stops/field lines, signature columns, and whitespace; do not rely on browser defaults.
-5. Map existing canonical data only into reference slots. Remove extra rendered fields such as student code and registration metadata. For missing/invalid values, emit an empty slot while retaining its line length, label, row height, and surrounding spacing.
-6. Preserve the exact Vietnamese spelling, punctuation, capitalization, diacritics, and commitment/signature wording from the DOCX. Use HTML escaping and a font stack headed by Times New Roman; wait for `document.fonts.ready` before `printToPDF` where supported so glyph metrics are stable.
-7. Remove `legacyApplicationHtml` after the one active template passes content tests; do not alter the existing source lookup, TargetClose retry, cleanup, response, or authorization logic.
-8. Replace every KTX-page occurrence of the pictured `Eye`/`Download` glyphs with text-only actions. Per-row controls must read `Xem trước` and `Xuất PDF`; selected-row and dialog controls keep their existing text. Remove only now-unused icon imports and keep keyboard focus, accessible names, permission checks, loading/error states, and click handlers unchanged.
-9. Extend frontend tests to prove no `Eye`/`Download` glyph is rendered/imported on this page, text actions remain discoverable, the top toolbar PDF button remains absent, and row/floating/dialog actions still call the same source-aware preview/download flow.
-10. Generate PDFs from complete and maximally incomplete synthetic records for all three sources. Rasterize each PDF at the same DPI as the reference, create overlay and pixel-diff artifacts, inspect the entire page at 100%, and iterate until no visible difference exists outside populated field characters.
-11. Run focused tests, builds/typecheck, PDF stability regressions, accessibility checks, and final diff/status review without modifying the reference DOCX or unrelated worktree changes.
+1. Băm và render PDF mẫu ở DPI cố định; lập fidelity contract gồm page box, crop/content bounds, font roles, baseline, khung ảnh, dòng chấm, wrapping, signature columns và whitespace.
+2. Cập nhật frontend test để yêu cầu cell thao tác không chứa nút/accessible name/title `Xem trước đơn…` hoặc `Xuất PDF đơn…`, trong khi Sửa/Xóa/Xếp phòng và luồng PDF theo dòng đã chọn vẫn còn.
+3. Bỏ cặp nút theo dòng khỏi `page.tsx`; dọn fragment/điều kiện/import/helper chỉ khi không còn consumer, không thay đổi quyền hoặc handler của luồng PDF được giữ lại.
+4. Bổ sung backend regression tests cho wording/order, HTML escaping, blank values, khung ảnh, hình học A4, bố cục quanh khung, dòng chấm, chữ ký hai cột và nội dung không có trong mẫu.
+5. Điều chỉnh `applicationHtml` theo fidelity contract bằng số đo cố định; tái tạo khung ảnh trống và flow các dòng đúng mẫu, giữ Times New Roman và không phụ thuộc margin/default CSS của trình duyệt.
+6. Ánh xạ chỉ các dữ liệu hiện có vào đúng slot. Giá trị thiếu/sai để trống; giá trị dài phải có quy tắc fit/clip/wrap được kiểm chứng và không làm đổi một trang hoặc xô lệch vùng chữ ký.
+7. Sinh PDF từ fixture trống/tối đa thiếu, đầy đủ, dữ liệu dài và ký tự HTML cho cả ba source; rasterize cùng DPI, tạo overlay/pixel diff và sửa sai lệch trong giới hạn vòng lặp.
+8. Chạy test/build/typecheck tập trung, kiểm tra trực quan desktop/mobile cho bảng, rồi rà soát diff/status cuối.
 
 # Acceptance Criteria
 
-- AC1: The KTX registration page renders neither the outlined-eye glyph nor the download-arrow glyph shown in the screenshot; `Eye` and `Download` are absent from this page's imports and JSX.
-- AC2: Per-row `Xem trước` and `Xuất PDF`, selected-row `Xuất PDF`, and preview-dialog `Xuất PDF` remain usable as text-only controls with explicit accessible names, keyboard focus, existing permissions, and unchanged handlers.
-- AC3: The top menu/toolbar contains no PDF export button. Other unrelated icons and actions remain unchanged.
-- AC4: The generated PDF is exactly one A4 portrait page with `30/20/20/20 mm` left/right/top/bottom margins and the reference's measured content positions, spacing, line lengths, table geometry, and signature whitespace.
-- AC5: All visible text matches the DOCX exactly in wording, order, punctuation, capitalization, and diacritics. The PDF uses Times New Roman `14 pt` body/header/signature text and `15 pt bold` title text as measured from the reference.
-- AC6: The PDF contains no school/ministry header, `Mã số sinh viên`, `Ban Quản lý Ký túc xá`, replacement commitment, date line, status/source/room data, or other content absent from the DOCX.
-- AC7: The left parent-signature and right applicant-signature columns always render exactly as the template, including the under-18 explanatory line; age does not add, remove, or move either column.
-- AC8: Every available canonical value appears in the correct reference slot. Every missing/invalid value is blank and never renders `undefined`, `null`, `Invalid Date`, raw enum values, placeholders, or fabricated text; blank slots retain the template's geometry.
-- AC9: Complete and incomplete synthetic records from `FORMAL`, `PUBLIC`, and `ADMIN_TEMPORARY` all generate a non-empty readable PDF through preview and download with the existing authorization and source-aware lookup.
-- AC10: Equal-DPI overlay comparison shows no observable difference between the reference and generated blank-form layout. For populated forms, differences are limited to characters inserted within the documented field slots; no static pixel, line, alignment, wrapping, pagination, or signature displacement differs.
-- AC11: Existing TargetClose retry/cleanup tests, source matrix, safe filename, response headers, and object-URL lifecycle continue to pass.
-- AC12: The reference DOCX SHA-256 remains `07BB674AC7C5DA874D36A32F3070B11C336D09FE3A1215F302457BB35267A711`, and no unrelated source, dependency, schema/data, shared UI component, or user change appears in the final diff.
+- AC1: Mỗi dòng registrations không còn hai nút `Xem trước` và `Xuất PDF`, kể cả accessible name/title tương ứng; cell vẫn hiển thị đúng các thao tác Sửa/Xóa/Xếp phòng theo quyền hiện có.
+- AC2: Chọn đúng một dòng vẫn mở được luồng PDF qua `FloatingActionBar`; dialog xem trước, retry, đóng, tải PDF, loading/error và thu hồi object URL vẫn hoạt động.
+- AC3: PDF kết quả luôn là đúng 1 trang A4 dọc, không bị cắt, tràn, chồng chữ, lỗi dấu tiếng Việt hoặc trang trắng.
+- AC4: Toàn bộ text tĩnh trùng mẫu về wording, thứ tự, dấu câu, viết hoa và dấu tiếng Việt; không xuất hiện nội dung ngoài mẫu hoặc `undefined`, `null`, `Invalid Date`.
+- AC5: Raster của form trống trùng hình học tĩnh của mẫu tại cùng DPI: content bounds, baseline, khung ảnh, dòng chấm, paragraph flow, commitment, signature columns và whitespace không có sai lệch quan sát được.
+- AC6: Với form có dữ liệu, sai khác pixel chỉ xuất hiện trong các slot dữ liệu đã định nghĩa; text tĩnh, đường/khoảng cách, wrapping và vùng chữ ký không dịch chuyển.
+- AC7: Dữ liệu đầy đủ/thiếu của `FORMAL`, `PUBLIC`, `ADMIN_TEMPORARY` đều tạo được PDF đọc được; giá trị được escape và điền đúng slot, giá trị thiếu giữ nguyên hình học dòng trống.
+- AC8: Source lookup, permission, safe filename, response headers, font-ready wait, TargetClose retry và cleanup regressions vẫn pass.
+- AC9: PDF mẫu giữ nguyên SHA-256; final diff chỉ có bốn file implementation/test đã nêu và `docs/taskscope.md`, không có thay đổi ngoài phạm vi.
 
 # Verification
 
-- Reference audit environment :: render `D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).docx` to PDF and PNG at fixed DPI with Microsoft Word or LibreOffice => one clean A4 page; record renderer/version and hashes; inspect at 100%.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts` => exact wording/layout-contract, blank-value, escaping, three-source, TargetClose, and cleanup regressions pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => PDF mapping/template and renderer compile.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => prohibited icons are absent and retained text-only PDF actions work.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => icon removal and action changes introduce no type errors.
-- Repository root :: `rg -n -S "legacyApplicationHtml|font-family:Arial|Ban Quản lý Ký túc xá|BỘ GIÁO DỤC VÀ ĐÀO TẠO|TRƯỜNG CAO ĐẲNG|<Eye|<Download" backend/src/dormitory/services/registrations.service.ts "frontend/src/app/(dashboard)/dormitory/registrations/page.tsx"` => no match in active KTX PDF/UI code.
-- Visual fidelity harness :: render a blank synthetic PDF and populated PDFs for all three sources at the reference DPI; compare page bounds, static-text mask, field lines, paragraph baselines, signature table, and whitespace against the DOCX render => AC4-AC10 pass with no unexplained pixels.
-- Manual UI inspection at desktop and mobile widths :: row, selected-row bar, and preview dialog show text controls without the pictured glyphs; tab order, focus indicator, click behavior, loading, error, retry, preview, and download work.
-- Repository root :: `(Get-FileHash -Algorithm SHA256 -LiteralPath 'D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).docx').Hash` => reference hash unchanged.
-- Repository root :: `git diff --check` and `git status --short` => only authorized implementation paths plus this scope change; pre-existing user changes are preserved.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/registrations/page.test.tsx"` => AC1-AC2 pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => thay đổi JSX/dead-code cleanup không tạo lỗi type.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts` => AC3-AC4 và AC7-AC8 pass.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => template/mapping PDF compile thành công.
+- Repository root :: `rg -n -S "aria-label=\{`Xem trước đơn|aria-label=\{`Xuất PDF đơn|title=\"Xem trước đơn\"" "frontend/src/app/(dashboard)/dormitory/registrations/page.tsx"` => không có match; `openSelectedPdfPreview` và PDF dialog vẫn có match.
+- Visual fidelity harness :: render PDF mẫu và fixture trống ở 144 DPI, normalize cùng page box, overlay/pixel-diff toàn trang => không có pixel tĩnh sai khác chưa giải thích; fixture có dữ liệu chỉ khác trong slot mask.
+- Manual UI :: desktop và mobile, có/không có từng quyền => cặp nút theo dòng biến mất; các action còn lại, selection, focus, loading/error/retry/download hoạt động đúng.
+- Repository root :: `(Get-FileHash -Algorithm SHA256 -LiteralPath 'D:\WORK - OFF\KTX\ĐƠN XIN VÀO KÝ TÚC XÁ (MỚI).pdf').Hash` => `B527F4F28AF2A9ACAB4B936C830071DE635FCFF8C1A3CB0EECB641E7CA9FA9AC`.
+- Repository root :: `git diff --check` và `git status --short` => AC9 pass.
 
 # Safety Gates
 
-- No Human Gate is required for scoped source edits, synthetic fixtures, or local visual comparison.
-- Fidelity Gate F1: implementation is not complete until the DOCX reference can be rendered and every page is visually inspected. Structural extraction or HTML unit tests alone cannot approve “100% giống mẫu.”
-- Gate G1 is required before staging/production execution, deployment, access to real student/parent data, server or font installation, or persistent-data mutation. Required artifact: exact environment/action, redacted evidence, impact, rollback, and explicit user authorization.
-- Stop and amend this scope if exact fidelity requires a new runtime/dependency, copying the external DOCX into deployable assets, changing the public endpoint, changing permissions, or adding fields/data not already available.
+- Không cần Human Gate cho sửa mã nguồn cục bộ, fixture tổng hợp và so sánh hình ảnh cục bộ trong phạm vi này.
+- Fidelity Gate F1: không được tuyên bố hoàn tất nếu chưa render và kiểm tra trực quan trang PDF mới nhất; text test/HTML test không thay thế gate này.
+- Cần phê duyệt mới trước deployment, truy cập dữ liệu HSSV/phụ huynh thật, cài font/runtime hệ thống, thêm dependency, thay đổi quyền hoặc persistent data.
+- Dừng và sửa taskscope nếu fidelity yêu cầu thay endpoint/public contract, thêm trường dữ liệu, nhúng file mẫu vào production hoặc vượt quá các write boundaries.
 
 # Artifacts and Checkpoints
 
-- Reference fidelity contract: DOCX path/hash, renderer/version, page/section count, A4 geometry, margins, font roles, paragraph baselines, tab stops, dotted-line coordinates, table/signature geometry, anchored-drawing positions, static-text inventory, and editable-slot map.
-- Data-slot matrix: reference label -> view-model key -> formal/public/admin-temporary source -> formatter -> blank rule -> maximum safe length -> overflow behavior.
-- Required synthetic fixtures: blank/maximally incomplete, complete formal, complete public QR, complete admin temporary, long Vietnamese values, invalid dates/enums, HTML-like unsafe text, and over-capacity field values.
-- Required visual artifacts: reference PNG, generated PNG per fixture, transparent overlay, pixel-diff image, and a reviewed deviation report. Expected populated-field differences must be masked only inside documented slot bounds.
-- Checkpoint after exact static-content tests; after text-only UI tests; after blank-form visual overlay; after all populated/incomplete visual cases; and after final independent diff review.
-- Review must inspect visual fidelity, template wording, missing-value geometry, overflow/clipping, Vietnamese glyphs, icon absence, accessibility, source authorization, HTML escaping, PII leakage, renderer cleanup, and preservation of the dirty worktree.
+- Fidelity contract: PDF hash/metadata, renderer/version/DPI, page bounds, content bounds, font roles, baseline, khung ảnh, dòng chấm, signature geometry và slot mask.
+- Data-slot matrix: label mẫu → view-model key → ba source → formatter → blank/overflow rule.
+- Fixture: trống/tối đa thiếu, đầy đủ cho ba source, chuỗi dài tiếng Việt, ngày/enum sai và text giống HTML.
+- Visual artifacts: reference PNG, generated PNG, overlay, pixel diff và deviation report; không commit artifact QA trừ khi được yêu cầu.
+- Checkpoint sau frontend regression, backend content contract, blank-form overlay, source/edge-case matrix và final diff review.
 
 # Execution Budgets
 
-- Dependency order: preserve/hash reference -> distill/render reference -> backend content tests -> template implementation -> frontend icon replacement/tests -> focused builds -> visual diff loop -> independent review -> final diff/status.
-- One writer per path. Step deadline: `1200 seconds`; tooling retries: `2`; engineering loops: `3`; visual-remediation cycles: `5`; reviewer remediation cycles: `2`; no unapproved branch/worktree creation.
-- Visual fidelity has no waiver within this scope. If the render prerequisite remains unavailable after the retry budget, report the task as partially completed/blocked at Fidelity Gate F1 rather than claiming exact-match completion.
+- Dependency order: lock reference → frontend regression/removal → backend regression/template → focused checks → visual diff loop → final review.
+- Một writer trên mỗi path; deadline mỗi bước `1200s`; retry tooling `2`; engineering loop `3`; visual remediation `5`; review remediation `2`; không tự tạo/switch branch hoặc worktree.
+- Nếu F1 chưa đạt sau budget, báo `partially completed`/`blocked`; không hạ chuẩn “100% giống mẫu”.

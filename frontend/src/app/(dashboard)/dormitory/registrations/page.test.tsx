@@ -6,6 +6,7 @@ import { dormitoryApi } from '@/api/dormitory-api';
 import { applyRoomAssignment, buildEditRegistrationPayload, createdDateLabel, getPublicRegistrationUrl, hasAssignedBed, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, RoomAssignmentPopover, roomLabel, roomQuantityLabel, roomStatusLabel, selectedPdfRegistration, sourceLabel, studentCode } from './page';
 
 const registrationPageSource = readFileSync(resolve(__dirname, 'page.tsx'), 'utf8');
+const actionsColumnSource = registrationPageSource.match(/\{ key: 'actions',[\s\S]*?\n  \];/)?.[0] || '';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -79,12 +80,18 @@ it('only opens top-level PDF preview when exactly one registration is selected',
 });
 
 describe('KTX registration PDF actions', () => {
-  it('renders text-only preview and export controls without Eye or Download glyphs', () => {
+  it('removes preview and export controls from each registration row', () => {
     expect(registrationPageSource).not.toMatch(/\b(?:Eye|Download)\b/);
     expect(registrationPageSource).not.toContain('<Eye');
     expect(registrationPageSource).not.toContain('<Download');
-    expect(registrationPageSource).toContain('>Xem trước</button>');
-    expect(registrationPageSource).toContain('>Xuất PDF</button>');
+    expect(actionsColumnSource).not.toContain('Xem trước đơn ${studentName(r)}');
+    expect(actionsColumnSource).not.toContain('Xuất PDF đơn ${studentName(r)}');
+    expect(actionsColumnSource).not.toContain('>Xem trước</button>');
+    expect(actionsColumnSource).not.toContain('>Xuất PDF</button>');
+    expect(actionsColumnSource).not.toContain('title="Xem trước đơn"');
+    expect(actionsColumnSource).not.toContain('title="Xuất PDF"');
+    expect(actionsColumnSource).toContain('Sửa đơn ${studentName(r)}');
+    expect(actionsColumnSource).toContain('Xóa đơn ${studentName(r)}');
     expect(registrationPageSource).toContain('<Button onClick={() => void downloadPdf(pdfRow)}>Xuất PDF</Button>');
   });
 
