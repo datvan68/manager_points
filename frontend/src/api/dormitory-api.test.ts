@@ -95,7 +95,7 @@ describe('dormitoryApi self-service and PDF endpoints', () => {
 
   it('requests server-generated application PDF with the selected disposition', async () => {
     mockFetch.mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' })) });
-    await dormitoryApi.registrations.getApplicationPdf('registration-1', 'inline');
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1/application-pdf?disposition=inline');
+    await dormitoryApi.registrations.getApplicationPdf('registration-1', 'PUBLIC', 'inline');
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1/application-pdf?source=PUBLIC&disposition=inline');
   });
 });

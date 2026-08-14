@@ -27,3 +27,22 @@ describe('RegistrationsController registration actions', () => {
     expect(registrationsService.remove).toHaveBeenCalledWith('registration-1', 'ADMIN_TEMPORARY');
   });
 });
+
+describe('RegistrationsController application PDF', () => {
+  it('passes the source discriminator to the PDF service', async () => {
+    const registrationsService: any = {
+      generateApplicationPdf: jest.fn().mockResolvedValue({ buffer: Buffer.from('pdf'), filename: 'application.pdf' }),
+    };
+    const response: any = { set: jest.fn(), end: jest.fn() };
+    const controller = new RegistrationsController(registrationsService, {} as any, {} as any);
+
+    await controller.applicationPdf('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', 'attachment', response);
+
+    expect(registrationsService.generateApplicationPdf).toHaveBeenCalledWith('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY');
+    expect(response.set).toHaveBeenCalledWith(expect.objectContaining({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="application.pdf"',
+    }));
+    expect(response.end).toHaveBeenCalledWith(Buffer.from('pdf'));
+  });
+});

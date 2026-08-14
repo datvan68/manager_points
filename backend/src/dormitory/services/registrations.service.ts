@@ -106,7 +106,7 @@ export class RegistrationsService {
     return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character] as string));
   }
 
-  private applicationHtml(data: any) {
+  private legacyApplicationHtml(data: any) {
     const value = (key: string) => this.escapeHtml(data[key]);
     const applicant = data.applicant_profile || {};
     const applicantValue = (key: string) => this.escapeHtml(applicant[key]);
@@ -130,7 +130,7 @@ export class RegistrationsService {
     </body></html>`;
   }
 
-  async generateApplicationPdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
+  private async legacyGenerateApplicationPdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
     this.validateId(id);
     const registration: any = await this.registrationModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).exec();
     if (!registration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
@@ -146,6 +146,93 @@ export class RegistrationsService {
       await page.setContent(html, { waitUntil: 'load' });
       const buffer = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '30mm' } });
       return { buffer, filename: `don-ky-tuc-xa-${String(registration.registration_code || id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` };
+    } finally { await browser.close(); }
+  }
+
+  private clean(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const text = String(value).trim();
+    return ['undefined', 'null', 'N/A', '—', 'Chưa có', 'Không tìm thấy'].includes(text) ? '' : text;
+  }
+
+  private displayDate(value: unknown): string {
+    if (!value) return '';
+    const date = new Date(value as any);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+  }
+
+  private displayGender(value: unknown): string {
+    return ({ Male: 'Nam', Female: 'Nữ', Other: 'Khác' } as Record<string, string>)[this.clean(value)] || '';
+  }
+
+  private applicationViewModel(record: any, source: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY') {
+    const plain = this.toPlain(record) || {};
+    const student = source === 'FORMAL' ? this.toPlain(plain.student_id) || {} : {};
+    const classRecord = this.toPlain(student.class_id) || {};
+    const department = this.toPlain(classRecord.dept_id) || {};
+    const applicant = this.toPlain(plain.applicant_profile) || {};
+    const parent = (key: 'father' | 'mother') => this.toPlain(applicant[key]) || {};
+    const birth = plain.date_of_birth || student.date_bir;
+    const date = birth ? new Date(birth) : null;
+    const age = date && !Number.isNaN(date.getTime())
+      ? new Date().getFullYear() - date.getFullYear() - (new Date().setHours(0, 0, 0, 0) < new Date(new Date().getFullYear(), date.getMonth(), date.getDate()).getTime() ? 1 : 0)
+      : null;
+    const fullName = source === 'FORMAL' ? plain.full_name || student.full_name : plain.full_name;
+    const studentCode = source === 'FORMAL' ? plain.student_code || student.student_code : plain.student_code;
+    return {
+      full_name: this.clean(fullName), date_of_birth: this.displayDate(birth), gender: this.displayGender(plain.gender || student.sex),
+      student_code: this.clean(studentCode), class_name: this.clean(plain.class_name || classRecord.class_name), department_name: this.clean(plain.department_name || department.name),
+      ethnicity: this.clean(applicant.ethnicity), religion: this.clean(applicant.religion), phone_number: this.clean(plain.phone_number),
+      citizen_id_number: this.clean(applicant.citizen_id_number), citizen_id_issue_date: this.displayDate(applicant.citizen_id_issue_date), citizen_id_issue_place: this.clean(applicant.citizen_id_issue_place),
+      permanent_address: this.clean(applicant.permanent_address), priority_group: this.clean(plain.priority_group), priority_certificate_details: this.clean(applicant.priority_certificate_details),
+      father: parent('father'), mother: parent('mother'), is_under_18: age !== null && age < 18,
+      registration_code: this.clean(plain.registration_code || plain.public_registration_code),
+    };
+  }
+
+  private applicationHtml(data: any) {
+    const v = (value: unknown) => this.escapeHtml(this.clean(value));
+    const parent = (key: 'father' | 'mother', field: string) => v(data[key]?.[field]);
+    return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>
+      @page{size:A4 portrait;margin:20mm 20mm 20mm 30mm}*{box-sizing:border-box}body{font-family:Arial,"Noto Sans",sans-serif;font-size:11pt;line-height:1.32;color:#000}.center{text-align:center}.header{display:grid;grid-template-columns:1fr 1fr;gap:18px;font-size:10pt}.title{font-size:15pt;font-weight:700;text-align:center;margin:18px 0 12px}.line{display:inline-block;border-bottom:1px solid #000;min-width:100px;vertical-align:bottom}.row{margin:5px 0}.section{margin-top:9px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px;text-align:center}.signature{min-height:100px}.small{font-size:10pt}
+    </style></head><body>
+      <div class="header"><div class="center"><b>BỘ GIÁO DỤC VÀ ĐÀO TẠO</b><br><b>TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN</b></div><div class="center"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b></div></div>
+      <div class="title">ĐƠN XIN VÀO KÝ TÚC XÁ</div><p>Kính gửi: Ban Quản lý Ký túc xá</p>
+      <div class="row">Họ và tên: <b>${v(data.full_name)}</b> &nbsp; Ngày sinh: ${v(data.date_of_birth)} &nbsp; Giới tính: ${v(data.gender)}</div>
+      <div class="row">Mã số sinh viên: ${v(data.student_code)} &nbsp; Lớp: ${v(data.class_name)} &nbsp; Khoa: ${v(data.department_name)}</div>
+      <div class="row">Dân tộc: ${v(data.ethnicity)} &nbsp; Tôn giáo: ${v(data.religion)} &nbsp; Điện thoại: ${v(data.phone_number)}</div>
+      <div class="row">CCCD/CMND: ${v(data.citizen_id_number)} &nbsp; Ngày cấp: ${v(data.citizen_id_issue_date)} &nbsp; Nơi cấp: ${v(data.citizen_id_issue_place)}</div>
+      <div class="row">Địa chỉ thường trú: ${v(data.permanent_address)}</div>
+      <div class="section"><b>Thông tin cha:</b> Họ và tên: ${parent('father','full_name')} &nbsp; Tuổi: ${parent('father','age')} &nbsp; Nghề nghiệp: ${parent('father','occupation')} &nbsp; Điện thoại: ${parent('father','phone_number')}<br>Địa chỉ thường trú: ${parent('father','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('father','contact_address')}</div>
+      <div class="section"><b>Thông tin mẹ:</b> Họ và tên: ${parent('mother','full_name')} &nbsp; Tuổi: ${parent('mother','age')} &nbsp; Nghề nghiệp: ${parent('mother','occupation')} &nbsp; Điện thoại: ${parent('mother','phone_number')}<br>Địa chỉ thường trú: ${parent('mother','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('mother','contact_address')}</div>
+      <div class="section">Diện ưu tiên: ${v(data.priority_group)} &nbsp; Giấy tờ minh chứng: ${v(data.priority_certificate_details)}</div>
+      <p class="section">Tôi cam đoan những nội dung khai trên là đúng sự thật, chấp hành đầy đủ nội quy ký túc xá và chịu trách nhiệm về đơn đăng ký này.</p>
+      <div class="signatures">${data.is_under_18 ? '<div><b>PHỤ HUYNH/NGƯỜI GIÁM HỘ</b><div class="signature"></div><i>(Ký và ghi rõ họ tên)</i></div>' : '<div></div>'}<div><i>..., ngày ... tháng ... năm ...</i><br><b>NGƯỜI LÀM ĐƠN</b><div class="signature"></div><i>(Ký và ghi rõ họ tên)</i></div></div>
+    </body></html>`;
+  }
+
+  async generateApplicationPdf(id: string, source: string): Promise<{ buffer: Buffer; filename: string }> {
+    this.validateId(id);
+    const normalizedSource = this.validateSource(source);
+    let record: any;
+    if (normalizedSource === 'FORMAL') {
+      record = await this.registrationModel.findById(id)
+        .populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).exec();
+    } else {
+      record = await this.publicRegModel.findOne({ _id: id, ...(normalizedSource === 'ADMIN_TEMPORARY' ? { source: 'ADMIN_ENTRY' } : { source: { $ne: 'ADMIN_ENTRY' } }) }).exec();
+    }
+    if (!record) throw new NotFoundException('Không tìm thấy đơn đăng ký');
+    const viewModel = this.applicationViewModel(record, normalizedSource);
+    const html = this.applicationHtml(viewModel);
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'load' });
+      const buffer = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '30mm' } });
+      const code = viewModel.registration_code || id;
+      return { buffer, filename: `don-ky-tuc-xa-${code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` };
     } finally { await browser.close(); }
   }
 

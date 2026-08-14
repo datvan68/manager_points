@@ -94,10 +94,11 @@ export class RegistrationsController {
   @UseGuards(checkPermission('DORM_REG_READ'))
   async applicationPdf(
     @Param('id') id: string,
+    @Query('source') source: string,
     @Query('disposition') disposition: string | undefined,
     @Res() res: Response,
   ) {
-    const result = await this.registrationsService.generateApplicationPdf(id);
+    const result = await this.registrationsService.generateApplicationPdf(id, source);
     const mode = disposition === 'attachment' ? 'attachment' : 'inline';
     res.set({
       'Content-Type': 'application/pdf',

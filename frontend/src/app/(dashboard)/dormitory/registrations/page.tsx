@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, DoorOpen, Download, Eye, FileSpreadsheet, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
+import { Calendar, DoorOpen, Download, Eye, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { ApplicantProfile, Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -109,7 +109,7 @@ export function buildEditRegistrationPayload(source: DormRegistrationSource, edi
     : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
 }
 
-export function buildRegistrationExportRows(rows: DormRegistration[]) {
+function legacyRegistrationRows(rows: DormRegistration[]) {
   const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
   return rows.map(row => ({
     'Mã SV': text(row.student_id?.student_code) || text(row.public_registration?.student_code) || text((row as any).student_code),
@@ -291,7 +291,6 @@ export default function RegistrationsPage() {
   const [source, setSource] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
   const [selected, setSelected] = useState<string[]>([]);
-  const [exportPreviewRows, setExportPreviewRows] = useState<DormRegistration[] | null>(null);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
@@ -307,13 +306,13 @@ export default function RegistrationsPage() {
   const loadPdfPreview = async (row: DormRegistration) => {
     if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
     setPdfRow(row); setPdfLoading(true); setPdfError('');
-    try { setPdfUrl(URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, 'inline'))); }
+    try { setPdfUrl(URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, row.source as DormRegistrationSource, 'inline'))); }
     catch (err: any) { setPdfError(err?.message || 'Không thể tạo bản xem trước đơn KTX.'); }
     finally { setPdfLoading(false); }
   };
   const downloadPdf = async (row: DormRegistration) => {
     try {
-      const url = URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, 'attachment'));
+      const url = URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, row.source as DormRegistrationSource, 'attachment'));
       const link = document.createElement('a'); link.href = url; link.download = `don-ky-tuc-xa-${String(row.registration_code || row._id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     } catch (err: any) { toast.error(err?.message || 'Không thể xuất PDF đơn KTX.'); }
   };
@@ -447,15 +446,6 @@ export default function RegistrationsPage() {
     else toast.error('Không thể xóa các đơn đăng ký đã chọn.');
     setBulkDeleting(false);
   };
-  const exportRows = async (rows: DormRegistration[]) => {
-    if (!rows.length) return;
-    const XLSX = await import('xlsx');
-    const worksheet = XLSX.utils.json_to_sheet(buildRegistrationExportRows(rows));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Đăng ký KTX');
-    XLSX.writeFile(workbook, 'Danh_sach_dang_ky_KTX.xlsx');
-  };
-  const openExportPreview = (rows: DormRegistration[]) => setExportPreviewRows(rows);
   const openSelectedPdfPreview = () => {
     const row = selectedPdfRegistration(registrations, selected);
     if (!row) {
@@ -482,7 +472,6 @@ export default function RegistrationsPage() {
         <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden sm:flex shrink-0 w-[231px]" />
         <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>
         <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
-          {canView && <Button type="button" variant="outline" aria-label="Xuất Excel" onClick={() => openExportPreview(registrations)} className="h-9 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"><FileSpreadsheet size={14} className="mr-1" />Xuất Excel</Button>}
           {canView && <Button type="button" variant="outline" aria-label="Xuất PDF đã chọn" onClick={openSelectedPdfPreview} className="h-9 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100"><Download size={14} className="mr-1" />Xuất PDF</Button>}
           <Select value={source || 'ALL'} onValueChange={v => { setSource(v === 'ALL' ? '' : v); reset(); }}>
             <SelectTrigger aria-label="Lọc nguồn" className="h-9 min-w-[115px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none"><SelectValue placeholder="Tất cả nguồn" /></SelectTrigger>
@@ -501,17 +490,7 @@ export default function RegistrationsPage() {
     )}
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
-    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất Excel đã chọn" onClick={() => openExportPreview(registrations.filter(row => selected.includes(row._id)))} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><FileSpreadsheet size={14} /> Xuất Excel</button>}</>} />
-    <Dialog open={Boolean(exportPreviewRows)} onOpenChange={open => { if (!open) setExportPreviewRows(null); }}>
-      <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden rounded-2xl">
-        <DialogHeader><DialogTitle>Xem trước xuất Excel</DialogTitle></DialogHeader>
-        <p className="text-sm text-slate-600">{exportPreviewRows?.length || 0} đơn sẽ được xuất. Trường không có thông tin sẽ để trống.</p>
-        <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200">
-          <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-50 text-slate-700"><tr>{Object.keys(buildRegistrationExportRows(exportPreviewRows || [])[0] || {}).map(key => <th key={key} className="whitespace-nowrap px-3 py-2 font-semibold">{key}</th>)}</tr></thead><tbody>{buildRegistrationExportRows(exportPreviewRows || []).map((row, index) => <tr key={exportPreviewRows?.[index]?._id || index} className="border-t border-slate-100">{Object.values(row).map((value, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-3 py-2 text-slate-600">{value}</td>)}</tr>)}</tbody></table>
-        </div>
-        <DialogFooter><Button type="button" variant="outline" onClick={() => setExportPreviewRows(null)}>Hủy</Button><Button type="button" onClick={() => { if (exportPreviewRows) void exportRows(exportPreviewRows); setExportPreviewRows(null); }}><Download className="mr-1 h-4 w-4" />Xác nhận xuất Excel</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" onClick={openSelectedPdfPreview} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"><Download size={14} /> Xuất PDF</button>}</>} />
     <Dialog open={Boolean(pdfRow)} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRow(null); setPdfError(''); } }}>
       <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>Xem trước đơn KTX</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRow && void loadPdfPreview(pdfRow)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => setPdfRow(null)}>Đóng</Button>{pdfRow && <Button onClick={() => void downloadPdf(pdfRow)}><Download className="mr-1 h-4 w-4" />Xuất PDF</Button>}</DialogFooter></DialogContent>
     </Dialog>

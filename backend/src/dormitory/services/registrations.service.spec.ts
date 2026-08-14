@@ -1,4 +1,7 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
+const mockPdfPage = { setContent: jest.fn().mockResolvedValue(undefined), pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')) };
+const mockPdfBrowser = { newPage: jest.fn().mockResolvedValue(mockPdfPage), close: jest.fn().mockResolvedValue(undefined) };
+jest.mock('puppeteer', () => ({ launch: jest.fn().mockResolvedValue(mockPdfBrowser) }));
 import { RegistrationsService } from './registrations.service';
 
 function queryResult<T>(value: T) {
@@ -182,5 +185,51 @@ describe('RegistrationsService registration actions', () => {
     const publicService = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
     await expect(publicService.remove('507f1f77bcf86cd799439011', 'PUBLIC')).resolves.toEqual({ success: true, id: '507f1f77bcf86cd799439011', source: 'PUBLIC' });
     expect(publicModel.findByIdAndDelete).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+  });
+});
+
+describe('RegistrationsService application PDF source matrix', () => {
+  beforeEach(() => {
+    mockPdfPage.setContent.mockClear();
+    mockPdfPage.pdf.mockClear();
+  });
+
+  it.each([
+    ['FORMAL', 'DK-FORMAL', { student_id: { full_name: 'Nguyễn Formal', student_code: 'SV01', sex: 'Male', class_id: { class_name: 'CTK1', dept_id: { name: 'Công nghệ' } } }, date_of_birth: '2003-01-02', gender: 'Male', phone_number: '0901', priority_group: 'Không', registration_code: 'DK-FORMAL' }],
+    ['PUBLIC', 'QR-PUBLIC', { full_name: 'Nguyễn Public', student_code: 'SV02', date_of_birth: '2004-02-03', gender: 'Female', phone_number: '0902', source: 'QR_SCAN', public_registration_code: 'QR-PUBLIC' }],
+    ['ADMIN_TEMPORARY', 'PUB-TEMP', { full_name: 'Nguyễn Temporary', date_of_birth: '2005-03-04', gender: 'Other', phone_number: '0903', source: 'ADMIN_ENTRY', public_registration_code: 'PUB-TEMP' }],
+  ])('loads the %s collection and generates one PDF', async (source, code, record) => {
+    const formalModel: any = { findById: jest.fn().mockReturnValue(queryResult(record)) };
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult(record)) };
+    const service = new RegistrationsService(formalModel, {} as any, {} as any, publicModel, {} as any);
+
+    const result = await service.generateApplicationPdf('507f1f77bcf86cd799439011', source);
+
+    expect(result.buffer.length).toBeGreaterThan(0);
+    expect(result.filename).toContain(code);
+    if (source === 'FORMAL') expect(formalModel.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+    else expect(publicModel.findOne).toHaveBeenCalledWith(expect.objectContaining({ _id: '507f1f77bcf86cd799439011' }));
+  });
+
+  it('rejects public/admin source mismatches without probing the other collection', async () => {
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult(null)) };
+    const formalModel: any = { findById: jest.fn() };
+    const service = new RegistrationsService(formalModel, {} as any, {} as any, publicModel, {} as any);
+
+    await expect(service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC')).rejects.toThrow('Không tìm thấy đơn đăng ký');
+    expect(formalModel.findById).not.toHaveBeenCalled();
+    await expect(service.generateApplicationPdf('507f1f77bcf86cd799439011', 'UNSUPPORTED')).rejects.toThrow('Nguồn đăng ký không hợp lệ');
+    expect(publicModel.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders incomplete and unsafe values as blanks or escaped text', async () => {
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-EMPTY', full_name: '<script>alert(1)</script>', source: 'QR_SCAN', date_of_birth: 'not-a-date', gender: 'Unknown', applicant_profile: { citizen_id_number: null } })) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC');
+
+    const html = mockPdfPage.setContent.mock.calls.at(-1)[0];
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toMatch(/undefined|null|Invalid Date|Unknown/);
   });
 });

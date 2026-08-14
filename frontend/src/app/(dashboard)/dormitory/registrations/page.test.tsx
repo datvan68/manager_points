@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { dormitoryApi } from '@/api/dormitory-api';
-import { applyRoomAssignment, buildEditRegistrationPayload, buildRegistrationExportRows, createdDateLabel, getPublicRegistrationUrl, hasAssignedBed, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, RoomAssignmentPopover, roomLabel, roomQuantityLabel, roomStatusLabel, selectedPdfRegistration, sourceLabel, studentCode } from './page';
+import { applyRoomAssignment, buildEditRegistrationPayload, createdDateLabel, getPublicRegistrationUrl, hasAssignedBed, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, RoomAssignmentPopover, roomLabel, roomQuantityLabel, roomStatusLabel, selectedPdfRegistration, sourceLabel, studentCode } from './page';
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -63,15 +63,8 @@ describe('KTX registration edit payloads', () => {
   });
 });
 
-it('uses compact typography and Vietnamese Unicode export rows', () => {
+it('uses compact typography', () => {
   expect(REGISTRATION_TABLE_CLASS_NAME).toBe('text-xs');
-  expect(buildRegistrationExportRows([{ _id: '1', student_id: { full_name: 'Nguyễn Ánh', student_code: '012' }, source: 'PUBLIC', priority_group: 'Không', assigned_room_name: 'A101', createdAt: '2026-01-02T00:00:00.000Z' }] as any)).toEqual([expect.objectContaining({ 'Mã SV': '012', 'Họ và tên': 'Nguyễn Ánh', 'Phòng': 'A101' })]);
-});
-
-it('keeps absent export values blank so the workbook remains a usable template', () => {
-  expect(buildRegistrationExportRows([{ _id: 'empty' }] as any)).toEqual([{
-    'Mã SV': '', 'Họ và tên': '', 'Phòng': '', 'Ưu tiên': '', 'Nguồn': '', 'Ngày tạo': '',
-  }]);
 });
 
 it('only opens top-level PDF preview when exactly one registration is selected', () => {
