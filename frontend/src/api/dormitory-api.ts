@@ -404,7 +404,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async createTemporary(dto: { full_name: string; date_of_birth: string; gender: 'Male' | 'Female' | 'Other'; phone_number: string; room_type?: 'Thường' | 'Máy lạnh'; notes?: string }): Promise<any> {
+    async createTemporary(dto: { full_name: string; date_of_birth: string; gender: 'Male' | 'Female' | 'Other'; phone_number: string; room_type?: 'Thường' | 'Máy lạnh'; notes?: string; applicant_profile?: ApplicantProfile }): Promise<any> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/temporary`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },

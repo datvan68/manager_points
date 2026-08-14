@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Calendar, DoorOpen, Download, Eye, FileSpreadsheet, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import { Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room, UpdateDormRegistrationInput } from '@/api/dormitory-api';
+import { ApplicantProfile, Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room, UpdateDormRegistrationInput } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import { ApplicantProfileFields, compactApplicantProfile, emptyApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
 export const REGISTRATION_TABLE_CLASS_NAME = 'text-xs';
@@ -70,6 +71,7 @@ type CreateForm = ActiveSemesterValues & {
   phone_number: string;
   room_type: 'Thường' | 'Máy lạnh';
   notes: string;
+  applicant_profile: ApplicantProfile;
 };
 
 export type EditForm = {
@@ -83,11 +85,12 @@ export type EditForm = {
   room_type: 'Thường' | 'Máy lạnh';
   notes: string;
   priority_group: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+  applicant_profile: ApplicantProfile;
 };
 
-const emptyEditForm = (): EditForm => ({ full_name: '', student_code: '', semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '', priority_group: 'Không' });
+const emptyEditForm = (): EditForm => ({ full_name: '', student_code: '', semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '', priority_group: 'Không', applicant_profile: emptyApplicantProfile() });
 
-const emptyCreateForm = (): CreateForm => ({ semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '' });
+const emptyCreateForm = (): CreateForm => ({ semester: '', academic_year: '', date_of_birth: '', gender: '', phone_number: '', room_type: 'Thường', notes: '', applicant_profile: emptyApplicantProfile() });
 const dateInputValue = (value?: string | Date) => {
   if (!value) return '';
   const date = new Date(value);
@@ -102,20 +105,26 @@ const dateLabel = (value: string) => {
 
 export function buildEditRegistrationPayload(source: DormRegistrationSource, editForm: EditForm): UpdateDormRegistrationInput {
   return source === 'FORMAL'
-    ? { semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), priority_group: editForm.priority_group, preference: { room_type: editForm.room_type, notes: editForm.notes || undefined } }
-    : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group };
+    ? { semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), priority_group: editForm.priority_group, preference: { room_type: editForm.room_type, notes: editForm.notes || undefined }, applicant_profile: compactApplicantProfile(editForm.applicant_profile) }
+    : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
 }
 
 export function buildRegistrationExportRows(rows: DormRegistration[]) {
+  const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
   return rows.map(row => ({
-    'Mã SV': studentCode(row),
-    'Họ và tên': studentName(row),
-    'Phòng': roomLabel(row),
-    'Ưu tiên': priorityLabel(row),
-    'Trạng thái': sourceLabel(row.source as DormRegistrationSource),
-    'Ngày tạo': createdDateLabel(row.createdAt),
+    'Mã SV': text(row.student_id?.student_code) || text(row.public_registration?.student_code) || text((row as any).student_code),
+    'Họ và tên': text(row.student_id?.full_name) || text(row.public_registration?.full_name) || text((row as any).full_name),
+    'Phòng': text((row as any).assigned_room_name) || text((row as any).room_name) || text((row as any).room_code) || text(row.preference?.building_id),
+    'Ưu tiên': text(row.priority_group),
+    'Nguồn': row.source ? sourceLabel(row.source as DormRegistrationSource) : '',
+    'Ngày tạo': row.createdAt ? createdDateLabel(row.createdAt) : '',
   }));
 }
+
+export const selectedPdfRegistration = (rows: DormRegistration[], selectedIds: string[]) => {
+  if (selectedIds.length !== 1) return undefined;
+  return rows.find(row => row._id === selectedIds[0]);
+};
 
 type RoomAssignmentPopoverProps = {
   row: DormRegistration;
@@ -282,6 +291,7 @@ export default function RegistrationsPage() {
   const [source, setSource] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
   const [selected, setSelected] = useState<string[]>([]);
+  const [exportPreviewRows, setExportPreviewRows] = useState<DormRegistration[] | null>(null);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
@@ -345,10 +355,10 @@ export default function RegistrationsPage() {
     if (!createForm.gender || !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.phone_number.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
     if (!student) {
-      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
+      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined, applicant_profile: compactApplicantProfile(createForm.applicant_profile) }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
       return;
     }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim() };
+    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), applicant_profile: compactApplicantProfile(createForm.applicant_profile) };
     const preference = { room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
     if (Object.values(preference).some(Boolean)) payload.preference = preference;
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
@@ -387,7 +397,7 @@ export default function RegistrationsPage() {
       date_of_birth: dateInputValue(row.date_of_birth || row.public_registration?.date_of_birth),
       gender: row.gender || '', phone_number: row.phone_number || row.public_registration?.phone_number || '',
       room_type: row.preference?.room_type || (row as any).room_type || 'Thường',
-      notes: row.preference?.notes || (row as any).notes || '', priority_group: (row.priority_group || 'Không') as EditForm['priority_group'],
+      notes: row.preference?.notes || (row as any).notes || '', priority_group: (row.priority_group || 'Không') as EditForm['priority_group'], applicant_profile: row.applicant_profile || emptyApplicantProfile(),
     });
   };
   useEffect(() => {
@@ -437,14 +447,22 @@ export default function RegistrationsPage() {
     else toast.error('Không thể xóa các đơn đăng ký đã chọn.');
     setBulkDeleting(false);
   };
-  const exportSelected = async () => {
-    const rows = registrations.filter(row => selected.includes(row._id));
+  const exportRows = async (rows: DormRegistration[]) => {
     if (!rows.length) return;
     const XLSX = await import('xlsx');
     const worksheet = XLSX.utils.json_to_sheet(buildRegistrationExportRows(rows));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Đăng ký KTX');
     XLSX.writeFile(workbook, 'Danh_sach_dang_ky_KTX.xlsx');
+  };
+  const openExportPreview = (rows: DormRegistration[]) => setExportPreviewRows(rows);
+  const openSelectedPdfPreview = () => {
+    const row = selectedPdfRegistration(registrations, selected);
+    if (!row) {
+      toast.error(selected.length ? 'Vui lòng chỉ chọn một đơn để xuất PDF.' : 'Vui lòng chọn một đơn để xuất PDF.');
+      return;
+    }
+    void loadPdfPreview(row);
   };
   const columns: ResponsiveColumn<DormRegistration>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
@@ -464,6 +482,8 @@ export default function RegistrationsPage() {
         <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden sm:flex shrink-0 w-[231px]" />
         <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>
         <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
+          {canView && <Button type="button" variant="outline" aria-label="Xuất Excel" onClick={() => openExportPreview(registrations)} className="h-9 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"><FileSpreadsheet size={14} className="mr-1" />Xuất Excel</Button>}
+          {canView && <Button type="button" variant="outline" aria-label="Xuất PDF đã chọn" onClick={openSelectedPdfPreview} className="h-9 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100"><Download size={14} className="mr-1" />Xuất PDF</Button>}
           <Select value={source || 'ALL'} onValueChange={v => { setSource(v === 'ALL' ? '' : v); reset(); }}>
             <SelectTrigger aria-label="Lọc nguồn" className="h-9 min-w-[115px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none"><SelectValue placeholder="Tất cả nguồn" /></SelectTrigger>
             <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100]">
@@ -481,7 +501,17 @@ export default function RegistrationsPage() {
     )}
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
-    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất Excel" onClick={() => void exportSelected()} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><FileSpreadsheet size={14} /> Xuất Excel</button>}</>} />
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất Excel đã chọn" onClick={() => openExportPreview(registrations.filter(row => selected.includes(row._id)))} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><FileSpreadsheet size={14} /> Xuất Excel</button>}</>} />
+    <Dialog open={Boolean(exportPreviewRows)} onOpenChange={open => { if (!open) setExportPreviewRows(null); }}>
+      <DialogContent className="max-h-[85vh] max-w-5xl overflow-hidden rounded-2xl">
+        <DialogHeader><DialogTitle>Xem trước xuất Excel</DialogTitle></DialogHeader>
+        <p className="text-sm text-slate-600">{exportPreviewRows?.length || 0} đơn sẽ được xuất. Trường không có thông tin sẽ để trống.</p>
+        <div className="max-h-[55vh] overflow-auto rounded-lg border border-slate-200">
+          <table className="w-full text-left text-xs"><thead className="sticky top-0 bg-slate-50 text-slate-700"><tr>{Object.keys(buildRegistrationExportRows(exportPreviewRows || [])[0] || {}).map(key => <th key={key} className="whitespace-nowrap px-3 py-2 font-semibold">{key}</th>)}</tr></thead><tbody>{buildRegistrationExportRows(exportPreviewRows || []).map((row, index) => <tr key={exportPreviewRows?.[index]?._id || index} className="border-t border-slate-100">{Object.values(row).map((value, cellIndex) => <td key={cellIndex} className="whitespace-nowrap px-3 py-2 text-slate-600">{value}</td>)}</tr>)}</tbody></table>
+        </div>
+        <DialogFooter><Button type="button" variant="outline" onClick={() => setExportPreviewRows(null)}>Hủy</Button><Button type="button" onClick={() => { if (exportPreviewRows) void exportRows(exportPreviewRows); setExportPreviewRows(null); }}><Download className="mr-1 h-4 w-4" />Xác nhận xuất Excel</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(pdfRow)} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRow(null); setPdfError(''); } }}>
       <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>Xem trước đơn KTX</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRow && void loadPdfPreview(pdfRow)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => setPdfRow(null)}>Đóng</Button>{pdfRow && <Button onClick={() => void downloadPdf(pdfRow)}><Download className="mr-1 h-4 w-4" />Xuất PDF</Button>}</DialogFooter></DialogContent>
     </Dialog>
@@ -504,6 +534,7 @@ export default function RegistrationsPage() {
           <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Ưu tiên</label><Select value={editForm.priority_group} onValueChange={value => setEditForm(f => ({ ...f, priority_group: value as EditForm['priority_group'] }))}><SelectTrigger aria-label="Ưu tiên"><SelectValue /></SelectTrigger><SelectContent>{['Không', 'Chính sách', 'Xa nhà', 'Học lực giỏi', 'Khó khăn'].map(value => <SelectItem key={value} value={value}>{value === 'Không' ? 'Không' : `Có - ${value}`}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={editForm.room_type} onValueChange={value => setEditForm(f => ({ ...f, room_type: value as EditForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>
           <Input label="Ghi chú" multiline rows={3} value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} containerClassName="sm:col-span-2" />
+          <ApplicantProfileFields value={editForm.applicant_profile} onChange={value => setEditForm(f => ({ ...f, applicant_profile: value }))} className="sm:col-span-2" />
           {(editError || editSemesterError) && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{editError || editSemesterError}</p>}
           <DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setEditRow(null)} disabled={editSaving}>Hủy</Button><Button type="submit" disabled={editSaving || editSemesterLoading || Boolean(editSemesterError) || (editRow?.source === 'ADMIN_TEMPORARY' && (!editForm.semester || !editForm.academic_year))}>{editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</Button></DialogFooter>
         </form>
@@ -571,6 +602,7 @@ export default function RegistrationsPage() {
               <Input label="Ghi chú" multiline rows={3} value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </section>
           </div>
+          <ApplicantProfileFields value={createForm.applicant_profile} onChange={value => setCreateForm(f => ({ ...f, applicant_profile: value }))} />
           {(createError || semesterError) && <p role="alert" className="text-sm text-red-600">{createError || semesterError}</p>}
           <DialogFooter className="mt-2 border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.semester}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
         </form>
