@@ -1,7 +1,8 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
-const mockPdfPage = { setContent: jest.fn().mockResolvedValue(undefined), pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')) };
+const mockPdfPage = { setContent: jest.fn().mockResolvedValue(undefined), evaluate: jest.fn().mockResolvedValue(undefined), pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')), close: jest.fn().mockResolvedValue(undefined), isClosed: jest.fn().mockReturnValue(false) };
 const mockPdfBrowser = { newPage: jest.fn().mockResolvedValue(mockPdfPage), close: jest.fn().mockResolvedValue(undefined) };
-jest.mock('puppeteer', () => ({ launch: jest.fn().mockResolvedValue(mockPdfBrowser) }));
+const mockPuppeteerLaunch = jest.fn().mockResolvedValue(mockPdfBrowser);
+jest.mock('puppeteer', () => ({ launch: mockPuppeteerLaunch }));
 import { RegistrationsService } from './registrations.service';
 
 function queryResult<T>(value: T) {
@@ -190,8 +191,14 @@ describe('RegistrationsService registration actions', () => {
 
 describe('RegistrationsService application PDF source matrix', () => {
   beforeEach(() => {
+    mockPuppeteerLaunch.mockReset().mockResolvedValue(mockPdfBrowser);
+    mockPdfBrowser.newPage.mockReset().mockResolvedValue(mockPdfPage);
+    mockPdfBrowser.close.mockReset().mockResolvedValue(undefined);
     mockPdfPage.setContent.mockClear();
+    mockPdfPage.evaluate.mockReset().mockResolvedValue(undefined);
     mockPdfPage.pdf.mockClear();
+    mockPdfPage.close.mockReset().mockResolvedValue(undefined);
+    mockPdfPage.isClosed.mockReset().mockReturnValue(false);
   });
 
   it.each([
@@ -208,7 +215,10 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(result.buffer.length).toBeGreaterThan(0);
     expect(result.filename).toContain(code);
     if (source === 'FORMAL') expect(formalModel.findById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
-    else expect(publicModel.findOne).toHaveBeenCalledWith(expect.objectContaining({ _id: '507f1f77bcf86cd799439011' }));
+    else expect(publicModel.findOne).toHaveBeenCalledWith({
+      _id: '507f1f77bcf86cd799439011',
+      source: source === 'ADMIN_TEMPORARY' ? 'ADMIN_ENTRY' : { $ne: 'ADMIN_ENTRY' },
+    });
   });
 
   it('rejects public/admin source mismatches without probing the other collection', async () => {
@@ -223,13 +233,160 @@ describe('RegistrationsService application PDF source matrix', () => {
   });
 
   it('renders incomplete and unsafe values as blanks or escaped text', async () => {
-    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-EMPTY', full_name: '<script>alert(1)</script>', source: 'QR_SCAN', date_of_birth: 'not-a-date', gender: 'Unknown', applicant_profile: { citizen_id_number: null } })) };
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-EMPTY', full_name: '<script>alert(1)</script>', source: 'QR_SCAN', date_of_birth: 'not-a-date', gender: 'Unknown', applicant_profile: { citizen_id_number: null, father: { full_name: '<b>unsafe</b>' } } })) };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
 
     await service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC');
 
     const html = mockPdfPage.setContent.mock.calls.at(-1)[0];
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&lt;b&gt;unsafe&lt;/b&gt;');
+    expect(html).not.toContain('&amp;lt;b&amp;gt;unsafe&amp;lt;/b&amp;gt;');
     expect(html).not.toMatch(/undefined|null|Invalid Date|Unknown/);
+  });
+
+  it('matches the DOCX wording and layout contract with fixed blank slots', async () => {
+    const publicModel: any = {
+      findOne: jest.fn().mockReturnValue(queryResult({
+        public_registration_code: 'QR-CONTRACT',
+        full_name: 'Nguyễn Đủ Dữ Liệu',
+        date_of_birth: '2004-02-03',
+        gender: 'Female',
+        phone_number: '0902',
+        source: 'QR_SCAN',
+        applicant_profile: {
+          ethnicity: 'Kinh',
+          religion: 'Không',
+          citizen_id_number: '012345678901',
+          citizen_id_issue_date: '2020-01-02',
+          citizen_id_issue_place: 'TP. Hồ Chí Minh',
+          permanent_address: 'Thành phố Hồ Chí Minh',
+          father: { full_name: 'Nguyễn Cha', age: '50', permanent_address: 'Đồng Nai', contact_address: 'TP. Hồ Chí Minh', occupation: 'Kỹ sư', phone_number: '0903' },
+          mother: { full_name: 'Trần Mẹ', age: '48', permanent_address: 'Long An', contact_address: 'TP. Hồ Chí Minh', occupation: 'Giáo viên', phone_number: '0904' },
+          priority_certificate_details: 'Giấy chứng nhận hộ nghèo',
+        },
+      })),
+    };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC');
+
+    const html = mockPdfPage.setContent.mock.calls.at(-1)[0] as string;
+    const expectedFlow = [
+      'CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM',
+      'Độc lập - Tự do - Hạnh phúc',
+      'ĐƠN XIN VÀO KÝ TÚC XÁ',
+      'Kính gửi: Phòng Học sinh sinh viên.',
+      'Họ và tên HSSV:',
+      'Ngày, tháng, năm sinh:',
+      'Nam(nữ):',
+      'Lớp:',
+      'Khoa',
+      'Dân tộc:',
+      'Tôn giáo:',
+      'Điện thoại',
+      'CCCD:',
+      'Ngày cấp:',
+      'Nơi cấp:',
+      'Hộ khẩu thường trú:',
+      'Họ tên Cha:',
+      'Họ tên Mẹ:',
+      'Các giấy chứng nhận ưu tiên (nếu có):',
+      'Nay tôi làm đơn này kính đề nghị Phòng Học sinh sinh viên xem xét cho tôi được vào ở Ký túc xá. Nếu được giải quyết, tôi cam kết thực hiện Nội quy Ký túc xá của Nhà trường./.',
+      'PHHS ký và ghi rõ họ tên',
+      '(Dành cho HSSV dưới 18 tuổi)',
+      'NGƯỜI LÀM ĐƠN',
+      '(Ký tên, ghi rõ họ, tên)',
+    ];
+    let previous = -1;
+    for (const text of expectedFlow) {
+      const current = html.indexOf(text);
+      expect(current).toBeGreaterThan(previous);
+      previous = current;
+    }
+    expect(html).toContain('@page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; }');
+    expect(html).toContain('font-family: "Times New Roman", Times, serif; font-size: 14pt;');
+    expect(html).toContain('font-size: 15pt; font-weight: 700;');
+    expect(html).toContain('border-bottom: 1px dotted #000;');
+    expect(html).toContain('line-height: 1.5;');
+    expect(html).toContain('table-layout: fixed;');
+    expect((html.match(/class="signature-cell\b/g) || []).length).toBe(2);
+    expect(html).not.toContain('BỘ GIÁO DỤC VÀ ĐÀO TẠO');
+    expect(html).not.toContain('TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN');
+    expect(html).not.toContain('Mã số sinh viên');
+    expect(html).not.toContain('Ban Quản lý Ký túc xá');
+    expect(html).not.toContain('..., ngày');
+    expect(html).not.toContain('Diện ưu tiên:');
+    expect(html).toContain('Nguyễn Đủ Dữ Liệu');
+    expect(html).toContain('Giấy chứng nhận hộ nghèo');
+    expect(mockPdfPage.evaluate).toHaveBeenCalledTimes(1);
+    expect(mockPdfPage.evaluate.mock.invocationCallOrder[0]).toBeLessThan(mockPdfPage.pdf.mock.invocationCallOrder[0]);
+  });
+
+  it('keeps both signature columns and all field lines for an adult blank form', async () => {
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-BLANK', source: 'QR_SCAN', date_of_birth: '1980-01-01', gender: 'Unknown', applicant_profile: { father: null, mother: null } })) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC');
+
+    const html = mockPdfPage.setContent.mock.calls.at(-1)[0] as string;
+    expect((html.match(/class="signature-cell\b/g) || []).length).toBe(2);
+    expect((html.match(/class="field /g) || []).length).toBe(25);
+    expect(html).not.toMatch(/>undefined<|>null<|Invalid Date|>Unknown</);
+    expect(html).toContain('field field-name"></span>');
+    expect(html).toContain('field field-parent-name"></span>');
+    expect(html).toContain('parent-signature');
+    expect(html).toContain('applicant-signature');
+  });
+
+  it('retries a target closure with a fresh browser and page', async () => {
+    const firstPage = { ...mockPdfPage, setContent: jest.fn().mockResolvedValue(undefined), pdf: jest.fn().mockRejectedValue(Object.assign(new Error('Protocol error (Page.printToPDF): Target closed'), { name: 'TargetCloseError' })), close: jest.fn().mockResolvedValue(undefined), isClosed: jest.fn().mockReturnValue(false) };
+    const secondPage = { ...mockPdfPage, setContent: jest.fn().mockResolvedValue(undefined), pdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-retry')), close: jest.fn().mockResolvedValue(undefined), isClosed: jest.fn().mockReturnValue(false) };
+    const firstBrowser = { newPage: jest.fn().mockResolvedValue(firstPage), close: jest.fn().mockResolvedValue(undefined) };
+    const secondBrowser = { newPage: jest.fn().mockResolvedValue(secondPage), close: jest.fn().mockResolvedValue(undefined) };
+    mockPuppeteerLaunch.mockResolvedValueOnce(firstBrowser).mockResolvedValueOnce(secondBrowser);
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-RETRY', source: 'QR_SCAN' })) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    const result = await service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC');
+
+    expect(result.buffer).toEqual(Buffer.from('%PDF-retry'));
+    expect(mockPuppeteerLaunch).toHaveBeenCalledTimes(2);
+    expect(firstPage.close).toHaveBeenCalledTimes(1);
+    expect(secondPage.close).toHaveBeenCalledTimes(1);
+    expect(firstBrowser.close).toHaveBeenCalledTimes(1);
+    expect(secondBrowser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a target closure during setContent and sanitizes persistent closure', async () => {
+    const targetError = Object.assign(new Error('Target closed'), { name: 'TargetCloseError' });
+    const firstPage = { ...mockPdfPage, setContent: jest.fn().mockRejectedValue(targetError), pdf: jest.fn(), close: jest.fn().mockResolvedValue(undefined), isClosed: jest.fn().mockReturnValue(false) };
+    const secondPage = { ...mockPdfPage, setContent: jest.fn().mockRejectedValue(targetError), pdf: jest.fn(), close: jest.fn().mockResolvedValue(undefined), isClosed: jest.fn().mockReturnValue(false) };
+    const firstBrowser = { newPage: jest.fn().mockResolvedValue(firstPage), close: jest.fn().mockResolvedValue(undefined) };
+    const secondBrowser = { newPage: jest.fn().mockResolvedValue(secondPage), close: jest.fn().mockResolvedValue(undefined) };
+    mockPuppeteerLaunch.mockResolvedValueOnce(firstBrowser).mockResolvedValueOnce(secondBrowser);
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-CLOSED', source: 'QR_SCAN' })) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await expect(service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC')).rejects.toMatchObject({ status: 503, message: 'Không thể tạo PDF đơn đăng ký lúc này' });
+    expect(mockPuppeteerLaunch).toHaveBeenCalledTimes(2);
+    expect(firstPage.pdf).not.toHaveBeenCalled();
+    expect(secondPage.pdf).not.toHaveBeenCalled();
+    expect(firstPage.close).toHaveBeenCalledTimes(1);
+    expect(secondPage.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry non-target render errors and cleanup errors do not replace them', async () => {
+    const renderError = new Error('template render failed');
+    mockPdfPage.pdf.mockRejectedValue(renderError);
+    mockPdfPage.close.mockRejectedValue(new Error('page close failed'));
+    mockPdfBrowser.close.mockRejectedValue(new Error('browser close failed'));
+    const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-ERROR', source: 'QR_SCAN' })) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await expect(service.generateApplicationPdf('507f1f77bcf86cd799439011', 'PUBLIC')).rejects.toBe(renderError);
+    expect(mockPuppeteerLaunch).toHaveBeenCalledTimes(1);
+    expect(mockPdfPage.close).toHaveBeenCalledTimes(1);
+    expect(mockPdfBrowser.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { dormitoryApi } from '@/api/dormitory-api';
 import { applyRoomAssignment, buildEditRegistrationPayload, createdDateLabel, getPublicRegistrationUrl, hasAssignedBed, isAvailableBed, mapActiveSemester, priorityLabel, REGISTRATION_TABLE_CLASS_NAME, RoomAssignmentPopover, roomLabel, roomQuantityLabel, roomStatusLabel, selectedPdfRegistration, sourceLabel, studentCode } from './page';
+
+const registrationPageSource = readFileSync(resolve(__dirname, 'page.tsx'), 'utf8');
 
 describe('KTX registration active semester mapping', () => {
   it('maps the active semester label to the registration payload fields', () => {
@@ -72,6 +76,29 @@ it('only opens top-level PDF preview when exactly one registration is selected',
   expect(selectedPdfRegistration(rows, [])).toBeUndefined();
   expect(selectedPdfRegistration(rows, ['one', 'two'])).toBeUndefined();
   expect(selectedPdfRegistration(rows, ['two'])).toBe(rows[1]);
+});
+
+describe('KTX registration PDF actions', () => {
+  it('renders text-only preview and export controls without Eye or Download glyphs', () => {
+    expect(registrationPageSource).not.toMatch(/\b(?:Eye|Download)\b/);
+    expect(registrationPageSource).not.toContain('<Eye');
+    expect(registrationPageSource).not.toContain('<Download');
+    expect(registrationPageSource).toContain('>Xem trước</button>');
+    expect(registrationPageSource).toContain('>Xuất PDF</button>');
+    expect(registrationPageSource).toContain('<Button onClick={() => void downloadPdf(pdfRow)}>Xuất PDF</Button>');
+  });
+
+  it('preserves selected-row and source-aware preview/export flows', () => {
+    expect(registrationPageSource).toContain('onClick={openSelectedPdfPreview}');
+    expect(registrationPageSource).toContain("row.source as DormRegistrationSource, 'inline'");
+    expect(registrationPageSource).toContain("row.source as DormRegistrationSource, 'attachment'");
+    expect(registrationPageSource).toContain('aria-label="Xuất PDF đã chọn"');
+    expect(registrationPageSource).toContain('<Button variant="outline" onClick={() => setPdfRow(null)}>Đóng</Button>');
+  });
+
+  it('keeps the standalone top-toolbar PDF button absent', () => {
+    expect(registrationPageSource).not.toContain('<Button type="button" variant="outline" aria-label="Xuất PDF đã chọn"');
+  });
 });
 
 it('formats room options and only accepts available beds', () => {

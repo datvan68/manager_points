@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -106,49 +107,6 @@ export class RegistrationsService {
     return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character] as string));
   }
 
-  private legacyApplicationHtml(data: any) {
-    const value = (key: string) => this.escapeHtml(data[key]);
-    const applicant = data.applicant_profile || {};
-    const applicantValue = (key: string) => this.escapeHtml(applicant[key]);
-    const parent = (name: string, key: string) => this.escapeHtml(applicant?.[name]?.[key]);
-    return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>
-      @page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; } body { font-family: "Arial", "Noto Sans", sans-serif; font-size: 12pt; line-height: 1.35; } .center{text-align:center}.header{display:flex;justify-content:space-between}.header div{width:45%}.title{font-size:15pt;font-weight:bold;margin:18px 0 12px}.row{margin:5px 0}.signatures{display:flex;justify-content:space-between;margin-top:28px;text-align:center}.signatures div{width:42%}.blank{min-height:55px}</style></head><body>
-      <div class="header"><div class="center"><b>BỘ GIÁO DỤC VÀ ĐÀO TẠO</b><br><b>TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN</b></div><div class="center"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b></div></div>
-      <div class="center title">ĐƠN XIN VÀO KÝ TÚC XÁ</div><p>Kính gửi: Ban Quản lý Ký túc xá</p>
-      <div class="row">Họ và tên: <b>${value('full_name')}</b> &nbsp; Ngày sinh: ${value('date_of_birth')} &nbsp; Giới tính: ${value('gender')}</div>
-      <div class="row">Mã số sinh viên: ${value('student_code')} &nbsp; Lớp: ${value('class_name')} &nbsp; Khoa: ${value('department_name')}</div>
-      <div class="row">Dân tộc: ${applicantValue('ethnicity')} &nbsp; Tôn giáo: ${applicantValue('religion')} &nbsp; Điện thoại: ${value('phone_number')}</div>
-      <div class="row">CCCD/CMND: ${applicantValue('citizen_id_number')} &nbsp; Ngày cấp: ${applicantValue('citizen_id_issue_date')} &nbsp; Nơi cấp: ${applicantValue('citizen_id_issue_place')}</div>
-      <div class="row">Địa chỉ thường trú: ${applicantValue('permanent_address')}</div>
-      <div class="row"><b>Cha:</b> ${parent('father','full_name')} &nbsp; Tuổi: ${parent('father','age')} &nbsp; Nghề nghiệp: ${parent('father','occupation')} &nbsp; Điện thoại: ${parent('father','phone_number')}</div>
-      <div class="row">Địa chỉ thường trú: ${parent('father','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('father','contact_address')}</div>
-      <div class="row"><b>Mẹ:</b> ${parent('mother','full_name')} &nbsp; Tuổi: ${parent('mother','age')} &nbsp; Nghề nghiệp: ${parent('mother','occupation')} &nbsp; Điện thoại: ${parent('mother','phone_number')}</div>
-      <div class="row">Địa chỉ thường trú: ${parent('mother','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('mother','contact_address')}</div>
-      <div class="row">Diện ưu tiên: ${value('priority_group')} &nbsp; Giấy tờ minh chứng: ${applicantValue('priority_certificate_details')}</div>
-      <p>Tôi cam đoan những nội dung khai trên là đúng sự thật, chấp hành đầy đủ nội quy ký túc xá và chịu trách nhiệm về đơn đăng ký này.</p>
-      <div class="signatures">${data.is_under_18 ? '<div><b>PHỤ HUYNH/NGƯỜI GIÁM HỘ</b><div class="blank"></div><i>(Ký và ghi rõ họ tên)</i></div>' : '<div></div>'}<div><i>..., ngày ... tháng ... năm ...</i><br><b>NGƯỜI LÀM ĐƠN</b><div class="blank"></div><i>(Ký và ghi rõ họ tên)</i></div></div>
-    </body></html>`;
-  }
-
-  private async legacyGenerateApplicationPdf(id: string): Promise<{ buffer: Buffer; filename: string }> {
-    this.validateId(id);
-    const registration: any = await this.registrationModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).exec();
-    if (!registration) throw new NotFoundException('Không tìm thấy đơn đăng ký');
-    const student: any = registration.student_id || {};
-    const birthDate = registration.date_of_birth || student.date_bir;
-    const date = birthDate ? new Date(birthDate) : null;
-    const age = date ? new Date().getFullYear() - date.getFullYear() - ((new Date().getMonth() < date.getMonth() || (new Date().getMonth() === date.getMonth() && new Date().getDate() < date.getDate())) ? 1 : 0) : null;
-    const html = this.applicationHtml({ ...this.toPlain(registration), full_name: student.full_name, student_code: student.student_code, class_name: student.class_id?.class_name, department_name: student.class_id?.dept_id?.name, date_of_birth: date ? date.toLocaleDateString('vi-VN') : '', gender: registration.gender || student.sex, is_under_18: age !== null && age < 18 });
-    const puppeteer = require('puppeteer');
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'load' });
-      const buffer = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '30mm' } });
-      return { buffer, filename: `don-ky-tuc-xa-${String(registration.registration_code || id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` };
-    } finally { await browser.close(); }
-  }
-
   private clean(value: unknown): string {
     if (value === null || value === undefined) return '';
     const text = String(value).trim();
@@ -172,44 +130,147 @@ export class RegistrationsService {
     const classRecord = this.toPlain(student.class_id) || {};
     const department = this.toPlain(classRecord.dept_id) || {};
     const applicant = this.toPlain(plain.applicant_profile) || {};
-    const parent = (key: 'father' | 'mother') => this.toPlain(applicant[key]) || {};
+    const parent = (key: 'father' | 'mother') => {
+      const value = this.toPlain(applicant[key]) || {};
+      return {
+        full_name: this.clean(value.full_name),
+        age: this.clean(value.age),
+        permanent_address: this.clean(value.permanent_address),
+        contact_address: this.clean(value.contact_address),
+        occupation: this.clean(value.occupation),
+        phone_number: this.clean(value.phone_number),
+      };
+    };
     const birth = plain.date_of_birth || student.date_bir;
-    const date = birth ? new Date(birth) : null;
-    const age = date && !Number.isNaN(date.getTime())
-      ? new Date().getFullYear() - date.getFullYear() - (new Date().setHours(0, 0, 0, 0) < new Date(new Date().getFullYear(), date.getMonth(), date.getDate()).getTime() ? 1 : 0)
-      : null;
     const fullName = source === 'FORMAL' ? plain.full_name || student.full_name : plain.full_name;
-    const studentCode = source === 'FORMAL' ? plain.student_code || student.student_code : plain.student_code;
     return {
       full_name: this.clean(fullName), date_of_birth: this.displayDate(birth), gender: this.displayGender(plain.gender || student.sex),
-      student_code: this.clean(studentCode), class_name: this.clean(plain.class_name || classRecord.class_name), department_name: this.clean(plain.department_name || department.name),
+      class_name: this.clean(plain.class_name || classRecord.class_name), department_name: this.clean(plain.department_name || department.name),
       ethnicity: this.clean(applicant.ethnicity), religion: this.clean(applicant.religion), phone_number: this.clean(plain.phone_number),
       citizen_id_number: this.clean(applicant.citizen_id_number), citizen_id_issue_date: this.displayDate(applicant.citizen_id_issue_date), citizen_id_issue_place: this.clean(applicant.citizen_id_issue_place),
       permanent_address: this.clean(applicant.permanent_address), priority_group: this.clean(plain.priority_group), priority_certificate_details: this.clean(applicant.priority_certificate_details),
-      father: parent('father'), mother: parent('mother'), is_under_18: age !== null && age < 18,
+      father: parent('father'), mother: parent('mother'),
       registration_code: this.clean(plain.registration_code || plain.public_registration_code),
     };
   }
 
   private applicationHtml(data: any) {
     const v = (value: unknown) => this.escapeHtml(this.clean(value));
-    const parent = (key: 'father' | 'mother', field: string) => v(data[key]?.[field]);
+    const field = (value: unknown, className: string) => `<span class="field ${className}">${v(value)}</span>`;
+    const parent = (key: 'father' | 'mother', field: string) => this.clean(data[key]?.[field]);
     return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>
-      @page{size:A4 portrait;margin:20mm 20mm 20mm 30mm}*{box-sizing:border-box}body{font-family:Arial,"Noto Sans",sans-serif;font-size:11pt;line-height:1.32;color:#000}.center{text-align:center}.header{display:grid;grid-template-columns:1fr 1fr;gap:18px;font-size:10pt}.title{font-size:15pt;font-weight:700;text-align:center;margin:18px 0 12px}.line{display:inline-block;border-bottom:1px solid #000;min-width:100px;vertical-align:bottom}.row{margin:5px 0}.section{margin-top:9px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px;text-align:center}.signature{min-height:100px}.small{font-size:10pt}
-    </style></head><body>
-      <div class="header"><div class="center"><b>BỘ GIÁO DỤC VÀ ĐÀO TẠO</b><br><b>TRƯỜNG CAO ĐẲNG BÁCH KHOA NAM SÀI GÒN</b></div><div class="center"><b>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b>Độc lập - Tự do - Hạnh phúc</b></div></div>
-      <div class="title">ĐƠN XIN VÀO KÝ TÚC XÁ</div><p>Kính gửi: Ban Quản lý Ký túc xá</p>
-      <div class="row">Họ và tên: <b>${v(data.full_name)}</b> &nbsp; Ngày sinh: ${v(data.date_of_birth)} &nbsp; Giới tính: ${v(data.gender)}</div>
-      <div class="row">Mã số sinh viên: ${v(data.student_code)} &nbsp; Lớp: ${v(data.class_name)} &nbsp; Khoa: ${v(data.department_name)}</div>
-      <div class="row">Dân tộc: ${v(data.ethnicity)} &nbsp; Tôn giáo: ${v(data.religion)} &nbsp; Điện thoại: ${v(data.phone_number)}</div>
-      <div class="row">CCCD/CMND: ${v(data.citizen_id_number)} &nbsp; Ngày cấp: ${v(data.citizen_id_issue_date)} &nbsp; Nơi cấp: ${v(data.citizen_id_issue_place)}</div>
-      <div class="row">Địa chỉ thường trú: ${v(data.permanent_address)}</div>
-      <div class="section"><b>Thông tin cha:</b> Họ và tên: ${parent('father','full_name')} &nbsp; Tuổi: ${parent('father','age')} &nbsp; Nghề nghiệp: ${parent('father','occupation')} &nbsp; Điện thoại: ${parent('father','phone_number')}<br>Địa chỉ thường trú: ${parent('father','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('father','contact_address')}</div>
-      <div class="section"><b>Thông tin mẹ:</b> Họ và tên: ${parent('mother','full_name')} &nbsp; Tuổi: ${parent('mother','age')} &nbsp; Nghề nghiệp: ${parent('mother','occupation')} &nbsp; Điện thoại: ${parent('mother','phone_number')}<br>Địa chỉ thường trú: ${parent('mother','permanent_address')} &nbsp; Địa chỉ liên lạc: ${parent('mother','contact_address')}</div>
-      <div class="section">Diện ưu tiên: ${v(data.priority_group)} &nbsp; Giấy tờ minh chứng: ${v(data.priority_certificate_details)}</div>
-      <p class="section">Tôi cam đoan những nội dung khai trên là đúng sự thật, chấp hành đầy đủ nội quy ký túc xá và chịu trách nhiệm về đơn đăng ký này.</p>
-      <div class="signatures">${data.is_under_18 ? '<div><b>PHỤ HUYNH/NGƯỜI GIÁM HỘ</b><div class="signature"></div><i>(Ký và ghi rõ họ tên)</i></div>' : '<div></div>'}<div><i>..., ngày ... tháng ... năm ...</i><br><b>NGƯỜI LÀM ĐƠN</b><div class="signature"></div><i>(Ký và ghi rõ họ tên)</i></div></div>
-    </body></html>`;
+      @page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body { color: #000; font-family: "Times New Roman", Times, serif; font-size: 14pt; line-height: 1.15; }
+      .document { width: 100%; }
+      .national-heading { text-align: center; font-size: 14pt; font-weight: 700; line-height: 1.15; }
+      .document-title { margin: 14pt 0 12pt; text-align: center; font-size: 15pt; font-weight: 700; line-height: 1.15; }
+      .recipient { margin: 0 0 7pt; }
+      .details { line-height: 1.5; }
+      .detail-row { height: 1.5em; white-space: nowrap; }
+      .field { display: inline-block; min-height: 1.25em; padding: 0 2pt; border-bottom: 1px dotted #000; vertical-align: baseline; overflow: hidden; white-space: nowrap; }
+      .field-name { width: 81mm; }
+      .field-date { width: 37mm; }
+      .field-gender { width: 17mm; }
+      .field-class { width: 39mm; }
+      .field-faculty { width: 48mm; }
+      .field-ethnicity { width: 28mm; }
+      .field-religion { width: 28mm; }
+      .field-phone { width: 29mm; }
+      .field-citizen { width: 32mm; }
+      .field-issue-date { width: 28mm; }
+      .field-issue-place { width: 38mm; }
+      .field-address { width: 117mm; }
+      .field-parent-name { width: 72mm; }
+      .field-parent-age { width: 17mm; }
+      .field-parent-address { width: 112mm; }
+      .field-parent-contact { width: 112mm; }
+      .field-parent-occupation { width: 57mm; }
+      .field-parent-phone { width: 29mm; }
+      .priority-line { margin-top: 2pt; line-height: 1.5; white-space: nowrap; }
+      .field-priority { width: 73mm; }
+      .commitment { margin: 7pt 0 0; line-height: 1.5; text-align: justify; }
+      .signature-table { width: 100%; margin-top: 18pt; border-collapse: collapse; table-layout: fixed; font-size: 14pt; line-height: 1.15; }
+      .signature-cell { width: 50%; padding: 0; text-align: center; vertical-align: top; }
+      .signature-space { height: 27mm; }
+      .signature-label, .signature-note { margin: 0; }
+      .signature-label { font-weight: 400; }
+      .signature-note { font-style: normal; }
+      .applicant-signature .signature-label { font-weight: 700; }
+      .applicant-signature .signature-note { font-style: italic; }
+    </style></head><body><main class="document">
+      <div class="national-heading">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM<br><span class="national-motto">Độc lập - Tự do - Hạnh phúc</span></div>
+      <h1 class="document-title">ĐƠN XIN VÀO KÝ TÚC XÁ</h1>
+      <p class="recipient">Kính gửi: Phòng Học sinh sinh viên.</p>
+      <section class="details student-details">
+        <div class="detail-row">Họ và tên HSSV: ${field(data.full_name, 'field-name')}</div>
+        <div class="detail-row">Ngày, tháng, năm sinh: ${field(data.date_of_birth, 'field-date')} Nam(nữ): ${field(data.gender, 'field-gender')}</div>
+        <div class="detail-row">Lớp: ${field(data.class_name, 'field-class')} Khoa ${field(data.department_name, 'field-faculty')}</div>
+        <div class="detail-row">Dân tộc: ${field(data.ethnicity, 'field-ethnicity')} Tôn giáo: ${field(data.religion, 'field-religion')} Điện thoại ${field(data.phone_number, 'field-phone')}</div>
+        <div class="detail-row">CCCD: ${field(data.citizen_id_number, 'field-citizen')} Ngày cấp: ${field(data.citizen_id_issue_date, 'field-issue-date')} Nơi cấp: ${field(data.citizen_id_issue_place, 'field-issue-place')}</div>
+        <div class="detail-row">Hộ khẩu thường trú: ${field(data.permanent_address, 'field-address')}</div>
+      </section>
+      <section class="details parent-details">
+        <div class="detail-row">Họ tên Cha: ${field(parent('father', 'full_name'), 'field-parent-name')}Tuổi: ${field(parent('father', 'age'), 'field-parent-age')}</div>
+        <div class="detail-row">Hộ khẩu thường trú: ${field(parent('father', 'permanent_address'), 'field-parent-address')}</div>
+        <div class="detail-row">Địa chỉ liên lạc: ${field(parent('father', 'contact_address'), 'field-parent-contact')}</div>
+        <div class="detail-row">Nghề nghiệp: ${field(parent('father', 'occupation'), 'field-parent-occupation')} Điện thoại: ${field(parent('father', 'phone_number'), 'field-parent-phone')}</div>
+        <div class="detail-row">Họ tên Mẹ: ${field(parent('mother', 'full_name'), 'field-parent-name')} Tuổi: ${field(parent('mother', 'age'), 'field-parent-age')}</div>
+        <div class="detail-row">Hộ khẩu thường trú: ${field(parent('mother', 'permanent_address'), 'field-parent-address')}</div>
+        <div class="detail-row">Địa chỉ liên lạc: ${field(parent('mother', 'contact_address'), 'field-parent-contact')}</div>
+        <div class="detail-row">Nghề nghiệp: ${field(parent('mother', 'occupation'), 'field-parent-occupation')} Điện thoại: ${field(parent('mother', 'phone_number'), 'field-parent-phone')}</div>
+      </section>
+      <div class="priority-line">Các giấy chứng nhận ưu tiên (nếu có): ${field(data.priority_certificate_details, 'field-priority')}</div>
+      <p class="commitment">Nay tôi làm đơn này kính đề nghị Phòng Học sinh sinh viên xem xét cho tôi được vào ở Ký túc xá. Nếu được giải quyết, tôi cam kết thực hiện Nội quy Ký túc xá của Nhà trường./.</p>
+      <table class="signature-table" aria-label="Khu vực ký tên"><tbody><tr>
+        <td class="signature-cell parent-signature"><p class="signature-label">PHHS ký và ghi rõ họ tên</p><div class="signature-space"></div><p class="signature-note">(Dành cho HSSV dưới 18 tuổi)</p></td>
+        <td class="signature-cell applicant-signature"><p class="signature-label">NGƯỜI LÀM ĐƠN</p><div class="signature-space"></div><p class="signature-note">(Ký tên, ghi rõ họ, tên)</p></td>
+      </tr></tbody></table>
+    </main></body></html>`;
+  }
+
+  private isTargetClosureError(error: unknown): boolean {
+    const candidate = error as { name?: string; message?: string } | null;
+    const name = String(candidate?.name || '').toLowerCase();
+    const message = String(candidate?.message || '').toLowerCase();
+    return name === 'targetcloseerror'
+      || name === 'applicationpdftargetclosureerror'
+      || message.includes('target closed')
+      || message.includes('browser has disconnected')
+      || message.includes('connection closed');
+  }
+
+  private async renderApplicationPdf(html: string): Promise<Buffer> {
+    const puppeteer = require('puppeteer');
+    let browser: any;
+    let page: any;
+    let operation: 'launch' | 'newPage' | 'setContent' | 'waitForFonts' | 'printToPDF' = 'launch';
+    try {
+      browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] });
+      operation = 'newPage';
+      page = await browser.newPage();
+      operation = 'setContent';
+      await page.setContent(html, { waitUntil: 'load' });
+      operation = 'waitForFonts';
+      if (typeof page.evaluate === 'function') {
+        await page.evaluate(async () => {
+          if (document.fonts?.ready) await document.fonts.ready;
+        });
+      }
+      operation = 'printToPDF';
+      return await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '30mm' } });
+    } catch (error) {
+      if ((operation === 'setContent' || operation === 'waitForFonts' || operation === 'printToPDF') && this.isTargetClosureError(error)) {
+        throw Object.assign(new Error('Application PDF render target closed'), { name: 'ApplicationPdfTargetClosureError' });
+      }
+      throw error;
+    } finally {
+      try {
+        if (page && !(typeof page.isClosed === 'function' && page.isClosed())) await page.close();
+      } catch { /* cleanup must not replace the render result */ }
+      try { await browser?.close(); } catch { /* cleanup must not replace the render result */ }
+    }
   }
 
   async generateApplicationPdf(id: string, source: string): Promise<{ buffer: Buffer; filename: string }> {
@@ -225,15 +286,21 @@ export class RegistrationsService {
     if (!record) throw new NotFoundException('Không tìm thấy đơn đăng ký');
     const viewModel = this.applicationViewModel(record, normalizedSource);
     const html = this.applicationHtml(viewModel);
-    const puppeteer = require('puppeteer');
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'load' });
-      const buffer = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '30mm' } });
-      const code = viewModel.registration_code || id;
-      return { buffer, filename: `don-ky-tuc-xa-${code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` };
-    } finally { await browser.close(); }
+    let targetClosure = false;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const buffer = await this.renderApplicationPdf(html);
+        const code = viewModel.registration_code || id;
+        return { buffer, filename: `don-ky-tuc-xa-${code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` };
+      } catch (error) {
+        lastError = error;
+        targetClosure = this.isTargetClosureError(error);
+        if (!targetClosure || attempt === 1) break;
+      }
+    }
+    if (targetClosure) throw new ServiceUnavailableException('Không thể tạo PDF đơn đăng ký lúc này');
+    throw lastError;
   }
 
   async createTemporary(dto: CreateTemporaryRegistrationDto) {
