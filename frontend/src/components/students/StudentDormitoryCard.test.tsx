@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import StudentDormitoryCard, { formatVndPrice, getEffectiveRoomLabel, getEffectiveBedLabel } from './StudentDormitoryCard';
 import { dormitoryApi, SelfDormitoryRegistration } from '@/api/dormitory-api';
+import { semesterApi } from '@/api/semester-api';
 import { toast } from 'sonner';
 
 // Mock auth provider
@@ -105,6 +106,9 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(semesterApi, 'getSemesters').mockResolvedValue([
+      { _id: 'semester-2', semester_name: 'HK2 - 2025 - 2026', start_date: '', end_date: '', status: 'active' },
+    ]);
     mockUseAuth.mockReturnValue({
       user: {
         id: 'user-admin',
@@ -234,6 +238,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
     // Edit phone number
+    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0999999999' } });
     const ethnicityInput = screen.getByText('Dân tộc').parentElement?.querySelector('input');
@@ -270,6 +275,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
+    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0977777777' } });
 
@@ -326,6 +332,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
+    await waitFor(() => expect(screen.getByDisplayValue('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0988776655' } });
 

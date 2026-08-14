@@ -73,6 +73,12 @@ describe('KTX registration edit payloads', () => {
   });
 });
 
+it('uses the shared edit modal entry point instead of an inline registration dialog', () => {
+  expect(registrationPageSource).toContain('<DormitoryRegistrationEditModal');
+  expect(registrationPageSource).not.toContain('<Dialog open={Boolean(editRow)}');
+  expect(registrationPageSource).toContain('onSuccess={() => load(true)}');
+});
+
 it('uses compact typography', () => {
   expect(REGISTRATION_TABLE_CLASS_NAME).toBe('text-xs');
 });
