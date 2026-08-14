@@ -169,7 +169,7 @@ export class RegistrationsService {
       .document-title { margin: 28pt 0 15pt; text-align: center; font-size: 17pt; font-weight: 700; line-height: 1.15; }
       .recipient { margin: 0 0 13pt 28.5mm; text-align: left; }
       .details { line-height: 1.75; }
-      .detail-row { height: 1.75em; white-space: nowrap; }
+      .detail-row { height: 1.75em; line-height: 1.75; white-space: nowrap; }
       .student-layout { display: grid; grid-template-columns: 39mm minmax(0, 1fr); column-gap: 3mm; margin-bottom: 10pt; }
       .photo-frame { width: 35.7mm; height: 41.8mm; margin-top: 11.5pt; margin-left: 2.3mm; border: 1px solid #000; }
       .student-details { min-width: 0; position: relative; top: 5.5pt; }
@@ -178,7 +178,8 @@ export class RegistrationsService {
       .student-details .field-phone { width: 25mm; }
       .student-details .field-citizen { width: 20mm; }
       .student-details .field-issue-date { width: 18mm; }
-      .field { display: inline-block; min-height: 1.25em; padding: 0 2pt; border-bottom: 1px dotted #000; vertical-align: baseline; overflow: hidden; white-space: nowrap; }
+      .student-details .field-citizen, .student-details .field-issue-date, .student-details .field-issue-place { font-size: 9pt; letter-spacing: 0; }
+      .field { display: inline-block; padding: 0; border: 0; vertical-align: baseline; overflow: visible; white-space: nowrap; }
       .field-name { width: 81mm; }
       .field-date { width: 37mm; }
       .field-gender { width: 17mm; }

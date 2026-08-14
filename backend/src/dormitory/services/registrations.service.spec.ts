@@ -307,8 +307,11 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(html).toContain('@page { size: A4 portrait; margin: 20mm 20mm 20mm 30mm; }');
     expect(html).toContain('font-family: "Times New Roman", Times, serif; font-size: 15pt;');
     expect(html).toContain('font-size: 17pt; font-weight: 700;');
-    expect(html).toContain('border-bottom: 1px dotted #000;');
-    expect(html).toContain('line-height: 1.75;');
+    expect(html).toContain('.detail-row { height: 1.75em; line-height: 1.75; white-space: nowrap; }');
+    expect(html).toContain('.field { display: inline-block; padding: 0; border: 0; vertical-align: baseline; overflow: visible; white-space: nowrap; }');
+    expect(html).not.toContain('border-bottom: 1px dotted #000;');
+    expect(html).not.toContain('min-height: 1.25em');
+    expect(html).not.toContain('overflow: hidden');
     expect(html).toContain('grid-template-columns: 39mm minmax(0, 1fr);');
     expect(html).toContain('height: 41.8mm;');
     expect(html).toContain('class="photo-frame"');
@@ -327,7 +330,7 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(mockPdfPage.evaluate.mock.invocationCallOrder[0]).toBeLessThan(mockPdfPage.pdf.mock.invocationCallOrder[0]);
   });
 
-  it('keeps both signature columns and all field lines for an adult blank form', async () => {
+  it('keeps both signature columns and all fixed-width blank fields for an adult blank form', async () => {
     const publicModel: any = { findOne: jest.fn().mockReturnValue(queryResult({ public_registration_code: 'QR-BLANK', source: 'QR_SCAN', date_of_birth: '1980-01-01', gender: 'Unknown', applicant_profile: { father: null, mother: null } })) };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
 
@@ -342,6 +345,8 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(html).toContain('class="photo-frame" aria-label="Khung ảnh"></div>');
     expect(html).toContain('parent-signature');
     expect(html).toContain('applicant-signature');
+    expect(html).not.toContain('border-bottom: 1px dotted #000;');
+    expect(html).not.toContain('>----------</span>');
   });
 
   it('retries a target closure with a fresh browser and page', async () => {
