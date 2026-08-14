@@ -50,8 +50,8 @@ export interface DormRegistration {
   _id: string;
   registration_code: string;
   student_id: any;
-  room_id?: Room | string;
-  bed_id?: Bed | string;
+  room_id?: Room | string | null;
+  bed_id?: Bed | string | null;
   semester: string;
   academic_year: string;
   preference?: {

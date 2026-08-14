@@ -131,6 +131,10 @@ type RoomAssignmentPopoverProps = {
   onAssigned: (assignment: RoomAssignment) => void;
 };
 
+const assignmentId = (value: Room | Bed | string | null | undefined) => (
+  typeof value === 'object' && value !== null ? value._id : value
+);
+
 export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopoverProps) {
   const [open, setOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -142,8 +146,8 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   const [assigning, setAssigning] = useState(false);
   const [unassignConfirmOpen, setUnassignConfirmOpen] = useState(false);
   const bedRequestRef = useRef(0);
-  const currentRoomId = typeof row.room_id === 'object' ? row.room_id._id : row.room_id;
-  const currentBedId = typeof row.bed_id === 'object' ? row.bed_id._id : row.bed_id;
+  const currentRoomId = assignmentId(row.room_id);
+  const currentBedId = assignmentId(row.bed_id);
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);

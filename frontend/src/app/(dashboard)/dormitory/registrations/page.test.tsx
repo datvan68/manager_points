@@ -164,6 +164,12 @@ it('opens only the room picker belonging to the clicked table layout', async () 
   expect(screen.getByText('Còn 2 giường trống')).toBeInTheDocument();
 });
 
+it('renders an unassigned registration when room and bed ids are null', () => {
+  render(<RoomAssignmentPopover row={{ _id: 'registration-null', room_id: null, bed_id: null, student_id: { full_name: 'Nguyá»…n A' } } as any} onAssigned={vi.fn()} />);
+
+  expect(screen.getByRole('button', { name: /Thêm phòng cho/ })).toBeInTheDocument();
+});
+
 it('shows every bed and assigns exactly one available bed after a room is selected', async () => {
   vi.spyOn(dormitoryApi.registrations, 'suggestRooms').mockResolvedValue([
     { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', status: 'Trống', available_bed_count: 2, bed_count: 8 } as any,
