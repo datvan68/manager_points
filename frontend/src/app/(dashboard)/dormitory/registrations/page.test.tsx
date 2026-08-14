@@ -66,6 +66,11 @@ describe('KTX registration edit payloads', () => {
     expect(payload.preference).toEqual({ room_type: 'Máy lạnh', notes: 'Gần khu học tập' });
     expect(payload.applicant_profile).toEqual({ ethnicity: 'Kinh', father: { full_name: 'Nguyễn Văn B' } });
   });
+
+  it('hides optional applicant profile fields from the create dialog', () => {
+    expect(registrationPageSource).not.toContain('<ApplicantProfileFields value={createForm.applicant_profile}');
+    expect(registrationPageSource).not.toContain('applicant_profile: compactApplicantProfile(createForm.applicant_profile)');
+  });
 });
 
 it('uses compact typography', () => {

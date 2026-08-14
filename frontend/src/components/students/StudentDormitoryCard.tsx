@@ -27,8 +27,8 @@ import {
   dormitoryApi,
   SelfDormitoryRegistration,
   DormRegistration,
-  ApplicantProfile,
 } from '@/api/dormitory-api';
+import { ApplicantProfileFields, compactApplicantProfile, emptyApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 import { Student } from '@/api/student-api';
 
 interface StudentDormitoryCardProps {
@@ -104,9 +104,25 @@ export default function StudentDormitoryCard({
   const [editAcademicYear, setEditAcademicYear] = useState('');
   const [editDob, setEditDob] = useState('');
   const [editGender, setEditGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [editApplicantProfile, setEditApplicantProfile] = useState(emptyApplicantProfile());
 
   if (!registrationData?.has_dormitory_registration || !registration) {
-    return null;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.35 }}
+        className={`bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0 ${className || ''}`}
+      >
+        <div className="flex items-center gap-[8px] w-full">
+          <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+          <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
+            Thông tin KTX
+          </h2>
+        </div>
+        <p className="text-[13px] font-semibold text-[#64748B]">Không ở trong KTX</p>
+      </motion.div>
+    );
   }
 
   const roleName = String(user?.role || user?.roleName || '').toLowerCase();
@@ -168,6 +184,18 @@ export default function StudentDormitoryCard({
         : ''
     );
     setEditGender(registration.gender || 'Male');
+    setEditApplicantProfile({
+      ...emptyApplicantProfile(),
+      ...(registration.applicant_profile || {}),
+      father: {
+        ...emptyApplicantProfile().father,
+        ...(registration.applicant_profile?.father || {}),
+      },
+      mother: {
+        ...emptyApplicantProfile().mother,
+        ...(registration.applicant_profile?.mother || {}),
+      },
+    });
   };
 
   const handleStartEdit = () => {
@@ -197,6 +225,8 @@ export default function StudentDormitoryCard({
             notes: editNotes,
           },
         };
+        const applicantProfile = compactApplicantProfile(editApplicantProfile);
+        if (applicantProfile) payload.applicant_profile = applicantProfile;
         await dormitoryApi.registrations.updateMine(payload);
       } else if (isStaff) {
         // Staff update
@@ -212,6 +242,8 @@ export default function StudentDormitoryCard({
           date_of_birth: editDob || undefined,
           gender: editGender,
         };
+        const applicantProfile = compactApplicantProfile(editApplicantProfile);
+        if (applicantProfile) payload.applicant_profile = applicantProfile;
         await dormitoryApi.registrations.update(registration._id, 'FORMAL', payload);
       } else {
         throw new Error('Bạn không có quyền cập nhật thông tin đơn này.');
@@ -424,23 +456,41 @@ export default function StudentDormitoryCard({
                 <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4 flex flex-col gap-3">
                   <h4 className="font-bold text-[#1E293B] text-sm flex items-center gap-2">
                     <Shield className="w-4 h-4 text-[#1A73E8]" />
-                    Hồ sơ chi tiết & Phụ huynh
+                    Thông tin hồ sơ (không bắt buộc)
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
-                    {registration.applicant_profile.citizen_id_number && (
+                    {registration.applicant_profile.ethnicity && (
                       <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                        <span className="text-[#64748B]">CCCD:</span>
+                        <span className="text-[#64748B]">Dân tộc:</span>
                         <span className="font-semibold text-[#1E293B]">
-                          {registration.applicant_profile.citizen_id_number}
+                          {registration.applicant_profile.ethnicity}
                         </span>
                       </div>
                     )}
-                    {registration.applicant_profile.ethnicity && (
+                    {registration.applicant_profile.religion && (
                       <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                        <span className="text-[#64748B]">Dân tộc / Tôn giáo:</span>
+                        <span className="text-[#64748B]">Tôn giáo:</span>
                         <span className="font-semibold text-[#1E293B]">
-                          {registration.applicant_profile.ethnicity} / {registration.applicant_profile.religion || 'Không'}
+                          {registration.applicant_profile.religion}
                         </span>
+                      </div>
+                    )}
+                    {registration.applicant_profile.citizen_id_number && (
+                      <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">CCCD/CMND:</span>
+                        <span className="font-semibold text-[#1E293B]">{registration.applicant_profile.citizen_id_number}</span>
+                      </div>
+                    )}
+                    {registration.applicant_profile.citizen_id_issue_date && (
+                      <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">Ngày cấp CCCD/CMND:</span>
+                        <span className="font-semibold text-[#1E293B]">{formatDateString(registration.applicant_profile.citizen_id_issue_date)}</span>
+                      </div>
+                    )}
+                    {registration.applicant_profile.citizen_id_issue_place && (
+                      <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">Nơi cấp CCCD/CMND:</span>
+                        <span className="font-semibold text-[#1E293B]">{registration.applicant_profile.citizen_id_issue_place}</span>
                       </div>
                     )}
                     {registration.applicant_profile.permanent_address && (
@@ -451,20 +501,36 @@ export default function StudentDormitoryCard({
                         </span>
                       </div>
                     )}
-                    {registration.applicant_profile.father?.full_name && (
-                      <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                        <span className="text-[#64748B]">Họ tên Cha:</span>
-                        <span className="font-semibold text-[#1E293B]">
-                          {registration.applicant_profile.father.full_name} ({registration.applicant_profile.father.phone_number || 'N/A'})
-                        </span>
+                    {registration.applicant_profile.priority_certificate_details && (
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1 border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">Thông tin giấy chứng nhận ưu tiên:</span>
+                        <span className="font-normal text-[#1E293B]">{registration.applicant_profile.priority_certificate_details}</span>
                       </div>
                     )}
-                    {registration.applicant_profile.mother?.full_name && (
-                      <div className="flex justify-between border-b border-slate-200/50 pb-1.5">
-                        <span className="text-[#64748B]">Họ tên Mẹ:</span>
-                        <span className="font-semibold text-[#1E293B]">
-                          {registration.applicant_profile.mother.full_name} ({registration.applicant_profile.mother.phone_number || 'N/A'})
+                    {registration.applicant_profile.father && (
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1 border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">Thông tin cha:</span>
+                        <span className="font-normal text-[#1E293B]">
+                          {[registration.applicant_profile.father.full_name, registration.applicant_profile.father.age && `Tuổi ${registration.applicant_profile.father.age}`, registration.applicant_profile.father.occupation, registration.applicant_profile.father.phone_number].filter(Boolean).join(' · ') || 'N/A'}
                         </span>
+                        {(registration.applicant_profile.father.permanent_address || registration.applicant_profile.father.contact_address) && (
+                          <span className="font-normal text-[#1E293B]">
+                            {[registration.applicant_profile.father.permanent_address, registration.applicant_profile.father.contact_address].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {registration.applicant_profile.mother && (
+                      <div className="col-span-1 sm:col-span-2 flex flex-col gap-1 border-b border-slate-200/50 pb-1.5">
+                        <span className="text-[#64748B]">Thông tin mẹ:</span>
+                        <span className="font-normal text-[#1E293B]">
+                          {[registration.applicant_profile.mother.full_name, registration.applicant_profile.mother.age && `Tuổi ${registration.applicant_profile.mother.age}`, registration.applicant_profile.mother.occupation, registration.applicant_profile.mother.phone_number].filter(Boolean).join(' · ') || 'N/A'}
+                        </span>
+                        {(registration.applicant_profile.mother.permanent_address || registration.applicant_profile.mother.contact_address) && (
+                          <span className="font-normal text-[#1E293B]">
+                            {[registration.applicant_profile.mother.permanent_address, registration.applicant_profile.mother.contact_address].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -573,6 +639,12 @@ export default function StudentDormitoryCard({
                   </>
                 )}
               </div>
+
+              <ApplicantProfileFields
+                value={editApplicantProfile}
+                onChange={setEditApplicantProfile}
+                className="!rounded-xl"
+              />
 
               <DialogFooter className="border-t border-slate-100 pt-4 flex gap-2 justify-end mt-2">
                 <Button

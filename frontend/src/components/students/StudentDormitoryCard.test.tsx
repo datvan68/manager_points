@@ -116,14 +116,16 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     });
   });
 
-  it('AC4: does NOT render any card when student has no linked registration', () => {
-    const { container } = render(
+  it('AC1: renders an explicit non-resident state when student has no linked registration', () => {
+    render(
       <StudentDormitoryCard
         registrationData={{ has_dormitory_registration: false, registration: null, history: [] }}
         student={studentObj as any}
       />
     );
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByText('Thông tin KTX')).toBeInTheDocument();
+    expect(screen.getByText('Không ở trong KTX')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /xem chi tiết ktx/i })).not.toBeInTheDocument();
   });
 
   it('AC4: renders Thông tin KTX card showing effective room and VND price', () => {
@@ -238,6 +240,9 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     // Edit phone number
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0999999999' } });
+    const ethnicityInput = screen.getByText('Dân tộc').parentElement?.querySelector('input');
+    expect(ethnicityInput).toBeTruthy();
+    fireEvent.change(ethnicityInput as HTMLInputElement, { target: { value: 'Kinh' } });
 
     // Submit
     const saveButton = screen.getByRole('button', { name: /lưu thay đổi/i });
@@ -249,6 +254,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
         'FORMAL',
         expect.objectContaining({
           phone_number: '0999999999',
+          applicant_profile: { ethnicity: 'Kinh' },
         })
       );
       expect(toast.success).toHaveBeenCalledWith('Cập nhật thông tin KTX thành công!');
@@ -348,4 +354,3 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     });
   });
 });
-

@@ -358,10 +358,10 @@ export default function RegistrationsPage() {
     if (!createForm.gender || !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.phone_number.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
     if (!student) {
-      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined, applicant_profile: compactApplicantProfile(createForm.applicant_profile) }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
+      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
       return;
     }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), applicant_profile: compactApplicantProfile(createForm.applicant_profile) };
+    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim() };
     const preference = { room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
     if (Object.values(preference).some(Boolean)) payload.preference = preference;
     try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
@@ -584,7 +584,6 @@ export default function RegistrationsPage() {
               <Input label="Ghi chú" multiline rows={3} value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </section>
           </div>
-          <ApplicantProfileFields value={createForm.applicant_profile} onChange={value => setCreateForm(f => ({ ...f, applicant_profile: value }))} />
           {(createError || semesterError) && <p role="alert" className="text-sm text-red-600">{createError || semesterError}</p>}
           <DialogFooter className="mt-2 border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.semester}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
         </form>

@@ -159,7 +159,7 @@ describe('StudentProfilePage with virtualized records and dormitory card', () =>
     });
   });
 
-  it('AC4: does NOT show dormitory card when student has no dormitory registration', async () => {
+  it('AC4: shows non-resident dormitory state when student has no dormitory registration', async () => {
     (academicRecordApi.getAcademicRecordsByStudent as any).mockResolvedValue({
       data: mockRecordsPage1,
       total: 10,
@@ -180,7 +180,8 @@ describe('StudentProfilePage with virtualized records and dormitory card', () =>
       expect(screen.getAllByText('Nguyễn Văn Test')[0]).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Thông tin KTX')).not.toBeInTheDocument();
+    expect(screen.getByText('Thông tin KTX')).toBeInTheDocument();
+    expect(screen.getByText('Không ở trong KTX')).toBeInTheDocument();
   });
 
   it('AC4: renders Thông tin KTX card when student has linked dormitory registration', async () => {
@@ -299,4 +300,3 @@ describe('StudentProfilePage with virtualized records and dormitory card', () =>
     });
   });
 });
-
