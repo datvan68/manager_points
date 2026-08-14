@@ -201,33 +201,32 @@ export default function StudentProfilePage() {
     return (
       <>
         <HeaderCustomMappings mappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
-        <main className="flex-1 overflow-y-auto flex flex-col items-center pb-[40px]">
-          <div className="w-full px-[24px] pt-[24px] pb-[17px] flex items-center justify-between">
-            <div className="flex gap-[16px] items-center">
-              <Skeleton className="w-[40px] h-[40px] rounded-full" />
-              <div className="flex flex-col gap-2">
-                <Skeleton className="w-[160px] h-[28px] rounded-md" />
-                <Skeleton className="w-[120px] h-[20px] rounded-md" />
+        <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center pb-[40px] w-full min-w-0">
+          <div className="w-full px-4 sm:px-6 pt-4 sm:pt-6 pb-4 flex items-center justify-between gap-4">
+            <div className="flex gap-3 sm:gap-4 items-center min-w-0 flex-1">
+              <Skeleton className="w-[40px] h-[40px] rounded-full shrink-0" />
+              <div className="flex flex-col gap-2 min-w-0">
+                <Skeleton className="w-[160px] h-[28px] rounded-md max-w-full" />
+                <Skeleton className="w-[120px] h-[20px] rounded-md max-w-full" />
               </div>
             </div>
-            <Skeleton className="w-[183px] h-[44px] rounded-xl" />
+            <Skeleton className="w-[140px] sm:w-[183px] h-[44px] rounded-xl shrink-0" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 w-full max-w-7xl px-4 sm:px-6 mt-[40px]">
-            <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] gap-4 sm:gap-5 w-full max-w-7xl px-4 sm:px-6 mt-3 sm:mt-4">
+            <div className="flex flex-col gap-4 min-w-0 w-full">
               <Skeleton className="w-full h-[144px] rounded-2xl" />
               <Skeleton className="w-full h-[271px] rounded-2xl" />
               <Skeleton className="w-full h-[198px] rounded-2xl" />
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 min-w-0 w-full">
               <Skeleton className="w-full h-[80px] rounded-2xl" />
-              <div className="bg-white/40 backdrop-blur-md border border-white/70 flex flex-col rounded-2xl shadow-sm overflow-hidden w-full h-[722px]">
-                <div className="border-b border-white/50 px-[32px] pt-[32px] flex gap-[24px]">
-                  <Skeleton className="w-[80px] h-[20px] mb-[16px]" />
-                  <Skeleton className="w-[120px] h-[20px] mb-[16px]" />
+              <div className="bg-white/40 backdrop-blur-md border border-white/70 flex flex-col rounded-2xl shadow-sm overflow-hidden w-full min-h-[460px] lg:min-h-[540px]">
+                <div className="border-b border-white/50 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 flex gap-4">
+                  <Skeleton className="w-[80px] h-[20px]" />
                 </div>
-                <div className="flex flex-col gap-[16px] p-[24px]">
+                <div className="flex flex-col gap-3 sm:gap-4 p-4 sm:p-6">
                   {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="w-full h-[100px] rounded-xl" />
+                    <Skeleton key={i} className="w-full h-[88px] rounded-xl" />
                   ))}
                 </div>
               </div>
@@ -243,13 +242,13 @@ export default function StudentProfilePage() {
     return (
       <>
         <HeaderCustomMappings mappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: studentId }} />
-        <main className="flex-1 overflow-y-auto flex items-center justify-center">
-          <div className="text-center flex flex-col items-center gap-4 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl p-8 shadow-sm shadow-slate-300/40 max-w-md">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden flex items-center justify-center p-4 w-full min-w-0">
+          <div className="text-center flex flex-col items-center gap-4 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl p-6 sm:p-8 shadow-sm shadow-slate-300/40 max-w-md w-full">
             <AlertCircle className="w-12 h-12 text-[#64748B]" />
-            <p className="text-[20px] font-bold text-[#1E293B]">
+            <p className="text-[18px] sm:text-[20px] font-bold text-[#1E293B]">
               {dataError || 'Không tìm thấy sinh viên'}
             </p>
-            <p className="text-[14px] text-[#64748B]">
+            <p className="text-[13px] sm:text-[14px] text-[#64748B] break-words">
               Mã sinh viên <strong>{studentId}</strong> không tồn tại trong hệ thống.
             </p>
             <button
@@ -272,24 +271,24 @@ export default function StudentProfilePage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
-          className="flex-1 overflow-y-auto flex flex-col items-center pb-[73px]"
+          className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center pb-[73px] w-full min-w-0"
         >
           {/* ═══ MainHeader ═══ */}
-          <div className="sticky top-0 z-10 backdrop-blur-md bg-white/45 border-b border-white/70 flex items-center justify-between py-[16px] px-[24px] w-full">
-            <div className="flex gap-[16px] items-center">
+          <div className="sticky top-0 z-10 backdrop-blur-md bg-white/45 border-b border-white/70 flex items-center justify-between py-3.5 sm:py-4 px-4 sm:px-6 w-full gap-3">
+            <div className="flex gap-3 sm:gap-4 items-center min-w-0 flex-1">
               {!isSelfStudent && (
                 <button
                   onClick={() => router.push(`/students/${classId}`)}
-                  className="w-[36px] h-[36px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
+                  className="w-[36px] h-[36px] shrink-0 flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
                 >
                   <ArrowLeft className="w-[20px] h-[20px] text-[#1E293B]" />
                 </button>
               )}
-              <div className="flex flex-col">
-                <h1 className="font-sans font-bold text-[#1E293B] text-[20px] leading-[28px]">
+              <div className="flex flex-col min-w-0 flex-1">
+                <h1 className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-[26px] sm:leading-[28px] truncate" title={student.full_name}>
                   {student.full_name}
                 </h1>
-                <p className="font-sans font-normal text-[#64748B] text-[13px] leading-[18px]">
+                <p className="font-sans font-normal text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
                   MSSV: {student.student_code}
                 </p>
               </div>
@@ -298,33 +297,34 @@ export default function StudentProfilePage() {
             {!isSelfStudent && (
               <Button 
                 onClick={handleSave}
-                className="rounded-xl bg-[#1A73E8] hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out text-white shadow-sm font-semibold"
+                className="rounded-xl bg-[#1A73E8] hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out text-white shadow-sm font-semibold shrink-0"
               >
                 <Check className="w-[18px] h-[18px]" />
-                Lưu Thay Đổi
+                <span className="hidden sm:inline">Lưu Thay Đổi</span>
+                <span className="sm:hidden">Lưu</span>
               </Button>
             )}
           </div>
 
           {/* ═══ Main Content ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 w-full max-w-7xl px-4 sm:px-6 mt-[12px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] gap-4 sm:gap-5 w-full max-w-7xl px-4 sm:px-6 mt-3 sm:mt-4">
 
             {/* ═══ LEFT COLUMN ═══ */}
-            <div className="flex flex-col gap-4 pb-[40px]">
+            <div className="flex flex-col gap-4 pb-4 lg:pb-10 min-w-0 w-full">
 
               {/* ── Profile Picture Upload Area ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex items-center gap-[24px] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex items-center gap-4 sm:gap-6 w-full min-w-0"
               >
                 <div className="relative shrink-0">
-                  <div className="relative rounded-full shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[96px] h-[96px] overflow-hidden group cursor-pointer">
+                  <div className="relative rounded-full shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] overflow-hidden group cursor-pointer">
                     <StudentAvatar
                       fullName={student.full_name}
                       sizeClass="w-full h-full"
-                      textClassName="text-3xl font-extrabold"
+                      textClassName="text-2xl sm:text-3xl font-extrabold"
                     />
                     {!isSelfStudent && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
@@ -339,15 +339,15 @@ export default function StudentProfilePage() {
                   )}
                 </div>
 
-                <div className="flex flex-col">
-                  <h3 className="font-sans font-bold text-[#1E293B] text-[18px] leading-[26px]">
+                <div className="flex flex-col min-w-0 flex-1">
+                  <h3 className="font-sans font-bold text-[#1E293B] text-[16px] sm:text-[18px] leading-[24px] sm:leading-[26px] truncate" title={student.full_name}>
                     {student.full_name}
                   </h3>
-                  <p className="font-sans font-medium text-[#64748B] text-[13px] leading-[18px]">
+                  <p className="font-sans font-medium text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
                     MSSV: {student.student_code}
                   </p>
                   {!isSelfStudent && (
-                    <button className="mt-[6px] text-left cursor-pointer hover:underline">
+                    <button className="mt-[6px] text-left cursor-pointer hover:underline truncate">
                       <span className="font-sans font-semibold text-[#1A73E8] text-[12px] leading-[18px]">
                         Thay đổi ảnh chân dung
                       </span>
@@ -361,29 +361,29 @@ export default function StudentProfilePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.2 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-[20px] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-[8px]">
                     <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
-                    <h2 className="font-sans font-bold text-[#1E293B] text-[16px] tracking-tight leading-[24px]">
+                    <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
                       Thông tin cá nhân
                     </h2>
                   </div>
                   {!isSelfStudent && (
-                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer">
+                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
                       <Settings className="w-[14px] h-[14px] text-[#64748B]" />
                     </button>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-[12px] w-full">
+                <div className="flex flex-col gap-[12px] w-full min-w-0">
                   {personalInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0">
-                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px]">
+                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
+                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
                         {row.label}
                       </span>
-                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px]">
+                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
                         {row.value}
                       </span>
                     </div>
@@ -396,29 +396,29 @@ export default function StudentProfilePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-[24px] rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-[20px] w-full"
+                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
               >
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-[8px]">
                     <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
-                    <h2 className="font-sans font-bold text-[#1E293B] text-[16px] tracking-tight leading-[24px]">
+                    <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
                       Thông tin học tập
                     </h2>
                   </div>
                   {!isSelfStudent && (
-                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer">
+                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
                       <Settings className="w-[14px] h-[14px] text-[#64748B]" />
                     </button>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-[12px] w-full">
+                <div className="flex flex-col gap-[12px] w-full min-w-0">
                   {academicInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0">
-                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px]">
+                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
+                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
                         {row.label}
                       </span>
-                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px]">
+                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
                         {row.value}
                       </span>
                     </div>
@@ -429,36 +429,36 @@ export default function StudentProfilePage() {
             </div>
 
             {/* ═══ RIGHT COLUMN ═══ */}
-            <div className="flex flex-col gap-[24px]">
+            <div className="flex flex-col gap-4 sm:gap-5 min-w-0 w-full">
 
               {/* ── Summary Stats Cards ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.15 }}
-              className="grid grid-cols-2 gap-3 w-full"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0"
               >
                 {/* Card 1 — Điểm rèn luyện */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
                   <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
                     <ShieldCheck className="w-[18px] h-[18px] text-[#1A73E8]" strokeWidth={2} />
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <p className="font-sans font-bold text-[#64748B] text-[9px] tracking-wider uppercase leading-none">Rèn luyện (điểm)</p>
-                    <p className="font-sans font-bold text-[#1E293B] text-[20px] leading-tight mt-1 truncate">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <p className="font-sans font-bold text-[#64748B] text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Rèn luyện (điểm)</p>
+                    <p className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
                       {resolvedDrl !== null ? `${resolvedDrl}/100` : 'N/A'}
                     </p>
                   </div>
                 </div>
 
-                {/* Card 3 — Vi phạm (tính từ records thật) */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
+                {/* Card 2 — Vi phạm (tính từ records thật) */}
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
                   <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
                     <MinusCircle className="w-[18px] h-[18px] text-rose-500" strokeWidth={2} />
                   </div>
-                  <div className="flex flex-col min-w-0">
-                    <p className="font-sans font-bold text-rose-700 text-[9px] tracking-wider uppercase leading-none">Vi phạm (số lần)</p>
-                    <p className="font-sans font-bold text-rose-600 text-[20px] leading-tight mt-1 truncate">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <p className="font-sans font-bold text-rose-700 text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Vi phạm (số lần)</p>
+                    <p className="font-sans font-bold text-rose-600 text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
                       {violationCount}
                     </p>
                   </div>
@@ -470,21 +470,24 @@ export default function StudentProfilePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.25 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full h-[722px]"
+                className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full flex-1 min-h-[460px] lg:min-h-[540px]"
               >
-                <div className="border-b border-white/50 px-[24px] pt-[24px] w-full shrink-0">
-                  <h3 className="font-sans text-[15px] leading-[22px] font-bold text-[#1A73E8]">Ghi nhận</h3>
+                <div className="border-b border-white/50 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 w-full shrink-0 flex items-center justify-between">
+                  <h3 className="font-sans text-[15px] leading-[22px] font-bold text-[#1A73E8]">Ghi nhận rèn luyện</h3>
+                  <span className="font-sans text-[12px] font-medium text-[#64748B]">
+                    {records.length} bản ghi
+                  </span>
                 </div>
 
                 {/* ─ Content Area ─ */}
                 <div
-                  className="flex flex-col gap-[16px] px-[24px] pt-[24px] pb-[24px] w-full flex-1 min-h-0 overflow-y-auto"
+                  className="flex flex-col gap-3 sm:gap-4 px-4 sm:px-6 pt-4 pb-4 w-full flex-1 min-h-0 overflow-y-auto"
                   style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent' }}
                 >
                   {isTabLoading ? (
-                    <div className="flex flex-col gap-[16px] w-full">
+                    <div className="flex flex-col gap-3 sm:gap-4 w-full">
                       {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="w-full h-[100px] rounded-[16px]" />
+                        <Skeleton key={i} className="w-full h-[88px] rounded-[16px]" />
                       ))}
                     </div>
                   ) : false ? (
@@ -581,7 +584,7 @@ export default function StudentProfilePage() {
                   ) : (
                     /* ─── Tab Lịch Sử Ghi Nhận: dữ liệu thật từ API ─── */
                     records.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-12">
+                      <div className="flex flex-col items-center justify-center h-full min-h-[220px] gap-3 text-center py-12">
                         <AlertCircle className="w-10 h-10 text-[#64748B]" />
                         <p className="text-[13px] text-[#64748B]">Sinh viên chưa có ghi nhận rèn luyện nào.</p>
                       </div>
@@ -605,15 +608,15 @@ export default function StudentProfilePage() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.15, delay: 0.1 + idx * 0.04 }}
-                            className="bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-between p-[16px] rounded-xl w-full shadow-sm hover:scale-[1.01] transition-all duration-150 ease-out"
+                            className="bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-between p-3.5 sm:p-4 rounded-xl w-full shadow-sm hover:scale-[1.01] transition-all duration-150 ease-out gap-3 min-w-0"
                           >
-                            <div className="flex flex-col gap-[6px] flex-1 min-w-0">
+                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                               {/* Row 1: Title + Badge */}
-                              <div className="flex items-center gap-[12px] flex-wrap">
-                                <h4 className="font-sans font-bold text-[#1E293B] text-[15px] leading-[22px] truncate">
+                              <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+                                <h4 className="font-sans font-bold text-[#1E293B] text-[14px] sm:text-[15px] leading-[20px] sm:leading-[22px] truncate min-w-0" title={title}>
                                   {title}
                                 </h4>
-                                <div className={`px-[8px] py-[2px] rounded-xl border shrink-0 ${type === 'reward' ? 'bg-blue-500/10 border-blue-500/20 text-[#1A73E8]' : 'bg-rose-500/10 border-rose-500/20 text-rose-700'}`}>
+                                <div className={`px-2 py-0.5 rounded-xl border shrink-0 ${type === 'reward' ? 'bg-blue-500/10 border-blue-500/20 text-[#1A73E8]' : 'bg-rose-500/10 border-rose-500/20 text-rose-700'}`}>
                                   <span className="font-sans font-bold text-[9px] tracking-wider uppercase">
                                     {label}
                                   </span>
@@ -621,25 +624,25 @@ export default function StudentProfilePage() {
                               </div>
 
                               {/* Row 2: Metadata */}
-                              <div className="flex items-center gap-[16px] flex-wrap">
-                                <div className="flex items-center gap-[4px]">
+                              <div className="flex items-center gap-x-4 gap-y-1 flex-wrap min-w-0">
+                                <div className="flex items-center gap-1 shrink-0">
                                   <Calendar className="w-[12px] h-[12px] text-[#64748B]" />
                                   <span className="font-sans font-medium text-[#64748B] text-[12px]">
                                     {date}
                                   </span>
                                 </div>
                                 {criterion?.criterion_name && (
-                                  <span className="font-sans font-medium text-[#64748B] text-[12px]">
+                                  <span className="font-sans font-medium text-[#64748B] text-[12px] truncate max-w-[220px]" title={criterion.criterion_name}>
                                     Tiêu chí: {criterion.criterion_name}
                                   </span>
                                 )}
                                 {semesterName && (
-                                  <span className="font-sans font-medium text-[#64748B] text-[12px]">
+                                  <span className="font-sans font-medium text-[#64748B] text-[12px] shrink-0">
                                     {semesterName}
                                   </span>
                                 )}
                                 {record.description && (
-                                  <span className="font-sans font-medium text-[#64748B]/70 text-[12px] truncate max-w-[200px]" title={record.description}>
+                                  <span className="font-sans font-medium text-[#64748B]/70 text-[12px] truncate max-w-[240px]" title={record.description}>
                                     {record.description}
                                   </span>
                                 )}
@@ -647,11 +650,11 @@ export default function StudentProfilePage() {
                             </div>
 
                             {/* Points Display */}
-                            <div className="flex flex-col items-end gap-[1px] shrink-0 ml-4">
+                            <div className="flex flex-col items-end gap-[1px] shrink-0 ml-2 sm:ml-4">
                               <span className="font-sans font-bold text-[#64748B] text-[9px] leading-none uppercase tracking-wider">
                                 Điểm
                               </span>
-                              <span className={`font-sans font-bold text-[15px] leading-tight mt-1 ${type === 'reward' ? 'text-[#1A73E8]' : 'text-rose-600'}`}>
+                              <span className={`font-sans font-bold text-[14px] sm:text-[15px] leading-tight mt-1 ${type === 'reward' ? 'text-[#1A73E8]' : 'text-rose-600'}`}>
                                 {points}
                               </span>
                             </div>
@@ -663,9 +666,9 @@ export default function StudentProfilePage() {
                 </div>
 
                 {/* ─ Footer Note ─ */}
-                <div className="bg-white/20 border-t border-white/50 px-[24px] py-[20px] w-full shrink-0">
+                <div className="bg-white/20 border-t border-white/50 px-4 sm:px-6 py-3.5 sm:py-4 w-full shrink-0">
                   <div className="flex justify-center">
-                    <span className="font-['Lexend',sans-serif] font-medium text-[#64748B] text-[12px] text-center">
+                    <span className="font-sans font-medium text-[#64748B] text-[12px] text-center">
                       {records.length > 0
                         ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
                         : 'Chưa có bản ghi ghi nhận nào.'}
@@ -673,7 +676,6 @@ export default function StudentProfilePage() {
                   </div>
                 </div>
               </motion.div>
-
             </div>
           </div>
         </motion.main>
