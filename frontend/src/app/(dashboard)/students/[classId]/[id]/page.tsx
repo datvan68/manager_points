@@ -12,7 +12,6 @@ import {
   Pen,
   ChevronDown,
   ShieldCheck,
-  Star,
   MinusCircle,
   Settings,
   Calendar,
@@ -21,8 +20,6 @@ import {
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
-import { categoryApi, Category } from '@/api/category-api';
-import { criteriaApi, Criterion } from '@/api/criteria-api';
 import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { useAuth } from '@/providers/auth-provider';
 import { semesterApi } from '@/api/semester-api';
@@ -31,10 +28,6 @@ import { resolveDrlScore } from '@/lib/drl-score';
 import { HeaderCustomMappings } from '@/providers/header-provider';
 
 // ─── Kiểu dữ liệu nội bộ cho danh mục kèm tiêu chí ───
-interface CategoryWithCriteria extends Category {
-  criteria: Criterion[];
-}
-
 // ─── Helper: xác định loại criterion ───
 function getCriterionType(record: AcademicRecord): 'reward' | 'violation' {
   const criterion = record.criterion_id as any;
@@ -82,16 +75,16 @@ export default function StudentProfilePage() {
   const isStudent = role.includes('student') || role.includes('sinh vien') || role.includes('hoc sinh');
 
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'category' | 'history'>('category');
-  const [isTabLoading, setIsTabLoading] = useState(false);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-
   const [student, setStudent] = useState<Student | null>(null);
   const [targetClass, setTargetClass] = useState<Class | null>(null);
-  const [categories, setCategories] = useState<CategoryWithCriteria[]>([]);
   const [records, setRecords] = useState<AcademicRecord[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
   const [resolvedDrl, setResolvedDrl] = useState<number | null>(null);
+  const activeTab = 'history' as const;
+  const isTabLoading = false;
+  const categories: any[] = [];
+  const expandedCategory: string | null = null;
+  const setExpandedCategory = (_value: string | null) => undefined;
 
   const getLinkedUserId = (studentObj: any) => {
     if (!studentObj?.user_id) return '';
@@ -106,7 +99,7 @@ export default function StudentProfilePage() {
     studentId === user?.studentId
   );
 
-  // ─── Tải dữ liệu ban đầu: student, class, categories, criteria, semesters, summaries ───
+  // ─── Tải dữ liệu hồ sơ và toàn bộ ghi nhận ───
   useEffect(() => {
     setIsLoading(true);
     setDataError(null);
@@ -114,12 +107,11 @@ export default function StudentProfilePage() {
     Promise.all([
       classApi.getClass(classId),
       studentApi.getStudent(studentId),
-      categoryApi.getCategories(),
-      criteriaApi.getCriteria(),
       semesterApi.getSemesters(),
-      summariesPointApi.getSummariesPoints({ studentId })
+      summariesPointApi.getSummariesPoints({ studentId }),
+      academicRecordApi.getAcademicRecordsByStudent(studentId),
     ])
-      .then(([classData, studentData, cats, allCriteria, semestersData, summariesDataRes]) => {
+      .then(([classData, studentData, semestersData, summariesDataRes, recordsData]) => {
         setTargetClass(classData);
         setStudent(studentData);
 
@@ -146,20 +138,7 @@ export default function StudentProfilePage() {
         const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(studentData.training_point_id);
         setResolvedDrl(scoreVal);
 
-        // Gắn criteria vào từng category
-        const catsWithCriteria: CategoryWithCriteria[] = cats
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((cat) => ({
-            ...cat,
-            criteria: allCriteria.filter((cr) => {
-              const catId = typeof cr.category_id === 'object'
-                ? (cr.category_id as any)._id ?? (cr.category_id as any)
-                : cr.category_id;
-              return catId?.toString() === cat._id?.toString();
-            }),
-          }));
-
-        setCategories(catsWithCriteria);
+        setRecords(recordsData);
         setIsLoading(false);
       })
       .catch((err: any) => {
@@ -175,49 +154,12 @@ export default function StudentProfilePage() {
       });
   }, [classId, studentId]);
 
-  // ─── Tải lịch sử ghi nhận khi chuyển sang tab lịch sử ───
-  useEffect(() => {
-    if (activeTab !== 'history') return;
-
-    setIsTabLoading(true);
-    academicRecordApi
-      .getAcademicRecordsByStudent(studentId)
-      .then((data) => {
-        setRecords(data);
-        setIsTabLoading(false);
-      })
-      .catch((err) => {
-        console.error('Lỗi khi tải lịch sử ghi nhận:', err);
-        toast.error('Không thể tải lịch sử ghi nhận.');
-        setIsTabLoading(false);
-      });
-  }, [activeTab, studentId]);
-
-  const handleTabChange = (tab: 'category' | 'history') => {
-    setActiveTab(tab);
-    if (tab === 'category') {
-      setIsTabLoading(false);
-    }
-  };
-
   const handleSave = () => {
     toast.success('Thông tin đã được lưu thành công!');
   };
 
   // ─── Tính toán stats từ records ───
-  const bonusPoints = records
-    .filter((r) => getCriterionType(r) === 'reward')
-    .reduce((sum, r) => {
-      const criterion = r.criterion_id as any;
-      return sum + (criterion?.score_per_unit ?? 0);
-    }, 0);
-
-  const violationPoints = records
-    .filter((r) => getCriterionType(r) === 'violation')
-    .reduce((sum, r) => {
-      const criterion = r.criterion_id as any;
-      return sum + Math.abs(criterion?.score_per_unit ?? 0);
-    }, 0);
+  const violationCount = records.filter((r) => getCriterionType(r) === 'violation').length;
 
   const formatDob = (dobString?: string) => {
     if (!dobString) return 'N/A';
@@ -251,6 +193,7 @@ export default function StudentProfilePage() {
     { label: 'Mã số sinh viên (MSSV)', value: student?.student_code || 'N/A' },
     { label: 'Khoa', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.dept_id?.name : 'N/A' },
     { label: 'Lớp', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.class_name : (targetClass ? targetClass.class_name : 'N/A') },
+    ...(student?.has_dormitory_registration ? [{ label: 'KTX', value: 'Đã đăng ký' }] : []),
   ];
 
   // ─── LOADING STATE ───
@@ -493,7 +436,7 @@ export default function StudentProfilePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.15 }}
-                className="grid grid-cols-3 gap-3 w-full"
+              className="grid grid-cols-2 gap-3 w-full"
               >
                 {/* Card 1 — Điểm rèn luyện */}
                 <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
@@ -501,24 +444,9 @@ export default function StudentProfilePage() {
                     <ShieldCheck className="w-[18px] h-[18px] text-[#1A73E8]" strokeWidth={2} />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <p className="font-sans font-bold text-[#64748B] text-[9px] tracking-wider uppercase leading-none">Rèn luyện</p>
+                    <p className="font-sans font-bold text-[#64748B] text-[9px] tracking-wider uppercase leading-none">Rèn luyện (điểm)</p>
                     <p className="font-sans font-bold text-[#1E293B] text-[20px] leading-tight mt-1 truncate">
                       {resolvedDrl !== null ? `${resolvedDrl}/100` : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card 2 — Điểm thưởng (tính từ records thật) */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-[12px] items-center p-[16px] rounded-2xl h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out">
-                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
-                    <Star className="w-[18px] h-[18px] text-emerald-500" strokeWidth={2} />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <p className="font-sans font-bold text-emerald-700 text-[9px] tracking-wider uppercase leading-none">Thưởng</p>
-                    <p className="font-sans font-bold text-emerald-600 text-[20px] leading-tight mt-1 truncate">
-                      {activeTab === 'history' && !isTabLoading
-                        ? `+${bonusPoints}`
-                        : <span className="text-[14px] text-[#64748B]">—</span>}
                     </p>
                   </div>
                 </div>
@@ -529,43 +457,23 @@ export default function StudentProfilePage() {
                     <MinusCircle className="w-[18px] h-[18px] text-rose-500" strokeWidth={2} />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <p className="font-sans font-bold text-rose-700 text-[9px] tracking-wider uppercase leading-none">Vi phạm</p>
+                    <p className="font-sans font-bold text-rose-700 text-[9px] tracking-wider uppercase leading-none">Vi phạm (số lần)</p>
                     <p className="font-sans font-bold text-rose-600 text-[20px] leading-tight mt-1 truncate">
-                      {activeTab === 'history' && !isTabLoading
-                        ? `-${violationPoints}`
-                        : <span className="text-[14px] text-[#64748B]">—</span>}
+                      {violationCount}
                     </p>
                   </div>
                 </div>
               </motion.div>
 
-              {/* ── Records / Category Container ── */}
+              {/* ── Ghi nhận ── */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.25 }}
                 className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full h-[722px]"
               >
-                {/* ─ Tabs Header ─ */}
                 <div className="border-b border-white/50 px-[24px] pt-[24px] w-full shrink-0">
-                  <div className="flex items-center gap-[24px]">
-                    <button
-                      onClick={() => handleTabChange('category')}
-                      className={`pb-[12px] border-b-2 transition-all duration-150 ease-out cursor-pointer ${activeTab === 'category' ? 'border-[#1A73E8]' : 'border-transparent'}`}
-                    >
-                      <span className={`font-sans text-[13px] leading-[18px] font-bold transition-colors ${activeTab === 'category' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
-                        Danh mục
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => handleTabChange('history')}
-                      className={`pb-[12px] border-b-2 transition-all duration-150 ease-out cursor-pointer ${activeTab === 'history' ? 'border-[#1A73E8]' : 'border-transparent'}`}
-                    >
-                      <span className={`font-sans text-[13px] leading-[18px] font-bold transition-colors ${activeTab === 'history' ? 'text-[#1A73E8]' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
-                        Lịch sử ghi nhận
-                      </span>
-                    </button>
-                  </div>
+                  <h3 className="font-sans text-[15px] leading-[22px] font-bold text-[#1A73E8]">Ghi nhận</h3>
                 </div>
 
                 {/* ─ Content Area ─ */}
@@ -579,7 +487,7 @@ export default function StudentProfilePage() {
                         <Skeleton key={i} className="w-full h-[100px] rounded-[16px]" />
                       ))}
                     </div>
-                  ) : activeTab === 'category' ? (
+                  ) : false ? (
                     /* ─── Tab Danh Mục: dữ liệu thật từ API ─── */
                     categories.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-12">
@@ -758,11 +666,9 @@ export default function StudentProfilePage() {
                 <div className="bg-white/20 border-t border-white/50 px-[24px] py-[20px] w-full shrink-0">
                   <div className="flex justify-center">
                     <span className="font-['Lexend',sans-serif] font-medium text-[#64748B] text-[12px] text-center">
-                      {activeTab === 'category'
-                        ? `${categories.length} danh mục đánh giá điểm rèn luyện đang được cấu hình trong hệ thống.`
-                        : records.length > 0
-                          ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
-                          : 'Chưa có bản ghi ghi nhận nào.'}
+                      {records.length > 0
+                        ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
+                        : 'Chưa có bản ghi ghi nhận nào.'}
                     </span>
                   </div>
                 </div>

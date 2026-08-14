@@ -24,6 +24,7 @@ import {
 } from '../auth/schemas/refresh-token.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
+import { Registration } from '../dormitory/schemas/registration.schema';
 import {
   getRequesterRoleName,
   isStudent,
@@ -68,6 +69,7 @@ export class StudentsService implements OnModuleInit {
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
     @InjectModel(RefreshToken.name)
     private refreshTokenModel: Model<RefreshTokenDocument>,
+    @InjectModel(Registration.name) private registrationModel: Model<any>,
     private configService: ConfigService,
   ) {}
 
@@ -264,6 +266,14 @@ export class StudentsService implements OnModuleInit {
       'inactive';
 
     return studentObj;
+  }
+
+  private async attachDormitoryRegistrationStatus(student: any) {
+    const studentObj = typeof student.toObject === 'function' ? student.toObject() : student;
+    const hasRegistration = Boolean(
+      await this.registrationModel.countDocuments({ student_id: studentObj._id }).exec(),
+    );
+    return { ...studentObj, has_dormitory_registration: hasRegistration };
   }
 
   private async backfillStudentUserIds() {
@@ -1102,7 +1112,7 @@ export class StudentsService implements OnModuleInit {
         );
       }
 
-      return this.attachAccountStatus(student);
+      return this.attachDormitoryRegistrationStatus(await this.attachAccountStatus(student));
     }
 
     const teacherClassIds = await this.getTeacherClassIds(requester);
@@ -1123,7 +1133,7 @@ export class StudentsService implements OnModuleInit {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
 
-    return this.attachAccountStatus(student);
+    return this.attachDormitoryRegistrationStatus(await this.attachAccountStatus(student));
   }
 
   async resolve(identifier: string, requester?: any): Promise<any> {

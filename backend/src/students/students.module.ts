@@ -16,6 +16,7 @@ import {
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
+import { Registration, RegistrationSchema } from '../dormitory/schemas/registration.schema';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { Class, ClassSchema } from '../classes/schemas/class.schema';
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
       { name: Class.name, schema: ClassSchema },
+      { name: Registration.name, schema: RegistrationSchema },
     ]),
   ],
   controllers: [StudentsController, StudentAccountSyncController],

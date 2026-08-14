@@ -24,6 +24,7 @@ export interface Student {
   account_status?: 'active' | 'inactive' | 'locked';
   createdAt?: string;
   updatedAt?: string;
+  has_dormitory_registration?: boolean;
 }
 
 export const studentApi = {

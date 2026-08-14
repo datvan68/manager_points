@@ -16,6 +16,7 @@ import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../auth/schemas/role.schema';
 import { Class } from '../../classes/schemas/class.schema';
 import { RefreshToken } from '../../auth/schemas/refresh-token.schema';
+import { Registration } from '../../dormitory/schemas/registration.schema';
 import * as bcrypt from 'bcrypt';
 
 const mockStudent = {
@@ -43,6 +44,7 @@ describe('StudentsService', () => {
   let classModel: any;
   let summaryPointModel: any;
   let refreshTokenModel: any;
+  let registrationModel: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -172,6 +174,12 @@ describe('StudentsService', () => {
             updateMany: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
           },
         },
+        {
+          provide: getModelToken(Registration.name),
+          useValue: {
+            countDocuments: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(0) }),
+          },
+        },
       ],
     }).compile();
 
@@ -180,6 +188,7 @@ describe('StudentsService', () => {
     classModel = module.get(getModelToken(Class.name));
     summaryPointModel = module.get(getModelToken(SummaryPoint.name));
     refreshTokenModel = module.get(getModelToken(RefreshToken.name));
+    registrationModel = module.get(getModelToken(Registration.name));
 
     // Reset config service mock
     const configService = module.get<ConfigService>(ConfigService);
@@ -531,6 +540,13 @@ describe('StudentsService', () => {
       const result = await service.findOne('507f1f77bcf86cd799439011');
       expect(result).toBeDefined();
       expect(result.full_name).toEqual('Nguyễn Văn A');
+    });
+
+    it('should expose KTX registration status only when a linked registration exists', async () => {
+      registrationModel.countDocuments.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(1) });
+      const result = await service.findOne(mockStudent._id);
+      expect(result.has_dormitory_registration).toBe(true);
+      expect(registrationModel.countDocuments).toHaveBeenCalledWith({ student_id: mockStudent._id });
     });
 
     it('should throw NotFoundException if student not found by ID', async () => {
