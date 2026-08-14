@@ -1,72 +1,72 @@
 # Task Identity and Pipeline
 
-- Task: `reuse-dormitory-registration-edit-modal`
+- Task: `registration-placeholders-and-mobile-profile-cards`
 - Pipeline: `feature_development`
 - Profile: Full
 - Rules: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Base commit: `40411ce62b055a6b038612c12ecbc45d7acfd091`
-- Base state: clean working tree before this scope update
+- Base commit: `9d8d778cd5688b31fd8b100a5dd7eacd483e73d6`
+- Base state: clean working tree before this scope update.
 
 # Risk Level
 
 - Risk: medium.
 - Environment: development.
-- Evidence: one frontend package, but shared form extraction affects the registrations page, student profile, applicant-profile fields, and regression tests; no persistence, API contract, dependency, deployment, or external-state change is planned.
+- Evidence: frontend-only presentation and interaction changes spanning the shared KTX edit modal, shared applicant-profile fields, student detail page, KTX card, and focused tests.
 - Reversibility: Git-revertible source changes.
-- Blast radius: KTX registration edit UI only.
+- Blast radius: KTX registration edit UX and the three information cards on the student detail page.
 
 # Objective
 
-Provide one reusable, complete `Sửa đơn đăng ký` modal for both the registrations tab and student KTX card; initialize semester/academic year from the single active semester and use `CustomCalendar` for the CCCD/CMND issue date.
+Make every editable input/select in `Sửa đơn đăng ký` self-explanatory through suitable placeholders, and keep `Thông tin cá nhân`, `Thông tin học tập`, and `Thông tin KTX` collapsed by default on mobile until the user expands each card.
 
 # Scope Boundaries
 
-- Approved: `frontend/src/app/(dashboard)/dormitory/registrations/**`, `frontend/src/components/dormitory/**`, `frontend/src/components/students/StudentDormitoryCard*`.
-- Write: the registrations page/tests, student dormitory card/tests, shared applicant-profile fields, and a new reusable KTX edit-modal component/test under `frontend/src/components/dormitory/`.
-- Known targets: `openEdit`, edit state/effect/submit flow and current edit `Dialog` in `registrations/page.tsx`; `StudentDormitoryCard` modal/state/save flow; `ApplicantProfileFields` in `PublicDormitoryRegistrationModal.tsx`; `mapActiveSemester`; `semesterApi.getSemesters`; `dormitoryApi.registrations.update` and `updateMine`.
-- Excluded: create/public-registration behavior, room assignment, list filtering/pagination, backend APIs, schemas, dependencies, and unrelated student-profile cards.
+- Approved: `frontend/src/components/dormitory/**`, `frontend/src/components/students/StudentDormitoryCard*`, and `frontend/src/app/(dashboard)/students/[classId]/[id]/**`.
+- Write: shared edit-modal/applicant-profile components and tests; student detail page/test; student KTX card/test.
+- Known targets: `DormitoryRegistrationEditModal`, `ApplicantProfileFields`, the personal and academic information sections in `students/[classId]/[id]/page.tsx`, and `StudentDormitoryCard` including its resident and non-resident states.
+- Excluded: registrations create/public modal behavior outside shared applicant-profile rendering, API payloads, validation/business rules, permissions, backend, schemas, dependencies, and unrelated cards or pages.
 
 # Out of Scope
 
-- Redesigning modal styling or changing KTX business rules.
-- Changing which fields each role may update or changing registration source payload shapes.
-- Modifying the `CustomCalendar` component itself.
+- Redesigning desktop card layout or changing modal fields.
+- Changing KTX edit authorization, active-semester behavior, update routes, or date controls.
+- Introducing a new accordion/collapse dependency.
 
 # Context and Dependencies
 
-- The registrations edit modal is currently inline in `registrations/page.tsx`; active-semester initialization only runs for `ADMIN_TEMPORARY` rows.
-- `StudentDormitoryCard.tsx` contains a separate edit modal and separate update logic.
-- `ApplicantProfileFields` is shared from `PublicDormitoryRegistrationModal.tsx`; its CCCD/CMND issue date currently uses `Input type="date"`.
-- Active semester labels are parsed by the existing `mapActiveSemester` helper and must remain the source of `semester` and `academic_year` defaults.
+- `DormitoryRegistrationEditModal.tsx` already owns the reusable `Sửa đơn đăng ký` form; several text inputs and the `Ưu tiên`/`Loại phòng` selects currently have no placeholder.
+- `ApplicantProfileFields` in `PublicDormitoryRegistrationModal.tsx` supplies the modal's optional applicant and parent fields, so placeholders added there must not alter public/create behavior or values.
+- The personal and academic cards are inline in the student detail page; `StudentDormitoryCard.tsx` owns both KTX presence states and the edit-modal trigger.
+- Existing responsive styling uses `sm` as the first non-mobile breakpoint.
 
 # Steps
 
-1. Extract the complete registrations edit form into a reusable dormitory edit-modal component with controlled open/close, registration data, permissions/update strategy, refresh callback, and focus restoration where applicable.
-2. On every modal open, load exactly one active semester, map its label with the existing validation, and initialize/override `semester` and `academic_year`; expose loading/error states and prevent invalid submission.
-3. Replace the CCCD/CMND issue-date native date input in shared applicant-profile fields with `Popover` + `CustomCalendar`, preserving `YYYY-MM-DD` form values, cancel/confirm behavior, and existing payloads.
-4. Replace the registrations page inline edit dialog with the reusable modal while preserving FORMAL versus temporary field/payload behavior and list refresh.
-5. Remove the student card's duplicate modal and open the same reusable complete form from its KTX detail icon, preserving staff/self-service authorization, `update` versus `updateMine`, error-state retention, close behavior, and card refresh.
-6. Update focused tests for active-semester defaults, `CustomCalendar`, both modal entry points, full-field rendering, source-aware payloads, permissions, success/failure, and focus restoration.
+1. Add concise Vietnamese placeholders/examples to every editable text, telephone, numeric, textarea, and select control rendered by `Sửa đơn đăng ký`, including shared applicant/parent profile fields; preserve labels, current values, disabled states, validation, and payloads.
+2. Add independent collapsed state for `Thông tin cá nhân` and `Thông tin học tập`; initialize them collapsed below `sm`, render only the card header while closed, and allow header/chevron activation to expand or collapse.
+3. Apply the same mobile-only default-collapse behavior to `StudentDormitoryCard` for both resident and `Không ở trong KTX` states while keeping its detail/edit icon behavior available after expansion.
+4. Keep all three cards expanded by default from `sm` upward and avoid discarding an explicit user toggle during ordinary rerenders.
+5. Add accessible controls (`button`, `aria-expanded`, and `aria-controls`) with clear focus/keyboard behavior; do not make nested edit/detail actions toggle the card accidentally.
+6. Update focused tests for placeholder coverage, mobile initial state, independent expand/collapse, non-resident KTX behavior, desktop default state, and existing modal/KTX actions.
 
 # Acceptance Criteria
 
-- AC1: Opening `Sửa đơn đăng ký` from the registrations tab defaults `Kỳ` and `Năm học` to the valid active semester for every supported registration source; missing, duplicate, malformed, or failed active-semester loading blocks save with a visible error.
-- AC2: `Ngày cấp CCCD/CMND` uses `CustomCalendar` and stores/submits the selected date in the existing API format.
-- AC3: The student KTX icon opens the same reusable `Sửa đơn đăng ký` component and displays the complete applicable field set from the registrations flow; no card-local duplicate edit modal remains.
-- AC4: Existing role permissions, FORMAL/temporary/self-service payload routing, validation, success/error behavior, input preservation after failure, refresh, non-resident card state, room/price display, and focus restoration remain intact.
-- AC5: No create/public-registration, room-assignment, backend, schema, or dependency behavior changes.
+- AC1: Every editable input, textarea, and select in `Sửa đơn đăng ký`, including applicant and parent profile fields, exposes an informative placeholder without replacing an existing value or changing submitted data.
+- AC2: At viewport widths below `sm`, the three cards are independently collapsed on first render and their bodies appear only after activating the corresponding header control.
+- AC3: At `sm` and wider, all three cards remain expanded by default and retain their current desktop content/layout.
+- AC4: Each collapse control is keyboard-operable and reports its state with `aria-expanded`/`aria-controls`; KTX detail/edit actions do not unintentionally collapse the card.
+- AC5: The resident and non-resident KTX states, modal launch, permissions, update routing, validation, focus restoration, and all API payloads remain unchanged.
 
 # Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/registrations/page.test.tsx" "src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx" "src/components/dormitory/DormitoryRegistrationEditModal.test.tsx" "src/components/students/StudentDormitoryCard.test.tsx"` => all focused KTX modal and calendar regressions pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/components/dormitory/DormitoryRegistrationEditModal.test.tsx" "src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx" "src/components/students/StudentDormitoryCard.test.tsx" "src/app/(dashboard)/students/[classId]/[id]/page.test.tsx"` => all focused placeholder, responsive-collapse, accessibility, and existing KTX regressions pass.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no introduced TypeScript errors.
 - `D:\PROJECT\manager_points` :: `git diff --check` => valid patch formatting.
-- Final inspection: changed paths remain inside the approved boundary and the diff contains no duplicate student-card edit dialog or unrelated changes.
+- Final inspection: only approved paths and `docs/taskscope.md` changed; no API/payload, permission, or desktop-layout regression is introduced.
 
 # Safety Gates
 
-- None. Stop and amend scope if implementation requires backend/schema changes, a new dependency, permission-policy changes, or persistent/external mutation.
+- None. Stop and amend scope if implementation requires a dependency, backend/schema change, permission-policy change, or persistent/external mutation.
 
 # Artifacts and Checkpoints
 
@@ -75,6 +75,6 @@ Provide one reusable, complete `Sửa đơn đăng ký` modal for both the regis
 
 # Execution Budgets
 
-- One writer per path; serialize the shared modal extraction and caller migrations.
+- One writer per path; serialize shared applicant-profile changes with modal tests.
 - Maximum ENG iterations: 3; review remediation cycles: 2; idempotent retries: 2.
 - Stop on boundary expansion, overlapping dirty changes, failed required criteria, or a newly triggered gate.

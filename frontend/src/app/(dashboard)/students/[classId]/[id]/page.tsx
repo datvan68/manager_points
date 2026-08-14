@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -54,6 +55,16 @@ function getRecordPoints(record: AcademicRecord): string {
   if (!criterion) return '0';
   const score = criterion.score_per_unit ?? 0;
   return score >= 0 ? `+${score}` : `${score}`;
+}
+
+function useMobileCardExpanded() {
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 640px)').matches === false) {
+      setExpanded(false);
+    }
+  }, []);
+  return [expanded, setExpanded] as const;
 }
 
 function formatRecordDate(dateStr?: string): string {
@@ -94,6 +105,8 @@ export default function StudentProfilePage() {
 
   // ─── Dormitory State ───
   const [dormData, setDormData] = useState<SelfDormitoryRegistration | null>(null);
+  const [personalExpanded, setPersonalExpanded] = useMobileCardExpanded();
+  const [academicExpanded, setAcademicExpanded] = useMobileCardExpanded();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -456,7 +469,7 @@ export default function StudentProfilePage() {
               transition={{ duration: 0.3, delay: 0.2 }}
               className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
             >
-              <div className="flex items-center justify-between w-full">
+              <div role="button" tabIndex={0} aria-expanded={personalExpanded} aria-controls="student-personal-information" onClick={() => setPersonalExpanded(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setPersonalExpanded(value => !value); } }} className="flex cursor-pointer items-center justify-between w-full">
                 <div className="flex items-center gap-[8px]">
                   <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
                   <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
@@ -464,13 +477,13 @@ export default function StudentProfilePage() {
                   </h2>
                 </div>
                 {!isSelfStudent && (
-                  <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
+                  <button type="button" onClick={event => event.stopPropagation()} className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
                     <Settings className="w-[14px] h-[14px] text-[#64748B]" />
                   </button>
                 )}
               </div>
 
-              <div className="flex flex-col gap-[12px] w-full min-w-0">
+              <div id="student-personal-information" className={`${personalExpanded ? 'flex' : 'hidden'} sm:flex flex-col gap-[12px] w-full min-w-0`}>
                 {personalInfoRows.map((row, idx) => (
                   <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
                     <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
@@ -491,7 +504,7 @@ export default function StudentProfilePage() {
               transition={{ duration: 0.3, delay: 0.3 }}
               className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
             >
-              <div className="flex items-center justify-between w-full">
+              <div role="button" tabIndex={0} aria-expanded={academicExpanded} aria-controls="student-academic-information" onClick={() => setAcademicExpanded(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setAcademicExpanded(value => !value); } }} className="flex cursor-pointer items-center justify-between w-full">
                 <div className="flex items-center gap-[8px]">
                   <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
                   <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
@@ -499,13 +512,13 @@ export default function StudentProfilePage() {
                   </h2>
                 </div>
                 {!isSelfStudent && (
-                  <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
+                  <button type="button" onClick={event => event.stopPropagation()} className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
                     <Settings className="w-[14px] h-[14px] text-[#64748B]" />
                   </button>
                 )}
               </div>
 
-              <div className="flex flex-col gap-[12px] w-full min-w-0">
+              <div id="student-academic-information" className={`${academicExpanded ? 'flex' : 'hidden'} sm:flex flex-col gap-[12px] w-full min-w-0`}>
                 {academicInfoRows.map((row, idx) => (
                   <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
                     <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
