@@ -174,7 +174,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     expect(screen.getByText('Chưa có giá')).toBeInTheDocument();
   });
 
-  it('AC5: advance icon has accessible name and opens modal containing all details', () => {
+  it('AC5: advance icon opens the edit registration form directly', () => {
     render(
       <StudentDormitoryCard
         registrationData={mockRegistrationData}
@@ -187,10 +187,9 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     fireEvent.click(advanceButton);
 
-    expect(screen.getByText('Chi tiết đăng ký Ký túc xá')).toBeInTheDocument();
-    expect(screen.getByText('DK-2025-001')).toBeInTheDocument();
-    expect(screen.getByText('HD-2025-01')).toBeInTheDocument();
-    expect(screen.getByText('0912345678')).toBeInTheDocument();
+    expect(screen.getByText('Sửa đơn đăng ký')).toBeInTheDocument();
+    expect(screen.queryByText('Chi tiết đăng ký Ký túc xá')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('0912345678')).toBeInTheDocument();
     expect(screen.getByText('Khó khăn')).toBeInTheDocument();
   });
 
@@ -215,6 +214,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     const advanceButton = screen.getByRole('button', { name: /xem chi tiết ktx/i });
     fireEvent.click(advanceButton);
 
+    expect(screen.getByText('Sửa đơn đăng ký')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /chỉnh sửa/i })).not.toBeInTheDocument();
   });
 
@@ -232,10 +232,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     // Open modal
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
-
-    // Click edit
-    const editButton = screen.getByRole('button', { name: /chỉnh sửa/i });
-    fireEvent.click(editButton);
 
     // Edit phone number
     const phoneInput = screen.getByDisplayValue('0912345678');
@@ -273,7 +269,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
-    fireEvent.click(screen.getByRole('button', { name: /chỉnh sửa/i }));
 
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0977777777' } });
@@ -298,12 +293,11 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     const advanceButton = screen.getByRole('button', { name: /xem chi tiết ktx/i });
     fireEvent.click(advanceButton);
-    expect(screen.getByText('Chi tiết đăng ký Ký túc xá')).toBeInTheDocument();
+    expect(screen.getByText('Sửa đơn đăng ký')).toBeInTheDocument();
 
-    const closeButton = screen.getByRole('button', { name: /đóng/i });
-    fireEvent.click(closeButton);
+    fireEvent.click(screen.getByRole('button', { name: /hủy/i }));
 
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(150);
     expect(document.activeElement).toBe(advanceButton);
     vi.useRealTimers();
   });
@@ -332,9 +326,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
-    const editBtn = screen.getByRole('button', { name: /chỉnh sửa/i });
-    fireEvent.click(editBtn);
-
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0988776655' } });
 

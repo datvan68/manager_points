@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import {
   Building2,
   ChevronRight,
-  Pencil,
   Check,
   X,
   AlertCircle,
@@ -155,7 +154,7 @@ export default function StudentDormitoryCard({
 
   const openModal = () => {
     setErrorMessage(null);
-    setIsEditing(false);
+    setIsEditing(true);
     resetEditForm();
     setIsModalOpen(true);
   };
@@ -167,7 +166,7 @@ export default function StudentDormitoryCard({
       setErrorMessage(null);
       setTimeout(() => {
         triggerButtonRef.current?.focus();
-      }, 50);
+      }, 100);
     }
   };
 
@@ -198,15 +197,8 @@ export default function StudentDormitoryCard({
     });
   };
 
-  const handleStartEdit = () => {
-    setErrorMessage(null);
-    resetEditForm();
-    setIsEditing(true);
-  };
-
   const handleCancelEdit = () => {
-    setIsEditing(false);
-    setErrorMessage(null);
+    closeModal(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -250,7 +242,7 @@ export default function StudentDormitoryCard({
       }
 
       toast.success('Cập nhật thông tin KTX thành công!');
-      setIsEditing(false);
+      closeModal(false);
       if (onRefresh) {
         await onRefresh();
       }
@@ -343,7 +335,7 @@ export default function StudentDormitoryCard({
                 </div>
                 <div>
                   <DialogTitle className="text-lg font-bold text-[#1E293B]">
-                    Chi tiết đăng ký Ký túc xá
+                    Sửa đơn đăng ký
                   </DialogTitle>
                   <p className="text-xs text-[#64748B] mt-0.5">
                     Mã đơn: <span className="font-semibold text-[#1E293B]">{registration.registration_code}</span>
@@ -351,17 +343,6 @@ export default function StudentDormitoryCard({
                 </div>
               </div>
 
-              {!isEditing && isEligibleToEdit && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleStartEdit}
-                  className="rounded-xl gap-1.5 border-slate-200 hover:bg-slate-50 text-[#1A73E8] font-semibold text-xs"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  Chỉnh sửa
-                </Button>
-              )}
             </div>
           </DialogHeader>
 
@@ -372,7 +353,7 @@ export default function StudentDormitoryCard({
             </div>
           )}
 
-          {!isEditing ? (
+          {!(isEditing && isEligibleToEdit) ? (
             /* ═══ VIEW MODE ═══ */
             <div className="flex flex-col gap-5 py-4 text-xs">
               {/* Section 1: Thông tin phòng & hợp đồng */}
