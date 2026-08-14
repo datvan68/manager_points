@@ -75,7 +75,13 @@ export class RegistrationsController {
     return this.registrationsService.findUnclassified({ page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
   }
 
-  // Keep self-scoped routes above :id so "me" can never be interpreted as an id.
+  // Keep self-scoped and student routes above :id so they can never be interpreted as an id.
+  @Get('student/:studentId')
+  @UseGuards(JwtAuthGuard)
+  findByStudentId(@Param('studentId') studentId: string, @Request() req: any) {
+    return this.registrationsService.findByStudentId(studentId, req.user);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   findMine(@Request() req: any) {

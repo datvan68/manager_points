@@ -173,8 +173,24 @@ export class AcademicRecordController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic records by Student ID' })
-  findByStudentId(@Param('studentId') studentId: string, @Request() req: any) {
-    return this.academicRecordService.findByStudentId(studentId, req.user);
+  findByStudentId(
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pagination =
+      page !== undefined || limit !== undefined
+        ? {
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+          }
+        : undefined;
+    return this.academicRecordService.findByStudentId(
+      studentId,
+      req.user,
+      pagination,
+    );
   }
 
   @Get('daily-report/:dailyReportId')

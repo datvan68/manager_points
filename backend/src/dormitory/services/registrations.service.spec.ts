@@ -400,3 +400,74 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(mockPdfBrowser.close).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('RegistrationsService findByStudentId', () => {
+  const studentId = '507f1f77bcf86cd799439011';
+  const studentDoc = {
+    _id: studentId,
+    user_id: 'user-self',
+    class_id: 'class-1',
+    full_name: 'Nguyễn Văn A',
+  };
+
+  it('returns has_dormitory_registration: false when student has no registration', async () => {
+    const studentModel: any = { findById: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(studentDoc) }) };
+    const registrationModel: any = { find: jest.fn().mockReturnValue(queryResult([])) };
+    const service = new RegistrationsService(registrationModel, {} as any, {} as any, {} as any, {} as any, studentModel);
+
+    const result = await service.findByStudentId(studentId, { userId: 'user-admin', roleCode: 'ADMIN' });
+    expect(result).toEqual({ has_dormitory_registration: false, registration: null, history: [] });
+  });
+
+  it('returns effective active room from contract with room_price and history', async () => {
+    const studentModel: any = { findById: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(studentDoc) }) };
+    const regDoc = {
+      _id: 'reg-1',
+      student_id: studentId,
+      registration_code: 'DK-001',
+      status: 'Đã duyệt',
+      semester: 'HK1',
+      academic_year: '2025-2026',
+      createdAt: '2025-09-01',
+      room_id: { _id: 'room-1', room_name: 'P101', room_code: '101', room_price: 1500000 },
+      bed_id: { _id: 'bed-1', bed_code: 'G1' },
+      toObject: function() { return { ...this }; },
+    };
+    const contractDoc = {
+      _id: 'contract-1',
+      registration_id: 'reg-1',
+      status: 'Hiệu lực',
+      room_id: { _id: 'room-2', room_name: 'P202', room_code: '202', room_price: 2000000 },
+      bed_id: { _id: 'bed-2', bed_code: 'G2' },
+      toObject: function() { return { ...this }; },
+    };
+    const registrationModel: any = { find: jest.fn().mockReturnValue(queryResult([regDoc])) };
+    const contractModel: any = { find: jest.fn().mockReturnValue(queryResult([contractDoc])) };
+    const service = new RegistrationsService(registrationModel, {} as any, contractModel, {} as any, {} as any, studentModel);
+
+    const result = await service.findByStudentId(studentId, { userId: 'user-admin', roleCode: 'ADMIN' });
+    expect(result.has_dormitory_registration).toBe(true);
+    expect(result.registration.room_id.room_name).toBe('P202');
+    expect(result.registration.room_id.room_price).toBe(2000000);
+    expect(result.registration.bed_id.bed_code).toBe('G2');
+    expect(result.registration.active_contract._id).toBe('contract-1');
+    expect(result.history).toHaveLength(1);
+    expect(result.registration.editable_fields).toEqual(expect.arrayContaining(['phone_number', 'preference', 'priority_group']));
+  });
+
+  it('throws ForbiddenException if student requester accesses another student', async () => {
+    const studentModel: any = { findById: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(studentDoc) }) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, {} as any, {} as any, studentModel);
+
+    await expect(service.findByStudentId(studentId, { userId: 'user-other', roleCode: 'STUDENT' })).rejects.toThrow('Bạn không có quyền truy cập');
+  });
+
+  it('throws ForbiddenException if teacher requester accesses student outside class', async () => {
+    const studentModel: any = { findById: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(studentDoc) }) };
+    const classModel: any = { find: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([{ _id: 'other-class' }]) }) }) };
+    const registrationModel: any = { db: { model: jest.fn().mockReturnValue(classModel) } };
+    const service = new RegistrationsService(registrationModel, {} as any, {} as any, {} as any, {} as any, studentModel);
+
+    await expect(service.findByStudentId(studentId, { userId: 'teacher-1', roleCode: 'TEACHER' })).rejects.toThrow('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách');
+  });
+});

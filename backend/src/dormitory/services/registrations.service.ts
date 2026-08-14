@@ -58,13 +58,14 @@ export class RegistrationsService {
   async findMine(userId: string) {
     const student = await this.studentForUser(userId);
     const registrations = await this.registrationModel.find({ student_id: student._id })
-      .populate('room_id', 'room_name room_code')
-      .populate('bed_id', 'bed_code')
+      .populate('room_id', 'room_name room_code room_price room_type building_id')
+      .populate('bed_id', 'bed_code position status')
       .sort({ createdAt: -1 }).exec();
     if (!registrations.length) return { has_dormitory_registration: false, registration: null, history: [] };
 
     const activeContracts = await this.contractModel.find({ student_id: student._id, status: 'Hiệu lực' })
-      .populate('room_id', 'room_name room_code').populate('bed_id', 'bed_code').exec();
+      .populate('room_id', 'room_name room_code room_price room_type building_id')
+      .populate('bed_id', 'bed_code position status').exec();
     const byId = new Map(registrations.map((registration: any) => [String(registration._id), registration]));
     const activeContract = activeContracts.find((contract: any) => byId.has(String(contract.registration_id)));
     const selected: any = activeContract
@@ -72,18 +73,128 @@ export class RegistrationsService {
       : registrations.find((registration: any) => !this.isRejectedOrCancelled(registration.status)) || registrations[0];
     const isActive = !!activeContract;
     const isHistorical = selected !== registrations[0] || this.isRejectedOrCancelled(selected?.status);
+    const effectiveRoom = (activeContract as any)?.room_id || selected?.room_id;
+    const effectiveBed = (activeContract as any)?.bed_id || selected?.bed_id;
     const editable = !isActive && !isHistorical && !selected?.room_id && !selected?.bed_id;
     const registration = this.toPlain(selected);
     return {
       has_dormitory_registration: true,
       registration: {
         ...registration,
+        room_id: effectiveRoom ? this.toPlain(effectiveRoom) : null,
+        bed_id: effectiveBed ? this.toPlain(effectiveBed) : null,
         active_contract: activeContract ? this.toPlain(activeContract) : null,
         editable_fields: editable ? ['phone_number', 'preference', 'priority_group', 'applicant_profile'] : [],
       },
       history: registrations.map((item: any) => ({
         _id: item._id, registration_code: item.registration_code, status: item.status,
         semester: item.semester, academic_year: item.academic_year, createdAt: item.createdAt,
+      })),
+    };
+  }
+
+  async findByStudentId(studentId: string, requester?: any) {
+    if (!Types.ObjectId.isValid(studentId)) {
+      return { has_dormitory_registration: false, registration: null, history: [] };
+    }
+
+    let student: any;
+    if (this.studentModel) {
+      student = await this.studentModel.findById(studentId).exec();
+    } else {
+      const studentModel = this.registrationModel.db.model('Student');
+      student = await studentModel.findById(studentId).exec();
+    }
+
+    if (!student) {
+      return { has_dormitory_registration: false, registration: null, history: [] };
+    }
+
+    if (requester) {
+      const roleCode = String(requester.roleCode || requester.roleName || requester.role || '').toUpperCase();
+      const isStudentRole = roleCode.includes('STUDENT') || roleCode.includes('HOC SINH') || roleCode.includes('SINH VIEN');
+      const isTeacherRole = roleCode.includes('TEACHER') || roleCode.includes('GIANG VIEN') || roleCode.includes('ADVISOR');
+
+      if (isStudentRole) {
+        const studentUserId = student.user_id?._id || student.user_id;
+        if (studentUserId?.toString() !== requester.userId?.toString()) {
+          throw new ForbiddenException('Bạn không có quyền truy cập thông tin KTX của sinh viên khác');
+        }
+      } else if (isTeacherRole) {
+        let classModel: any;
+        try {
+          classModel = this.registrationModel.db.model('Class');
+        } catch {
+          // ignore if class model not registered
+        }
+        if (classModel) {
+          const classes = await classModel.find({ advisor_id: requester.userId }).select('_id').exec();
+          const classIds = classes.map((c: any) => c._id.toString());
+          const studentClassId = student.class_id?._id || student.class_id;
+          if (!studentClassId || !classIds.includes(studentClassId.toString())) {
+            throw new ForbiddenException('Bạn không có quyền truy cập sinh viên ngoài lớp phụ trách');
+          }
+        }
+      }
+    }
+
+    const registrations = await this.registrationModel.find({ student_id: student._id })
+      .populate('room_id', 'room_name room_code room_price room_type building_id')
+      .populate('bed_id', 'bed_code position status')
+      .sort({ createdAt: -1 }).exec();
+
+    if (!registrations.length) {
+      return { has_dormitory_registration: false, registration: null, history: [] };
+    }
+
+    const activeContracts = await this.contractModel.find({ student_id: student._id, status: 'Hiệu lực' })
+      .populate('room_id', 'room_name room_code room_price room_type building_id')
+      .populate('bed_id', 'bed_code position status').exec();
+
+    const byId = new Map(registrations.map((registration: any) => [String(registration._id), registration]));
+    const activeContract = activeContracts.find((contract: any) => byId.has(String(contract.registration_id)));
+    const selected: any = activeContract
+      ? byId.get(String((activeContract as any).registration_id))
+      : registrations.find((registration: any) => !this.isRejectedOrCancelled(registration.status)) || registrations[0];
+
+    const isActive = !!activeContract;
+    const isHistorical = selected !== registrations[0] || this.isRejectedOrCancelled(selected?.status);
+    const effectiveRoom = (activeContract as any)?.room_id || selected?.room_id;
+    const effectiveBed = (activeContract as any)?.bed_id || selected?.bed_id;
+
+    const roleCode = String(requester?.roleCode || requester?.roleName || requester?.role || '').toUpperCase();
+    const permissions: string[] = requester?.permissions || [];
+    const isAuthorizedStaff = roleCode.includes('ADMIN') || roleCode.includes('SUPERVISOR') || permissions.includes('DORM_REG_UPDATE');
+
+    let editableFields: string[] = [];
+    if (isAuthorizedStaff) {
+      editableFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group', 'applicant_profile'];
+    } else {
+      const studentUserId = student.user_id?._id || student.user_id;
+      const isStudentSelf = requester && studentUserId?.toString() === requester.userId?.toString();
+      const editable = isStudentSelf && !isActive && !isHistorical && !selected?.room_id && !selected?.bed_id;
+      if (editable) {
+        editableFields = ['phone_number', 'preference', 'priority_group', 'applicant_profile'];
+      }
+    }
+
+    const registration = this.toPlain(selected);
+    return {
+      has_dormitory_registration: true,
+      registration: {
+        ...registration,
+        room_id: effectiveRoom ? this.toPlain(effectiveRoom) : null,
+        bed_id: effectiveBed ? this.toPlain(effectiveBed) : null,
+        active_contract: activeContract ? this.toPlain(activeContract) : null,
+        editable_fields: editableFields,
+      },
+      history: registrations.map((item: any) => ({
+        _id: item._id,
+        registration_code: item.registration_code,
+        status: item.status,
+        semester: item.semester,
+        academic_year: item.academic_year,
+        createdAt: item.createdAt,
       })),
     };
   }

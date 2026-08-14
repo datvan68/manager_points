@@ -46,3 +46,17 @@ describe('RegistrationsController application PDF', () => {
     expect(response.end).toHaveBeenCalledWith(Buffer.from('pdf'));
   });
 });
+
+describe('RegistrationsController student dormitory registration', () => {
+  it('delegates findByStudentId to the service passing studentId and user', async () => {
+    const registrationsService: any = {
+      findByStudentId: jest.fn().mockResolvedValue({ has_dormitory_registration: true, registration: { _id: 'reg-1' } }),
+    };
+    const controller = new RegistrationsController(registrationsService, {} as any, {} as any);
+    const req = { user: { userId: 'user-1', roleCode: 'ADMIN' } };
+
+    const result = await controller.findByStudentId('student-123', req as any);
+    expect(result).toEqual({ has_dormitory_registration: true, registration: { _id: 'reg-1' } });
+    expect(registrationsService.findByStudentId).toHaveBeenCalledWith('student-123', req.user);
+  });
+});

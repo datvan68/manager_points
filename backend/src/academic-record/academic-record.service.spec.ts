@@ -2091,4 +2091,121 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(result.actual_count).toBe(1);
     });
   });
+
+  describe('findByStudentId', () => {
+    const studentId = new Types.ObjectId().toString();
+    const mockRecords = [
+      { _id: new Types.ObjectId(), student_id: studentId, record_title: 'Record 1' },
+      { _id: new Types.ObjectId(), student_id: studentId, record_title: 'Record 2' },
+    ];
+
+    it('returns an array for unpaginated calls (backward compatibility)', async () => {
+      const queryChain: any = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(mockRecords),
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue(queryChain);
+
+      const result = await service.findByStudentId(studentId);
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual(mockRecords);
+      expect(queryChain.sort).toHaveBeenCalledWith({ recorded_at: -1, createdAt: -1 });
+    });
+
+    it('returns paginated response with metadata when pagination is requested', async () => {
+      const queryChain: any = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([mockRecords[0]]),
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue(queryChain);
+      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(15),
+      });
+
+      const result = await service.findByStudentId(studentId, null, { page: 1, limit: 10 });
+      expect(result).toEqual({
+        data: [mockRecords[0]],
+        total: 15,
+        page: 1,
+        limit: 10,
+        totalPages: 2,
+        has_more: true,
+      });
+      expect(queryChain.skip).toHaveBeenCalledWith(0);
+      expect(queryChain.limit).toHaveBeenCalledWith(10);
+    });
+
+    it('sets has_more to false on the last page', async () => {
+      const queryChain: any = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([mockRecords[1]]),
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue(queryChain);
+      mockAcademicRecordModel.countDocuments = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(15),
+      });
+
+      const result = await service.findByStudentId(studentId, null, { page: 2, limit: 10 });
+      expect(result).toEqual({
+        data: [mockRecords[1]],
+        total: 15,
+        page: 2,
+        limit: 10,
+        totalPages: 2,
+        has_more: false,
+      });
+    });
+
+    it('returns empty array or empty paginated object for invalid student ID', async () => {
+      const unpaginated = await service.findByStudentId('invalid-id');
+      expect(unpaginated).toEqual([]);
+
+      const paginated = await service.findByStudentId('invalid-id', null, { page: 1, limit: 10 });
+      expect(paginated).toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+        has_more: false,
+      });
+    });
+
+    it('throws ForbiddenException if student requester accesses another student', async () => {
+      const otherStudentId = new Types.ObjectId().toString();
+      const studentUser = { userId: new Types.ObjectId().toString(), roleName: 'Student' };
+      mockStudentModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: new Types.ObjectId(otherStudentId) }),
+      });
+
+      await expect(service.findByStudentId(studentId, studentUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException if teacher requester accesses student outside advised class', async () => {
+      const teacherUser = { userId: new Types.ObjectId().toString(), roleName: 'Teacher' };
+      const advisedClassId = new Types.ObjectId().toString();
+      const otherClassId = new Types.ObjectId().toString();
+
+      mockClassModel.find = jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId(advisedClassId) }]),
+      });
+
+      mockStudentModel.findById = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: new Types.ObjectId(studentId),
+          class_id: new Types.ObjectId(otherClassId),
+        }),
+      });
+
+      await expect(service.findByStudentId(studentId, teacherUser)).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

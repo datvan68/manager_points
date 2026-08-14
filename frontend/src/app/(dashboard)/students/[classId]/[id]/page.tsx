@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StudentAvatar } from '@/components/ui/StudentAvatar';
@@ -10,24 +10,27 @@ import {
   ArrowLeft,
   Check,
   Pen,
-  ChevronDown,
   ShieldCheck,
   MinusCircle,
   Settings,
   Calendar,
   AlertCircle,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
 import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
+import { dormitoryApi, SelfDormitoryRegistration } from '@/api/dormitory-api';
+import StudentDormitoryCard from '@/components/students/StudentDormitoryCard';
 import { useAuth } from '@/providers/auth-provider';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { resolveDrlScore } from '@/lib/drl-score';
 import { HeaderCustomMappings } from '@/providers/header-provider';
 
-// ─── Kiểu dữ liệu nội bộ cho danh mục kèm tiêu chí ───
 // ─── Helper: xác định loại criterion ───
 function getCriterionType(record: AcademicRecord): 'reward' | 'violation' {
   const criterion = record.criterion_id as any;
@@ -77,14 +80,29 @@ export default function StudentProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [student, setStudent] = useState<Student | null>(null);
   const [targetClass, setTargetClass] = useState<Class | null>(null);
-  const [records, setRecords] = useState<AcademicRecord[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
   const [resolvedDrl, setResolvedDrl] = useState<number | null>(null);
-  const activeTab = 'history' as const;
-  const isTabLoading = false;
-  const categories: any[] = [];
-  const expandedCategory: string | null = null;
-  const setExpandedCategory = (_value: string | null) => undefined;
+
+  // ─── Paginated Academic Records State ───
+  const [records, setRecords] = useState<AcademicRecord[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
+
+  // ─── Dormitory State ───
+  const [dormData, setDormData] = useState<SelfDormitoryRegistration | null>(null);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: records.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 88,
+    overscan: 3,
+  });
 
   const getLinkedUserId = (studentObj: any) => {
     if (!studentObj?.user_id) return '';
@@ -99,21 +117,38 @@ export default function StudentProfilePage() {
     studentId === user?.studentId
   );
 
-  // ─── Tải dữ liệu hồ sơ và toàn bộ ghi nhận ───
+  const loadDormitoryData = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      const res = await dormitoryApi.registrations.getByStudent(studentId);
+      setDormData(res);
+    } catch {
+      setDormData(null);
+    }
+  }, [studentId]);
+
+  // ─── Tải dữ liệu hồ sơ sinh viên ban đầu ───
   useEffect(() => {
     setIsLoading(true);
     setDataError(null);
+    setIsLoadingRecords(true);
+    setRecords([]);
+    setPage(1);
+    setHasMore(false);
+    setRecordsError(null);
 
     Promise.all([
       classApi.getClass(classId),
       studentApi.getStudent(studentId),
       semesterApi.getSemesters(),
       summariesPointApi.getSummariesPoints({ studentId }),
-      academicRecordApi.getAcademicRecordsByStudent(studentId),
+      academicRecordApi.getAcademicRecordsByStudent(studentId, { page: 1, limit: 10 }),
+      dormitoryApi.registrations.getByStudent(studentId).catch(() => ({ has_dormitory_registration: false, registration: null, history: [] })),
     ])
-      .then(([classData, studentData, semestersData, summariesDataRes, recordsData]) => {
+      .then(([classData, studentData, semestersData, summariesDataRes, recordsRes, dormRes]) => {
         setTargetClass(classData);
         setStudent(studentData);
+        setDormData(dormRes as SelfDormitoryRegistration);
 
         // Tìm học kỳ active và điểm rèn luyện tương ứng
         const activeSemester = semestersData.find(s => s.status === 'active');
@@ -138,7 +173,18 @@ export default function StudentProfilePage() {
         const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(studentData.training_point_id);
         setResolvedDrl(scoreVal);
 
-        setRecords(recordsData);
+        // Handle initial records
+        if (Array.isArray(recordsRes)) {
+          setRecords(recordsRes);
+          setTotalRecords(recordsRes.length);
+          setHasMore(false);
+        } else {
+          setRecords(recordsRes.data || []);
+          setTotalRecords(recordsRes.total || 0);
+          setHasMore(recordsRes.has_more ?? false);
+        }
+        setPage(1);
+        setIsLoadingRecords(false);
         setIsLoading(false);
       })
       .catch((err: any) => {
@@ -150,9 +196,57 @@ export default function StudentProfilePage() {
         } else {
           setDataError('Không thể tải dữ liệu. Vui lòng thử lại.');
         }
+        setIsLoadingRecords(false);
         setIsLoading(false);
       });
   }, [classId, studentId]);
+
+  // ─── Tải trang tiếp theo (Infinite Scroll) ───
+  const loadNextPage = useCallback(async () => {
+    if (isLoadingMore || !hasMore || isLoadingRecords || recordsError) return;
+
+    setIsLoadingMore(true);
+    setRecordsError(null);
+    const nextPage = page + 1;
+
+    try {
+      const res = await academicRecordApi.getAcademicRecordsByStudent(studentId, { page: nextPage, limit: 10 });
+      if (Array.isArray(res)) {
+        setHasMore(false);
+      } else {
+        const newItems = res.data || [];
+        setRecords((prev) => {
+          const existingIds = new Set(prev.map((r) => r._id));
+          const filteredNew = newItems.filter((r) => !existingIds.has(r._id));
+          return [...prev, ...filteredNew];
+        });
+        setTotalRecords(res.total);
+        setHasMore(res.has_more);
+        setPage(nextPage);
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi tải thêm ghi nhận:', err);
+      setRecordsError(err.message || 'Không thể tải thêm ghi nhận.');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, isLoadingRecords, recordsError, page, studentId]);
+
+  // ─── Quan sát ngưỡng danh sách ảo để tải trang tiếp theo ───
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  useEffect(() => {
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (
+      lastItem &&
+      lastItem.index >= records.length - 2 &&
+      hasMore &&
+      !isLoadingMore &&
+      !isLoadingRecords &&
+      !recordsError
+    ) {
+      loadNextPage();
+    }
+  }, [virtualItems, records.length, hasMore, isLoadingMore, isLoadingRecords, recordsError, loadNextPage]);
 
   const handleSave = () => {
     toast.success('Thông tin đã được lưu thành công!');
@@ -193,7 +287,6 @@ export default function StudentProfilePage() {
     { label: 'Mã số sinh viên (MSSV)', value: student?.student_code || 'N/A' },
     { label: 'Khoa', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.dept_id?.name : 'N/A' },
     { label: 'Lớp', value: typeof student?.class_id === 'object' ? (student.class_id as any)?.class_name : (targetClass ? targetClass.class_name : 'N/A') },
-    ...(student?.has_dormitory_registration ? [{ label: 'KTX', value: 'Đã đăng ký' }] : []),
   ];
 
   // ─── LOADING STATE ───
@@ -267,349 +360,284 @@ export default function StudentProfilePage() {
     <>
       <HeaderCustomMappings mappings={{ [classId]: targetClass ? targetClass.class_name : classId, [studentId]: student ? student.full_name : studentId }} />
 
-        <motion.main
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center pb-[73px] w-full min-w-0"
-        >
-          {/* ═══ MainHeader ═══ */}
-          <div className="sticky top-0 z-10 backdrop-blur-md bg-white/45 border-b border-white/70 flex items-center justify-between py-3.5 sm:py-4 px-4 sm:px-6 w-full gap-3">
-            <div className="flex gap-3 sm:gap-4 items-center min-w-0 flex-1">
-              {!isSelfStudent && (
-                <button
-                  onClick={() => router.push(`/students/${classId}`)}
-                  className="w-[36px] h-[36px] shrink-0 flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
-                >
-                  <ArrowLeft className="w-[20px] h-[20px] text-[#1E293B]" />
-                </button>
-              )}
-              <div className="flex flex-col min-w-0 flex-1">
-                <h1 className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-[26px] sm:leading-[28px] truncate" title={student.full_name}>
-                  {student.full_name}
-                </h1>
-                <p className="font-sans font-normal text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
-                  MSSV: {student.student_code}
-                </p>
-              </div>
-            </div>
-
+      <motion.main
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center pb-[73px] w-full min-w-0"
+      >
+        {/* ═══ MainHeader ═══ */}
+        <div className="sticky top-0 z-10 backdrop-blur-md bg-white/45 border-b border-white/70 flex items-center justify-between py-3.5 sm:py-4 px-4 sm:px-6 w-full gap-3">
+          <div className="flex gap-3 sm:gap-4 items-center min-w-0 flex-1">
             {!isSelfStudent && (
-              <Button 
-                onClick={handleSave}
-                className="rounded-xl bg-[#1A73E8] hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out text-white shadow-sm font-semibold shrink-0"
+              <button
+                onClick={() => router.push(`/students/${classId}`)}
+                className="w-[36px] h-[36px] shrink-0 flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer"
               >
-                <Check className="w-[18px] h-[18px]" />
-                <span className="hidden sm:inline">Lưu Thay Đổi</span>
-                <span className="sm:hidden">Lưu</span>
-              </Button>
+                <ArrowLeft className="w-[20px] h-[20px] text-[#1E293B]" />
+              </button>
             )}
+            <div className="flex flex-col min-w-0 flex-1">
+              <h1 className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-[26px] sm:leading-[28px] truncate" title={student.full_name}>
+                {student.full_name}
+              </h1>
+              <p className="font-sans font-normal text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
+                MSSV: {student.student_code}
+              </p>
+            </div>
           </div>
 
-          {/* ═══ Main Content ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] gap-4 sm:gap-5 w-full max-w-7xl px-4 sm:px-6 mt-3 sm:mt-4">
+          {!isSelfStudent && (
+            <Button
+              onClick={handleSave}
+              className="rounded-xl bg-[#1A73E8] hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out text-white shadow-sm font-semibold shrink-0"
+            >
+              <Check className="w-[18px] h-[18px]" />
+              <span className="hidden sm:inline">Lưu Thay Đổi</span>
+              <span className="sm:hidden">Lưu</span>
+            </Button>
+          )}
+        </div>
 
-            {/* ═══ LEFT COLUMN ═══ */}
-            <div className="flex flex-col gap-4 pb-4 lg:pb-10 min-w-0 w-full">
+        {/* ═══ Main Content ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] xl:grid-cols-[380px_1fr] gap-4 sm:gap-5 w-full max-w-7xl px-4 sm:px-6 mt-3 sm:mt-4">
 
-              {/* ── Profile Picture Upload Area ── */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex items-center gap-4 sm:gap-6 w-full min-w-0"
-              >
-                <div className="relative shrink-0">
-                  <div className="relative rounded-full shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] overflow-hidden group cursor-pointer">
-                    <StudentAvatar
-                      fullName={student.full_name}
-                      sizeClass="w-full h-full"
-                      textClassName="text-2xl sm:text-3xl font-extrabold"
-                    />
-                    {!isSelfStudent && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                        <Pen className="w-[24px] h-[24px] text-white" />
-                      </div>
-                    )}
-                  </div>
+          {/* ═══ LEFT COLUMN ═══ */}
+          <div className="flex flex-col gap-4 pb-4 lg:pb-10 min-w-0 w-full">
+
+            {/* ── Profile Picture Upload Area ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex items-center gap-4 sm:gap-6 w-full min-w-0"
+            >
+              <div className="relative shrink-0">
+                <div className="relative rounded-full shadow-[0px_0px_0px_4px_white,0px_4px_6px_-1px_rgba(0,0,0,0.1),0px_2px_4px_-2px_rgba(0,0,0,0.1)] w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] overflow-hidden group cursor-pointer">
+                  <StudentAvatar
+                    fullName={student.full_name}
+                    sizeClass="w-full h-full"
+                    textClassName="text-2xl sm:text-3xl font-extrabold"
+                  />
                   {!isSelfStudent && (
-                    <button className="absolute bottom-0 right-0 bg-[#1A73E8] p-[6px] rounded-full shadow-md hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer border border-white/70">
-                      <Pen className="w-[12px] h-[12px] text-white" strokeWidth={2} />
-                    </button>
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                      <Pen className="w-[24px] h-[24px] text-white" />
+                    </div>
                   )}
                 </div>
+                {!isSelfStudent && (
+                  <button className="absolute bottom-0 right-0 bg-[#1A73E8] p-[6px] rounded-full shadow-md hover:bg-[#1A73E8]/90 hover:scale-[1.01] transition-all duration-150 ease-out cursor-pointer border border-white/70">
+                    <Pen className="w-[12px] h-[12px] text-white" strokeWidth={2} />
+                  </button>
+                )}
+              </div>
 
+              <div className="flex flex-col min-w-0 flex-1">
+                <h3 className="font-sans font-bold text-[#1E293B] text-[16px] sm:text-[18px] leading-[24px] sm:leading-[26px] truncate" title={student.full_name}>
+                  {student.full_name}
+                </h3>
+                <p className="font-sans font-medium text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
+                  MSSV: {student.student_code}
+                </p>
+                {!isSelfStudent && (
+                  <button className="mt-[6px] text-left cursor-pointer hover:underline truncate">
+                    <span className="font-sans font-semibold text-[#1A73E8] text-[12px] leading-[18px]">
+                      Thay đổi ảnh chân dung
+                    </span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+
+            {/* ── Personal Information Section ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-[8px]">
+                  <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                  <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
+                    Thông tin cá nhân
+                  </h2>
+                </div>
+                {!isSelfStudent && (
+                  <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
+                    <Settings className="w-[14px] h-[14px] text-[#64748B]" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-[12px] w-full min-w-0">
+                {personalInfoRows.map((row, idx) => (
+                  <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
+                    <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
+                      {row.label}
+                    </span>
+                    <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* ── Academic Information Section ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-[8px]">
+                  <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                  <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
+                    Thông tin học tập
+                  </h2>
+                </div>
+                {!isSelfStudent && (
+                  <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
+                    <Settings className="w-[14px] h-[14px] text-[#64748B]" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-[12px] w-full min-w-0">
+                {academicInfoRows.map((row, idx) => (
+                  <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
+                    <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
+                      {row.label}
+                    </span>
+                    <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* ── Thông tin KTX (AC4: only rendered when linked registration exists) ── */}
+            <StudentDormitoryCard
+              registrationData={dormData}
+              student={student}
+              onRefresh={loadDormitoryData}
+            />
+
+          </div>
+
+          {/* ═══ RIGHT COLUMN ═══ */}
+          <div className="flex flex-col gap-4 sm:gap-5 min-w-0 w-full">
+
+            {/* ── Summary Stats Cards ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0"
+            >
+              {/* Card 1 — Điểm rèn luyện */}
+              <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
+                <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
+                  <ShieldCheck className="w-[18px] h-[18px] text-[#1A73E8]" strokeWidth={2} />
+                </div>
                 <div className="flex flex-col min-w-0 flex-1">
-                  <h3 className="font-sans font-bold text-[#1E293B] text-[16px] sm:text-[18px] leading-[24px] sm:leading-[26px] truncate" title={student.full_name}>
-                    {student.full_name}
-                  </h3>
-                  <p className="font-sans font-medium text-[#64748B] text-[12px] sm:text-[13px] leading-[18px] truncate">
-                    MSSV: {student.student_code}
+                  <p className="font-sans font-bold text-[#64748B] text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Rèn luyện (điểm)</p>
+                  <p className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
+                    {resolvedDrl !== null ? `${resolvedDrl}/100` : 'N/A'}
                   </p>
-                  {!isSelfStudent && (
-                    <button className="mt-[6px] text-left cursor-pointer hover:underline truncate">
-                      <span className="font-sans font-semibold text-[#1A73E8] text-[12px] leading-[18px]">
-                        Thay đổi ảnh chân dung
-                      </span>
-                    </button>
-                  )}
                 </div>
-              </motion.div>
+              </div>
 
-              {/* ── Personal Information Section ── */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.2 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
+              {/* Card 2 — Vi phạm (tính từ records) */}
+              <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
+                <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
+                  <MinusCircle className="w-[18px] h-[18px] text-rose-500" strokeWidth={2} />
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <p className="font-sans font-bold text-rose-700 text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Vi phạm (số lần)</p>
+                  <p className="font-sans font-bold text-rose-600 text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
+                    {violationCount}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* ── Ghi nhận rèn luyện (AC1 & AC2: Virtualized Infinite List) ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.25 }}
+              className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full flex-1 min-h-[460px] lg:min-h-[540px]"
+            >
+              <div className="border-b border-white/50 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 w-full shrink-0 flex items-center justify-between">
+                <h3 className="font-sans text-[15px] leading-[22px] font-bold text-[#1A73E8]">Ghi nhận rèn luyện</h3>
+                <span className="font-sans text-[12px] font-medium text-[#64748B]">
+                  {totalRecords > 0 ? `${totalRecords} bản ghi` : `${records.length} bản ghi`}
+                </span>
+              </div>
+
+              {/* ─ Virtualized Scroll Viewport (AC1: ~5 rows visible before scrolling) ─ */}
+              <div
+                ref={scrollContainerRef}
+                tabIndex={0}
+                role="region"
+                aria-label="Danh sách ghi nhận rèn luyện"
+                className="px-4 sm:px-6 pt-4 pb-4 w-full flex-1 min-h-[460px] max-h-[500px] overflow-y-auto relative outline-none focus:ring-1 focus:ring-[#1A73E8]/30 rounded-b-2xl"
+                style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent' }}
               >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-[8px]">
-                    <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
-                    <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
-                      Thông tin cá nhân
-                    </h2>
+                {isLoadingRecords ? (
+                  <div className="flex flex-col gap-3 sm:gap-4 w-full">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="w-full h-[88px] rounded-xl" />
+                    ))}
                   </div>
-                  {!isSelfStudent && (
-                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
-                      <Settings className="w-[14px] h-[14px] text-[#64748B]" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-[12px] w-full min-w-0">
-                  {personalInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
-                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
-                        {row.label}
-                      </span>
-                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-
-              {/* ── Academic Information Section ── */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.3 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-[8px]">
-                    <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
-                    <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
-                      Thông tin học tập
-                    </h2>
+                ) : records.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full min-h-[220px] gap-3 text-center py-12">
+                    <AlertCircle className="w-10 h-10 text-[#64748B]" />
+                    <p className="text-[13px] text-[#64748B]">Sinh viên chưa có ghi nhận rèn luyện nào.</p>
                   </div>
-                  {!isSelfStudent && (
-                    <button className="w-[28px] h-[28px] flex items-center justify-center rounded-xl bg-white/50 border border-white/80 hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-sm cursor-pointer shrink-0">
-                      <Settings className="w-[14px] h-[14px] text-[#64748B]" />
-                    </button>
-                  )}
-                </div>
+                ) : (
+                  <div
+                    style={{
+                      height: `${rowVirtualizer.getTotalSize()}px`,
+                      width: '100%',
+                      position: 'relative',
+                    }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const record = records[virtualRow.index];
+                      if (!record) return null;
 
-                <div className="flex flex-col gap-[12px] w-full min-w-0">
-                  {academicInfoRows.map((row, idx) => (
-                    <div key={idx} className="flex items-center justify-between w-full border-b border-white/40 pb-2 last:border-b-0 last:pb-0 gap-3">
-                      <span className="font-sans font-medium text-[#64748B] text-[12px] leading-[18px] shrink-0">
-                        {row.label}
-                      </span>
-                      <span className="font-sans font-bold text-[#1E293B] text-[13px] leading-[18px] text-right truncate min-w-0 flex-1" title={String(row.value)}>
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
+                      const type = getCriterionType(record);
+                      const label = getRecordLabel(record);
+                      const title = getRecordTitle(record);
+                      const points = getRecordPoints(record);
+                      const date = formatRecordDate(record.recorded_at || record.createdAt);
+                      const criterion = record.criterion_id as any;
+                      const semesterName = record.semester_id
+                        ? (typeof record.semester_id === 'object'
+                          ? (record.semester_id as any)?.semester_name || ''
+                          : '')
+                        : '';
 
-            </div>
-
-            {/* ═══ RIGHT COLUMN ═══ */}
-            <div className="flex flex-col gap-4 sm:gap-5 min-w-0 w-full">
-
-              {/* ── Summary Stats Cards ── */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.15 }}
-                className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full min-w-0"
-              >
-                {/* Card 1 — Điểm rèn luyện */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
-                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
-                    <ShieldCheck className="w-[18px] h-[18px] text-[#1A73E8]" strokeWidth={2} />
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <p className="font-sans font-bold text-[#64748B] text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Rèn luyện (điểm)</p>
-                    <p className="font-sans font-bold text-[#1E293B] text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
-                      {resolvedDrl !== null ? `${resolvedDrl}/100` : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card 2 — Vi phạm (tính từ records thật) */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 flex gap-3 items-center p-3.5 sm:p-4 rounded-2xl min-h-[76px] sm:h-[80px] shadow-sm shadow-slate-300/40 hover:scale-[1.01] transition-all duration-150 ease-out min-w-0">
-                  <div className="bg-white/60 backdrop-blur-sm border border-white/80 flex items-center justify-center rounded-xl shadow-sm w-[36px] h-[36px] shrink-0">
-                    <MinusCircle className="w-[18px] h-[18px] text-rose-500" strokeWidth={2} />
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <p className="font-sans font-bold text-rose-700 text-[9px] sm:text-[10px] tracking-wider uppercase leading-none truncate">Vi phạm (số lần)</p>
-                    <p className="font-sans font-bold text-rose-600 text-[18px] sm:text-[20px] leading-tight mt-1 truncate">
-                      {violationCount}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* ── Ghi nhận ── */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.25 }}
-                className="bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col overflow-hidden w-full flex-1 min-h-[460px] lg:min-h-[540px]"
-              >
-                <div className="border-b border-white/50 px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 w-full shrink-0 flex items-center justify-between">
-                  <h3 className="font-sans text-[15px] leading-[22px] font-bold text-[#1A73E8]">Ghi nhận rèn luyện</h3>
-                  <span className="font-sans text-[12px] font-medium text-[#64748B]">
-                    {records.length} bản ghi
-                  </span>
-                </div>
-
-                {/* ─ Content Area ─ */}
-                <div
-                  className="flex flex-col gap-3 sm:gap-4 px-4 sm:px-6 pt-4 pb-4 w-full flex-1 min-h-0 overflow-y-auto"
-                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.3) transparent' }}
-                >
-                  {isTabLoading ? (
-                    <div className="flex flex-col gap-3 sm:gap-4 w-full">
-                      {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="w-full h-[88px] rounded-[16px]" />
-                      ))}
-                    </div>
-                  ) : false ? (
-                    /* ─── Tab Danh Mục: dữ liệu thật từ API ─── */
-                    categories.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-12">
-                        <AlertCircle className="w-10 h-10 text-[#64748B]" />
-                        <p className="text-[13px] text-[#64748B]">Chưa có danh mục nào được cấu hình.</p>
-                      </div>
-                    ) : (
-                      categories.map((cat, idx) => (
-                        <motion.div
-                          key={cat._id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.15, delay: 0.1 + idx * 0.05 }}
-                          className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl shadow-sm shadow-blue-900/5 hover:scale-[1.01] transition-all duration-150 ease-out w-full"
+                      return (
+                        <div
+                          key={record._id || virtualRow.index}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                            paddingBottom: '12px',
+                          }}
                         >
-                          {/* Card Header */}
-                          <div
-                            className="flex items-center justify-between px-[16px] pt-[16px] pb-[12px] cursor-pointer hover:bg-white/30 transition-colors"
-                            onClick={() => setExpandedCategory(expandedCategory === cat._id ? null : cat._id)}
-                          >
-                            <div className="flex items-center gap-[8px]">
-                              <h4 className="font-sans font-bold text-[#1E293B] text-[15px] leading-[22px]">
-                                {cat.category_name}
-                              </h4>
-                              <ChevronDown className={`w-[12px] h-[12px] text-[#64748B] transition-transform duration-300 ${expandedCategory === cat._id ? 'rotate-180' : ''}`} />
-                            </div>
-                            <div className="bg-[#1A73E8]/10 border border-[#1A73E8]/20 px-[10px] py-[3px] rounded-xl shrink-0">
-                              <span className="font-sans font-bold text-[#1A73E8] text-[11px] tracking-wide">
-                                Tối đa: {cat.max_score}đ
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Code danh mục — luôn hiển thị */}
-                          <div className="px-[16px] pb-[16px]">
-                            <p className="font-sans font-normal text-[#64748B] text-[12px] leading-[18px]">
-                              Mã danh mục: <span className="font-semibold text-[#1E293B]">{cat.category_code}</span>
-                              {cat.criteria.length > 0 && (
-                                <span className="ml-2 text-[#64748B]">· {cat.criteria.length} tiêu chí</span>
-                              )}
-                            </p>
-                          </div>
-
-                          {/* Accordion: danh sách tiêu chí */}
-                          <motion.div
-                            initial={false}
-                            animate={{
-                              height: expandedCategory === cat._id ? 'auto' : 0,
-                              opacity: expandedCategory === cat._id ? 1 : 0
-                            }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="flex flex-col gap-[8px] px-[16px] pb-[16px] pt-[16px] border-t border-white/50 bg-white/20">
-                              {cat.criteria.length === 0 ? (
-                                <p className="text-[12px] text-[#64748B] italic">Chưa có tiêu chí nào.</p>
-                              ) : (
-                                cat.criteria.map((criterion) => {
-                                  const isPositive = criterion.criterion_type !== 'ky_luat';
-                                  const scoreDisplay = isPositive
-                                    ? `+${criterion.score_per_unit}đ`
-                                    : `${criterion.score_per_unit}đ`;
-                                  return (
-                                    <div
-                                      key={criterion._id}
-                                      className="flex items-center justify-between px-[14px] py-[10px] bg-white/40 backdrop-blur-xs rounded-xl border border-white/60 shadow-sm"
-                                    >
-                                      <div className="flex flex-col gap-[2px]">
-                                        <span className="font-sans font-medium text-[#1E293B] text-[13px] leading-[18px]">
-                                          {criterion.criterion_name}
-                                        </span>
-                                        <span className="font-sans text-[11px] text-[#64748B]">
-                                          {criterion.criterion_type === 'khen_thuong' && 'Khen thưởng'}
-                                          {criterion.criterion_type === 'cong_diem' && 'Cộng điểm'}
-                                          {criterion.criterion_type === 'ky_luat' && 'Kỷ luật'}
-                                          {' · '}Max: {criterion.max_score}đ
-                                        </span>
-                                      </div>
-                                      <span className={`font-sans font-bold text-[13px] leading-[18px] ${isPositive ? 'text-[#1A73E8]' : 'text-rose-600'}`}>
-                                        {scoreDisplay}
-                                      </span>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </motion.div>
-                        </motion.div>
-                      ))
-                    )
-                  ) : (
-                    /* ─── Tab Lịch Sử Ghi Nhận: dữ liệu thật từ API ─── */
-                    records.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full min-h-[220px] gap-3 text-center py-12">
-                        <AlertCircle className="w-10 h-10 text-[#64748B]" />
-                        <p className="text-[13px] text-[#64748B]">Sinh viên chưa có ghi nhận rèn luyện nào.</p>
-                      </div>
-                    ) : (
-                      records.map((record, idx) => {
-                        const type = getCriterionType(record);
-                        const label = getRecordLabel(record);
-                        const title = getRecordTitle(record);
-                        const points = getRecordPoints(record);
-                        const date = formatRecordDate(record.recorded_at || record.createdAt);
-                        const criterion = record.criterion_id as any;
-                        const semesterName = record.semester_id
-                          ? (typeof record.semester_id === 'object'
-                            ? (record.semester_id as any)?.semester_name || ''
-                            : '')
-                          : '';
-
-                        return (
-                          <motion.div
-                            key={record._id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.15, delay: 0.1 + idx * 0.04 }}
-                            className="bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-between p-3.5 sm:p-4 rounded-xl w-full shadow-sm hover:scale-[1.01] transition-all duration-150 ease-out gap-3 min-w-0"
-                          >
+                          <div className="bg-white/50 backdrop-blur-sm border border-white/80 flex items-center justify-between p-3.5 sm:p-4 rounded-xl w-full shadow-sm hover:scale-[1.005] transition-all duration-150 ease-out gap-3 min-w-0">
                             <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                               {/* Row 1: Title + Badge */}
                               <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
@@ -658,27 +686,60 @@ export default function StudentProfilePage() {
                                 {points}
                               </span>
                             </div>
-                          </motion.div>
-                        );
-                      })
-                    )
-                  )}
-                </div>
-
-                {/* ─ Footer Note ─ */}
-                <div className="bg-white/20 border-t border-white/50 px-4 sm:px-6 py-3.5 sm:py-4 w-full shrink-0">
-                  <div className="flex justify-center">
-                    <span className="font-sans font-medium text-[#64748B] text-[12px] text-center">
-                      {records.length > 0
-                        ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
-                        : 'Chưa có bản ghi ghi nhận nào.'}
-                    </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+
+                {/* ─ Infinite Scroll Loading & Error States (AC2) ─ */}
+                {isLoadingMore && (
+                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-[#1A73E8]">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang tải thêm bản ghi...</span>
+                  </div>
+                )}
+
+                {recordsError && (
+                  <div className="flex items-center justify-center gap-2 py-3 text-xs text-rose-600">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{recordsError}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={loadNextPage}
+                      className="ml-2 h-7 text-xs rounded-lg gap-1 border-rose-200 hover:bg-rose-50 text-rose-700"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Thử lại
+                    </Button>
+                  </div>
+                )}
+
+                {!hasMore && !isLoadingRecords && records.length > 0 && (
+                  <div className="flex items-center justify-center py-2 text-[11px] text-[#64748B]/80 italic">
+                    Đã hiển thị tất cả ghi nhận
+                  </div>
+                )}
+              </div>
+
+              {/* ─ Footer Note ─ */}
+              <div className="bg-white/20 border-t border-white/50 px-4 sm:px-6 py-3.5 sm:py-4 w-full shrink-0">
+                <div className="flex justify-center">
+                  <span className="font-sans font-medium text-[#64748B] text-[12px] text-center">
+                    {totalRecords > 0
+                      ? `Hiển thị ${records.length}/${totalRecords} bản ghi ghi nhận rèn luyện của sinh viên.`
+                      : records.length > 0
+                      ? `Hiển thị ${records.length} bản ghi ghi nhận rèn luyện của sinh viên.`
+                      : 'Chưa có bản ghi ghi nhận nào.'}
+                  </span>
                 </div>
-              </motion.div>
-            </div>
+              </div>
+            </motion.div>
           </div>
-        </motion.main>
+        </div>
+      </motion.main>
     </>
   );
 }

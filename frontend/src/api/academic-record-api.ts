@@ -26,6 +26,15 @@ export interface AcademicRecord {
   date_record?: string;
 }
 
+export interface PaginatedAcademicRecords {
+  data: AcademicRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  has_more: boolean;
+}
+
 export interface CreateAcademicRecordDto {
   student_id: string;
   criterion_id: string;
@@ -139,12 +148,21 @@ export const academicRecordApi = {
     return handleResponse(res);
   },
 
-  async getAcademicRecordsByStudent(studentId: string): Promise<AcademicRecord[]> {
+  async getAcademicRecordsByStudent(
+    studentId: string,
+    params?: { page?: number; limit?: number },
+  ): Promise<any> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records/student/${studentId}`, {
+    const queryParts: string[] = [];
+    if (params) {
+      if (params.page !== undefined) queryParts.push(`page=${encodeURIComponent(params.page)}`);
+      if (params.limit !== undefined) queryParts.push(`limit=${encodeURIComponent(params.limit)}`);
+    }
+    const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+    const res = await fetch(`${API_BASE}/academic-records/student/${studentId}${queryString}`, {
       headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
     });
-    return handleResponse<AcademicRecord[]>(res);
+    return handleResponse<any>(res);
   },
 
   async getAcademicRecordsByDailyReport(dailyReportId: string): Promise<AcademicRecord[]> {

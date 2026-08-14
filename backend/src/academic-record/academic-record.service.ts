@@ -2099,8 +2099,35 @@ export class AcademicRecordService {
   async findByStudentId(
     studentId: string,
     requester?: any,
-  ): Promise<AcademicRecord[]> {
+    pagination?: { page?: number; limit?: number },
+  ): Promise<
+    | AcademicRecord[]
+    | {
+        data: AcademicRecord[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        has_more: boolean;
+      }
+  > {
+    const isPaginationRequested =
+      pagination !== undefined &&
+      (pagination.page !== undefined || pagination.limit !== undefined);
+
     if (!Types.ObjectId.isValid(studentId)) {
+      if (isPaginationRequested) {
+        const p = pagination?.page || 1;
+        const l = pagination?.limit || 10;
+        return {
+          data: [],
+          total: 0,
+          page: p,
+          limit: l,
+          totalPages: 0,
+          has_more: false,
+        };
+      }
       return [];
     }
 
@@ -2138,17 +2165,52 @@ export class AcademicRecordService {
       }
     }
 
+    const filter: any = {
+      student_id: new Types.ObjectId(studentId),
+      status: 'active',
+      is_deleted: { $ne: true },
+    };
+
+    if (isPaginationRequested) {
+      const p = pagination.page && pagination.page > 0 ? pagination.page : 1;
+      const l = pagination.limit && pagination.limit > 0 ? pagination.limit : 10;
+
+      const [records, total] = await Promise.all([
+        this.academicRecordModel
+          .find(filter)
+          .populate('criterion_id')
+          .populate('student_id')
+          .populate('semester_id')
+          .populate('daily_report_id')
+          .populate({ path: 'recorded_by', populate: { path: 'role' } })
+          .sort({ recorded_at: -1, createdAt: -1 })
+          .skip((p - 1) * l)
+          .limit(l)
+          .exec(),
+        this.academicRecordModel.countDocuments(filter).exec(),
+      ]);
+
+      const totalPages = Math.ceil(total / l);
+      const has_more = p * l < total;
+
+      return {
+        data: records,
+        total,
+        page: p,
+        limit: l,
+        totalPages,
+        has_more,
+      };
+    }
+
     return this.academicRecordModel
-      .find({
-        student_id: new Types.ObjectId(studentId),
-        status: 'active',
-        is_deleted: { $ne: true },
-      } as any)
+      .find(filter)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .sort({ recorded_at: -1, createdAt: -1 })
       .exec();
   }
 

@@ -373,6 +373,10 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/me`);
       return handleResponse(res);
     },
+    async getByStudent(studentId: string): Promise<SelfDormitoryRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/student/${studentId}`);
+      return handleResponse(res);
+    },
     async updateMine(dto: Pick<UpdateDormRegistrationInput, 'phone_number' | 'preference' | 'priority_group' | 'applicant_profile'>): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/me`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto),
