@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 export interface ResponsiveColumn<T = any> {
   key: string;
@@ -47,6 +48,7 @@ interface ResponsiveDataViewProps<T> {
   // Mobile infinite scroll support
   mobileFooter?: React.ReactNode;
   mobileScrollRef?: React.Ref<HTMLDivElement>;
+  mobileVirtualization?: boolean;
   
   // Desktop infinite scroll support
   desktopFooter?: React.ReactNode;
@@ -70,9 +72,22 @@ export default function ResponsiveDataView<T>({
   hidePaginationOnMobile = false,
   mobileFooter,
   mobileScrollRef,
+  mobileVirtualization = false,
   desktopFooter,
   desktopScrollRef
 }: ResponsiveDataViewProps<T>) {
+  const internalMobileScrollRef = React.useRef<HTMLDivElement>(null);
+  const setMobileScrollElement = React.useCallback((node: HTMLDivElement | null) => {
+    internalMobileScrollRef.current = node;
+    if (typeof mobileScrollRef === 'function') mobileScrollRef(node);
+    else if (mobileScrollRef) mobileScrollRef.current = node;
+  }, [mobileScrollRef]);
+  const mobileVirtualizer = useVirtualizer({
+    count: mobileVirtualization ? data.length : 0,
+    getScrollElement: () => internalMobileScrollRef.current,
+    estimateSize: () => 180,
+    overscan: 5,
+  });
   
   const getBreakpointClass = (bp: 'sm' | 'md' | 'lg' | 'xl') => {
     switch (bp) {
@@ -168,7 +183,7 @@ export default function ResponsiveDataView<T>({
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
       {/* 1. Cards View (Mobile/Tablet) */}
-      <div ref={mobileScrollRef} className={`${bpClasses.cards} flex-1 overflow-y-auto p-4`}>
+      <div ref={setMobileScrollElement} className={`${bpClasses.cards} flex-1 overflow-y-auto p-4`}>
         {isLoading ? (
           // Skeleton Cards
           <div className="flex flex-col gap-3">
@@ -194,11 +209,22 @@ export default function ResponsiveDataView<T>({
         ) : data.length === 0 ? (
           <div className="py-12 flex justify-center">{emptyState || <p className="text-sm text-slate-500 font-medium">Không có dữ liệu</p>}</div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {data.map((row, idx) => (
-              renderCard ? renderCard(row, idx) : renderDefaultCard(row, idx)
-            ))}
-          </div>
+          mobileVirtualization ? (
+            <div className="relative w-full" style={{ height: mobileVirtualizer.getTotalSize() }}>
+              {mobileVirtualizer.getVirtualItems().map(item => {
+                const row = data[item.index];
+                return (
+                  <div key={keyExtractor(row, item.index)} ref={mobileVirtualizer.measureElement} data-index={item.index} className="absolute left-0 top-0 w-full pb-3" style={{ transform: `translateY(${item.start}px)` }}>
+                    {renderCard ? renderCard(row, item.index) : renderDefaultCard(row, item.index)}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {data.map((row, idx) => renderCard ? renderCard(row, idx) : renderDefaultCard(row, idx))}
+            </div>
+          )
         )}
         {mobileFooter}
       </div>
