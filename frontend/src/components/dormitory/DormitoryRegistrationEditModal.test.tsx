@@ -76,8 +76,15 @@ describe('DormitoryRegistrationEditModal', () => {
       full_name: 'Nguyễn A', student_code: '', semester: 'HK2', academic_year: '2025-2026', date_of_birth: '2003-01-15', gender: 'Female' as const,
       phone_number: '0912345678', room_type: 'Máy lạnh' as const, notes: 'Gần khu học tập', priority_group: 'Không' as const, applicant_profile: {},
     };
-    expect(buildEditRegistrationPayload('FORMAL', form)).toHaveProperty('preference');
-    expect(buildEditRegistrationPayload('ADMIN_TEMPORARY', form)).not.toHaveProperty('preference');
+    const formalPayload = buildEditRegistrationPayload('FORMAL', form);
+    expect(formalPayload).not.toHaveProperty('full_name');
+    expect(formalPayload).not.toHaveProperty('student_code');
+    expect(formalPayload).not.toHaveProperty('room_type');
+    expect(formalPayload).not.toHaveProperty('notes');
+    expect(formalPayload).not.toHaveProperty('preference');
+    const temporaryPayload = buildEditRegistrationPayload('ADMIN_TEMPORARY', form);
+    expect(temporaryPayload).toMatchObject({ full_name: 'Nguyễn A', student_code: '', room_type: 'Máy lạnh', notes: 'Gần khu học tập' });
+    expect(temporaryPayload).not.toHaveProperty('preference');
   });
 
   it('shows formal student identity as read-only and removes duplicate semester cards', async () => {
@@ -86,6 +93,8 @@ describe('DormitoryRegistrationEditModal', () => {
 
     expect(await screen.findByDisplayValue('Student In Class')).toHaveAttribute('readonly');
     expect(screen.getByDisplayValue('SV001')).toHaveAttribute('readonly');
+    expect(screen.getByDisplayValue('Thường')).toHaveAttribute('readonly');
+    expect(screen.getByDisplayValue('Gần cửa sổ')).toHaveAttribute('readonly');
     expect(screen.queryByText('Kỳ active')).not.toBeInTheDocument();
     expect(screen.queryByText('Năm học active')).not.toBeInTheDocument();
   });

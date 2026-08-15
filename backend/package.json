@@ -44,6 +44,8 @@
     ,"migration:dormitory-bed-index:execute": "ts-node scripts/migrate-dormitory-bed-index.ts --execute"
     ,"migration:dormitory-building-status:dry-run": "ts-node scripts/migrate-dormitory-building-status.ts"
     ,"migration:dormitory-building-status:execute": "ts-node scripts/migrate-dormitory-building-status.ts --execute"
+    ,"migration:dormitory-room-index:dry-run": "ts-node scripts/repair-dormitory-room-index.ts"
+    ,"migration:dormitory-room-index:execute": "ts-node scripts/repair-dormitory-room-index.ts --execute"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",
