@@ -117,8 +117,8 @@ export class RegistrationsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string) {
-    return this.registrationsService.findOne(id);
+  findOne(@Param('id') id: string, @Query('source') source?: string) {
+    return this.registrationsService.findOne(id, source);
   }
 
   @Patch(':id')

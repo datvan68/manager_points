@@ -587,16 +587,23 @@ export class RegistrationsService {
     };
   }
 
-  async findOne(id: string): Promise<Registration> {
-    const reg = await this.registrationModel
-      .findById(id)
+  async findOne(id: string, sourceValue?: string): Promise<Registration> {
+    this.validateId(id);
+    const source = sourceValue ? this.validateSource(sourceValue) : 'FORMAL';
+    const query = source === 'FORMAL'
+      ? this.registrationModel.findById(id)
+      : this.publicRegModel.findOne({
+        _id: id,
+        ...(source === 'ADMIN_TEMPORARY' ? { source: 'ADMIN_ENTRY' } : { source: { $ne: 'ADMIN_ENTRY' } }),
+      });
+    const reg = await query
       .populate('student_id')
       .populate('reviewed_by_id', 'user_name')
       .exec();
     if (!reg) {
       throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
     }
-    return reg;
+    return reg as unknown as Registration;
   }
 
   private validateSource(source: string): 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY' {

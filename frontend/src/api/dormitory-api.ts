@@ -391,8 +391,8 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/unclassified${buildQuery(params)}`);
       return handleResponse(res);
     },
-    async getOne(id: string): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}`);
+    async getOne(id: string, source?: DormRegistrationSource): Promise<DormRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`);
       return handleResponse(res);
     },
     async getApplicationPdf(id: string, source: DormRegistrationSource, disposition: 'inline' | 'attachment' = 'inline'): Promise<Blob> {

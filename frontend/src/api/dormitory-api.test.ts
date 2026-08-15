@@ -71,6 +71,16 @@ describe('dormitoryApi.registrations.update/delete', () => {
   });
 });
 
+describe('dormitoryApi.registrations.getOne', () => {
+  it('includes the source discriminator for public detail reads', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'registration-1', source: 'PUBLIC' })) });
+
+    await dormitoryApi.registrations.getOne('registration-1', 'PUBLIC');
+
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
+  });
+});
+
 describe('dormitoryApi.registrations.unassignRoom', () => {
   it('posts the registration id to the unassign endpoint', async () => {
     mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'ok' })) });

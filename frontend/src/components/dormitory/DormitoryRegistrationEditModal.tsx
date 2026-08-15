@@ -59,9 +59,10 @@ const applicantProfileValue = (profile?: ApplicantProfile): ApplicantProfile => 
 });
 
 export function formFromRegistration(row: DormRegistration): EditForm {
+  const student = row.student_id && typeof row.student_id === 'object' ? row.student_id : null;
   return {
-    full_name: (row as any).full_name || row.public_registration?.full_name || '',
-    student_code: (row as any).student_code || row.public_registration?.student_code || '',
+    full_name: (row as any).full_name || row.public_registration?.full_name || student?.full_name || '',
+    student_code: (row as any).student_code || row.public_registration?.student_code || student?.student_code || '',
     semester: row.semester || '',
     academic_year: row.academic_year || '',
     date_of_birth: dateInputValue(row.date_of_birth || row.public_registration?.date_of_birth),
@@ -172,11 +173,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
         <DialogTitle className="flex flex-wrap items-center gap-2">Sửa đơn đăng ký{activeSemesterName && <span className="text-xs font-semibold text-[#64748B]">{activeSemesterName}</span>}{semesterLoading && <span className="text-xs font-semibold text-[#64748B]">Đang tải học kỳ...</span>}</DialogTitle>
       </DialogHeader>
       {!canEdit ? <p className="py-6 text-sm text-slate-600">Bạn không có quyền cập nhật thông tin đơn này.</p> : <form onSubmit={submit} className="grid gap-4 py-4 sm:grid-cols-2">
-        {source !== 'FORMAL' && <><Input label="Họ và tên" required value={form.full_name} onChange={e => setField('full_name', e.target.value)} placeholder="Nhập họ và tên" /><Input label="Mã SV" value={form.student_code} onChange={e => setField('student_code', e.target.value)} placeholder="Nhập mã sinh viên (nếu có)" /></>}
-        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/70 bg-white/50 px-3 py-2.5"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#64748B]">Kỳ active</span><span className="mt-1 block text-sm font-semibold text-[#1E293B]">{form.semester || 'Đang tải...'}</span></div>
-          <div className="rounded-xl border border-white/70 bg-white/50 px-3 py-2.5"><span className="block text-[11px] font-bold uppercase tracking-wide text-[#64748B]">Năm học active</span><span className="mt-1 block text-sm font-semibold text-[#1E293B]">{form.academic_year || 'Đang tải...'}</span></div>
-        </div>
+        {source === 'FORMAL' ? <><Input label="Họ và tên" value={form.full_name || 'Chưa cập nhật'} readOnly /><Input label="Mã SV" value={form.student_code || 'Chưa cập nhật'} readOnly /></> : <><Input label="Họ và tên" required value={form.full_name} onChange={e => setField('full_name', e.target.value)} placeholder="Nhập họ và tên" /><Input label="Mã SV" value={form.student_code} onChange={e => setField('student_code', e.target.value)} placeholder="Nhập mã sinh viên (nếu có)" /></>}
         <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label><Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal"><span className="truncate">{dateLabel(form.date_of_birth)}</span><Calendar size={15} /></Button></PopoverTrigger><PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start"><CustomCalendar startDate={form.date_of_birth ? new Date(`${form.date_of_birth}T00:00:00`) : null} endDate={null} onRangeSelect={() => undefined} onRangeConfirm={start => setField('date_of_birth', dateInputValue(start))} onCancel={() => setCalendarOpen(false)} onConfirm={() => setCalendarOpen(false)} /></PopoverContent></Popover></div>
         <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={form.gender} onValueChange={value => setField('gender', value as EditForm['gender'])}><SelectTrigger aria-label="Giới tính"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
         <Input label="Số điện thoại" required type="tel" value={form.phone_number} onChange={e => setField('phone_number', e.target.value)} placeholder="Nhập số điện thoại" />

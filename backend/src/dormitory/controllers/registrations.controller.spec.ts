@@ -13,6 +13,14 @@ describe('RegistrationsController temporary entry', () => {
 });
 
 describe('RegistrationsController registration actions', () => {
+  it('passes the optional source discriminator to detail reads', async () => {
+    const registrationsService: any = { findOne: jest.fn().mockResolvedValue({ _id: 'registration-1', source: 'PUBLIC' }) };
+    const controller = new RegistrationsController(registrationsService, {} as any, {} as any);
+
+    await expect(controller.findOne('registration-1', 'PUBLIC')).resolves.toEqual({ _id: 'registration-1', source: 'PUBLIC' });
+    expect(registrationsService.findOne).toHaveBeenCalledWith('registration-1', 'PUBLIC');
+  });
+
   it('passes source and DTO to update and remove', async () => {
     const registrationsService: any = {
       update: jest.fn().mockResolvedValue({ _id: 'registration-1' }),

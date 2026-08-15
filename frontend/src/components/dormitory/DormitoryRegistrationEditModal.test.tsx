@@ -29,8 +29,7 @@ describe('DormitoryRegistrationEditModal', () => {
     const { rerender } = render(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
 
     expect(getSemesters).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
-    expect(screen.getByText('2025-2026')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
 
     rerender(<DormitoryRegistrationEditModal open={false} registration={registration()} onOpenChange={onOpenChange} />);
     rerender(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
@@ -61,7 +60,7 @@ describe('DormitoryRegistrationEditModal', () => {
     const row = { ...registration(source), full_name: 'Applicant', student_code: 'APP-1' };
     render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi/i }));
     await waitFor(() => expect(update).toHaveBeenCalledWith('registration-1', source, expect.objectContaining({ semester: 'HK2', academic_year: '2025-2026' })));
   });
@@ -73,6 +72,16 @@ describe('DormitoryRegistrationEditModal', () => {
     };
     expect(buildEditRegistrationPayload('FORMAL', form)).toHaveProperty('preference');
     expect(buildEditRegistrationPayload('ADMIN_TEMPORARY', form)).not.toHaveProperty('preference');
+  });
+
+  it('shows formal student identity as read-only and removes duplicate semester cards', async () => {
+    const row = { ...registration(), student_id: { _id: 'student-1', full_name: 'Student In Class', student_code: 'SV001' } };
+    render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
+
+    expect(await screen.findByDisplayValue('Student In Class')).toHaveAttribute('readonly');
+    expect(screen.getByDisplayValue('SV001')).toHaveAttribute('readonly');
+    expect(screen.queryByText('Kỳ active')).not.toBeInTheDocument();
+    expect(screen.queryByText('Năm học active')).not.toBeInTheDocument();
   });
 
   it('exports strict active-semester validation for missing, duplicate, and malformed data', () => {
