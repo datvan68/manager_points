@@ -39,6 +39,24 @@ describe('RoomsService', () => {
     expect(service.ensureRoomBeds).toHaveBeenCalledWith('room-1', 4);
   });
 
+  it('normalizes room codes before duplicate checks and persistence', async () => {
+    const savedRoom = { _id: 'room-2', room_code: 'B202' };
+    const save = jest.fn().mockResolvedValue(savedRoom);
+    const roomModel: any = jest.fn().mockImplementation((payload) => {
+      expect(payload.room_code).toBe('B202');
+      return { save };
+    });
+    roomModel.findOne = jest.fn().mockResolvedValue(null);
+    const buildingModel: any = { findById: jest.fn().mockResolvedValue({ _id: 'building-1' }) };
+    const service = new RoomsService(roomModel, {} as any, buildingModel, {} as any);
+    jest.spyOn(service, 'ensureRoomBeds').mockResolvedValue(undefined);
+    jest.spyOn(service, 'findOne').mockResolvedValue(savedRoom as any);
+
+    await service.create({ room_code: ' b202 ', room_name: 'Room B202', building_id: 'building-1', room_type: 'Thường', bed_count: 2, room_price: 100000 } as any, {});
+
+    expect(roomModel.findOne).toHaveBeenCalledWith({ room_code: 'B202' });
+  });
+
   it('adds only missing bed records for an existing room', async () => {
     const bedModel: any = {
       find: jest.fn().mockReturnValueOnce(bedsQuery([

@@ -15,6 +15,9 @@ import { ApplicantProfileFields, compactApplicantProfile, emptyApplicantProfile 
 
 export type ActiveSemesterValues = { semester: string; academic_year: string };
 
+export const normalizeDormitoryRegistrationSource = (source?: string): DormRegistrationSource =>
+  source === 'PUBLIC' || source === 'ADMIN_TEMPORARY' ? source : 'FORMAL';
+
 export function mapActiveSemester(semesters: Semester[]): ActiveSemesterValues {
   const active = semesters.filter(semester => semester.status === 'active');
   if (active.length !== 1) throw new Error(active.length ? 'Có nhiều học kỳ đang active. Vui lòng kiểm tra cấu hình học kỳ.' : 'Chưa có học kỳ active. Vui lòng cấu hình học kỳ trước khi đăng ký.');
@@ -102,7 +105,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
   const [activeSemesterName, setActiveSemesterName] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  const source = (registration?.source || 'FORMAL') as DormRegistrationSource;
+  const source = normalizeDormitoryRegistrationSource(registration?.source);
 
   useEffect(() => {
     if (!open || !registration) return;

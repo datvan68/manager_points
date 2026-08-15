@@ -1,57 +1,60 @@
 ## Task Identity and Pipeline
 
-Task: `dormitory-registration-crud-student-identity` | Pipeline: `bug_fix` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `d617d5bff56115ba16db76ef784a87c11841bccf`
+Task: `dormitory-registration-and-room-crud-fixes` | Pipeline: `bug_fix` | Profile: Full | Rules: 3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `d74ce0ad24fb9c3dc628e9a3e6266224616edf9f`
 
 ## Risk Level
 
-Risk: medium. The change aligns frontend/backend CRUD contracts across registration sources without schema migration, persistent-data rewrite, or external effects.
+Risk: medium for application changes; high only if the development database requires removal of a legacy bed index. Changes span registration and room CRUD across frontend/backend.
 
 ## Objective
 
-Dormitory CRUD correctly handles enrolled students' identity, preserves source-specific behavior, and removes the redundant active-semester/year cards from the edit modal.
+Formal student registrations update without unsupported fields, and Buildings can create a second distinct room while all room CRUD operations preserve room/bed consistency.
 
 ## Scope Boundaries
 
-Approved/write: `frontend/src/api/dormitory-api.ts`, `frontend/src/api/dormitory-api.test.ts`, `frontend/src/app/(dashboard)/dormitory/registrations/page.tsx`, `frontend/src/app/(dashboard)/dormitory/registrations/page.test.tsx`, `frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx`, `frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx`, `backend/src/dormitory/controllers/registrations.controller.ts`, `backend/src/dormitory/controllers/registrations.controller.spec.ts`, `backend/src/dormitory/services/registrations.service.ts`, `backend/src/dormitory/services/registrations.service.spec.ts`.
+Approved/write: `frontend/src/api/dormitory-api.ts`, registration edit/student-card components and tests, Buildings page and tests, dormitory registration/room controllers, services, DTOs, schemas and focused tests, plus `backend/scripts/migrate-dormitory-bed-index.ts` and its test only if index diagnosis requires correction.
 
 ## Out of Scope
 
-Editing Student master data, class membership, room assignment, public-registration linking, PDF generation, permissions, schemas, and migrations.
+Student/class master-data edits, room assignment, contracts/invoices, production migration, permissions, unrelated dormitory screens, and destructive data cleanup.
 
 ## Context and Dependencies
 
-A `FORMAL` registration stores `student_id`; list reads populate `student_id.full_name` and `student_id.student_code`. These identity fields must remain owned by the Student record. Public/temporary registrations own top-level identity fields. The edit modal currently hides formal identity and duplicates the active semester/year already summarized in its title. Detail read currently resolves only the formal collection, so CRUD verification must retain the source discriminator when loading records.
+`FORMAL` updates allow `preference` but reject top-level `full_name`, `student_code`, `room_type`, and `notes`; the reported message proves a public-shaped payload reached the formal endpoint. Room creation persists the room then provisions canonical `<ROOM>-G<n>` beds. The schema expects a compound unique bed index, while a guarded legacy-index migration already exists.
 
 ## Steps
 
-1. Establish a Create/Read/Update/Delete matrix for `FORMAL`, `PUBLIC`, and `ADMIN_TEMPORARY`.
-2. For an enrolled/classified student, submit `student_id` on Create; populate and display Họ và tên/Mã SV read-only on Read/Edit; never copy or update them in the registration record.
-3. Keep Họ và tên/Mã SV editable for public/temporary records and route list/detail/update/delete to the matching source.
-4. Remove the `Kỳ active` and `Năm học active` cards while retaining active-semester loading, validation, payload values, and the title summary.
-5. Add source/identity/UI regressions, run focused suites, and inspect the final diff.
+1. Reproduce formal updates from both Registrations and Student detail; trace source metadata and payload construction through API/controller/service.
+2. Enforce one source-aware payload mapper: formal identity stays read-only and room preferences remain nested; public/temporary identity and preferences use their supported top-level fields.
+3. Reproduce creating two rooms with different codes in one building; capture whether failure occurs at validation, room uniqueness, bed provisioning, projection, or database index.
+4. Correct room Create/Read/Update/Delete and rollback behavior so room and generated beds cannot be partially persisted; keep duplicate room codes rejected.
+5. Verify the actual `beds` indexes with the existing dry-run. Amend the guarded migration/test only when the canonical compound index or legacy index is the demonstrated cause.
+6. Add regressions for both entry points, consecutive room creation, duplicate handling, capacity update, protected deletion, and successful deletion; inspect final diff/status.
 
 ## Acceptance Criteria
 
-- AC1: Creating a formal registration for a student in a class stores the selected `student_id`; list/detail/edit show the current Student name and code.
-- AC2: Formal Update cannot mutate `full_name` or `student_code`; public/temporary Update can mutate their own identity fields.
-- AC3: Read and Delete target the correct source; invalid IDs, mismatched sources, linked records, and unsupported fields remain rejected.
-- AC4: The edit modal contains no active-semester/year cards; the active semester remains visible once in the title and is still submitted.
-- AC5: Focused CRUD and modal tests pass without unhandled errors.
+- AC1: Updating a formal registration never sends/stores top-level `full_name`, `student_code`, `room_type`, or `notes`; permitted values update successfully.
+- AC2: Public and temporary updates retain editable identity fields and source-correct routing.
+- AC3: Two rooms with distinct codes can be created consecutively in the same building; each owns exactly its requested canonical beds.
+- AC4: Duplicate codes fail clearly without deleting an existing room or leaving orphan/partial beds.
+- AC5: Room read/list projections, update (including capacity), single/bulk delete, and protected occupancy/history rules pass focused tests.
+- AC6: No database index is mutated without the applicable Human Gate.
 
 ## Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- src/api/dormitory-api.test.ts "src/app/(dashboard)/dormitory/registrations/page.test.tsx" src/components/dormitory/DormitoryRegistrationEditModal.test.tsx` => source routing, formal identity, and modal UI tests pass.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/registrations.controller.spec.ts dormitory/services/registrations.service.spec.ts` => CRUD/source/identity matrix passes.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- src/api/dormitory-api.test.ts src/components/dormitory/DormitoryRegistrationEditModal.test.tsx src/components/students/StudentDormitoryCard.test.tsx "src/app/(dashboard)/dormitory/registrations/page.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx"` => source-aware payload and Buildings CRUD regressions pass.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/registrations.controller.spec.ts dormitory/services/registrations.service.spec.ts dormitory/services/rooms.service.spec.ts` => registration and room/bed CRUD contracts pass.
+- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-bed-index:dry-run` => reports index state without mutation.
 - `D:\PROJECT\manager_points` :: `git diff --check` => no whitespace errors.
 
 ## Safety Gates
 
-None.
+If dry-run proves an incorrect development-database index, request explicit approval before `migration:dormitory-bed-index:execute`; record before/after indexes and the emitted rollback command. Production execution remains excluded.
 
 ## Artifacts and Checkpoints
 
-Focused test output and final diff; no checkpoint required.
+Failure reproduction, focused test output, index dry-run output, and final diff. Checkpoint only before an approved index mutation.
 
 ## Execution Budgets
 
-One writer per path; up to 3 engineering iterations and 2 review-remediation cycles; stop for boundary expansion, migration, permission changes, or persistent-data work.
+One writer per path; up to 3 engineering iterations and 2 review-remediation cycles. Stop for production access, schema/data cleanup, permission changes, or scope expansion.

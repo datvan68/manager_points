@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { dormitoryApi, SelfDormitoryRegistration, DormRegistration } from '@/api/dormitory-api';
 import { Student } from '@/api/student-api';
-import DormitoryRegistrationEditModal, { buildEditRegistrationPayload } from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, normalizeDormitoryRegistrationSource } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import type { EditForm } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import { compactApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
@@ -91,8 +91,8 @@ export default function StudentDormitoryCard({ registrationData, student, onRefr
       return;
     }
     if (isStaff) {
-      const source = (row.source || 'FORMAL') as DormRegistration['source'];
-      await dormitoryApi.registrations.update(row._id, source || 'FORMAL', buildEditRegistrationPayload(source || 'FORMAL', form));
+      const source = normalizeDormitoryRegistrationSource(row.source);
+      await dormitoryApi.registrations.update(row._id, source, buildEditRegistrationPayload(source, form));
       return;
     }
     throw new Error('Bạn không có quyền cập nhật thông tin đơn này.');

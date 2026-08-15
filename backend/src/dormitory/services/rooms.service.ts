@@ -67,12 +67,14 @@ export class RoomsService {
     const building = await this.buildingModel.findById(dto.building_id);
     if (!building) throw new NotFoundException(`Không tìm thấy tòa nhà: ${dto.building_id}`);
 
-    const existing = await this.roomModel.findOne({ room_code: dto.room_code });
-    if (existing) throw new ConflictException(`Phòng với mã "${dto.room_code}" đã tồn tại`);
+    const roomCode = String(dto.room_code || '').trim().toUpperCase();
+    const existing = await this.roomModel.findOne({ room_code: roomCode });
+    if (existing) throw new ConflictException(`Phòng với mã "${roomCode}" đã tồn tại`);
 
     const qrId = uuidv4();
     const room = new this.roomModel({
       ...dto,
+      room_code: roomCode,
       available_bed_count: dto.bed_count,
       qr_code: qrId,
       public_url: `/public/room/${qrId}`,

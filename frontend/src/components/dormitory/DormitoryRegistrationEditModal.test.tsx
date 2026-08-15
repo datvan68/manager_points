@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { dormitoryApi, DormRegistration } from '@/api/dormitory-api';
 import { semesterApi } from '@/api/semester-api';
-import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, mapActiveSemester } from './DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, mapActiveSemester, normalizeDormitoryRegistrationSource } from './DormitoryRegistrationEditModal';
 
 const registration = (source: DormRegistration['source'] = 'FORMAL'): DormRegistration => ({
   _id: 'registration-1', registration_code: 'DK-1', student_id: 'student-1', source,
@@ -12,6 +12,12 @@ const registration = (source: DormRegistration['source'] = 'FORMAL'): DormRegist
 });
 
 describe('DormitoryRegistrationEditModal', () => {
+  it('normalizes missing or unknown registration sources to FORMAL', () => {
+    expect(normalizeDormitoryRegistrationSource()).toBe('FORMAL');
+    expect(normalizeDormitoryRegistrationSource('CLASSIFIED')).toBe('FORMAL');
+    expect(normalizeDormitoryRegistrationSource('PUBLIC')).toBe('PUBLIC');
+    expect(normalizeDormitoryRegistrationSource('ADMIN_TEMPORARY')).toBe('ADMIN_TEMPORARY');
+  });
   let getSemesters: ReturnType<typeof vi.spyOn>;
   let update: ReturnType<typeof vi.spyOn>;
 
