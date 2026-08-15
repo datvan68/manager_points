@@ -324,6 +324,8 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(html).not.toContain('overflow: hidden');
     expect(html).toContain('grid-template-columns: 39mm minmax(0, 1fr);');
     expect(html).toContain('height: 41.8mm;');
+    expect(html).toContain('.student-details .field-citizen { margin-right: 5mm; }');
+    expect(html).toContain('.student-details .field-issue-date { margin-right: 5mm; }');
     expect(html).toContain('class="photo-frame"');
     expect(html).toContain('.signature-space { height: 0; }');
     expect(html).toContain('table-layout: fixed;');

@@ -293,6 +293,8 @@ export class RegistrationsService {
       .student-details .field-citizen { width: 20mm; }
       .student-details .field-issue-date { width: 18mm; }
       .student-details .field-citizen, .student-details .field-issue-date, .student-details .field-issue-place { font-size: 9pt; letter-spacing: 0; }
+      .student-details .field-citizen { margin-right: 5mm; }
+      .student-details .field-issue-date { margin-right: 5mm; }
       .field { display: inline-block; padding: 0; border: 0; vertical-align: baseline; overflow: visible; white-space: nowrap; }
       .field-name { width: 81mm; }
       .field-date { width: 37mm; }
