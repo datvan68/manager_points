@@ -93,6 +93,9 @@ export function buildRepairPlan(
   if (canonicalIndexes.length === 1 && canonicalIndexes[0].unique !== true) {
     unsafeFindings.push(`${CANONICAL_INDEX} exists but is not unique.`);
   }
+  if (canonicalIndexes.some((index) => index.sparse === true || index.partialFilterExpression !== undefined)) {
+    unsafeFindings.push(`${CANONICAL_INDEX} has unsupported index options.`);
+  }
   if (canonicalConflicts.length > 0) {
     unsafeFindings.push(`Unexpected ${CANONICAL_FIELD} index definition found.`);
   }

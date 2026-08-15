@@ -31,17 +31,27 @@ type RoomMutationInput = {
   description?: string;
 };
 
-const toRoomMutationPayload = (form: FormValue): RoomMutationInput => ({
-  room_code: String(form.room_code ?? '').trim().toUpperCase(),
-  room_name: String(form.room_name ?? '').trim(),
-  building_id: typeof form.building_id === 'object' ? form.building_id?._id : String(form.building_id ?? ''),
-  room_type: String(form.room_type ?? ''),
-  bed_count: Number(form.bed_count),
-  room_price: Number(form.room_price),
-  status: form.status || undefined,
-  amenities: Array.isArray(form.amenities) ? form.amenities : undefined,
-  description: form.description ? String(form.description) : undefined,
+export const roomFormFromRoom = (room: Room): FormValue => ({
+  ...room,
+  building_id: typeof room.building_id === 'object' ? room.building_id._id : room.building_id,
+  room_name: room.room_name || room.room_code,
 });
+
+export const toRoomMutationPayload = (form: FormValue): RoomMutationInput => {
+  const payload: RoomMutationInput = {
+    room_code: String(form.room_code ?? '').trim().toUpperCase(),
+    room_name: String(form.room_name ?? '').trim(),
+    building_id: String(typeof form.building_id === 'object' ? form.building_id?._id : form.building_id ?? '').trim(),
+    room_type: String(form.room_type ?? '').trim(),
+    bed_count: Number(form.bed_count),
+    room_price: Number(form.room_price),
+  };
+  if (form.status) payload.status = form.status as Room['status'];
+  if (Array.isArray(form.amenities)) payload.amenities = form.amenities;
+  const description = String(form.description ?? '').trim();
+  if (description) payload.description = description;
+  return payload;
+};
 export type FormErrors = Record<string, string>;
 export const validateRoomForm = (form: FormValue): FormErrors => {
   const errors: FormErrors = {};
@@ -106,8 +116,10 @@ export default function BuildingsPage() {
   const [roomForm, setRoomForm] = useState<FormValue>(roomDefaults);
   const [buildingForm, setBuildingForm] = useState<FormValue>(buildingDefaults);
   const [roomErrors, setRoomErrors] = useState<FormErrors>({});
+  const [roomSaveError, setRoomSaveError] = useState('');
   const [buildingErrors, setBuildingErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const roomSavingRef = useRef(false);
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null);
   const [buildingToDelete, setBuildingToDelete] = useState<Building | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -181,8 +193,9 @@ export default function BuildingsPage() {
 
   const openRoom = (room?: Room) => {
     setRoomEdit(room || null);
-    setRoomForm(room ? { ...room, building_id: typeof room.building_id === 'object' ? room.building_id._id : room.building_id, room_name: room.room_name || room.room_code } : { ...roomDefaults, building_id: buildings[0]?._id || '' });
+    setRoomForm(room ? roomFormFromRoom(room) : { ...roomDefaults, building_id: buildings[0]?._id || '' });
     setRoomErrors({});
+    setRoomSaveError('');
     setRoomOpen(true);
   };
   const openArea = (building?: Building) => {
@@ -196,10 +209,12 @@ export default function BuildingsPage() {
 
   const saveRoom = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (saving) return;
+    if (saving || roomSavingRef.current) return;
+    setRoomSaveError('');
     const errors = validateRoomForm(roomForm);
     setRoomErrors(errors);
     if (Object.keys(errors).length) return;
+    roomSavingRef.current = true;
     setSaving(true);
     try {
       const payload = toRoomMutationPayload(roomForm);
@@ -207,7 +222,14 @@ export default function BuildingsPage() {
       toast.success(roomEdit ? 'Đã cập nhật phòng' : 'Đã thêm phòng');
       setRoomOpen(false);
       await load(true);
-    } catch (err: any) { toast.error(err?.message || 'Không thể lưu phòng.'); } finally { setSaving(false); }
+    } catch (err: any) {
+      const message = err?.message || 'Không thể lưu phòng.';
+      setRoomSaveError(message);
+      toast.error(message);
+    } finally {
+      roomSavingRef.current = false;
+      setSaving(false);
+    }
   };
   const saveArea = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -310,7 +332,7 @@ export default function BuildingsPage() {
       <ResponsiveDataView data={rooms} columns={columns} isLoading={loading} keyExtractor={room => room._id} mobileScrollRef={mobileScrollRef} mobileVirtualization hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMoreRef.current && rooms.length ? 'Đã hiển thị tất cả phòng.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">{error || 'Chưa có phòng nào'}</div>} pagination={<CustomPagination totalItems={meta.total} pageSize={pageSize} currentPage={page} onPageChange={next => { setPage(next); setSelected([]); }} onPageSizeChange={size => { setPage(1); setPageSize(size); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="phòng" />} />
     </div>
 
-    <Dialog open={roomOpen} onOpenChange={setRoomOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>{roomEdit ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle></DialogHeader><form onSubmit={saveRoom} className="grid gap-4 py-4 sm:grid-cols-2">{field('Mã phòng', 'room_code', 'text', true)}{field('Tên phòng', 'room_name', 'text', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Khu vực</label><Select value={roomForm.building_id} onValueChange={value => { setRoomErrors(errors => ({ ...errors, building_id: '' })); setRoomForm(current => ({ ...current, building_id: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.building_id)}><SelectValue placeholder="Chọn khu vực" /></SelectTrigger><SelectContent>{buildings.map(building => <SelectItem key={building._id} value={building._id}>{building.name}</SelectItem>)}</SelectContent></Select>{selectError(roomErrors, 'building_id')}</div><div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={roomForm.room_type} onValueChange={value => { setRoomErrors(errors => ({ ...errors, room_type: '' })); setRoomForm(current => ({ ...current, room_type: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.room_type)}><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select>{selectError(roomErrors, 'room_type')}</div>{field('Tổng số giường', 'bed_count', 'number', true)}{field('Giá phòng', 'room_price', 'number', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={roomForm.status} onValueChange={value => setRoomForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['Trống', 'Đầy', 'Khóa', 'Bảo trì'].map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div><div className="sm:col-span-2"><Input label="Mô tả" multiline rows={3} value={roomForm.description ?? ''} onChange={event => setRoomForm(current => ({ ...current, description: event.target.value }))} /></div><DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setRoomOpen(false)}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu phòng'}</Button></DialogFooter></form></DialogContent></Dialog>
+    <Dialog open={roomOpen} onOpenChange={setRoomOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>{roomEdit ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle></DialogHeader><form onSubmit={saveRoom} className="grid gap-4 py-4 sm:grid-cols-2">{field('Mã phòng', 'room_code', 'text', true)}{field('Tên phòng', 'room_name', 'text', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Khu vực</label><Select value={roomForm.building_id} onValueChange={value => { setRoomErrors(errors => ({ ...errors, building_id: '' })); setRoomForm(current => ({ ...current, building_id: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.building_id)}><SelectValue placeholder="Chọn khu vực" /></SelectTrigger><SelectContent>{buildings.map(building => <SelectItem key={building._id} value={building._id}>{building.name}</SelectItem>)}</SelectContent></Select>{selectError(roomErrors, 'building_id')}</div><div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={roomForm.room_type} onValueChange={value => { setRoomErrors(errors => ({ ...errors, room_type: '' })); setRoomForm(current => ({ ...current, room_type: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.room_type)}><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select>{selectError(roomErrors, 'room_type')}</div>{field('Tổng số giường', 'bed_count', 'number', true)}{field('Giá phòng', 'room_price', 'number', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={roomForm.status} onValueChange={value => setRoomForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['Trống', 'Đầy', 'Khóa', 'Bảo trì'].map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div><div className="sm:col-span-2"><Input label="Mô tả" multiline rows={3} value={roomForm.description ?? ''} onChange={event => setRoomForm(current => ({ ...current, description: event.target.value }))} /></div>{roomSaveError && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{roomSaveError}</p>}<DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setRoomOpen(false)}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu phòng'}</Button></DialogFooter></form></DialogContent></Dialog>
 
     <Dialog open={areaOpen} onOpenChange={setAreaOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>Quản lý khu vực</DialogTitle></DialogHeader><div className="space-y-3 py-4"><div className="flex items-center justify-between"><p className="text-sm font-semibold text-slate-600">Danh sách khu vực</p>{canCreateBuilding && <Button variant="outline" size="icon" aria-label="Thêm khu vực" title="Thêm khu vực" onClick={startCreateArea} className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0"><Plus size={15} /></Button>}</div>{buildings.length === 0 ? <p className="rounded-xl border border-white/60 bg-white/40 p-6 text-center text-sm text-slate-500">Chưa có khu vực nào.</p> : <div className="space-y-2">{buildings.map(building => <div key={building._id} className="flex items-center justify-between rounded-xl border border-white/70 bg-white/45 px-3 py-2"><div><p className="font-semibold text-slate-800">{building.name}</p><p className="text-xs text-slate-500">{building.building_code}</p></div><div className="flex gap-1">{canUpdateBuilding && <button aria-label={`Sửa khu vực ${building.name}`} onClick={() => openArea(building)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={15} /></button>}{canDeleteBuilding && <button aria-label={`Xóa khu vực ${building.name}`} onClick={() => setBuildingToDelete(building)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}</div></div>)}</div>}{areaFormOpen && <form onSubmit={saveArea} className="grid gap-4 border-t border-white/60 pt-4 sm:grid-cols-2">{areaField('Mã khu vực', 'building_code', 'text', true)}{areaField('Tên khu vực', 'name', 'text', true)}{areaField('Địa chỉ', 'address')}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={buildingForm.status} onValueChange={value => setBuildingForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Trống">Trống</SelectItem><SelectItem value="Đầy">Đầy</SelectItem></SelectContent></Select></div>{areaField('Mô tả', 'description', 'text', false, true)}<DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => { setAreaFormOpen(false); setBuildingEdit(null); }}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : buildingEdit ? 'Lưu khu vực' : 'Thêm khu vực'}</Button></DialogFooter></form>}</div></DialogContent></Dialog>
 

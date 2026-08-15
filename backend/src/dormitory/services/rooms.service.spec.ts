@@ -171,4 +171,102 @@ describe('RoomsService', () => {
     await expect(service.ensureRoomBeds('room-1', 0)).rejects.toThrow();
     await expect(service.ensureRoomBeds('room-1', 1.5)).rejects.toThrow();
   });
+
+  it('maps a duplicate-key race during room creation to a conflict', async () => {
+    const roomModel: any = jest.fn().mockImplementation(() => ({
+      save: jest.fn().mockRejectedValue({ code: 11000 }),
+    }));
+    roomModel.findOne = jest.fn().mockResolvedValue(null);
+    const buildingModel: any = { findById: jest.fn().mockResolvedValue({ _id: 'building-1' }) };
+    const service = new RoomsService(roomModel, {} as any, buildingModel, {} as any);
+
+    await expect(service.create({
+      room_code: ' a101 ', room_name: 'Room A101', building_id: 'building-1', room_type: 'Thường', bed_count: 2, room_price: 1,
+    } as any, {})).rejects.toThrow('already exists');
+  });
+
+  it('rejects a missing room before attempting any update', async () => {
+    const roomModel: any = {
+      findById: jest.fn().mockReturnValue(resolvedQuery(null)),
+      findByIdAndUpdate: jest.fn(),
+    };
+    const service = new RoomsService(roomModel, {} as any, {} as any, {} as any);
+
+    await expect(service.update('missing', { room_name: 'Updated' } as any, {})).rejects.toThrow('Room not found');
+    expect(roomModel.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a nonexistent target building before changing the room', async () => {
+    const roomModel: any = {
+      findById: jest.fn().mockReturnValue(resolvedQuery({ _id: 'room-1', room_code: 'A101' })),
+      findByIdAndUpdate: jest.fn(),
+    };
+    const buildingModel: any = { findById: jest.fn().mockReturnValue(resolvedQuery(null)) };
+    const service = new RoomsService(roomModel, {} as any, buildingModel, {} as any);
+
+    await expect(service.update('room-1', { building_id: 'building-missing' } as any, {})).rejects.toThrow('Building not found');
+    expect(roomModel.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a duplicate normalized room code during update', async () => {
+    const roomModel: any = {
+      findById: jest.fn().mockReturnValue(resolvedQuery({ _id: 'room-1', room_code: 'A101' })),
+      findOne: jest.fn().mockReturnValue(resolvedQuery({ _id: 'room-2', room_code: 'B202' })),
+      findByIdAndUpdate: jest.fn(),
+    };
+    const service = new RoomsService(roomModel, {} as any, {} as any, {} as any);
+
+    await expect(service.update('room-1', { room_code: ' b202 ' } as any, {})).rejects.toThrow('B202');
+    expect(roomModel.findOne).toHaveBeenCalledWith({ room_code: 'B202', _id: { $ne: 'room-1' } });
+    expect(roomModel.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('renames every canonical bed when the room code changes', async () => {
+    const updatedRoom = { _id: 'room-1', room_code: 'B202' };
+    const roomModel: any = {
+      findById: jest.fn().mockReturnValue(resolvedQuery({ _id: 'room-1', room_code: 'A101' })),
+      findOne: jest.fn().mockReturnValue(resolvedQuery(null)),
+      findByIdAndUpdate: jest.fn().mockReturnValue(resolvedQuery(updatedRoom)),
+    };
+    const bedModel: any = {
+      find: jest.fn().mockReturnValue(bedsQuery([
+        { _id: 'bed-1', bed_code: 'A101-G1', status: DORMITORY_ENUMS.bedStatus[0] },
+        { _id: 'bed-2', bed_code: 'A101-G2', status: DORMITORY_ENUMS.bedStatus[1] },
+      ])),
+      updateOne: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
+
+    await expect(service.update('room-1', { room_code: ' b202 ' } as any, {})).resolves.toBe(updatedRoom);
+    expect(bedModel.updateOne).toHaveBeenNthCalledWith(1, { _id: 'bed-1', room_id: 'room-1' }, { $set: { bed_code: 'B202-G1' } });
+    expect(bedModel.updateOne).toHaveBeenNthCalledWith(2, { _id: 'bed-2', room_id: 'room-1' }, { $set: { bed_code: 'B202-G2' } });
+  });
+
+  it('restores room fields and bed codes when bed synchronization fails', async () => {
+    const originalRoom = { _id: 'room-1', room_code: 'A101', bed_count: 2 };
+    const updatedRoom = { ...originalRoom, room_code: 'B202' };
+    const roomModel: any = {
+      findById: jest.fn().mockReturnValue(resolvedQuery(originalRoom)),
+      findOne: jest.fn().mockReturnValue(resolvedQuery(null)),
+      findByIdAndUpdate: jest.fn()
+        .mockReturnValueOnce(resolvedQuery(updatedRoom))
+        .mockResolvedValue(undefined),
+    };
+    const bedModel: any = {
+      find: jest.fn()
+        .mockReturnValueOnce(bedsQuery([{ _id: 'bed-1', bed_code: 'A101-G1', status: DORMITORY_ENUMS.bedStatus[0] }]))
+        .mockReturnValueOnce(bedsQuery([{ _id: 'bed-1', bed_code: 'B202-G1', status: DORMITORY_ENUMS.bedStatus[0] }])),
+      countDocuments: jest.fn().mockResolvedValue(1),
+      updateOne: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any);
+    jest.spyOn(service, 'ensureRoomBeds').mockRejectedValue(new Error('bed sync failed'));
+
+    await expect(service.update('room-1', { room_code: ' b202 ', bed_count: 3 } as any, {})).rejects.toThrow('bed sync failed');
+    expect(roomModel.findByIdAndUpdate).toHaveBeenLastCalledWith('room-1', { $set: { room_code: 'A101', bed_count: 2 } });
+    expect(bedModel.updateOne).toHaveBeenLastCalledWith(
+      { _id: 'bed-1', room_id: 'room-1' },
+      { $set: { bed_code: 'A101-G1', status: DORMITORY_ENUMS.bedStatus[0] } },
+    );
+  });
 });

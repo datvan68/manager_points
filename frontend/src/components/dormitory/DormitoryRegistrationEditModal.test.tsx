@@ -99,6 +99,20 @@ describe('DormitoryRegistrationEditModal', () => {
     expect(screen.queryByText('Năm học active')).not.toBeInTheDocument();
   });
 
+  it.each(['PUBLIC', 'ADMIN_TEMPORARY'] as const)('keeps identity, room type, and notes editable for %s', async source => {
+    const row = { ...registration(source), full_name: 'Applicant', student_code: 'APP-1' };
+    render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
+    expect(screen.getByDisplayValue('Applicant')).not.toHaveAttribute('readonly');
+    const roomTypeInput = screen.getAllByRole('textbox').find(input => input.getAttribute('placeholder')?.includes('ph'));
+    expect(roomTypeInput).toBeTruthy();
+    expect(roomTypeInput).not.toBeDisabled();
+    const notes = screen.getAllByRole('textbox').find(input => input.tagName === 'TEXTAREA');
+    expect(notes).toBeTruthy();
+    expect(notes).not.toHaveAttribute('readonly');
+  });
+
   it('exports strict active-semester validation for missing, duplicate, and malformed data', () => {
     expect(() => mapActiveSemester([])).toThrow('Chưa có học kỳ active');
     expect(() => mapActiveSemester([

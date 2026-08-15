@@ -57,6 +57,23 @@ describe('dormitory room index repair', () => {
     expect(plan.plannedChanges).toEqual({ dropLegacyIndexes: [], createCanonicalIndex: false });
   });
 
+  it('reports missing room codes without allowing execution', () => {
+    const plan = buildRepairPlan([legacy], summarizeRoomCodes([{ room_code: null }, { room_code: ' ' }]));
+
+    expect(plan.data.missingRoomCode).toBe(2);
+    expect(plan.readyToExecute).toBe(false);
+    expect(plan.unsafeFindings).toContain('2 room document(s) have a missing room_code.');
+  });
+
+  it('rejects a canonical index with unsupported options before writes', async () => {
+    const sparseCanonical = { ...canonical, sparse: true };
+    const collection = makeCollection([sparseCanonical, legacy], ['A101']);
+
+    await expect(runMigration(collection as any, true)).rejects.toThrow('unsupported index options');
+    expect(collection.dropIndex).not.toHaveBeenCalled();
+    expect(collection.createIndex).not.toHaveBeenCalled();
+  });
+
   it('is idempotent on a repeated run', async () => {
     const collection = makeCollection([canonical], ['A101', 'B202']);
     const plan = await runMigration(collection as any, true);

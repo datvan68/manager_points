@@ -39,6 +39,22 @@ describe('dormitoryApi.registrations.create', () => {
   });
 });
 
+describe('dormitoryApi.rooms.update', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sends one PATCH request to the selected room endpoint', async () => {
+    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'room-1' })) });
+    const payload = { room_code: 'A101', room_name: 'Phòng A101', building_id: 'building-1', room_type: 'Thường', bed_count: 4, room_price: 100000 };
+
+    await dormitoryApi.rooms.update('room-1', payload);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/rooms/room-1');
+    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'PATCH' });
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual(payload);
+  });
+});
+
 describe('dormitoryApi.registrations.update/delete', () => {
   beforeEach(() => vi.clearAllMocks());
 
