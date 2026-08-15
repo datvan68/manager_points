@@ -263,6 +263,19 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     });
   });
 
+  it('AC6: authorized staff preserves a non-formal source when updating', async () => {
+    (dormitoryApi.registrations.update as any).mockResolvedValue({ _id: 'reg-public' });
+    const publicData = {
+      ...mockRegistrationData,
+      registration: { ...mockRegistrationData.registration, _id: 'reg-public', source: 'PUBLIC', full_name: 'Applicant', student_code: 'APP-1' },
+    } as any;
+    render(<StudentDormitoryCard registrationData={publicData} student={studentObj as any} />);
+    fireEvent.click(screen.getAllByRole('button')[1]);
+    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /L.*i/i }));
+    await waitFor(() => expect(dormitoryApi.registrations.update).toHaveBeenCalledWith('reg-public', 'PUBLIC', expect.objectContaining({ full_name: 'Applicant', student_code: 'APP-1' })));
+  });
+
   it('AC6: failed update preserves entered data and shows an error', async () => {
     (dormitoryApi.registrations.update as any).mockRejectedValue(new Error('Lỗi máy chủ khi cập nhật'));
 

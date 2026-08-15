@@ -134,10 +134,12 @@ describe('RegistrationsService registration actions', () => {
 
     await service.update('507f1f77bcf86cd799439011', 'FORMAL', {
       phone_number: '0987654321',
+      applicant_profile: { ethnicity: 'Kinh' },
       preference: { room_type: 'Máy lạnh' },
     });
 
     expect(formal.phone_number).toBe('0987654321');
+    expect(formal.applicant_profile).toEqual({ ethnicity: 'Kinh' });
     expect(formal.preference).toEqual({ room_type: 'Máy lạnh' });
     expect(formal.save).toHaveBeenCalled();
     await expect(service.update('507f1f77bcf86cd799439011', 'FORMAL', { full_name: 'Không được sửa' } as any)).rejects.toThrow('Không thể cập nhật trường');
@@ -155,6 +157,15 @@ describe('RegistrationsService registration actions', () => {
     await service.update('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', { full_name: 'Tên mới' });
     expect(temporary.full_name).toBe('Tên mới');
     await expect(service.update('507f1f77bcf86cd799439011', 'PUBLIC', { full_name: 'Sai nguồn' })).rejects.toThrow('Nguồn đăng ký QR không hợp lệ');
+  });
+
+  it('accepts applicant profile updates for temporary entries', async () => {
+    const temporary = { source: 'ADMIN_ENTRY', save: jest.fn().mockResolvedValue({}) };
+    const publicModel: any = { findById: jest.fn().mockResolvedValue(temporary) };
+    const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
+
+    await service.update('507f1f77bcf86cd799439011', 'ADMIN_TEMPORARY', { applicant_profile: { ethnicity: 'Kinh' } } as any);
+    expect(temporary.applicant_profile).toEqual({ ethnicity: 'Kinh' });
   });
 
   it('normalizes a legacy nested preference when updating a temporary entry', async () => {

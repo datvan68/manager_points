@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { dormitoryApi, SelfDormitoryRegistration, DormRegistration } from '@/api/dormitory-api';
 import { Student } from '@/api/student-api';
-import DormitoryRegistrationEditModal from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import type { EditForm } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import { compactApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
@@ -91,18 +91,8 @@ export default function StudentDormitoryCard({ registrationData, student, onRefr
       return;
     }
     if (isStaff) {
-      const applicantProfile = compactApplicantProfile(form.applicant_profile);
-      const payload: any = {
-        phone_number: form.phone_number.trim(),
-        priority_group: form.priority_group,
-        preference: { room_type: form.room_type, notes: form.notes },
-        semester: form.semester,
-        academic_year: form.academic_year,
-        date_of_birth: form.date_of_birth || undefined,
-        gender: form.gender || 'Male',
-      };
-      if (applicantProfile) payload.applicant_profile = applicantProfile;
-      await dormitoryApi.registrations.update(row._id, 'FORMAL', payload);
+      const source = (row.source || 'FORMAL') as DormRegistration['source'];
+      await dormitoryApi.registrations.update(row._id, source || 'FORMAL', buildEditRegistrationPayload(source || 'FORMAL', form));
       return;
     }
     throw new Error('Bạn không có quyền cập nhật thông tin đơn này.');

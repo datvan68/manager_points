@@ -616,8 +616,8 @@ export class RegistrationsService {
     this.validateId(id);
     const source = this.validateSource(sourceValue);
     const payload = { ...(dto as Record<string, unknown>) };
-    const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group'];
-    const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes'];
+    const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group', 'applicant_profile'];
+    const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes', 'applicant_profile'];
     if (source !== 'FORMAL' && Object.prototype.hasOwnProperty.call(payload, 'preference')) {
       const preference = payload.preference;
       if (preference && typeof preference === 'object' && !Array.isArray(preference)) {
