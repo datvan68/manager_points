@@ -1,8 +1,8 @@
-Task: dormitory-pdf-class-faculty-spacing | bug_fix | Risk: medium | Profile: Quick
-Objective: Mẫu đơn PDF KTX luôn tạo khoảng cách rõ ràng giữa giá trị `Lớp` và nhãn/giá trị `Khoa`, không chồng chữ kể cả khi tên lớp dài.
-Boundary: `backend/src/dormitory/**` | Write: `backend/src/dormitory/services/registrations.service.ts`, `backend/src/dormitory/services/registrations.service.spec.ts`
-Targets: CSS/HTML dòng `Lớp`–`Khoa` trong `RegistrationsService.buildApplicationHtml`; kiểm thử hợp đồng bố cục PDF trong `registrations.service.spec.ts`.
-Steps: Xác nhận lỗi do `.field-class` có chiều rộng cố định nhưng cho phép nội dung tràn -> điều chỉnh bố cục/khoảng cách riêng cho dòng `Lớp`–`Khoa` để hai nhóm thông tin không lấn nhau và vẫn nằm gọn trên A4 -> bổ sung ca hồi quy với tên lớp/khoa dài -> chạy kiểm thử và kiểm tra trực quan PDF đại diện.
-Verify: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/services/registrations.service.spec.ts` => toàn bộ kiểm thử dịch vụ đăng ký KTX đạt; tạo/xem PDF với lớp `CD24A-CNKTCD` và khoa `Khoa Công nghệ thông tin - Kỹ thuật điện` => giữa `Lớp` và `Khoa` có khoảng cách, không chồng hoặc cắt chữ; `D:\PROJECT\manager_points` :: `git diff --check` => không có lỗi whitespace.
-Done: Dòng `Lớp`–`Khoa` không chồng chữ với dữ liệu mẫu dài; các trường khác, nội dung, khổ A4 và API xuất PDF không thay đổi; kiểm thử hồi quy đạt.
+Task: dormitory-citizen-id-issue-date-validation | bug_fix | Risk: medium | Profile: Quick
+Objective: Updating a dormitory registration accepts a valid CCCD/CMND issue date in the past while continuing to reject dates after the current local calendar day.
+Boundary: `backend/src/dormitory/**` | Write: `backend/src/dormitory/dto/applicant-profile.dto.ts`, `backend/src/dormitory/dto/applicant-profile.dto.spec.ts`
+Targets: `ApplicantProfileDto.citizen_id_issue_date` validation and focused DTO regression tests.
+Steps: Reproduce the mismatch between the string-valued `@IsDateString` field and the Date-valued `@MaxDate` validator -> replace it with date-only validation compatible with the API's `YYYY-MM-DD` string contract and timezone-safe current-day comparison -> add regression cases for a valid past date, the current date, a future date, and an invalid date string -> run the focused DTO test and inspect the final diff.
+Verify: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/dto/applicant-profile.dto.spec.ts` => past/current dates pass and future/invalid dates fail with the expected validation constraints; `D:\PROJECT\manager_points` :: `git diff --check` => no whitespace errors.
+Done: Dormitory registration updates no longer return `applicant_profile.Citizen ID issue date cannot be in the future` for a valid past/current issue date; future and malformed dates remain rejected; no registration API fields or unrelated validation behavior change.
 Gate: None
