@@ -253,6 +253,8 @@ describe('RegistrationsService application PDF source matrix', () => {
         date_of_birth: '2004-02-03',
         gender: 'Female',
         phone_number: '0902',
+        class_name: 'CD24A-CNKTCD',
+        department_name: 'Khoa Công nghệ thông tin - Kỹ thuật điện',
         source: 'QR_SCAN',
         applicant_profile: {
           ethnicity: 'Kinh',
@@ -308,6 +310,14 @@ describe('RegistrationsService application PDF source matrix', () => {
     expect(html).toContain('font-family: "Times New Roman", Times, serif; font-size: 15pt;');
     expect(html).toContain('font-size: 17pt; font-weight: 700;');
     expect(html).toContain('.detail-row { height: 1.75em; line-height: 1.75; white-space: nowrap; }');
+    expect(html).toContain('.class-faculty-row { display: flex; align-items: baseline; gap: 6mm; min-width: 0; white-space: normal; }');
+    expect(html).toContain('class="detail-row class-faculty-row"');
+    expect(html).toContain('class="class-faculty-group faculty"');
+    expect(html).toContain('.class-faculty-group.faculty { flex: 1 1 auto; font-size: 14pt; letter-spacing: 0; white-space: nowrap; }');
+    expect(html).toContain('Khoa: ');
+    expect(html).toContain('margin-left: 1.5mm;');
+    expect(html).toContain('CD24A-CNKTCD');
+    expect(html).toContain('Khoa Công nghệ thông tin - Kỹ thuật điện');
     expect(html).toContain('.field { display: inline-block; padding: 0; border: 0; vertical-align: baseline; overflow: visible; white-space: nowrap; }');
     expect(html).not.toContain('border-bottom: 1px dotted #000;');
     expect(html).not.toContain('min-height: 1.25em');

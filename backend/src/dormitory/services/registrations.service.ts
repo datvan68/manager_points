@@ -281,6 +281,9 @@ export class RegistrationsService {
       .recipient { margin: 0 0 13pt 28.5mm; text-align: left; }
       .details { line-height: 1.75; }
       .detail-row { height: 1.75em; line-height: 1.75; white-space: nowrap; }
+      .class-faculty-row { display: flex; align-items: baseline; gap: 6mm; min-width: 0; white-space: normal; }
+      .class-faculty-group { display: flex; align-items: baseline; min-width: 0; }
+      .class-faculty-group.faculty { flex: 1 1 auto; font-size: 14pt; letter-spacing: 0; white-space: nowrap; }
       .student-layout { display: grid; grid-template-columns: 39mm minmax(0, 1fr); column-gap: 3mm; margin-bottom: 10pt; }
       .photo-frame { width: 35.7mm; height: 41.8mm; margin-top: 11.5pt; margin-left: 2.3mm; border: 1px solid #000; }
       .student-details { min-width: 0; position: relative; top: 5.5pt; }
@@ -294,8 +297,8 @@ export class RegistrationsService {
       .field-name { width: 81mm; }
       .field-date { width: 37mm; }
       .field-gender { width: 17mm; }
-      .field-class { width: 39mm; }
-      .field-faculty { width: 48mm; }
+      .field-class { width: 39mm; flex: 0 0 39mm; }
+      .field-faculty { width: auto; flex: 1 1 auto; min-width: 0; margin-left: 1mm; white-space: nowrap; overflow-wrap: normal; }
       .field-ethnicity { width: 28mm; }
       .field-religion { width: 28mm; }
       .field-phone { width: 29mm; }
@@ -329,7 +332,7 @@ export class RegistrationsService {
         <section class="details student-details">
           <div class="detail-row">Họ và tên HSSV: ${field(data.full_name, 'field-name')}</div>
           <div class="detail-row">Ngày, tháng, năm sinh: ${field(data.date_of_birth, 'field-date')} Nam(nữ): ${field(data.gender, 'field-gender')}</div>
-          <div class="detail-row">Lớp: ${field(data.class_name, 'field-class')} Khoa ${field(data.department_name, 'field-faculty')}</div>
+          <div class="detail-row class-faculty-row"><span class="class-faculty-group">Lớp: ${field(data.class_name, 'field-class')}</span><span class="class-faculty-group faculty">Khoa: ${field(data.department_name, 'field-faculty')}</span></div>
           <div class="detail-row">Dân tộc: ${field(data.ethnicity, 'field-ethnicity')} Tôn giáo: ${field(data.religion, 'field-religion')} Điện thoại ${field(data.phone_number, 'field-phone')}</div>
           <div class="detail-row">CCCD: ${field(data.citizen_id_number, 'field-citizen')} Ngày cấp: ${field(data.citizen_id_issue_date, 'field-issue-date')} Nơi cấp: ${field(data.citizen_id_issue_place, 'field-issue-place')}</div>
         </section>
