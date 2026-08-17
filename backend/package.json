@@ -47,6 +47,8 @@
     ,"migration:dormitory-room-index:dry-run": "ts-node scripts/repair-dormitory-room-index.ts"
     ,"migration:dormitory-room-index:execute": "ts-node scripts/repair-dormitory-room-index.ts --execute"
     ,"migration:dormitory-registration-reconciliation:dry-run": "ts-node scripts/report-dormitory-registration-reconciliation.ts"
+    ,"migration:dormitory-public-registration-index:dry-run": "ts-node scripts/repair-public-registration-code-index.ts"
+    ,"migration:dormitory-public-registration-index:execute": "ts-node scripts/repair-public-registration-code-index.ts --execute"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",

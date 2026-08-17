@@ -1,102 +1,88 @@
 # Task Identity and Pipeline
 
-Task: `confirm-unclassified-student-link-and-profile-sync` | Pipeline: `feature_development` | Profile: Full | Rules: Fast and Accurate Coding Instructions v3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `7592c10678c35ddd37ca178f6155ec6d1651e8b5` | Planning state: taskscope only; implementation is not authorized by this planning request.
+Task: `repair-public-registration-code-legacy-index` | Pipeline: `bug_fix` | Profile: Full | Rules: Fast and Accurate Coding Instructions v3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `f2d05d8b884d9703d22eca1dc346648778c07a56` | Planning state: taskscope only; implementation and database execution are not authorized by this request.
 
 # Risk Level
 
-Risk: high. The feature spans student and dormitory modules, links previously separate records, creates/uses a formal dormitory registration, and can persist email/sex changes to a canonical student profile. Changes are transactional and logically reversible through audited values, but production use affects personal and persistent data.
+Risk: high. The application now writes `public_registration_code`, while an existing MongoDB unique index may still target legacy field `ma_dk_public`. Repair changes persistent database indexes and can affect all public/admin KTX registrations. The code artifact is reversible from a captured index definition; running it against any database requires the applicable Human Gate.
 
 # Objective
 
-Allow an authorized manager to review an unlinked KTX applicant, select the correct enrolled student suggested by normalized full name plus exact date of birth, explicitly confirm optional reverse synchronization of email and gender, and atomically link the records without creating a duplicate student or active KTX registration.
+Provide an idempotent, fail-closed index repair that removes the verified stale `ma_dk_public` unique index only after canonical registration-code data and the canonical unique index are safe, so multiple new KTX member registrations can be saved without `E11000 ... ma_dk_public: null` while registration-code uniqueness remains enforced.
 
 # Scope Boundaries
 
-Approved/read: student profile schema/service behavior, public/formal dormitory registration schemas and linking behavior, permissions, API contracts, and the Students > Chưa phân lớp UI.
+Approved/read: public-registration schema and creation paths, dormitory naming migration, existing index-repair conventions, backend scripts/tests/package commands, and MongoDB index metadata for an explicitly approved target environment.
 
 Write:
 
-- `backend/src/dormitory/controllers/registrations.controller.ts`
-- `backend/src/dormitory/services/registrations.service.ts`
-- `backend/src/dormitory/services/registrations.service.spec.ts`
-- `backend/src/dormitory/services/public-registration-link.service.ts`
-- `backend/src/dormitory/services/public-registration-link.service.spec.ts`
-- `backend/src/dormitory/schemas/public-registration.schema.ts`
-- a focused confirmation DTO under `backend/src/dormitory/dto/`
-- `frontend/src/api/dormitory-api.ts`
-- `frontend/src/app/(dashboard)/students/unclassified/page.tsx`
-- a focused UI test beside the unclassified page
+- new `backend/scripts/repair-public-registration-code-index.ts`
+- new `backend/src/dormitory/public-registration-code-index-repair.spec.ts`
+- `backend/package.json`
 
-Additional files may enter the manifest only when they are owned by these two modules, required for compilation/testing, and do not expand behavior.
+Additional implementation paths require a scope amendment if they change application behavior, registration payloads, data fields, or migration ownership.
 
 # Out of Scope
 
-Creating, deleting, or merging student records; generating/changing student codes or classes; changing authenticated `User.email`, login identifiers, passwords, or account linking; fuzzy-name auto-linking; bulk auto-confirmation by name/date of birth; historical backfill/migration; room assignment changes; deployment; and production-data execution.
+Changing registration DTOs/UI/API responses; suppressing or broadly catching `E11000`; changing code generation; deleting registrations; automatically renaming/backfilling document fields; resolving duplicate or missing canonical codes; running the general dormitory naming migration; deployment; and executing against development, staging, or production data under this planning request.
 
 # Context and Dependencies
 
-- The unclassified UI is currently read-only and loads `GET /dormitory/registrations/unclassified`.
-- That query currently includes only unlinked public registrations with a blank `student_code`, so unlinked records containing an invalid/unmatched code are omitted.
-- Existing auto-link logic matches student code or email and requires a class, but does not match full name plus date of birth.
-- Existing manual link accepts a public registration ID and student ID but does not revalidate identity evidence, student status/class, or an operator-selected reverse-sync policy.
-- `Student` owns canonical `student_code`, `class_id`, `full_name`, `date_bir`, `sex`, and profile `email`. Dormitory registration owns phone, room/bed, preferences, priority, and applicant-family data.
-- Existing link creation is transactional when MongoDB transactions are available and the formal-registration schema prevents more than one active registration per student.
+- `PublicRegistrationSchema` requires unique `public_registration_code`.
+- Both admin temporary registration and public QR registration generate and save `public_registration_code`.
+- The reported error names index `ma_dk_public_1` and key `{ ma_dk_public: null }`, proving the failing database index still keys the removed legacy field rather than the value currently written by the application.
+- MongoDB unique single-field indexes index a missing field as `null`; the second new canonical-only document therefore collides.
+- Mongoose schema/index declaration does not reliably remove obsolete database indexes. Existing `migrate-dormitory-naming.ts` can transform indexes when executed, but deployment state shows this legacy index was not removed/transformed in the affected database.
+- Follow the repository's dry-run-first, non-production guard, explicit approval variable, restore-command capture, and post-repair verification conventions.
 
 # Steps
 
-1. Broaden the unclassified roster to all public/admin registrations without typed link references. Return classification/match states that distinguish blank code, unmatched code, one suggested candidate, multiple candidates, conflict, and already linked records; keep linked records excluded.
-2. Add focused candidate resolution for one unclassified record. Require exact calendar date of birth and an exact normalized full name (Unicode normalization, trimmed/collapsed whitespace, case-insensitive). Use exact email and gender only as supporting/mismatch evidence. Never auto-confirm a name/date-of-birth match.
-3. Return only necessary candidate fields: student ID, official name, date of birth, student code, class, status, email, gender, match evidence, and conflict flags. Enforce existing read permission and avoid exposing unrelated student data.
-4. Add a validated confirmation DTO containing the selected student ID, expected public/student update timestamps, and explicit `sync_email` / `sync_gender` booleans. Reject unknown fields and invalid email/gender values.
-5. On confirmation, re-read and revalidate both records: unlinked source, one authorized target, exact name/date match, target status `Studying`, nonblank student code, assigned class, and no conflicting active registration. Reject stale timestamps and ambiguous or mismatched selections.
-6. Apply reverse-sync rules atomically with linking:
-   - Source email absent: never change `Student.email`.
-   - Source email equals normalized target email: no write.
-   - Target email blank: UI defaults `sync_email` on, but the submitted flag remains explicit.
-   - Both emails present and different: show a conflict; default off; overwrite only when the operator explicitly selects it.
-   - Gender follows the same rules using only `Male`, `Female`, or `Other`.
-   - Never update authenticated `User.email` in this task.
-7. Reuse the existing formal-registration mapping for dormitory-owned fields. Persist an audit snapshot on the public registration containing confirmer ID/time, match method/evidence, selected student ID, before/after email and gender, and which sync flags were applied. Make retries idempotent for the same target and reject a different target after linking.
-8. Update the unclassified UI with status badges and a review dialog showing source versus canonical data, candidate selection when ambiguous, conflict warnings, per-field email/gender checkboxes, and a final confirmation summary. Refresh the row, total, and parent count after success.
-9. Add backend tests for matching normalization, ambiguous identities, omitted/invalid codes, permission/revalidation, stale updates, field-level sync policies, transaction rollback, duplicate-active-registration protection, audit data, and idempotent retry. Add UI tests for comparison, defaults, conflict opt-in, ambiguous selection, success refresh, and error preservation.
-10. Perform independent privacy/security review, affected tests/build/typecheck, and final scoped diff review.
+1. Implement a dedicated script with pure planning helpers and a database runner for collection `publicregistrations`. Default to dry-run; `--execute` is the only mutation mode.
+2. Read index definitions and classify by index key, not name: exact legacy `{ ma_dk_public: 1 }`, exact canonical `{ public_registration_code: 1 }`, and unexpected compound/options conflicts. Never drop an index solely because its name matches.
+3. Inspect only code-field projections and report counts without logging code values or document contents: total documents, legacy-only, canonical-only, both-fields, missing/blank canonical values, and duplicate canonical groups.
+4. Fail closed before writes if any document is legacy-only, contains both fields, lacks a nonblank canonical code, has a duplicate canonical code, or if legacy/canonical index definitions are unexpected. Direct operators to the separately gated naming/data-reconciliation workflow; do not repair documents in this task.
+5. Require exactly one valid unique canonical index. If absent and data is safe, create `{ public_registration_code: 1 }` with a stable canonical name and `unique: true` before dropping any legacy index. If a valid canonical index already exists under any name, reuse it.
+6. Drop only verified exact single-field legacy indexes after canonical index creation/validation succeeds. Capture executable restore commands from the complete pre-change legacy index definitions before mutation.
+7. Re-read indexes after execution and fail verification unless one valid canonical unique index remains and no legacy-key index remains. A repeated execute on the repaired state must return `no-op` without writes.
+8. Add package scripts for dry-run and execute. Block execute without `MONGO_URI`, on a detected production connection, or unless `DORMITORY_MIGRATION_APPROVED=YES`; always disconnect cleanly.
+9. Add focused tests for the reported stale-index state, dry-run no-write behavior, canonical-first ordering, unsafe data/index blocking, create failure preserving the legacy index, exact-key protection, restore commands, post-check failure, and idempotent repeat.
+10. Run focused tests, backend build, script dry-run without a database, and scoped diff/status review. Database execution remains a separate gated operation.
 
 # Acceptance Criteria
 
-- AC-01: “Chưa phân lớp” includes every unlinked supported public/admin KTX registration, including records with blank, invalid, or unmatched student codes, and excludes linked records.
-- AC-02: A candidate is suggested only when normalized full name and exact date of birth match; name/date matches are never confirmed automatically.
-- AC-03: Multiple candidates require an explicit selection and unresolved identity conflicts cannot be confirmed.
-- AC-04: Confirmation succeeds only for an existing `Studying` student with a nonblank student code and assigned class, under `DORM_REG_UPDATE` permission and fresh source/target versions.
-- AC-05: Email and gender are each written to `Student` only when the source value is valid/present and the corresponding submitted sync flag is true; differing existing values are never overwritten by default.
-- AC-06: Confirmation never changes `student_code`, `class_id`, official name, date of birth, authenticated `User.email`, login behavior, or account credentials.
-- AC-07: Linking, optional student-field updates, formal-registration reuse/creation, public-link markers, and audit snapshot succeed atomically; a failure leaves all records unchanged.
-- AC-08: Repeating the same confirmed request does not create a second formal registration or repeat side effects; attempting to relink to another student is rejected.
-- AC-09: The UI clearly shows both records, discrepancies, selected sync fields, and success/error outcome, then refreshes the unclassified row and count.
-- AC-10: Existing code/email auto-link behavior, registration editing policy, and unrelated student/KTX behavior remain intact.
+- AC-01: Dry-run identifies `{ ma_dk_public: 1 }` as stale regardless of index name and performs no create/drop calls.
+- AC-02: The plan blocks all writes when canonical codes are missing/blank/duplicate, legacy document fields remain, both legacy and canonical fields coexist, or index definitions/options are unsafe.
+- AC-03: On a safe collection without the canonical index, execute creates and verifies the canonical unique index before dropping the verified legacy index.
+- AC-04: If canonical index creation or validation fails, the legacy index is not dropped and the command exits unsuccessfully.
+- AC-05: An existing valid unique `{ public_registration_code: 1 }` index is reused; after repair no `{ ma_dk_public: 1 }` index remains.
+- AC-06: Repeated execute after successful repair is a no-op and never weakens canonical code uniqueness.
+- AC-07: The script never logs registration-code values or mutates/deletes registration documents.
+- AC-08: Execute is blocked without an explicit non-production target and approval flag; dry-run and restore evidence are available before approval.
+- AC-09: In a disposable database matching the reported state, two distinct new public/admin registrations can be saved after repair without the legacy-null duplicate error, while duplicate `public_registration_code` is still rejected.
+- AC-10: Existing registration creation behavior and the general dormitory naming migration remain unchanged.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/registrations.service.spec.ts dormitory/services/public-registration-link.service.spec.ts` => AC-01 through AC-08 and AC-10 pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => DTO, controller, schema, and services compile.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/students/unclassified/page.test.tsx"` => AC-02, AC-03, AC-05, AC-06, and AC-09 pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => API and UI contracts compile.
-- Manual development check with disposable test records only: blank canonical fields default selected; conflicting fields default unselected; selected fields and link are committed together; stale/ambiguous attempts are rejected.
-- `D:\PROJECT\manager_points` :: `git diff --check` plus scoped status/diff review => no unintended changes or personal data in logs/fixtures.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/public-registration-code-index-repair.spec.ts` => AC-01 through AC-08 and AC-10 pass.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => the repair script and existing backend compile.
+- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-public-registration-index:dry-run` with no `MONGO_URI` => exits without database reads/writes and explains that no target was supplied.
+- Separately approved disposable non-production MongoDB :: dry-run, reviewed execute, repeated execute, then focused insert/index assertions => AC-03 through AC-09 pass; no raw registration codes are captured in artifacts.
+- `D:\PROJECT\manager_points` :: `git diff --check -- backend/scripts/repair-public-registration-code-index.ts backend/src/dormitory/public-registration-code-index-repair.spec.ts backend/package.json` and scoped status/diff review => no unintended changes.
 
 # Safety Gates
 
-Gate 1 — Execution authority: this request authorizes taskscope creation only. A separate implementation request is required before code changes.
+Gate 1 — Execution authority: this request authorizes taskscope creation only. A separate implementation request is required before repository code changes.
 
-Gate 2 — Persistent personal data: tests and manual verification must use fixtures/disposable development records. Any staging/production deployment, historical backfill, or use against real records requires explicit approval with environment, affected records, review artifact, rollback procedure, and resume point.
+Gate 2 — Database index mutation: before `--execute`, provide the exact environment, dry-run report, redacted pre-change index definitions, data-safety counts, restore commands, expected impact, and resume point. Obtain explicit approval for that target. Production remains blocked by the script and requires a separately approved production procedure/change.
 
-Gate 3 — Scope expansion: stop if implementation requires authenticated-user email synchronization, schema migration/backfill, student merge/delete, class/code mutation, or broader permission changes.
+Gate 3 — Data remediation: if legacy-only/both-field/missing/duplicate documents are found, stop. Backfill, rename, deduplication, deletion, or general naming migration requires a separate taskscope, rollback plan, and explicit persistent-data approval.
 
-Rollback design: because audit stores before/after values, a separately authorized recovery operation can restore the prior student email/gender and remove only the newly created link/formal record when no downstream references exist. Do not implement or execute rollback against persistent data under this task without approval.
+Rollback: recreate only the captured legacy index definition if operational rollback is approved and canonical data/index remain intact; do not drop the canonical uniqueness constraint as part of rollback. Resume after approval at Step 5 using the reviewed dry-run artifact.
 
 # Artifacts and Checkpoints
 
-Required: approved taskscope, backend/frontend test evidence, scoped diff, independent privacy/security review, and manual disposable-data evidence. Record base/current commit and hash the review/test artifacts before the persistent-data gate. Do not store raw personal data in artifacts.
+Required for implementation review: taskscope, focused test/build evidence, scoped diff, and independent persistence-safety review. Required before database execution: target identity, timestamped/redacted dry-run report, pre-index snapshot, data count summary, restore commands, base/current commit, and artifact hashes. Do not store registration codes or personal data.
 
 # Execution Budgets
 
-Deadline per step: 600 seconds, maximum 1800 seconds. One writer per path. Use dependency order backend contract/service/tests -> frontend contract/UI/tests -> independent review -> final affected verification. Idempotent retries: 0..2; engineering mutation/verification loop: 0..3; review remediation: 0..2. Stop on gate, stale state, permission regression, transaction failure, or scope expansion.
+Deadline per step: 600 seconds, maximum 1800 seconds. One writer per path. Dependency order: script planning helpers -> focused tests -> package commands -> independent review -> final verification -> Human Gate -> optional database execute/post-check. Idempotent retries: 0..2; engineering loop: 0..3; review remediation: 0..2. Stop on unsafe data, unexpected indexes, target ambiguity, production detection, approval absence, or post-check failure.
