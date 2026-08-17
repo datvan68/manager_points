@@ -40,6 +40,9 @@ const mockStats = {
   ],
   registration_summary: {
     total: 5,
+    assigned: 2,
+    male: 2,
+    female: 2,
     pending_confirmation: 1,
     pending_approval: 2,
     approved_unassigned: 1,
@@ -80,7 +83,10 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getByText('Công nợ theo phòng')).toBeInTheDocument();
     expect(screen.getAllByText((content) => content.includes('350.000')).length).toBe(2);
     expect(screen.getByText('Tóm tắt đăng ký')).toBeInTheDocument();
-    expect(screen.getByText('Chờ xác nhận')).toBeInTheDocument();
+    expect(screen.getByText('Đã xếp phòng')).toBeInTheDocument();
+    expect(screen.getByText('Nam')).toBeInTheDocument();
+    expect(screen.getByText('Nữ')).toBeInTheDocument();
+    expect(screen.getAllByText('Máy lạnh').length).toBeGreaterThan(1);
   });
 
   it('searches room names and puts empty rooms first', async () => {

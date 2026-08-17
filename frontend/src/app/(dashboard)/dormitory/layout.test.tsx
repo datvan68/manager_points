@@ -25,6 +25,7 @@ describe('DormitoryLayout', () => {
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
     expect(screen.getAllByRole('button')[0]).toHaveTextContent('Tổng quan');
+    expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
     screen.getByRole('button', { name: 'Báo cáo' }).click();
     expect(push).toHaveBeenCalledWith('/dormitory/reports');
   });

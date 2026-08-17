@@ -382,8 +382,14 @@ export class DormitoryReportsService {
         .filter((id): id is string => Boolean(id)),
     );
     const requestedRoomType = (row: any) => row.preference?.room_type || row.room_type;
+    const isAssigned = (row: any) => Boolean(
+      row.room_id || row.bed_id || row.active_contract_id || assignedRegistrationIds.has(idOf(row._id) || ''),
+    );
     const registrationSummary = {
       total: registrationRows.length,
+      assigned: registrationRows.filter(isAssigned).length,
+      male: registrationRows.filter((row) => row.gender === 'Male').length,
+      female: registrationRows.filter((row) => row.gender === 'Female').length,
       pending_confirmation: unlinkedPublicRegistrations.filter((row) => row.status === 'Chờ xác nhận').length,
       pending_approval: formalRegistrations.filter((row) => row.status === 'Chờ duyệt').length,
       approved_unassigned: registrationRows.filter(

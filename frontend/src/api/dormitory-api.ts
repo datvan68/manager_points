@@ -272,6 +272,9 @@ export interface DormitoryRoomRow {
 
 export interface DormitoryRegistrationSummary {
   total: number;
+  assigned: number;
+  male: number;
+  female: number;
   pending_confirmation: number;
   pending_approval: number;
   approved_unassigned: number;

@@ -78,13 +78,13 @@ describe('DormitoryReportsService dashboard contract', () => {
       { countDocuments: jest.fn().mockResolvedValue(0) } as any,
       modelFor([
         { _id: 'formal-pending', status: 'Chờ duyệt', preference: { room_type: 'Thường' }, createdAt: new Date() },
-        { _id: 'formal-assigned', status: 'Đã duyệt', room_id: 'room-partial', preference: { room_type: 'Máy lạnh' }, createdAt: new Date() },
-        { _id: 'formal-unassigned', status: 'Đã duyệt', preference: { room_type: 'Máy lạnh' }, createdAt: new Date() },
+        { _id: 'formal-assigned', status: 'Đã duyệt', room_id: 'room-partial', gender: 'Male', preference: { room_type: 'Máy lạnh' }, createdAt: new Date() },
+        { _id: 'formal-unassigned', status: 'Đã duyệt', gender: 'Female', preference: { room_type: 'Máy lạnh' }, createdAt: new Date() },
       ]) as any,
       modelFor([
-        { _id: 'public-pending', source: 'QR_SCAN', status: 'Chờ xác nhận', room_type: 'Thường', createdAt: new Date() },
-        { _id: 'admin-temporary', source: 'ADMIN_ENTRY', status: 'Đã xác nhận', room_type: 'Máy lạnh', createdAt: new Date() },
-        { _id: 'public-linked', source: 'QR_SCAN', status: 'Đã xác nhận', linked_registration_id: 'formal-assigned', room_type: 'Thường', createdAt: new Date() },
+        { _id: 'public-pending', source: 'QR_SCAN', status: 'Chờ xác nhận', gender: 'Female', room_type: 'Thường', createdAt: new Date() },
+        { _id: 'admin-temporary', source: 'ADMIN_ENTRY', status: 'Đã xác nhận', gender: 'Other', room_type: 'Máy lạnh', createdAt: new Date() },
+        { _id: 'public-linked', source: 'QR_SCAN', status: 'Đã xác nhận', linked_registration_id: 'formal-assigned', gender: 'Female', room_type: 'Thường', createdAt: new Date() },
       ]) as any,
     );
   }
@@ -134,6 +134,9 @@ describe('DormitoryReportsService dashboard contract', () => {
 
     expect(report.registration_summary).toEqual({
       total: 5,
+      assigned: 1,
+      male: 1,
+      female: 2,
       pending_confirmation: 1,
       pending_approval: 1,
       approved_unassigned: 2,

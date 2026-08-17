@@ -226,6 +226,9 @@ export default function DormitoryOverviewPage() {
   };
   const registrations = registrationSummary || {
     total: 0,
+    assigned: 0,
+    male: 0,
+    female: 0,
     pending_confirmation: 0,
     pending_approval: 0,
     approved_unassigned: 0,
@@ -250,7 +253,7 @@ export default function DormitoryOverviewPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/dormitory/registrations" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
-            <ClipboardCheck size={14} className="text-blue-600" /> Đăng ký
+            <ClipboardCheck size={14} className="text-blue-600" /> Danh sách
           </Link>
           <Link href="/dormitory/invoices" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
             <ReceiptText size={14} className="text-rose-600" /> Hóa đơn
@@ -445,12 +448,12 @@ export default function DormitoryOverviewPage() {
           <span className="rounded-full bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 text-xs font-bold text-indigo-700">{registrations.total} hồ sơ</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat label="Chờ xác nhận" value={registrations.pending_confirmation} />
-          <Stat label="Chờ duyệt" value={registrations.pending_approval} />
-          <Stat label="Đã duyệt, chưa xếp" value={registrations.approved_unassigned} />
-          <Stat label="Nhu cầu Máy lạnh" value={registrations.requested_room_type.may_lanh} hint={`Thường: ${registrations.requested_room_type.thuong}`} />
+          <Stat label="Đã xếp phòng" value={registrations.assigned} />
+          <Stat label="Nam" value={registrations.male} />
+          <Stat label="Nữ" value={registrations.female} />
+          <Stat label="Máy lạnh" value={registrations.requested_room_type.may_lanh} />
         </div>
-        <p className="mt-2.5 text-xs text-slate-500">Hồ sơ QR đã liên kết được loại khỏi tổng số để tránh đếm trùng. <Link href="/dormitory/registrations" className="font-semibold text-blue-600 hover:underline">Mở danh sách đăng ký</Link></p>
+        <p className="mt-2.5 text-xs text-slate-500">Hồ sơ QR đã liên kết được loại khỏi tổng số để tránh đếm trùng. <Link href="/dormitory/registrations" className="font-semibold text-blue-600 hover:underline">Mở danh sách</Link></p>
       </Card>
 
       <div className="grid gap-2.5 text-xs text-slate-500 sm:grid-cols-3">
@@ -467,4 +470,3 @@ export default function DormitoryOverviewPage() {
     </main>
   );
 }
-
