@@ -237,6 +237,68 @@ export interface DormMaintenance {
   createdAt?: string;
 }
 
+export type DormitoryRoomType = 'Thường' | 'Máy lạnh' | 'Chưa xác định';
+export type DormitoryRoomState = 'Trống' | 'Còn chỗ' | 'Đầy' | 'Bảo trì' | 'Khóa' | 'Chưa cấu hình';
+
+export interface DormitoryRoomSummary {
+  total_rooms: number;
+  total_beds: number;
+  occupied_beds: number;
+  free_beds: number;
+  by_type: { thuong: number; may_lanh: number; unknown: number };
+  by_state: {
+    trong: number;
+    con_cho: number;
+    day: number;
+    bao_tri: number;
+    khoa: number;
+    chua_cau_hinh: number;
+  };
+}
+
+export interface DormitoryRoomRow {
+  room_id: string;
+  room_code: string;
+  room_name: string;
+  building_id?: string | null;
+  building_code: string;
+  building_name: string;
+  room_type: DormitoryRoomType;
+  total_beds: number;
+  occupied_beds: number;
+  free_beds: number;
+  state: DormitoryRoomState;
+}
+
+export interface DormitoryRegistrationSummary {
+  total: number;
+  pending_confirmation: number;
+  pending_approval: number;
+  approved_unassigned: number;
+  requested_room_type: { thuong: number; may_lanh: number; unknown: number };
+}
+
+export interface DormitoryInvoiceDebtRow {
+  room_id: string;
+  room_code: string;
+  room_name: string;
+  building_name: string;
+  debtor_count: number;
+  unpaid_count: number;
+  overdue_count: number;
+  total_outstanding_amount: number;
+}
+
+export interface DormitoryInvoiceSummary {
+  outstanding_invoice_count: number;
+  unpaid_count: number;
+  overdue_count: number;
+  total_outstanding_amount: number;
+  anomaly_amount: number;
+  anomaly_count: number;
+  rows: DormitoryInvoiceDebtRow[];
+}
+
 export interface DormDashboardStats {
   total_rooms: number;
   available_rooms: number;
@@ -250,6 +312,10 @@ export interface DormDashboardStats {
   dormitory_fees: { paid: number; unpaid: number };
   utilities: { paid: number; unpaid: number };
   monthly: Array<{ month: string; registrations: number; move_ins: number; dormitory_fee_paid: number; dormitory_fee_unpaid: number; utility_paid: number; utility_unpaid: number }>;
+  room_summary: DormitoryRoomSummary;
+  room_rows: DormitoryRoomRow[];
+  registration_summary: DormitoryRegistrationSummary;
+  invoice_summary: DormitoryInvoiceSummary;
 }
 
 interface PaginatedResponse<T> {
