@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -17,26 +17,13 @@ import {
   dormitoryApi,
   DormDashboardStats,
   DormitoryRoomRow,
-  DormitoryRoomState,
-  DormitoryRoomType,
 } from '@/api/dormitory-api';
-
-type RoomSortKey = 'room_code' | 'building_name' | 'room_type' | 'state' | 'free_beds';
 
 const money = new Intl.NumberFormat('vi-VN', {
   style: 'currency',
   currency: 'VND',
   maximumFractionDigits: 0,
 });
-
-const stateClasses: Record<DormitoryRoomState, string> = {
-  Trống: 'bg-slate-100 text-slate-700',
-  'Còn chỗ': 'bg-emerald-100 text-emerald-700',
-  'Đầy': 'bg-rose-100 text-rose-700',
-  'Bảo trì': 'bg-amber-100 text-amber-800',
-  Khóa: 'bg-purple-100 text-purple-700',
-  'Chưa cấu hình': 'bg-slate-200 text-slate-600',
-};
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <section className={`rounded-2xl border border-white/80 bg-white/65 p-5 shadow-sm ${className}`}>{children}</section>;
@@ -58,13 +45,11 @@ export default function DormitoryOverviewPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [buildingFilter, setBuildingFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | DormitoryRoomType>('all');
-  const [stateFilter, setStateFilter] = useState<'all' | DormitoryRoomState>('all');
-  const [sortKey, setSortKey] = useState<RoomSortKey>('room_code');
-  const [sortAscending, setSortAscending] = useState(true);
+  const inFlightRef = useRef(false);
 
   const loadData = useCallback(async (initial = false) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     if (initial) setLoading(true);
     else setRefreshing(true);
     setError('');
@@ -76,14 +61,32 @@ export default function DormitoryOverviewPage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      inFlightRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     void loadData(true);
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadData(false);
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [loadData]);
 
   const roomRows = data?.room_rows || [];
+  const freeBedsByType = useMemo(() => roomRows.reduce(
+    (totals, room) => {
+      if (room.room_type === 'Thường') totals.thuong += room.free_beds;
+      if (room.room_type === 'Máy lạnh') totals.may_lanh += room.free_beds;
+      return totals;
+    },
+    { thuong: 0, may_lanh: 0 },
+  ), [roomRows]);
   const roomSummary = data?.room_summary;
   const registrationSummary = data?.registration_summary;
   const invoiceSummary = data?.invoice_summary;
@@ -91,38 +94,24 @@ export default function DormitoryOverviewPage() {
     data && (!roomSummary || !roomRows || !registrationSummary || !invoiceSummary),
   );
 
-  const buildings = useMemo(
-    () => Array.from(new Set(roomRows.map((room) => room.building_name))).sort((a, b) => a.localeCompare(b, 'vi')),
-    [roomRows],
-  );
-
   const filteredRooms = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase('vi');
-    const result = roomRows.filter((room) => {
-      const matchesSearch = !normalizedSearch || [room.room_code, room.room_name, room.building_name]
-        .some((value) => value.toLocaleLowerCase('vi').includes(normalizedSearch));
-      return matchesSearch
-        && (buildingFilter === 'all' || room.building_name === buildingFilter)
-        && (typeFilter === 'all' || room.room_type === typeFilter)
-        && (stateFilter === 'all' || room.state === stateFilter);
-    });
-
-    return result.sort((left, right) => {
-      const leftValue = left[sortKey];
-      const rightValue = right[sortKey];
-      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-        ? leftValue - rightValue
-        : String(leftValue).localeCompare(String(rightValue), 'vi');
-      return sortAscending ? comparison : -comparison;
-    });
-  }, [buildingFilter, roomRows, search, sortAscending, sortKey, stateFilter, typeFilter]);
+    return roomRows
+      .filter((room) => !normalizedSearch || [room.room_code, room.room_name]
+        .some((value) => value.toLocaleLowerCase('vi').includes(normalizedSearch)))
+      .toSorted((left, right) => {
+        const leftEmpty = left.state === 'Trống' ? 0 : 1;
+        const rightEmpty = right.state === 'Trống' ? 0 : 1;
+        return leftEmpty - rightEmpty || left.room_code.localeCompare(right.room_code, 'vi');
+      });
+  }, [roomRows, search]);
 
   if (loading && !data) {
     return (
       <main className="w-full space-y-5 pb-6" aria-label="Đang tải tổng quan KTX">
         <div className="h-9 w-72 animate-pulse rounded-xl bg-white/60" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-white/60" />)}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-white/60" />)}
         </div>
         <div className="h-96 animate-pulse rounded-2xl bg-white/60" />
       </main>
@@ -191,49 +180,36 @@ export default function DormitoryOverviewPage() {
       {error && <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle size={16} /> Dữ liệu hiển thị từ lần tải trước: {error}</div>}
       {isPartial && <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle size={16} /> Một phần báo cáo chưa có dữ liệu; các số liệu còn lại vẫn được hiển thị.</div>}
 
-      <section aria-label="Tổng số phòng" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Tổng số phòng" value={summary.total_rooms} hint={`${summary.total_beds} giường sức chứa`} />
-        <Stat label="Phòng Thường" value={summary.by_type.thuong} hint={`${summary.by_state.trong} phòng trống`} />
-        <Stat label="Phòng Máy lạnh" value={summary.by_type.may_lanh} hint={`${summary.by_type.unknown} phòng chưa xác định loại`} />
-        <Stat label="Giường còn chỗ" value={summary.free_beds} hint={`${summary.occupied_beds} giường đang sử dụng`} />
+      <section aria-label="Thống kê nhanh" className="flex gap-4 overflow-x-auto pb-1">
+        <div className="min-w-[220px] flex-1"><Stat label="Tổng số phòng" value={summary.total_rooms} /></div>
+        <div className="min-w-[220px] flex-1"><Stat label="Phòng Thường" value={summary.by_type.thuong} hint={`Còn trống: ${freeBedsByType.thuong} giường`} /></div>
+        <div className="min-w-[220px] flex-1"><Stat label="Phòng Máy lạnh" value={summary.by_type.may_lanh} hint={`Còn trống: ${freeBedsByType.may_lanh} giường`} /></div>
+        <div className="min-w-[220px] flex-1"><Stat label="Giường còn chỗ" value={summary.free_beds} /></div>
+        <div className="min-w-[220px] flex-1"><Stat label="Tổng danh sách KTX" value={registrations?.total || 0} /></div>
       </section>
 
       <Card>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2"><BedDouble size={19} className="text-blue-600" /><h2 className="text-lg font-bold text-slate-900">Tình trạng phòng</h2></div>
-            <p className="mt-1 text-xs text-slate-500">Trạng thái được tính từ trạng thái quản trị và số giường thực tế.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
-            {([
-              ['Trống', summary.by_state.trong],
-              ['Còn chỗ', summary.by_state.con_cho],
-              ['Đầy', summary.by_state.day],
-              ['Bảo trì', summary.by_state.bao_tri],
-              ['Khóa', summary.by_state.khoa],
-              ['Chưa cấu hình', summary.by_state.chua_cau_hinh],
-            ] as const).map(([label, value]) => <span key={label} className="rounded-lg bg-slate-100 px-2 py-1.5 text-center font-semibold text-slate-700">{label}: {value}</span>)}
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 md:grid-cols-[minmax(220px,1fr)_160px_160px_160px_150px]">
-          <label className="relative block"><Search size={15} className="absolute left-3 top-3 text-slate-400" /><input aria-label="Tìm phòng" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm mã, tên phòng, tòa nhà" className="w-full rounded-xl border border-slate-200 bg-white px-9 py-2.5 text-sm outline-none focus:border-blue-500" /></label>
-          <select aria-label="Lọc theo tòa nhà" value={buildingFilter} onChange={(event) => setBuildingFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">Tất cả tòa nhà</option>{buildings.map((building) => <option key={building} value={building}>{building}</option>)}</select>
-          <select aria-label="Lọc theo loại phòng" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">Tất cả loại</option><option value="Thường">Thường</option><option value="Máy lạnh">Máy lạnh</option><option value="Chưa xác định">Chưa xác định</option></select>
-          <select aria-label="Lọc theo trạng thái" value={stateFilter} onChange={(event) => setStateFilter(event.target.value as typeof stateFilter)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="all">Tất cả trạng thái</option>{(['Trống', 'Còn chỗ', 'Đầy', 'Bảo trì', 'Khóa', 'Chưa cấu hình'] as DormitoryRoomState[]).map((state) => <option key={state} value={state}>{state}</option>)}</select>
-          <button onClick={() => setSortAscending((current) => !current)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">{sortAscending ? 'A → Z' : 'Z → A'}</button>
-        </div>
+        <label className="relative mt-5 block"><Search size={15} className="absolute left-3 top-3 text-slate-400" /><input aria-label="Tìm phòng" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm mã hoặc tên phòng" className="w-full rounded-xl border border-slate-200 bg-white px-9 py-2.5 text-sm outline-none focus:border-blue-500" /></label>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <span>Hiển thị {filteredRooms.length}/{roomRows.length} phòng</span>
-          <label className="inline-flex items-center gap-2">Sắp xếp theo <select aria-label="Sắp xếp danh sách phòng" value={sortKey} onChange={(event) => setSortKey(event.target.value as RoomSortKey)} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"><option value="room_code">Mã phòng</option><option value="building_name">Tòa nhà</option><option value="room_type">Loại phòng</option><option value="state">Trạng thái</option><option value="free_beds">Giường còn chỗ</option></select></label>
         </div>
 
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-[850px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Phòng</th><th className="px-3 py-3">Tòa nhà</th><th className="px-3 py-3">Loại</th><th className="px-3 py-3">Giường</th><th className="px-3 py-3">Còn chỗ</th><th className="px-3 py-3">Trạng thái</th></tr></thead>
+          <table className="min-w-[680px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Phòng</th><th className="px-3 py-3">Loại</th><th className="px-3 py-3">Giường</th><th className="px-3 py-3">Còn chỗ</th><th className="px-3 py-3 text-right">Trạng thái</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredRooms.map((room: DormitoryRoomRow) => <tr key={room.room_id} className="hover:bg-slate-50"><td className="px-3 py-3"><div className="font-semibold text-slate-900">{room.room_code}</div><div className="text-xs text-slate-500">{room.room_name}</div></td><td className="px-3 py-3"><div className="font-medium text-slate-700">{room.building_name}</div><div className="text-xs text-slate-500">{room.building_code || '—'}</div></td><td className="px-3 py-3">{room.room_type}</td><td className="px-3 py-3">{room.occupied_beds}/{room.total_beds} đang sử dụng</td><td className="px-3 py-3 font-semibold">{room.free_beds}</td><td className="px-3 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${stateClasses[room.state]}`}>{room.state}</span></td></tr>)}
-              {!filteredRooms.length && <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">Không có phòng phù hợp với bộ lọc.</td></tr>}
+              {filteredRooms.map((room: DormitoryRoomRow) => {
+                const occupancy = room.total_beds > 0 ? Math.round((room.occupied_beds / room.total_beds) * 100) : 0;
+                const isFull = room.total_beds > 0 && room.occupied_beds >= room.total_beds;
+                return <tr key={room.room_id} className="hover:bg-slate-50"><td className="px-3 py-3"><div className="font-semibold text-slate-900">{room.room_code}</div><div className="text-xs text-slate-500">{room.room_name}</div></td><td className="px-3 py-3">{room.room_type}</td><td className="px-3 py-3">{room.occupied_beds}/{room.total_beds}</td><td className="px-3 py-3 font-semibold">{room.free_beds}</td><td className="px-3 py-3 text-right"><div className="flex items-center justify-end gap-2"><span aria-label={`${room.state}, ${occupancy}% đã sử dụng`} className={`grid h-11 w-11 place-items-center rounded-full text-xs font-bold ${isFull ? 'text-rose-700' : 'text-slate-700'}`} style={{ background: `conic-gradient(${isFull ? '#e11d48' : '#2563eb'} ${occupancy}%, #e2e8f0 0)` }}><span className="grid h-8 w-8 place-items-center rounded-full bg-white">{occupancy}%</span></span><span className="text-xs font-semibold text-slate-600">{room.state}</span></div></td></tr>;
+              })}
+              {!filteredRooms.length && <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</td></tr>}
             </tbody>
           </table>
         </div>

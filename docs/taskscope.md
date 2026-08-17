@@ -1,15 +1,15 @@
-Task: `prevent-objectid-idof-recursion` | `bug_fix` | Risk: medium | Profile: Quick
+Task: `enhance-dormitory-overview-live-stats` | `feature_development` | Risk: medium | Profile: Quick
 
-Objective: Make the dormitory dashboard normalize Mongoose `ObjectId` values without recursive `_id` access or `RangeError: Maximum call stack size exceeded`.
+Objective: Extend the compact dormitory Overview with registration totals, free-bed counts by room type, right-aligned room status, and efficient near-real-time refresh.
 
-Boundary: `backend/src/dormitory/services/**` | Write: `backend/src/dormitory/services/dormitory-reports.service.ts`, `backend/src/dormitory/services/dormitory-reports.service.spec.ts`
+Boundary: `frontend/src/app/(dashboard)/dormitory/overview/**` | Write: `frontend/src/app/(dashboard)/dormitory/overview/page.tsx`, `frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx`
 
-Targets: helper `idOf`; dashboard ID maps and lookups in `DormitoryReportsService.getDashboardStats`; dashboard contract tests
+Targets: quick-stat row; room-type capacity summaries; room-status table alignment; dashboard refresh lifecycle; focused UI tests.
 
-Steps: reproduce the failure with a real Mongoose `ObjectId` whose `_id` getter resolves to itself -> update `idOf` to handle ObjectId/string-convertible scalar identifiers before traversing wrapper fields and guard self/cyclic references -> preserve support for plain `{ _id }`, `{ $oid }`, strings, null, and invalid objects -> add focused regression cases -> run the service test and build.
+Steps: preserve the existing dashboard API -> add `Tổng danh sách KTX` from `registration_summary.total` -> derive and show `Còn trống: <n> giường` inside both `Phòng Thường` and `Phòng Máy lạnh` cards from `room_rows.free_beds`, without extra requests -> keep quick statistics compact on one horizontal row with narrow-screen overflow -> right-align the `Trạng thái` header and cells -> automatically refresh the single dashboard request every 30 seconds while the page is visible, prevent overlapping requests, retain current data during background refresh, clean up on unmount, and keep manual refresh/error recovery -> update tests for totals, per-type free beds, alignment, polling, hidden-tab pause, and request deduplication.
 
-Verify: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/services/dormitory-reports.service.spec.ts` and `npm run build` => the ObjectId regression passes, existing dashboard assertions pass, and TypeScript compilation succeeds without stack overflow.
+Verify: `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/overview/page.test.tsx"` and `npm run typecheck` => focused behavior and TypeScript checks pass; `D:\PROJECT\manager_points` :: `git diff --check` => clean diff.
 
-Done: A dashboard request containing native Mongoose ObjectIds completes successfully; identifier normalization remains correct for supported wrapper/scalar forms; focused tests and build pass.
+Done: the quick row includes total KTX registrations; both requested room-type cards show remaining beds; status is flush right; visible pages refresh within 30 seconds without flicker or concurrent duplicate requests; tests cover the new behavior.
 
 Gate: None

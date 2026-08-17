@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DormitoryOverviewPage from './page';
 import { dormitoryApi } from '@/api/dormitory-api';
@@ -36,7 +36,7 @@ const mockStats = {
     { room_id: 'r-empty', room_code: 'A100', room_name: 'Phòng A100', building_id: 'b1', building_code: 'A', building_name: 'Tòa A', room_type: 'Thường', total_beds: 2, occupied_beds: 0, free_beds: 2, state: 'Trống' },
     { room_id: 'r-partial', room_code: 'A101', room_name: 'Phòng A101', building_id: 'b1', building_code: 'A', building_name: 'Tòa A', room_type: 'Thường', total_beds: 4, occupied_beds: 2, free_beds: 2, state: 'Còn chỗ' },
     { room_id: 'r-full', room_code: 'B201', room_name: 'Phòng B201', building_id: 'b2', building_code: 'B', building_name: 'Tòa B', room_type: 'Máy lạnh', total_beds: 0, occupied_beds: 0, free_beds: 0, state: 'Chưa cấu hình' },
-    { room_id: 'r-unknown', room_code: 'B202', room_name: 'Phòng B202', building_id: 'b2', building_code: 'B', building_name: 'Tòa B', room_type: 'Máy lạnh', total_beds: 0, occupied_beds: 0, free_beds: 0, state: 'Đầy' },
+    { room_id: 'r-unknown', room_code: 'B202', room_name: 'Phòng B202', building_id: 'b2', building_code: 'B', building_name: 'Tòa B', room_type: 'Máy lạnh', total_beds: 2, occupied_beds: 2, free_beds: 0, state: 'Đầy' },
   ],
   registration_summary: {
     total: 5,
@@ -71,24 +71,55 @@ describe('DormitoryOverviewPage', () => {
 
     expect(screen.getByText('Phòng Thường')).toBeInTheDocument();
     expect(screen.getByText('Phòng Máy lạnh')).toBeInTheDocument();
+    expect(screen.getByText('Tổng danh sách KTX')).toBeInTheDocument();
+    expect(screen.getByText('Còn trống: 4 giường')).toBeInTheDocument();
+    expect(screen.getByText('Còn trống: 0 giường')).toBeInTheDocument();
     expect(screen.getByText('Phòng A100')).toBeInTheDocument();
-    expect(screen.getAllByText('Trống').length).toBeGreaterThan(1);
-    expect(screen.getAllByText('Còn chỗ').length).toBeGreaterThan(1);
+    expect(screen.getByText('Trống')).toBeInTheDocument();
+    expect(screen.getAllByText('Còn chỗ').length).toBeGreaterThan(0);
     expect(screen.getByText('Công nợ theo phòng')).toBeInTheDocument();
     expect(screen.getAllByText((content) => content.includes('350.000')).length).toBe(2);
     expect(screen.getByText('Tóm tắt đăng ký')).toBeInTheDocument();
     expect(screen.getByText('Chờ xác nhận')).toBeInTheDocument();
   });
 
-  it('filters named rooms by building and operational state', async () => {
+  it('searches room names and puts empty rooms first', async () => {
     render(<DormitoryOverviewPage />);
     await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText('Lọc theo tòa nhà'), { target: { value: 'Tòa B' } });
-    fireEvent.change(screen.getByLabelText('Lọc theo trạng thái'), { target: { value: 'Đầy' } });
+    const rows = screen.getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('A100');
+    expect(rows[1]).toHaveTextContent('0%');
+    expect(rows[1]).toHaveAttribute('class', expect.stringContaining('hover:bg-slate-50'));
 
+    fireEvent.change(screen.getByLabelText('Tìm phòng'), { target: { value: 'B202' } });
     expect(screen.getByText('Phòng B202')).toBeInTheDocument();
     expect(screen.queryByText('Phòng A100')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Lọc theo tòa nhà')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tòa nhà')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Đầy, 100% đã sử dụng')).toBeInTheDocument();
+  });
+
+  it('refreshes visible data on an interval without overlapping requests', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = render(<DormitoryOverviewPage />);
+      await vi.waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(1);
+
+      let resolveRefresh!: (value: any) => void;
+      vi.mocked(dormitoryApi.reports.getDashboardStats).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveRefresh = resolve; }),
+      );
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(2);
+      await act(async () => { resolveRefresh(mockStats); });
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows explicit empty and total failure states', async () => {
@@ -98,7 +129,7 @@ describe('DormitoryOverviewPage', () => {
       invoice_summary: { ...mockStats.invoice_summary, rows: [], outstanding_invoice_count: 0, total_outstanding_amount: 0 },
     } as any);
     const { unmount } = render(<DormitoryOverviewPage />);
-    await waitFor(() => expect(screen.getByText('Không có phòng phù hợp với bộ lọc.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Không có phòng phù hợp với tìm kiếm.')).toBeInTheDocument());
     expect(screen.getByText('Không có phòng nào đang có hóa đơn chưa thu.')).toBeInTheDocument();
     unmount();
 
