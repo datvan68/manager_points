@@ -75,8 +75,8 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getByText('Còn trống: 4 giường')).toBeInTheDocument();
     expect(screen.getByText('Còn trống: 0 giường')).toBeInTheDocument();
     expect(screen.getByText('Phòng A100')).toBeInTheDocument();
-    expect(screen.getByText('Trống')).toBeInTheDocument();
-    expect(screen.getAllByText('Còn chỗ').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Trống, 0% đã sử dụng')).toBeInTheDocument();
+    expect(screen.getByLabelText('Còn chỗ, 50% đã sử dụng')).toBeInTheDocument();
     expect(screen.getByText('Công nợ theo phòng')).toBeInTheDocument();
     expect(screen.getAllByText((content) => content.includes('350.000')).length).toBe(2);
     expect(screen.getByText('Tóm tắt đăng ký')).toBeInTheDocument();
