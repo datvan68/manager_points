@@ -171,6 +171,12 @@ export interface UnclassifiedRegistration {
   createdAt?: string;
 }
 
+export interface PublicLinkCandidateResponse {
+  state: 'LINKED' | 'ONE_MATCH' | 'AMBIGUOUS' | 'NO_MATCH';
+  source: any;
+  candidates: Array<any>;
+}
+
 export interface DormContract {
   _id: string;
   contract_code: string;
@@ -517,6 +523,14 @@ export const dormitoryApi = {
     },
     async linkPublicRegistration(publicRegistrationId: string, studentId: string): Promise<DormRegistration> {
       const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/link-student/${studentId}`, { method: 'POST' });
+      return handleResponse(res);
+    },
+    async getLinkCandidates(publicRegistrationId: string): Promise<PublicLinkCandidateResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/link-candidates`);
+      return handleResponse(res);
+    },
+    async confirmLink(publicRegistrationId: string, dto: { student_id: string; expected_public_updated_at: string; expected_student_updated_at: string; sync_email: boolean; sync_gender: boolean }): Promise<DormRegistration> {
+      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/confirm-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
     async suggestRooms(registrationId: string): Promise<Room[]> {

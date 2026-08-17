@@ -665,7 +665,6 @@ export class RegistrationsService {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const filter: any = {
-      student_code: { $in: ['', null] },
       linked_student_id: { $exists: false },
       linked_registration_id: { $exists: false },
     };
@@ -681,7 +680,7 @@ export class RegistrationsService {
         return {
           ...item,
           source,
-          classification_status: source === 'INVALID' ? 'INVALID_SOURCE' : 'UNCLASSIFIED',
+          classification_status: source === 'INVALID' ? 'INVALID_SOURCE' : item.student_code ? 'UNMATCHED_CODE' : 'UNCLASSIFIED',
           source_error: source === 'INVALID' ? `Nguồn đăng ký không hợp lệ: ${String(item.source ?? '(missing)')}` : undefined,
           student_id: null,
           class_id: null,

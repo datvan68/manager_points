@@ -97,6 +97,9 @@ export class PublicRegistration {
 
   @Prop()
   linked_canonical_owner?: string;
+
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  link_audit?: Record<string, unknown>;
 }
 
 export const PublicRegistrationSchema =

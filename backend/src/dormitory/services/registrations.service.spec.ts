@@ -18,7 +18,7 @@ function queryResult<T>(value: T) {
 }
 
 describe('RegistrationsService unclassified roster', () => {
-  it('returns only blank-code public registrations without typed links', async () => {
+  it('returns all unlinked public registrations, including nonblank codes', async () => {
     const publicModel: any = {
       find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', public_registration_code: 'QR-1', student_code: '', full_name: 'A', source: 'QR_SCAN' }])),
       countDocuments: jest.fn().mockResolvedValue(1),
@@ -26,7 +26,6 @@ describe('RegistrationsService unclassified roster', () => {
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
     const result = await service.findUnclassified({ page: 1, limit: 20 });
     expect(publicModel.find).toHaveBeenCalledWith(expect.objectContaining({
-      student_code: { $in: ['', null] },
       linked_student_id: { $exists: false },
       linked_registration_id: { $exists: false },
     }));

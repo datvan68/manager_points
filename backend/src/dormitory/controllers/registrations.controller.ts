@@ -24,6 +24,7 @@ import { PublicRegistrationLinkService } from '../services/public-registration-l
 import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registration.dto';
 import { UpdateRegistrationDto } from '../dto/update-registration.dto';
 import { UnassignRoomDto } from '../dto/unassign-room.dto';
+import { ConfirmPublicRegistrationLinkDto } from '../dto/confirm-public-registration-link.dto';
 
 @ApiTags('Dormitory - Registrations')
 @ApiBearerAuth()
@@ -73,6 +74,18 @@ export class RegistrationsController {
   @UseGuards(checkPermission('DORM_REG_READ'))
   findUnclassified(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
     return this.registrationsService.findUnclassified({ page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
+  }
+
+  @Get('public/:publicRegistrationId/link-candidates')
+  @UseGuards(checkPermission('DORM_REG_READ'))
+  linkCandidates(@Param('publicRegistrationId') id: string) {
+    return this.publicLinkService.resolveCandidates(id);
+  }
+
+  @Post('public/:publicRegistrationId/confirm-link')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  confirmLink(@Param('publicRegistrationId') id: string, @Body() dto: ConfirmPublicRegistrationLinkDto, @Request() req: any) {
+    return this.publicLinkService.confirmLink(id, dto, req.user);
   }
 
   // Keep self-scoped and student routes above :id so they can never be interpreted as an id.

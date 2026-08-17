@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PublicRegistration, PublicRegistrationDocument } from '../schemas/public-registration.schema';
@@ -36,6 +36,51 @@ export class PublicRegistrationLinkService {
   private async queryWithSession(query: any, session?: any) {
     if (session && typeof query?.session === 'function') query = query.session(session);
     return this.resolve(query);
+  }
+
+  private normalizeName(value: unknown) {
+    return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  private sameDate(a: unknown, b: unknown) {
+    return new Date(String(a)).toISOString().slice(0, 10) === new Date(String(b)).toISOString().slice(0, 10);
+  }
+
+  async resolveCandidates(publicRegistrationId: string) {
+    const source: any = await this.resolve(this.publicRegModel.findById(publicRegistrationId));
+    if (!source) throw new NotFoundException('Không tìm thấy đăng ký công khai');
+    if (source.linked_student_id || source.linked_registration_id) return { state: 'LINKED', candidates: [] };
+    const students: any[] = await this.resolve((this.studentModel as any).find({ status: 'Studying' }).populate('class_id', 'class_name').lean()) || [];
+    const name = this.normalizeName(source.full_name);
+    const candidates = students.filter(student => this.normalizeName(student.full_name) === name && this.sameDate(student.date_bir, source.date_of_birth));
+    return {
+      state: candidates.length === 1 ? 'ONE_MATCH' : candidates.length > 1 ? 'AMBIGUOUS' : 'NO_MATCH',
+      source: { _id: source._id, full_name: source.full_name, date_of_birth: source.date_of_birth, email: source.email || null, gender: source.gender || null, student_code: source.student_code || null, updatedAt: source.updatedAt },
+      candidates: candidates.map(student => ({ _id: student._id, full_name: student.full_name, date_of_birth: student.date_bir, student_code: student.student_code, class: student.class_id, status: student.status, email: student.email || null, gender: student.sex || null, updatedAt: student.updatedAt, match_evidence: { full_name: true, date_of_birth: true, email: !!source.email && String(source.email).trim().toLowerCase() === String(student.email || '').trim().toLowerCase(), gender: source.gender === student.sex } })),
+    };
+  }
+
+  async confirmLink(publicRegistrationId: string, dto: any, confirmer: any) {
+    const source: any = await this.resolve(this.publicRegModel.findById(publicRegistrationId));
+    const student: any = await this.resolve(this.studentModel.findById(dto.student_id).populate('class_id', 'class_name'));
+    if (!source || !student) throw new NotFoundException('Không tìm thấy bản ghi liên kết');
+    if (source.linked_student_id) {
+      if (String(source.linked_student_id) !== String(student._id)) throw new ConflictException('Đăng ký đã liên kết với sinh viên khác');
+      return this.resolve(this.registrationModel.findById(source.linked_registration_id));
+    }
+    if (new Date(source.updatedAt).toISOString() !== new Date(dto.expected_public_updated_at).toISOString() || new Date(student.updatedAt).toISOString() !== new Date(dto.expected_student_updated_at).toISOString()) throw new ConflictException('Dữ liệu đã thay đổi, vui lòng tải lại');
+    if (student.status !== 'Studying' || !String(student.student_code || '').trim() || !student.class_id || !this.normalizeName(source.full_name) || this.normalizeName(source.full_name) !== this.normalizeName(student.full_name) || !this.sameDate(source.date_of_birth, student.date_bir)) throw new BadRequestException('Không đủ bằng chứng định danh để liên kết');
+    const before = { email: student.email || null, gender: student.sex || null };
+    if (dto.sync_email && source.email) student.email = String(source.email).trim();
+    if (dto.sync_gender && source.gender) student.sex = source.gender;
+    const formal = await this.withTransaction(async session => {
+      if (dto.sync_email || dto.sync_gender) await this.save(student, session);
+      const linked = await this.linkDocuments(source, student, session);
+      source.link_audit = { confirmed_by: confirmer?.userId || confirmer?._id || null, confirmed_at: new Date(), match_method: 'NORMALIZED_NAME_AND_DATE_OF_BIRTH', selected_student_id: student._id, before, after: { email: student.email || null, gender: student.sex || null }, sync_email: !!dto.sync_email, sync_gender: !!dto.sync_gender };
+      await this.save(source, session);
+      return linked;
+    });
+    return formal;
   }
 
   private async withTransaction<T>(work: (session?: any) => Promise<T>): Promise<T> {
