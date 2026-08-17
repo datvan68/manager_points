@@ -1,4 +1,5 @@
-import { DormitoryReportsService } from './dormitory-reports.service';
+import { Types } from 'mongoose';
+import { DormitoryReportsService, idOf } from './dormitory-reports.service';
 
 function queryResult<T>(value: T) {
   return {
@@ -14,6 +15,18 @@ function modelFor<T>(value: T) {
 }
 
 describe('DormitoryReportsService dashboard contract', () => {
+  it('normalizes native ObjectIds and terminates cyclic identifier wrappers', () => {
+    const objectId = new Types.ObjectId();
+    const cyclic: { _id?: unknown } = {};
+    cyclic._id = cyclic;
+
+    expect(idOf(objectId)).toBe(objectId.toHexString());
+    expect(idOf({ _id: objectId })).toBe(objectId.toHexString());
+    expect(idOf({ $oid: objectId.toHexString() })).toBe(objectId.toHexString());
+    expect(idOf(cyclic)).toBeNull();
+    expect(idOf({})).toBeNull();
+  });
+
   const buildings = [
     { _id: 'building-a', building_code: 'A', name: 'Tòa A' },
     { _id: 'building-b', building_code: 'B', name: 'Tòa B' },

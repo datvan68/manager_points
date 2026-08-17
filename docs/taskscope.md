@@ -1,15 +1,15 @@
-Task: `resolve-backend-dev-port-conflict` | `bug_fix` | Risk: medium | Profile: Quick
+Task: `prevent-objectid-idof-recursion` | `bug_fix` | Risk: medium | Profile: Quick
 
-Objective: Start the Nest backend in development mode on `0.0.0.0:8001` with exactly one repository-owned listener and no `EADDRINUSE` failure.
+Objective: Make the dormitory dashboard normalize Mongoose `ObjectId` values without recursive `_id` access or `RangeError: Maximum call stack size exceeded`.
 
-Boundary: local development backend process and `backend/**` startup configuration | Write: no implementation files; runtime process state only
+Boundary: `backend/src/dormitory/services/**` | Write: `backend/src/dormitory/services/dormitory-reports.service.ts`, `backend/src/dormitory/services/dormitory-reports.service.spec.ts`
 
-Targets: listener discovered dynamically on TCP `8001`; `backend/src/main.ts:bootstrap`; `backend/package.json` script `start:dev`
+Targets: helper `idOf`; dashboard ID maps and lookups in `DormitoryReportsService.getDashboardStats`; dashboard contract tests
 
-Steps: inspect the current TCP listener and its full command line -> confirm it belongs to `D:\PROJECT\manager_points\backend` -> stop only that exact stale backend process -> confirm port `8001` is free -> run `npm run start:dev` from `backend` -> inspect the new listener and health endpoint. If the listener is unrelated or ownership cannot be proven, stop without terminating it and report the conflict.
+Steps: reproduce the failure with a real Mongoose `ObjectId` whose `_id` getter resolves to itself -> update `idOf` to handle ObjectId/string-convertible scalar identifiers before traversing wrapper fields and guard self/cyclic references -> preserve support for plain `{ _id }`, `{ $oid }`, strings, null, and invalid objects -> add focused regression cases -> run the service test and build.
 
-Verify: `D:\PROJECT\manager_points\backend` :: `npm run start:dev` plus PowerShell inspection of `Get-NetTCPConnection -LocalPort 8001 -State Listen` and `Invoke-WebRequest http://localhost:8001/health` => one repository-owned Node listener exists, Nest remains running in watch mode, and `/health` responds successfully without `EADDRINUSE`.
+Verify: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/services/dormitory-reports.service.spec.ts` and `npm run build` => the ObjectId regression passes, existing dashboard assertions pass, and TypeScript compilation succeeds without stack overflow.
 
-Done: The stale `backend\dist\main` listener is absent, one dev-watch backend owns port `8001`, and the health check passes.
+Done: A dashboard request containing native Mongoose ObjectIds completes successfully; identifier normalization remains correct for supported wrapper/scalar forms; focused tests and build pass.
 
 Gate: None

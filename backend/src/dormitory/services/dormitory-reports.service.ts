@@ -23,12 +23,21 @@ import {
 const ROOM_TYPES = ['Thường', 'Máy lạnh'] as const;
 const ROOM_STATES = ['Trống', 'Còn chỗ', 'Đầy', 'Bảo trì', 'Khóa', 'Chưa cấu hình'] as const;
 
-function idOf(value: unknown): string | null {
+export function idOf(value: unknown, seen = new WeakSet<object>()): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'object') {
+    if (seen.has(value)) return null;
+    seen.add(value);
+
+    const objectId = value as { toHexString?: unknown };
+    if (typeof objectId.toHexString === 'function') {
+      const valueAsString = objectId.toHexString();
+      return valueAsString || null;
+    }
+
     const candidate = value as { _id?: unknown; $oid?: unknown };
-    if (candidate._id !== undefined) return idOf(candidate._id);
-    if (candidate.$oid !== undefined) return String(candidate.$oid);
+    if (candidate._id !== undefined) return idOf(candidate._id, seen);
+    if (candidate.$oid !== undefined) return idOf(candidate.$oid, seen);
   }
   const valueAsString = String(value);
   return valueAsString && valueAsString !== '[object Object]' ? valueAsString : null;
