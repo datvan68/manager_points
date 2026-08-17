@@ -1,88 +1,81 @@
 # Task Identity and Pipeline
 
-Task: `repair-public-registration-code-legacy-index` | Pipeline: `bug_fix` | Profile: Full | Rules: Fast and Accurate Coding Instructions v3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `f2d05d8b884d9703d22eca1dc346648778c07a56` | Planning state: taskscope only; implementation and database execution are not authorized by this request.
+Task: `harden-public-registration-index-repair-concurrency` | Pipeline: `bug_fix` | Profile: Full | Rules: Fast and Accurate Coding Instructions v3.2.0 | Repository: `D:\PROJECT\manager_points` | Base: `7595908516abbd7d09cde55890cae70d1617c1c4` | Planning state: taskscope only; implementation and database execution are not authorized by this request.
 
 # Risk Level
 
-Risk: high. The application now writes `public_registration_code`, while an existing MongoDB unique index may still target legacy field `ma_dk_public`. Repair changes persistent database indexes and can affect all public/admin KTX registrations. The code artifact is reversible from a captured index definition; running it against any database requires the applicable Human Gate.
+Risk: high. The existing repair can drop a MongoDB index and reports completion from index/data snapshots. A stale name-based drop could remove an unrelated concurrently replaced index, while a stale final data summary could miss an unsafe registration-code change. Repository edits are reversible; any database execution is a separately gated persistent schema mutation.
 
 # Objective
 
-Provide an idempotent, fail-closed index repair that removes the verified stale `ma_dk_public` unique index only after canonical registration-code data and the canonical unique index are safe, so multiple new KTX member registrations can be saved without `E11000 ... ma_dk_public: null` while registration-code uniqueness remains enforced.
+Make the public-registration index repair fail closed under index/data changes: it must never drop an index based on a stale name, and it must validate a fresh post-repair registration-code summary before reporting `completed`.
 
 # Scope Boundaries
 
-Approved/read: public-registration schema and creation paths, dormitory naming migration, existing index-repair conventions, backend scripts/tests/package commands, and MongoDB index metadata for an explicitly approved target environment.
+Approved/read: the committed repair script, focused repair tests, package commands, public-registration schema/creation paths, and existing MongoDB migration conventions.
 
 Write:
 
-- new `backend/scripts/repair-public-registration-code-index.ts`
-- new `backend/src/dormitory/public-registration-code-index-repair.spec.ts`
-- `backend/package.json`
+- `backend/scripts/repair-public-registration-code-index.ts`
+- `backend/src/dormitory/public-registration-code-index-repair.spec.ts`
 
-Additional implementation paths require a scope amendment if they change application behavior, registration payloads, data fields, or migration ownership.
+Additional implementation paths require a scope amendment. `docs/taskscope.md` is the planning artifact only.
 
 # Out of Scope
 
-Changing registration DTOs/UI/API responses; suppressing or broadly catching `E11000`; changing code generation; deleting registrations; automatically renaming/backfilling document fields; resolving duplicate or missing canonical codes; running the general dormitory naming migration; deployment; and executing against development, staging, or production data under this planning request.
+Changing registration DTOs, schemas, services, UI, API responses, code generation, package commands, or the general naming migration; adding locks or new collections; repairing/backfilling/deleting documents; deployment; and executing the repair against any database under this request.
 
 # Context and Dependencies
 
-- `PublicRegistrationSchema` requires unique `public_registration_code`.
-- Both admin temporary registration and public QR registration generate and save `public_registration_code`.
-- The reported error names index `ma_dk_public_1` and key `{ ma_dk_public: null }`, proving the failing database index still keys the removed legacy field rather than the value currently written by the application.
-- MongoDB unique single-field indexes index a missing field as `null`; the second new canonical-only document therefore collides.
-- Mongoose schema/index declaration does not reliably remove obsolete database indexes. Existing `migrate-dormitory-naming.ts` can transform indexes when executed, but deployment state shows this legacy index was not removed/transformed in the affected database.
-- Follow the repository's dry-run-first, non-production guard, explicit approval variable, restore-command capture, and post-repair verification conventions.
+- Commit `75959085` already provides dry-run/execute commands, data/index classification, canonical-index-first ordering, environment guards, restore commands, and focused tests.
+- `runMigration` captures the initial `plan.legacyIndexes`, later re-reads indexes, but drops using names from the initial plan. A concurrent replacement under the same name can therefore make the mutation target stale.
+- Post-repair `buildRepairPlan(after, data, 'execute')` reuses the initial data summary. Unsafe data introduced after the pre-drop check can be omitted from the completion decision.
+- MongoDB index mutation and concurrent DDL cannot be treated as an atomic compare-and-swap unless the selected driver/server operation proves exact-key targeting. Unsupported or ambiguous targeting must fail closed; it must not fall back to a stale name-only drop.
+- Do not log registration-code values or document contents.
 
 # Steps
 
-1. Implement a dedicated script with pure planning helpers and a database runner for collection `publicregistrations`. Default to dry-run; `--execute` is the only mutation mode.
-2. Read index definitions and classify by index key, not name: exact legacy `{ ma_dk_public: 1 }`, exact canonical `{ public_registration_code: 1 }`, and unexpected compound/options conflicts. Never drop an index solely because its name matches.
-3. Inspect only code-field projections and report counts without logging code values or document contents: total documents, legacy-only, canonical-only, both-fields, missing/blank canonical values, and duplicate canonical groups.
-4. Fail closed before writes if any document is legacy-only, contains both fields, lacks a nonblank canonical code, has a duplicate canonical code, or if legacy/canonical index definitions are unexpected. Direct operators to the separately gated naming/data-reconciliation workflow; do not repair documents in this task.
-5. Require exactly one valid unique canonical index. If absent and data is safe, create `{ public_registration_code: 1 }` with a stable canonical name and `unique: true` before dropping any legacy index. If a valid canonical index already exists under any name, reuse it.
-6. Drop only verified exact single-field legacy indexes after canonical index creation/validation succeeds. Capture executable restore commands from the complete pre-change legacy index definitions before mutation.
-7. Re-read indexes after execution and fail verification unless one valid canonical unique index remains and no legacy-key index remains. A repeated execute on the repaired state must return `no-op` without writes.
-8. Add package scripts for dry-run and execute. Block execute without `MONGO_URI`, on a detected production connection, or unless `DORMITORY_MIGRATION_APPROVED=YES`; always disconnect cleanly.
-9. Add focused tests for the reported stale-index state, dry-run no-write behavior, canonical-first ordering, unsafe data/index blocking, create failure preserving the legacy index, exact-key protection, restore commands, post-check failure, and idempotent repeat.
-10. Run focused tests, backend build, script dry-run without a database, and scoped diff/status review. Database execution remains a separate gated operation.
+1. Capture the existing focused test baseline and preserve current dry-run, approval, production-detection, canonical-first, restore, and no-op behavior.
+2. Introduce a pure index-signature/target validation helper covering name, exact key, uniqueness, and accepted options. Rebuild the actionable legacy target list from the latest index snapshot after canonical validation and the latest safe data check; reject additions, removals, replacements, or option changes relative to the reviewed plan.
+3. Make each destructive drop target the verified exact legacy key identity rather than an index name from the initial snapshot. Use an exact-key-capable operation only when supported and unambiguous. If only name-based mutation is available, require proof that the current name still resolves to the approved exact signature immediately before mutation and document the remaining exclusive-DDL assumption; never drop an unrelated same-name index.
+4. After all drops, re-read both indexes and the registration-code projection. Build the final plan from the fresh data summary, require one plain unique canonical index, no index containing `ma_dk_public`, and no unsafe data finding before returning `completed`.
+5. Include the fresh post-repair data summary in the result/evidence without exposing code values. On final verification failure, exit unsuccessfully and retain the captured restore commands; do not automatically mutate documents or recreate indexes.
+6. Add regression tests for a same-name/different-key replacement between snapshots, legacy signature/options changing before drop, a newly unsafe document at final verification, fresh post-data evidence on success, and preservation of existing success/no-op/failure behavior.
+7. Run focused tests, backend build, no-target dry-run, diff check, and final scoped review. Database verification remains separately gated.
 
 # Acceptance Criteria
 
-- AC-01: Dry-run identifies `{ ma_dk_public: 1 }` as stale regardless of index name and performs no create/drop calls.
-- AC-02: The plan blocks all writes when canonical codes are missing/blank/duplicate, legacy document fields remain, both legacy and canonical fields coexist, or index definitions/options are unsafe.
-- AC-03: On a safe collection without the canonical index, execute creates and verifies the canonical unique index before dropping the verified legacy index.
-- AC-04: If canonical index creation or validation fails, the legacy index is not dropped and the command exits unsuccessfully.
-- AC-05: An existing valid unique `{ public_registration_code: 1 }` index is reused; after repair no `{ ma_dk_public: 1 }` index remains.
-- AC-06: Repeated execute after successful repair is a no-op and never weakens canonical code uniqueness.
-- AC-07: The script never logs registration-code values or mutates/deletes registration documents.
-- AC-08: Execute is blocked without an explicit non-production target and approval flag; dry-run and restore evidence are available before approval.
-- AC-09: In a disposable database matching the reported state, two distinct new public/admin registrations can be saved after repair without the legacy-null duplicate error, while duplicate `public_registration_code` is still rejected.
-- AC-10: Existing registration creation behavior and the general dormitory naming migration remain unchanged.
+- AC-01: A legacy index replaced by an unrelated index under the same name is never dropped; execution fails closed before that destructive call.
+- AC-02: Any change to the planned legacy target's key, name, uniqueness, or accepted options between reviewed and actionable snapshots prevents the drop unless the latest exact signature is independently reviewed by the same execution plan.
+- AC-03: The destructive operation targets the exact verified `{ ma_dk_public: 1 }` identity; unsupported or ambiguous exact targeting fails instead of falling back to a stale name-only mutation.
+- AC-04: Canonical index creation/validation still completes before any legacy drop, and a canonical failure leaves legacy indexes untouched.
+- AC-05: Completion uses a newly read post-repair data summary. A new legacy-only, both-field, missing/blank, or duplicate canonical state makes execution fail rather than report `completed`.
+- AC-06: A successful result exposes fresh aggregate post-data evidence, exactly one valid canonical unique index, and no legacy-key index, without logging registration-code values.
+- AC-07: Dry-run performs no writes; an already repaired safe state remains an idempotent no-op; environment and approval guards remain enforced.
+- AC-08: Existing focused tests and backend build pass, with no application behavior, package command, schema, or registration document mutation change.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/public-registration-code-index-repair.spec.ts` => AC-01 through AC-08 and AC-10 pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => the repair script and existing backend compile.
-- `D:\PROJECT\manager_points\backend` :: `npm run migration:dormitory-public-registration-index:dry-run` with no `MONGO_URI` => exits without database reads/writes and explains that no target was supplied.
-- Separately approved disposable non-production MongoDB :: dry-run, reviewed execute, repeated execute, then focused insert/index assertions => AC-03 through AC-09 pass; no raw registration codes are captured in artifacts.
-- `D:\PROJECT\manager_points` :: `git diff --check -- backend/scripts/repair-public-registration-code-index.ts backend/src/dormitory/public-registration-code-index-repair.spec.ts backend/package.json` and scoped status/diff review => no unintended changes.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/public-registration-code-index-repair.spec.ts` => AC-01 through AC-08 pass, including sequenced snapshot/data-change regressions.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => script and test imports compile with the existing backend.
+- `D:\PROJECT\manager_points\backend` :: remove `MONGO_URI` from the command environment, then run `npm run migration:dormitory-public-registration-index:dry-run` => exits successfully with no database reads/writes.
+- Separately approved disposable non-production MongoDB :: dry-run, reviewed execute, repeat execute, exact index inspection, and focused insert assertions => AC-03 through AC-07 pass; this taskscope does not authorize that run.
+- `D:\PROJECT\manager_points` :: `git diff --check -- backend/scripts/repair-public-registration-code-index.ts backend/src/dormitory/public-registration-code-index-repair.spec.ts docs/taskscope.md` plus scoped status/diff review => no unintended changes.
 
 # Safety Gates
 
-Gate 1 — Execution authority: this request authorizes taskscope creation only. A separate implementation request is required before repository code changes.
+Gate 1 — Execution authority: this request authorizes only this taskscope update. A separate implementation request is required before script/test changes.
 
-Gate 2 — Database index mutation: before `--execute`, provide the exact environment, dry-run report, redacted pre-change index definitions, data-safety counts, restore commands, expected impact, and resume point. Obtain explicit approval for that target. Production remains blocked by the script and requires a separately approved production procedure/change.
+Gate 2 — Database index mutation: before any `--execute`, provide the exact environment, commit, reviewed dry-run, redacted current index definitions, pre-data counts, restore commands, concurrency/maintenance-window controls, expected impact, rollback procedure, and resume point. Obtain explicit approval for that exact target.
 
-Gate 3 — Data remediation: if legacy-only/both-field/missing/duplicate documents are found, stop. Backfill, rename, deduplication, deletion, or general naming migration requires a separate taskscope, rollback plan, and explicit persistent-data approval.
+Gate 3 — Data remediation: stop if any unsafe document state is found. Backfill, rename, deduplication, or deletion requires a separate Full taskscope and explicit persistent-data approval.
 
-Rollback: recreate only the captured legacy index definition if operational rollback is approved and canonical data/index remain intact; do not drop the canonical uniqueness constraint as part of rollback. Resume after approval at Step 5 using the reviewed dry-run artifact.
+Rollback: preserve the pre-change legacy definitions and restore commands. Any restore is a separately approved index mutation; never drop the canonical uniqueness constraint or mutate registration documents as an automatic rollback.
 
 # Artifacts and Checkpoints
 
-Required for implementation review: taskscope, focused test/build evidence, scoped diff, and independent persistence-safety review. Required before database execution: target identity, timestamped/redacted dry-run report, pre-index snapshot, data count summary, restore commands, base/current commit, and artifact hashes. Do not store registration codes or personal data.
+Implementation review requires the updated script/test diff, focused test/build/dry-run evidence, and independent persistence-safety review. Before a separately approved database run, capture target identity, base/current commit, timestamped redacted pre/post index snapshots, aggregate pre/post data summaries, restore commands, concurrency controls, and artifact hashes. Store no registration codes or personal data.
 
 # Execution Budgets
 
-Deadline per step: 600 seconds, maximum 1800 seconds. One writer per path. Dependency order: script planning helpers -> focused tests -> package commands -> independent review -> final verification -> Human Gate -> optional database execute/post-check. Idempotent retries: 0..2; engineering loop: 0..3; review remediation: 0..2. Stop on unsafe data, unexpected indexes, target ambiguity, production detection, approval absence, or post-check failure.
+Deadline per step: 600 seconds, maximum 1800 seconds. One writer per path. Dependency order: baseline -> signature/target hardening -> fresh post-data verification -> regression tests -> independent review -> final verification -> Human Gate -> optional database run. Idempotent retries: 0..2; engineering loop: 0..3; review remediation: 0..2. Stop on stale target identity, unsupported exact targeting, unsafe data, unexpected indexes, target ambiguity, production detection, approval absence, or post-check failure.

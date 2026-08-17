@@ -58,6 +58,7 @@ export type PublicRegistrationIndexPlan = {
   readyToExecute: boolean;
   result?: 'completed' | 'no-op';
   after?: IndexDescription[];
+  afterData?: RegistrationCodeSummary;
 };
 
 export const isProductionConnection = (
@@ -115,6 +116,54 @@ const indexCreationOptions = (index: IndexDescription) => {
   }
   return options;
 };
+
+const normalizeForComparison = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(normalizeForComparison);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, normalizeForComparison(entry)]),
+    );
+  }
+  return value;
+};
+
+export type IndexSignature = {
+  name: string | undefined;
+  key: unknown;
+  unique: boolean;
+  options: unknown;
+};
+
+export const indexSignature = (index: IndexDescription): IndexSignature => ({
+  name: index.name,
+  key: normalizeForComparison(index.key),
+  unique: index.unique === true,
+  options: normalizeForComparison(indexCreationOptions(index)),
+});
+
+const sameIndexSignature = (left: IndexDescription, right: IndexDescription) =>
+  JSON.stringify(indexSignature(left)) === JSON.stringify(indexSignature(right));
+
+export function validateLegacyIndexTargets(
+  reviewed: IndexDescription[],
+  current: IndexDescription[],
+): IndexDescription[] {
+  const reviewedLegacy = reviewed.filter((index) => sameKey(index, LEGACY_KEY));
+  const currentLegacy = current.filter((index) => sameKey(index, LEGACY_KEY));
+
+  if (
+    reviewedLegacy.length !== currentLegacy.length ||
+    reviewedLegacy.some((expected) => !currentLegacy.some((actual) => sameIndexSignature(expected, actual)))
+  ) {
+    throw new Error(
+      'Refusing to drop legacy indexes: a reviewed target changed, was removed, or an unexpected legacy target was added.',
+    );
+  }
+
+  return currentLegacy;
+}
 
 export function restoreIndexCommands(indexes: IndexDescription[]): string[] {
   return indexes
@@ -312,13 +361,22 @@ export async function runMigration(
     throw new Error(`Refusing public registration index repair after re-check: ${latestPlan.unsafeFindings.join(' ')}`);
   }
 
-  for (const index of plan.legacyIndexes) {
-    if (!index.name) throw new Error('Refusing to drop an unnamed legacy index.');
+  const reviewedLegacyIndexes = validateLegacyIndexTargets(plan.legacyIndexes, canonicalCheck);
+
+  for (const [position, reviewedIndex] of reviewedLegacyIndexes.entries()) {
+    // The MongoDB driver exposes name-based dropIndex only. Verify the exact
+    // approved signature in a fresh snapshot immediately before this mutation;
+    // this remains safe only under the caller's exclusive-DDL assumption.
+    const beforeDrop = await collection.indexes();
+    const actionableIndexes = validateLegacyIndexTargets(reviewedLegacyIndexes.slice(position), beforeDrop);
+    const index = actionableIndexes.find((candidate) => sameIndexSignature(candidate, reviewedIndex));
+    if (!index?.name) throw new Error('Refusing to drop an unnamed legacy index.');
     await collection.dropIndex(index.name);
   }
 
   const after = await collection.indexes();
-  const afterPlan = buildRepairPlan(after, data, 'execute');
+  const afterData = await readRegistrationCodeSummary(collection);
+  const afterPlan = buildRepairPlan(after, afterData, 'execute');
   const remainingLegacyKey = after.some((index) => hasKeyField(index, LEGACY_FIELD));
   if (
     !afterPlan.readyToExecute ||
@@ -332,9 +390,10 @@ export async function runMigration(
   console.log(JSON.stringify({
     mode: 'execute',
     indexesAfter: indexSnapshot(after),
+    dataAfter: afterData,
     result: 'completed',
   }, null, 2));
-  return { ...plan, after, result: 'completed' };
+  return { ...plan, after, afterData, result: 'completed' };
 }
 
 export async function runAgainstDatabase(

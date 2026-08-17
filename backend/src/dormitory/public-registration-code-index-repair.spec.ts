@@ -3,21 +3,25 @@ import {
   CANONICAL_FIELD,
   LEGACY_FIELD,
   buildRepairPlan,
+  indexSignature,
   restoreIndexCommands,
   runMigration,
   summarizeRegistrationCodes,
+  validateLegacyIndexTargets,
 } from '../../scripts/repair-public-registration-code-index';
 
 const legacy = { name: 'renamed-legacy-index', key: { [LEGACY_FIELD]: 1 }, unique: true } as any;
 const canonical = { name: 'custom-canonical-index', key: { [CANONICAL_FIELD]: 1 }, unique: true } as any;
 
-const makeCollection = (indexSnapshots: any[], documents: any[] = []) => {
+const makeCollection = (indexSnapshots: any[], documents: any[] = [], dataSnapshots?: any[][]) => {
   const snapshots = Array.isArray(indexSnapshots[0]) ? [...indexSnapshots] : [indexSnapshots];
   const lastSnapshot = snapshots.at(-1) || [];
+  const documentSnapshots = dataSnapshots ? [...dataSnapshots] : [documents];
+  const lastDocuments = documentSnapshots.at(-1) || documents;
   const collection = {
     indexes: jest.fn().mockImplementation(async () => snapshots.shift() || lastSnapshot),
     find: jest.fn().mockReturnValue({
-      toArray: jest.fn().mockResolvedValue(documents),
+      toArray: jest.fn().mockImplementation(async () => documentSnapshots.shift() || lastDocuments),
     }),
     createIndex: jest.fn().mockResolvedValue(CANONICAL_INDEX),
     dropIndex: jest.fn().mockResolvedValue('dropped'),
@@ -68,6 +72,7 @@ describe('public registration code index repair', () => {
     const collection = makeCollection(
       [
         [legacy],
+        [legacy, canonical],
         [legacy, canonical],
         [canonical],
       ],
@@ -154,6 +159,30 @@ describe('public registration code index repair', () => {
     );
   });
 
+  it('fails closed when a legacy name is replaced by an unrelated key before the drop', async () => {
+    const replacement = { name: legacy.name, key: { unrelated: 1 }, unique: true };
+    const collection = makeCollection(
+      [[legacy], [replacement, canonical]],
+      [{ [CANONICAL_FIELD]: 'PUB-1' }],
+    );
+
+    await expect(runMigration(collection as any, true)).rejects.toThrow();
+    expect(collection.dropIndex).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['key', { ...legacy, key: { [LEGACY_FIELD]: -1 } }],
+    ['options', { ...legacy, sparse: true }],
+  ])('fails closed when the planned legacy signature changes before drop: %s', async (_label, changed) => {
+    const collection = makeCollection(
+      [[legacy], [changed, canonical]],
+      [{ [CANONICAL_FIELD]: 'PUB-1' }],
+    );
+
+    await expect(runMigration(collection as any, true)).rejects.toThrow();
+    expect(collection.dropIndex).not.toHaveBeenCalled();
+  });
+
   it('keeps the legacy index when canonical index creation fails', async () => {
     const collection = makeCollection([legacy], [{ [CANONICAL_FIELD]: 'PUB-1' }]);
     collection.createIndex.mockRejectedValue(new Error('create failed'));
@@ -180,6 +209,7 @@ describe('public registration code index repair', () => {
       [
         [legacy, canonical],
         [legacy, canonical],
+        [legacy, canonical],
         [canonical],
       ],
       [{ [CANONICAL_FIELD]: 'PUB-1' }],
@@ -194,12 +224,45 @@ describe('public registration code index repair', () => {
 
   it('fails post-repair verification if any legacy-key index remains', async () => {
     const collection = makeCollection(
-      [[legacy], [legacy, canonical], [legacy, canonical]],
+      [[legacy], [legacy, canonical], [legacy, canonical], [legacy, canonical]],
       [{ [CANONICAL_FIELD]: 'PUB-1' }],
     );
 
     await expect(runMigration(collection as any, true)).rejects.toThrow('Post-repair verification failed');
     expect(collection.dropIndex).toHaveBeenCalledWith(legacy.name);
+  });
+
+  it('fails final verification when a new unsafe document appears after the drop', async () => {
+    const collection = makeCollection(
+      [[legacy], [legacy, canonical], [legacy, canonical], [canonical]],
+      [{ [CANONICAL_FIELD]: 'PUB-1' }],
+      [
+        [{ [CANONICAL_FIELD]: 'PUB-1' }],
+        [{ [CANONICAL_FIELD]: 'PUB-1' }],
+        [{ [LEGACY_FIELD]: 'LATE-UNSAFE' }],
+      ],
+    );
+
+    await expect(runMigration(collection as any, true)).rejects.toThrow('Post-repair verification failed');
+    expect(collection.dropIndex).toHaveBeenCalledWith(legacy.name);
+  });
+
+  it('returns fresh aggregate post-data evidence after a successful repair', async () => {
+    const finalDocuments = [{ [CANONICAL_FIELD]: 'PUB-2' }, { [CANONICAL_FIELD]: 'PUB-3' }];
+    const collection = makeCollection(
+      [[legacy], [legacy, canonical], [legacy, canonical], [canonical]],
+      [{ [CANONICAL_FIELD]: 'PUB-1' }],
+      [
+        [{ [CANONICAL_FIELD]: 'PUB-1' }],
+        [{ [CANONICAL_FIELD]: 'PUB-1' }],
+        finalDocuments,
+      ],
+    );
+
+    const result = await runMigration(collection as any, true);
+
+    expect(result.afterData).toEqual(summarizeRegistrationCodes(finalDocuments));
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('"dataAfter"');
   });
 
   it('returns a no-op and performs no writes after a successful repair', async () => {
@@ -243,5 +306,10 @@ describe('public registration code index repair', () => {
 
     expect(plan.readyToExecute).toBe(false);
     expect(plan.unsafeFindings).toContain('The exact canonical index is not a plain unique index.');
+  });
+
+  it('compares the complete reviewed legacy signature', () => {
+    expect(indexSignature(legacy)).not.toEqual(indexSignature({ ...legacy, sparse: true }));
+    expect(() => validateLegacyIndexTargets([legacy], [{ ...legacy, sparse: true }] as any)).toThrow();
   });
 });
