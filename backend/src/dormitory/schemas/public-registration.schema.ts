@@ -27,8 +27,11 @@ export class PublicRegistration {
   @Prop()
   email: string;
 
-  @Prop()
+  @Prop({ index: true })
   student_code: string;
+
+  @Prop({ index: true })
+  student_code_normalized?: string;
 
   @Prop({ required: true })
   date_of_birth: string;
@@ -91,6 +94,9 @@ export class PublicRegistration {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Registration', index: true })
   linked_registration_id?: Types.ObjectId;
+
+  @Prop()
+  linked_canonical_owner?: string;
 }
 
 export const PublicRegistrationSchema =

@@ -219,9 +219,9 @@ export default function BuildingsPage() {
     try {
       const payload = toRoomMutationPayload(roomForm);
       if (roomEdit) await dormitoryApi.rooms.update(roomEdit._id, payload); else await dormitoryApi.rooms.create(payload);
-      toast.success(roomEdit ? 'Đã cập nhật phòng' : 'Đã thêm phòng');
-      setRoomOpen(false);
-      await load(true);
+       await load(true);
+       toast.success(roomEdit ? 'Đã cập nhật phòng' : 'Đã thêm phòng');
+       setRoomOpen(false);
     } catch (err: any) {
       const message = err?.message || 'Không thể lưu phòng.';
       setRoomSaveError(message);

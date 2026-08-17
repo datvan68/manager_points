@@ -2,7 +2,6 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { dormitoryApi, DormRegistration } from '@/api/dormitory-api';
-import { semesterApi } from '@/api/semester-api';
 import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, mapActiveSemester, normalizeDormitoryRegistrationSource } from './DormitoryRegistrationEditModal';
 
 const registration = (source: DormRegistration['source'] = 'FORMAL'): DormRegistration => ({
@@ -12,17 +11,15 @@ const registration = (source: DormRegistration['source'] = 'FORMAL'): DormRegist
 });
 
 describe('DormitoryRegistrationEditModal', () => {
-  it('normalizes missing or unknown registration sources to FORMAL', () => {
-    expect(normalizeDormitoryRegistrationSource()).toBe('FORMAL');
-    expect(normalizeDormitoryRegistrationSource('CLASSIFIED')).toBe('FORMAL');
+  it('reports missing or unknown registration sources as invalid', () => {
+    expect(normalizeDormitoryRegistrationSource()).toBe('INVALID');
+    expect(normalizeDormitoryRegistrationSource('CLASSIFIED')).toBe('INVALID');
     expect(normalizeDormitoryRegistrationSource('PUBLIC')).toBe('PUBLIC');
     expect(normalizeDormitoryRegistrationSource('ADMIN_TEMPORARY')).toBe('ADMIN_TEMPORARY');
   });
-  let getSemesters: ReturnType<typeof vi.spyOn>;
   let update: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    getSemesters = vi.spyOn(semesterApi, 'getSemesters').mockResolvedValue([{ _id: 'semester-2', semester_name: 'HK2 - 2025 - 2026', start_date: '', end_date: '', status: 'active' }]);
     update = vi.spyOn(dormitoryApi.registrations, 'update').mockResolvedValue({} as DormRegistration);
   });
 
@@ -30,45 +27,15 @@ describe('DormitoryRegistrationEditModal', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads one active semester on every open and overrides existing defaults', async () => {
-    const onOpenChange = vi.fn();
-    const { rerender } = render(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
-
-    expect(getSemesters).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
-
-    rerender(<DormitoryRegistrationEditModal open={false} registration={registration()} onOpenChange={onOpenChange} />);
-    rerender(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={onOpenChange} />);
-    await waitFor(() => expect(getSemesters).toHaveBeenCalledTimes(2));
-  });
-
-  it('shows the active-semester error and does not submit when mapping fails', async () => {
-    getSemesters.mockResolvedValue([{ _id: 'bad', semester_name: 'Current', start_date: '', end_date: '', status: 'active' }]);
-    render(<DormitoryRegistrationEditModal open registration={registration('ADMIN_TEMPORARY')} onOpenChange={vi.fn()} />);
-
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
-    const save = screen.getByRole('button', { name: /lưu thay đổi/i });
-    expect(save).toBeDisabled();
-    fireEvent.click(save);
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it('blocks saving when active-semester loading fails', async () => {
-    getSemesters.mockRejectedValue(new Error('semester unavailable'));
-    render(<DormitoryRegistrationEditModal open registration={registration()} onOpenChange={vi.fn()} />);
-
-    expect(await screen.findByText('semester unavailable')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Lưu thay đổi/i })).toBeDisabled();
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it.each(['PUBLIC', 'ADMIN_TEMPORARY'] as const)('submits the complete form through the selected %s source route', async source => {
+  it.each(['PUBLIC', 'ADMIN_TEMPORARY'] as const)('preserves the stored semester when editing an unrelated field for %s', async source => {
     const row = { ...registration(source), full_name: 'Applicant', student_code: 'APP-1' };
     render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue('0912345678'), { target: { value: '0987654321' } });
     fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi/i }));
-    await waitFor(() => expect(update).toHaveBeenCalledWith('registration-1', source, expect.objectContaining({ semester: 'HK2', academic_year: '2025-2026' })));
+    await waitFor(() => expect(update).toHaveBeenCalledWith('registration-1', source, expect.objectContaining({ phone_number: '0987654321' })));
+    expect(update.mock.calls[0][2]).not.toHaveProperty('semester');
+    expect(update.mock.calls[0][2]).not.toHaveProperty('academic_year');
   });
 
   it('keeps source-aware payload shapes while sharing the complete form', () => {
@@ -103,7 +70,6 @@ describe('DormitoryRegistrationEditModal', () => {
     const row = { ...registration(source), full_name: 'Applicant', student_code: 'APP-1' };
     render(<DormitoryRegistrationEditModal open registration={row} onOpenChange={vi.fn()} />);
 
-    await waitFor(() => expect(screen.getByText(/HK2 - 2025 - 2026/)).toBeInTheDocument());
     expect(screen.getByDisplayValue('Applicant')).not.toHaveAttribute('readonly');
     const roomTypeInput = screen.getAllByRole('textbox').find(input => input.getAttribute('placeholder')?.includes('ph'));
     expect(roomTypeInput).toBeTruthy();

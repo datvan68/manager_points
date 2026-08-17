@@ -58,6 +58,7 @@ describe('ClassesService', () => {
                 exec: jest.fn().mockResolvedValue(mockClass),
               }),
               findByIdAndDelete: jest.fn().mockReturnValue({
+                session: jest.fn().mockReturnThis(),
                 exec: jest.fn().mockResolvedValue(mockClass),
               }),
               countDocuments: jest.fn().mockResolvedValue(0),
@@ -66,6 +67,10 @@ describe('ClassesService', () => {
                 populate: jest.fn().mockReturnThis(),
               }),
               db: {
+                startSession: jest.fn().mockResolvedValue({
+                  withTransaction: jest.fn(async (work: () => Promise<unknown>) => work()),
+                  endSession: jest.fn().mockResolvedValue(undefined),
+                }),
                 model: jest.fn().mockReturnValue({
                   find: jest.fn().mockReturnValue({
                     exec: jest.fn().mockResolvedValue([]),
@@ -81,8 +86,30 @@ describe('ClassesService', () => {
             },
           ),
         },
-        { provide: getModelToken(Student.name), useValue: {} },
-        { provide: getModelToken(User.name), useValue: {} },
+        {
+          provide: getModelToken(Student.name),
+          useValue: {
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnThis(),
+              session: jest.fn().mockReturnThis(),
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+            deleteMany: jest.fn().mockReturnValue({
+              session: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue({}),
+            }),
+          },
+        },
+        {
+          provide: getModelToken(User.name),
+          useValue: {
+            deleteMany: jest.fn().mockReturnValue({
+              session: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue({}),
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -223,7 +250,7 @@ describe('ClassesService', () => {
     });
 
     it('should throw NotFoundException on remove if class not found', async () => {
-      model.findByIdAndDelete.mockReturnValueOnce({
+      model.findById.mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue(null),
       });
       await expect(service.remove('invalid-id')).rejects.toThrow(

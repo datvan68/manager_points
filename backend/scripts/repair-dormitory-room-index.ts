@@ -30,6 +30,7 @@ export type RoomIndexPlan = {
     dropLegacyIndexes: string[];
     createCanonicalIndex: boolean;
   };
+  restoreCommands: string[];
   readyToExecute: boolean;
   result?: 'completed' | 'no-op';
   after?: IndexDescription[];
@@ -47,6 +48,12 @@ const sameKey = (index: IndexDescription, key: Record<string, number>) =>
 
 const hasField = (index: IndexDescription, field: string) =>
   Boolean(index.key && Object.prototype.hasOwnProperty.call(index.key, field));
+
+export function restoreIndexCommands(indexes: IndexDescription[]): string[] {
+  return indexes
+    .filter((index) => index.name && index.name !== '_id_')
+    .map((index) => `db.rooms.createIndex(${JSON.stringify(index.key)}, ${JSON.stringify({ name: index.name, unique: index.unique === true, sparse: index.sparse === true, ...(index.partialFilterExpression ? { partialFilterExpression: index.partialFilterExpression } : {}) })})`);
+}
 
 export function summarizeRoomCodes(documents: RoomCodeDocument[]): RoomCodeSummary {
   const counts = new Map<string, number>();
@@ -87,6 +94,10 @@ export function buildRepairPlan(
   );
   const unsafeFindings: string[] = [];
 
+  for (const index of legacyIndexes) {
+    if (!sameKey(index, { [LEGACY_FIELD]: 1 })) unsafeFindings.push(`Unexpected legacy ${LEGACY_FIELD} index definition: ${index.name || '(unnamed)'}.`);
+  }
+
   if (canonicalIndexes.length > 1) {
     unsafeFindings.push(`Multiple exact ${CANONICAL_FIELD} indexes found.`);
   }
@@ -120,11 +131,12 @@ export function buildRepairPlan(
     canonicalIndexes,
     canonicalConflicts,
     unsafeFindings,
-    plannedChanges: {
+      plannedChanges: {
       dropLegacyIndexes: legacyIndexes.flatMap((index) => index.name ? [index.name] : []),
       createCanonicalIndex,
-    },
-    readyToExecute,
+      },
+      restoreCommands: restoreIndexCommands(indexes),
+      readyToExecute,
   };
 }
 
@@ -154,6 +166,7 @@ export async function runMigration(collection: Collection, execute = false): Pro
     indexesBefore: indexSnapshot(plan.before),
     unsafeFindings: plan.unsafeFindings,
     plannedChanges: plan.plannedChanges,
+    restoreCommands: plan.restoreCommands,
   }, null, 2));
 
   if (!execute) return plan;

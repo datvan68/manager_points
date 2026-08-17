@@ -20,7 +20,7 @@ function queryResult<T>(value: T) {
 describe('RegistrationsService unclassified roster', () => {
   it('returns only blank-code public registrations without typed links', async () => {
     const publicModel: any = {
-      find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', public_registration_code: 'QR-1', student_code: '', full_name: 'A' }])),
+      find: jest.fn().mockReturnValue(queryResult([{ _id: 'a', public_registration_code: 'QR-1', student_code: '', full_name: 'A', source: 'QR_SCAN' }])),
       countDocuments: jest.fn().mockResolvedValue(1),
     };
     const service = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
@@ -135,14 +135,15 @@ describe('RegistrationsService registration actions', () => {
     await service.update('507f1f77bcf86cd799439011', 'FORMAL', {
       phone_number: '0987654321',
       applicant_profile: { ethnicity: 'Kinh' },
-      preference: { room_type: 'Máy lạnh' },
+      preference: { building_id: '507f1f77bcf86cd799439012' },
     });
 
     expect(formal.phone_number).toBe('0987654321');
     expect(formal.applicant_profile).toEqual({ ethnicity: 'Kinh' });
-    expect(formal.preference).toEqual({ room_type: 'Máy lạnh' });
+    expect(formal.preference).toEqual({ building_id: '507f1f77bcf86cd799439012' });
     expect(formal.save).toHaveBeenCalled();
     await expect(service.update('507f1f77bcf86cd799439011', 'FORMAL', { full_name: 'Không được sửa' } as any)).rejects.toThrow('Không thể cập nhật trường');
+    await expect(service.update('507f1f77bcf86cd799439011', 'FORMAL', { preference: { room_type: 'Thường' } } as any)).rejects.toThrow('trường bảo vệ');
   });
 
   it('updates temporary public entries only when the source matches', async () => {
@@ -197,6 +198,43 @@ describe('RegistrationsService registration actions', () => {
     const publicService = new RegistrationsService({} as any, {} as any, {} as any, publicModel, {} as any);
     await expect(publicService.remove('507f1f77bcf86cd799439011', 'PUBLIC')).resolves.toEqual({ success: true, id: '507f1f77bcf86cd799439011', source: 'PUBLIC' });
     expect(publicModel.findByIdAndDelete).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+  });
+});
+
+describe('RegistrationsService student-code state matrix', () => {
+  const id = '507f1f77bcf86cd799439011';
+
+  function makeService(publicRecord: any, students: any[]) {
+    const publicModel: any = { findById: jest.fn().mockResolvedValue(publicRecord) };
+    const registrationModel: any = { findOne: jest.fn().mockResolvedValue(null) };
+    const studentModel: any = { find: jest.fn().mockResolvedValue(students) };
+    return { service: new RegistrationsService(registrationModel, {} as any, {} as any, publicModel, {} as any, studentModel), publicRecord };
+  }
+
+  it.each([
+    ['', 'MISSING'],
+    ['UNKNOWN', 'NOT_FOUND'],
+  ])('returns %s as %s without persisting an invalid code', async (code, state) => {
+    const record: any = { source: 'QR_SCAN', student_code: '', save: jest.fn() };
+    const { service } = makeService(record, []);
+    const result: any = await service.update(id, 'PUBLIC', { student_code: code });
+    if (state === 'MISSING') expect(record.save).toHaveBeenCalled();
+    else expect(record.save).not.toHaveBeenCalled();
+    expect(result.student_code_state).toBe(state);
+  });
+
+  it('normalizes a unique code to LINKABLE and reports a duplicate as CONFLICT', async () => {
+    const record: any = { source: 'QR_SCAN', student_code: '', save: jest.fn().mockResolvedValue({ _id: id, student_code: 'SV001' }) };
+    const { service } = makeService(record, [{ _id: 'student-1', student_code: 'SV001' }]);
+    const linkable: any = await service.update(id, 'PUBLIC', { student_code: ' sv001 ' });
+    expect(record.student_code).toBe('SV001');
+    expect(linkable.student_code_state).toBe('LINKABLE');
+
+    const conflictRecord: any = { source: 'QR_SCAN', student_code: '', save: jest.fn() };
+    const conflict = makeService(conflictRecord, [{ _id: 'student-1', student_code: 'SV002' }, { _id: 'student-2', student_code: 'SV002' }]);
+    const conflicted: any = await conflict.service.update(id, 'PUBLIC', { student_code: 'SV002' });
+    expect(conflicted.student_code_state).toBe('CONFLICT');
+    expect(conflictRecord.save).not.toHaveBeenCalled();
   });
 });
 

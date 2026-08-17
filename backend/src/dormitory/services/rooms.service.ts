@@ -114,6 +114,9 @@ export class RoomsService {
   }
 
   async create(dto: CreateRoomDto, user: any): Promise<Room> {
+    if (!Number.isInteger(dto.bed_count) || dto.bed_count <= 0) {
+      throw new ConflictException('Bed count must be a positive integer');
+    }
     const building = await this.buildingModel.findById(dto.building_id);
     if (!building) throw new NotFoundException(`Không tìm thấy tòa nhà: ${dto.building_id}`);
 
@@ -310,9 +313,12 @@ export class RoomsService {
     if (capacityChange && (!Number.isInteger(dto.bed_count) || (dto.bed_count as number) <= 0)) {
       throw new ConflictException('Bed count must be a positive integer');
     }
-    if (dto.building_id !== undefined && typeof (this.buildingModel as any).findById === 'function') {
-      const building = await this.resolveQuery<any>((this.buildingModel as any).findById(dto.building_id));
-      if (!building) throw new NotFoundException(`Building not found: ${dto.building_id}`);
+    const hasBuildingId = dto.building_id !== undefined;
+    const nextBuildingId = hasBuildingId ? String(dto.building_id).trim() : undefined;
+    if (hasBuildingId && !nextBuildingId) throw new ConflictException('Building id must not be empty');
+    if (nextBuildingId !== undefined && typeof (this.buildingModel as any).findById === 'function') {
+      const building = await this.resolveQuery<any>((this.buildingModel as any).findById(nextBuildingId));
+      if (!building) throw new NotFoundException(`Building not found: ${nextBuildingId}`);
     }
 
     const previousRoomCode = String((currentRoom as any).room_code || '').trim().toUpperCase();
@@ -331,6 +337,7 @@ export class RoomsService {
     }
 
     const updateDto: Record<string, any> = { ...dto };
+    if (nextBuildingId !== undefined) updateDto.building_id = nextBuildingId;
     if (hasRoomCode) updateDto.room_code = nextRoomCode;
     else delete updateDto.room_code;
     if (capacityChange) delete updateDto.bed_count;

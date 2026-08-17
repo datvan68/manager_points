@@ -65,6 +65,7 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
       _id: 'reg-123',
       registration_code: 'DK-2025-001',
       student_id: 'student-1',
+      source: 'FORMAL',
       semester: 'HK1',
       academic_year: '2025-2026',
       status: 'Đã duyệt',
@@ -238,7 +239,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
     // Edit phone number
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0999999999' } });
     const ethnicityInput = screen.getByText('Dân tộc').parentElement?.querySelector('input');
@@ -271,9 +271,9 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     } as any;
     render(<StudentDormitoryCard registrationData={publicData} student={studentObj as any} />);
     fireEvent.click(screen.getAllByRole('button')[1]);
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue('Applicant'), { target: { value: 'Applicant updated' } });
     fireEvent.click(screen.getByRole('button', { name: /L.*i/i }));
-    await waitFor(() => expect(dormitoryApi.registrations.update).toHaveBeenCalledWith('reg-public', 'PUBLIC', expect.objectContaining({ full_name: 'Applicant', student_code: 'APP-1' })));
+    await waitFor(() => expect(dormitoryApi.registrations.update).toHaveBeenCalledWith('reg-public', 'PUBLIC', expect.objectContaining({ full_name: 'Applicant updated' })));
   });
 
   it('AC6: failed update preserves entered data and shows an error', async () => {
@@ -288,7 +288,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
 
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0977777777' } });
 
@@ -345,7 +344,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /xem chi tiết ktx/i }));
-    await waitFor(() => expect(screen.getByText('HK2')).toBeInTheDocument());
     const phoneInput = screen.getByDisplayValue('0912345678');
     fireEvent.change(phoneInput, { target: { value: '0988776655' } });
 
@@ -355,10 +353,6 @@ describe('StudentDormitoryCard rendering and behaviors', () => {
       expect(dormitoryApi.registrations.updateMine).toHaveBeenCalledWith({
         phone_number: '0988776655',
         priority_group: 'Khó khăn',
-        preference: {
-          room_type: 'Máy lạnh',
-          notes: 'Gần cửa sổ',
-        },
       });
       expect(toast.success).toHaveBeenCalledWith('Cập nhật thông tin KTX thành công!');
       expect(onRefresh).toHaveBeenCalled();

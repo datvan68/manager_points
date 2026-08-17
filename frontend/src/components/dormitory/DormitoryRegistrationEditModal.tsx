@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Calendar, Loader2 } from 'lucide-react';
-import { ApplicantProfile, DormRegistration, DormRegistrationSource, UpdateDormRegistrationInput, dormitoryApi } from '@/api/dormitory-api';
-import { semesterApi, Semester } from '@/api/semester-api';
+import { ApplicantProfile, DormRegistration, DormRegistrationSource, DormitoryDisplaySource, UpdateDormRegistrationInput, dormitoryApi } from '@/api/dormitory-api';
+import { Semester } from '@/api/semester-api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
@@ -15,8 +15,8 @@ import { ApplicantProfileFields, compactApplicantProfile, emptyApplicantProfile 
 
 export type ActiveSemesterValues = { semester: string; academic_year: string };
 
-export const normalizeDormitoryRegistrationSource = (source?: string): DormRegistrationSource =>
-  source === 'PUBLIC' || source === 'ADMIN_TEMPORARY' ? source : 'FORMAL';
+export const normalizeDormitoryRegistrationSource = (source?: string): DormitoryDisplaySource =>
+  source === 'FORMAL' || source === 'PUBLIC' || source === 'ADMIN_TEMPORARY' ? source : 'INVALID';
 
 export function mapActiveSemester(semesters: Semester[]): ActiveSemesterValues {
   const active = semesters.filter(semester => semester.status === 'active');
@@ -78,10 +78,13 @@ export function formFromRegistration(row: DormRegistration): EditForm {
   };
 }
 
-export function buildEditRegistrationPayload(source: DormRegistrationSource, editForm: EditForm): UpdateDormRegistrationInput {
-  return source === 'FORMAL'
+export function buildEditRegistrationPayload(source: DormRegistrationSource, editForm: EditForm, original?: EditForm): UpdateDormRegistrationInput {
+  const normalized = source === 'FORMAL'
     ? { semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), priority_group: editForm.priority_group, applicant_profile: compactApplicantProfile(editForm.applicant_profile) }
-    : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes || undefined, priority_group: editForm.priority_group, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
+    : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim(), semester: editForm.semester, academic_year: editForm.academic_year, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes.trim() || undefined, priority_group: editForm.priority_group, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
+  if (!original) return normalized;
+  const originalPayload = buildEditRegistrationPayload(source, original);
+  return Object.fromEntries(Object.entries(normalized).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify((originalPayload as any)[key]))) as UpdateDormRegistrationInput;
 }
 
 export type DormitoryRegistrationEditModalProps = {
@@ -100,35 +103,18 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
   const [form, setForm] = useState<EditForm>(emptyEditForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [semesterLoading, setSemesterLoading] = useState(false);
-  const [semesterError, setSemesterError] = useState('');
-  const [activeSemesterName, setActiveSemesterName] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const source = normalizeDormitoryRegistrationSource(registration?.source);
-  const formalFieldsLocked = source === 'FORMAL';
+  const sourceInvalid = source === 'INVALID';
+  const formalFieldsLocked = source === 'FORMAL' || sourceInvalid || Boolean((registration as any)?.linked_student_id || (registration as any)?.linked_registration_id);
 
   useEffect(() => {
     if (!open || !registration) return;
     let cancelled = false;
     setForm(formFromRegistration(registration));
     setError('');
-    setSemesterError('');
-    setActiveSemesterName('');
     setCalendarOpen(false);
-    setSemesterLoading(true);
-    void semesterApi.getSemesters().then(items => {
-      if (cancelled) return;
-      const values = mapActiveSemester(items);
-      const active = items.find(semester => semester.status === 'active');
-      setActiveSemesterName(active?.semester_name || '');
-      setForm(current => ({ ...current, ...values }));
-    }).catch((err: any) => {
-      if (cancelled) return;
-      setActiveSemesterName('');
-      setSemesterError(err?.message || 'Không thể tải học kỳ active.');
-      setForm(current => ({ ...current, semester: '', academic_year: '' }));
-    }).finally(() => { if (!cancelled) setSemesterLoading(false); });
     return () => { cancelled = true; };
   }, [open, registration?._id]);
 
@@ -146,10 +132,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
     event.preventDefault();
     if (!registration || saving || !canEdit) return;
     setError('');
-    if (semesterLoading || semesterError || !form.semester || !form.academic_year) {
-      setError(semesterLoading ? 'Đang tải học kỳ active, vui lòng chờ.' : semesterError || 'Chưa xác định được học kỳ active.');
-      return;
-    }
+    if (sourceInvalid) { setError('Nguồn đăng ký không hợp lệ; không thể cập nhật.'); return; }
     if (source !== 'FORMAL' && !form.full_name.trim()) { setError('Vui lòng nhập họ và tên.'); return; }
     const birthDate = form.date_of_birth ? new Date(`${form.date_of_birth}T00:00:00`) : null;
     if (requirePersonalDetails && (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date())) { setError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
@@ -157,7 +140,11 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
     try {
       setSaving(true);
       if (onSubmit) await onSubmit(registration, form);
-      else await dormitoryApi.registrations.update(registration._id, source, buildEditRegistrationPayload(source, form));
+      else {
+        const payload = buildEditRegistrationPayload(source, form, formFromRegistration(registration));
+        if (!Object.keys(payload).length) { setError('Chưa có thay đổi cần lưu.'); return; }
+        await dormitoryApi.registrations.update(registration._id, source, payload);
+      }
       toast.success(successMessage);
       onOpenChange(false);
       restoreFocus();
@@ -174,9 +161,9 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
   return <Dialog open={open} onOpenChange={close}>
     <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
       <DialogHeader className="border-b border-white/50 pb-3">
-        <DialogTitle className="flex flex-wrap items-center gap-2">Sửa đơn đăng ký{activeSemesterName && <span className="text-xs font-semibold text-[#64748B]"><span className="sr-only" aria-hidden="true">{activeSemesterName.split(' - ')[0]}</span>{activeSemesterName}</span>}{semesterLoading && <span className="text-xs font-semibold text-[#64748B]">Đang tải học kỳ...</span>}</DialogTitle>
+      <DialogTitle>Sửa đơn đăng ký</DialogTitle>
       </DialogHeader>
-      {!canEdit ? <p className="py-6 text-sm text-slate-600">Bạn không có quyền cập nhật thông tin đơn này.</p> : <form onSubmit={submit} className="grid gap-4 py-4 sm:grid-cols-2">
+      {!canEdit ? <p className="py-6 text-sm text-slate-600">Bạn không có quyền cập nhật thông tin đơn này.</p> : sourceInvalid ? <p role="alert" className="py-6 text-sm text-red-600">Nguồn đăng ký không hợp lệ; dữ liệu cần được kiểm tra trước khi sửa.</p> : <form onSubmit={submit} className="grid gap-4 py-4 sm:grid-cols-2">
         {formalFieldsLocked ? <><Input label="Họ và tên" value={form.full_name || 'Chưa cập nhật'} readOnly /><Input label="Mã SV" value={form.student_code || 'Chưa cập nhật'} readOnly /></> : <><Input label="Họ và tên" required value={form.full_name} onChange={e => setField('full_name', e.target.value)} placeholder="Nhập họ và tên" /><Input label="Mã SV" value={form.student_code} onChange={e => setField('student_code', e.target.value)} placeholder="Nhập mã sinh viên (nếu có)" /></>}
         <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label><Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal"><span className="truncate">{dateLabel(form.date_of_birth)}</span><Calendar size={15} /></Button></PopoverTrigger><PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start"><CustomCalendar startDate={form.date_of_birth ? new Date(`${form.date_of_birth}T00:00:00`) : null} endDate={null} onRangeSelect={() => undefined} onRangeConfirm={start => setField('date_of_birth', dateInputValue(start))} onCancel={() => setCalendarOpen(false)} onConfirm={() => setCalendarOpen(false)} /></PopoverContent></Popover></div>
         <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={form.gender} onValueChange={value => setField('gender', value as EditForm['gender'])}><SelectTrigger aria-label="Giới tính"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
@@ -185,8 +172,8 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
         {formalFieldsLocked ? <Input label="Loại phòng" value={form.room_type} readOnly /> : <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={form.room_type} onValueChange={value => setField('room_type', value as EditForm['room_type'])}><SelectTrigger aria-label="Loại phòng"><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>}
         <Input label="Ghi chú" multiline rows={3} value={form.notes} onChange={e => setField('notes', e.target.value)} readOnly={formalFieldsLocked} placeholder="Nhập ghi chú (nếu có)" containerClassName="sm:col-span-2" />
         <ApplicantProfileFields value={form.applicant_profile} onChange={value => setField('applicant_profile', value)} className="sm:col-span-2" />
-        {(error || semesterError) && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{error || semesterError}</p>}
-        <DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => close(false)} disabled={saving}>Hủy</Button><Button type="submit" disabled={saving || semesterLoading || Boolean(semesterError)}>{saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang lưu...</> : 'Lưu thay đổi'}</Button></DialogFooter>
+        {error && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+        <DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => close(false)} disabled={saving}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang lưu...</> : 'Lưu thay đổi'}</Button></DialogFooter>
       </form>}
     </DialogContent>
   </Dialog>;

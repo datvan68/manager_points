@@ -76,3 +76,11 @@ export class Registration {
 }
 
 export const RegistrationSchema = SchemaFactory.createForClass(Registration);
+
+// A student can have at most one active formal registration. The transaction
+// in PublicRegistrationLinkService handles the link marker; this guard closes
+// the concurrent-create race at the formal collection boundary.
+RegistrationSchema.index(
+  { student_id: 1 },
+  { unique: true, partialFilterExpression: { status: { $in: ['Chờ duyệt', 'Đã duyệt'] } } },
+);

@@ -65,8 +65,8 @@ export interface DormRegistration {
   reviewed_by_id?: any;
   reviewed_at?: string;
   createdAt?: string;
-  source?: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
-  classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED';
+  source?: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY' | 'INVALID';
+  classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED' | 'INVALID_SOURCE';
   public_registration?: any;
   date_of_birth?: string;
   gender?: 'Male' | 'Female' | 'Other';
@@ -76,6 +76,11 @@ export interface DormRegistration {
   applicant_profile?: ApplicantProfile;
   active_contract?: DormContract | null;
   editable_fields?: string[];
+  linked_student_id?: string;
+  linked_registration_id?: string;
+  edit_policy?: { source: string; linked: boolean; editableFields: string[]; protectedFields: string[]; canonicalOwner?: string | null } | null;
+  student_code_state?: 'MISSING' | 'PENDING_VALIDATION' | 'NOT_FOUND' | 'CONFLICT' | 'LINKABLE' | 'LINKED';
+  student_code_message?: string;
 }
 
 export interface ParentApplicantProfile {
@@ -92,6 +97,7 @@ export interface SelfDormitoryRegistration {
 }
 
 export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
+export type DormitoryDisplaySource = DormRegistrationSource | 'INVALID';
 
 export interface UpdateDormRegistrationInput {
   semester?: string;

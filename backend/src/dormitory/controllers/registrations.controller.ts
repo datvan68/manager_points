@@ -123,12 +123,21 @@ export class RegistrationsController {
 
   @Patch(':id')
   @UseGuards(checkPermission('DORM_REG_UPDATE'))
-  update(
+  async update(
     @Param('id') id: string,
     @Query('source') source: string,
     @Body() dto: UpdateRegistrationDto,
   ) {
-    return this.registrationsService.update(id, source, dto);
+    const result: any = await this.registrationsService.update(id, source, dto);
+    if (result?.student_code_state === 'LINKABLE' && result.link_student_id) {
+      const linked = await this.publicLinkService.linkRegistrationToStudent(id, String(result.link_student_id));
+      return {
+        ...linked,
+        student_code_state: 'LINKED',
+        student_code_message: 'Đã xác thực và liên kết đăng ký với hồ sơ sinh viên.',
+      };
+    }
+    return result;
   }
 
   @Delete(':id')

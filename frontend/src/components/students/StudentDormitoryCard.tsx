@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { dormitoryApi, SelfDormitoryRegistration, DormRegistration } from '@/api/dormitory-api';
 import { Student } from '@/api/student-api';
-import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, normalizeDormitoryRegistrationSource } from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, formFromRegistration, normalizeDormitoryRegistrationSource } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import type { EditForm } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import { compactApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
@@ -85,14 +85,15 @@ export default function StudentDormitoryCard({ registrationData, student, onRefr
   const submitUpdate = async (row: DormRegistration, form: EditForm) => {
     if (isSelfStudent && !isStaff) {
       const applicantProfile = compactApplicantProfile(form.applicant_profile);
-      const payload: any = { phone_number: form.phone_number.trim(), priority_group: form.priority_group, preference: { room_type: form.room_type, notes: form.notes } };
+      const payload: any = { phone_number: form.phone_number.trim(), priority_group: form.priority_group };
       if (applicantProfile) payload.applicant_profile = applicantProfile;
       await dormitoryApi.registrations.updateMine(payload);
       return;
     }
     if (isStaff) {
       const source = normalizeDormitoryRegistrationSource(row.source);
-      await dormitoryApi.registrations.update(row._id, source, buildEditRegistrationPayload(source, form));
+      if (source === 'INVALID') throw new Error('Nguồn đăng ký không hợp lệ; dữ liệu cần được kiểm tra trước khi sửa.');
+      await dormitoryApi.registrations.update(row._id, source, buildEditRegistrationPayload(source, form, formFromRegistration(row)));
       return;
     }
     throw new Error('Bạn không có quyền cập nhật thông tin đơn này.');

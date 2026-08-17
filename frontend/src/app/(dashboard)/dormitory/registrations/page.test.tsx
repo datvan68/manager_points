@@ -61,9 +61,11 @@ describe('KTX registration edit payloads', () => {
     expect(payload).not.toHaveProperty('preference');
   });
 
-  it('keeps nested preference for formal registration updates', () => {
+  it('omits protected preference fields for formal registration updates', () => {
     const payload = buildEditRegistrationPayload('FORMAL', form);
-    expect(payload.preference).toEqual({ room_type: 'Máy lạnh', notes: 'Gần khu học tập' });
+    expect(payload).not.toHaveProperty('preference');
+    expect(payload).not.toHaveProperty('room_type');
+    expect(payload).not.toHaveProperty('notes');
     expect(payload.applicant_profile).toEqual({ ethnicity: 'Kinh', father: { full_name: 'Nguyễn Văn B' } });
   });
 

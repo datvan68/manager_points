@@ -21,6 +21,13 @@ import { CreateTemporaryRegistrationDto } from '../dto/create-temporary-registra
 import { UpdateRegistrationDto } from '../dto/update-registration.dto';
 import { SemestersService } from '../../semesters/semesters.service';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
+import {
+  FORMAL_EDITABLE_FIELDS,
+  PUBLIC_EDITABLE_FIELDS,
+  getRegistrationEditPolicy,
+  normalizeStudentCode,
+  type StudentCodeState,
+} from '../registration-edit-policy';
 
 @Injectable()
 export class RegistrationsService {
@@ -54,6 +61,56 @@ export class RegistrationsService {
     return value?.toObject ? value.toObject() : value;
   }
 
+  private async resolveModelResult<T>(value: any): Promise<T> {
+    if (value && typeof value.exec === 'function') return value.exec();
+    if (value && typeof value.then === 'function') return value;
+    return value;
+  }
+
+  private async findStudentsByCode(studentCode: string): Promise<any[]> {
+    if (!this.studentModel) return [];
+    if (typeof (this.studentModel as any).find === 'function') {
+      const result = await this.resolveModelResult<any[]>((this.studentModel as any).find({ student_code: studentCode }));
+      if (Array.isArray(result)) return result;
+    }
+    if (typeof (this.studentModel as any).findOne === 'function') {
+      const result = await this.resolveModelResult<any>((this.studentModel as any).findOne({ student_code: studentCode }));
+      return result ? [result] : [];
+    }
+    return [];
+  }
+
+  private async studentCodeState(
+    registration: any,
+    rawCode: unknown,
+  ): Promise<{ code: string; state: StudentCodeState; message: string; student?: any }> {
+    const code = normalizeStudentCode(rawCode);
+    if (!code) return { code, state: 'MISSING', message: 'Chưa nhập mã sinh viên.' };
+    if (registration.linked_student_id || registration.linked_registration_id) {
+      const sameCode = normalizeStudentCode(registration.student_code) === code;
+      return sameCode
+        ? { code, state: 'LINKED', message: 'Đăng ký đã được liên kết; hồ sơ chính thức là nguồn dữ liệu chuẩn.' }
+        : { code, state: 'CONFLICT', message: 'Không thể đổi mã sinh viên của đăng ký đã liên kết.' };
+    }
+    if (!this.studentModel) {
+      return { code, state: 'PENDING_VALIDATION', message: 'Chưa thể xác thực mã sinh viên lúc này.' };
+    }
+    const students = await this.findStudentsByCode(code);
+    if (students.length === 0) return { code, state: 'NOT_FOUND', message: 'Không tìm thấy sinh viên với mã này.' };
+    if (students.length > 1) return { code, state: 'CONFLICT', message: 'Mã sinh viên trùng với nhiều hồ sơ.' };
+    const student = students[0];
+    const activeRegistration = typeof (this.registrationModel as any).findOne === 'function'
+      ? await this.resolveModelResult<any>((this.registrationModel as any).findOne({
+        student_id: student._id,
+        status: { $in: ['Chờ duyệt', 'Đã duyệt'] },
+      }))
+      : null;
+    if (activeRegistration && String(activeRegistration._id) !== String(registration.linked_registration_id || '')) {
+      return { code, state: 'CONFLICT', message: 'Sinh viên đã có đơn đăng ký KTX đang hoạt động.' };
+    }
+    return { code, state: 'LINKABLE', message: 'Mã sinh viên hợp lệ và sẵn sàng liên kết.', student };
+  }
+
   /** The current record is contract-backed first, then the latest non-final application. */
   async findMine(userId: string) {
     const student = await this.studentForUser(userId);
@@ -85,6 +142,7 @@ export class RegistrationsService {
         bed_id: effectiveBed ? this.toPlain(effectiveBed) : null,
         active_contract: activeContract ? this.toPlain(activeContract) : null,
         editable_fields: editable ? ['phone_number', 'preference', 'priority_group', 'applicant_profile'] : [],
+        edit_policy: getRegistrationEditPolicy('FORMAL', false),
       },
       history: registrations.map((item: any) => ({
         _id: item._id, registration_code: item.registration_code, status: item.status,
@@ -168,7 +226,7 @@ export class RegistrationsService {
 
     let editableFields: string[] = [];
     if (isAuthorizedStaff) {
-      editableFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group', 'applicant_profile'];
+      editableFields = [...FORMAL_EDITABLE_FIELDS];
     } else {
       const studentUserId = student.user_id?._id || student.user_id;
       const isStudentSelf = requester && studentUserId?.toString() === requester.userId?.toString();
@@ -187,6 +245,7 @@ export class RegistrationsService {
         bed_id: effectiveBed ? this.toPlain(effectiveBed) : null,
         active_contract: activeContract ? this.toPlain(activeContract) : null,
         editable_fields: editableFields,
+        edit_policy: getRegistrationEditPolicy('FORMAL', false),
       },
       history: registrations.map((item: any) => ({
         _id: item._id,
@@ -209,7 +268,29 @@ export class RegistrationsService {
     if (!keys.length || invalid.length) throw new BadRequestException('Chỉ có thể cập nhật các trường thông tin đơn do sinh viên cung cấp');
     const record = await this.registrationModel.findById(registration._id).exec();
     if (!record) throw new NotFoundException('Không tìm thấy đơn đăng ký');
-    for (const key of keys) (record as any)[key] = dto[key];
+    const updatePayload: Record<string, unknown> = { ...dto };
+    if (Object.prototype.hasOwnProperty.call(updatePayload, 'preference')) {
+      const preference = updatePayload.preference;
+      if (preference && typeof preference === 'object' && !Array.isArray(preference)) {
+        const values = preference as Record<string, unknown>;
+        const current = ((record as any).preference || {}) as Record<string, unknown>;
+        for (const protectedField of ['room_type', 'notes']) {
+          if (Object.prototype.hasOwnProperty.call(values, protectedField) && values[protectedField] !== current[protectedField]) {
+            throw new BadRequestException(`Không thể cập nhật trường bảo vệ: preference.${protectedField}`);
+          }
+        }
+        const editablePreference = { ...values };
+        delete editablePreference.room_type;
+        delete editablePreference.notes;
+        if (Object.keys(editablePreference).length) {
+          updatePayload.preference = { ...current, ...editablePreference };
+        } else {
+          delete updatePayload.preference;
+        }
+      }
+    }
+    if (!Object.keys(updatePayload).length) throw new BadRequestException('Không có dữ liệu cần cập nhật');
+    for (const key of Object.keys(updatePayload)) (record as any)[key] = updatePayload[key];
     if (typeof dto.phone_number === 'string') (record as any).phone_number = dto.phone_number.trim();
     return record.save();
   }
@@ -300,7 +381,7 @@ export class RegistrationsService {
       .field-date { width: 37mm; }
       .field-gender { width: 17mm; }
       .field-class { width: 39mm; flex: 0 0 39mm; }
-      .field-faculty { width: auto; flex: 1 1 auto; min-width: 0; margin-left: 1mm; white-space: nowrap; overflow-wrap: normal; }
+      .field-faculty { width: auto; flex: 1 1 auto; min-width: 0; margin-left: 1.5mm; white-space: nowrap; overflow-wrap: normal; }
       .field-ethnicity { width: 28mm; }
       .field-religion { width: 28mm; }
       .field-phone { width: 29mm; }
@@ -445,7 +526,7 @@ export class RegistrationsService {
     const registration = new this.publicRegModel({
       public_registration_code: `PUB-${uuidv4().substring(0, 8).toUpperCase()}`,
       full_name: dto.full_name.trim(), phone_number: dto.phone_number.trim(),
-      student_code: '', date_of_birth: dto.date_of_birth, gender: dto.gender,
+      student_code: '', student_code_normalized: '', date_of_birth: dto.date_of_birth, gender: dto.gender,
       room_type: dto.gender === 'Female' ? (dto.room_type || 'Thường') : 'Thường',
       semester: parts[0] || '', academic_year: parts.slice(1).join('-').replace(/\s/g, ''),
       notes: dto.notes || '', status: 'Chờ xác nhận', source: 'ADMIN_ENTRY',
@@ -505,6 +586,7 @@ export class RegistrationsService {
     page?: number;
     limit?: number;
   }) {
+    if (query.source) this.validateSource(query.source);
     const search = query.search?.trim();
     const filter: any = {};
     if (query.status) filter.status = query.status;
@@ -525,7 +607,11 @@ export class RegistrationsService {
         .sort({ createdAt: -1 })
         .exec(),
       this.publicRegModel.find({
-        ...(query.source === 'ADMIN_TEMPORARY' ? { source: 'ADMIN_ENTRY' } : {}),
+        ...(query.source === 'ADMIN_TEMPORARY'
+          ? { source: 'ADMIN_ENTRY' }
+          : query.source === 'PUBLIC'
+            ? { source: { $in: ['QR_SCAN', 'PUBLIC'] } }
+            : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(search ? { $or: ['public_registration_code', 'full_name', 'student_code', 'phone_number', 'email'].map(field => ({ [field]: { $regex: search, $options: 'i' } })) } : {}),
       }).populate('room_id', 'room_name room_code').sort({ createdAt: -1 }).lean(),
@@ -552,11 +638,19 @@ export class RegistrationsService {
         assigned_room_name: effectiveRoom?.room_name || effectiveRoom?.room_code || '',
       };
     });
-    const publicRows = (query.source === 'FORMAL' ? [] : publicData).filter((item: any) => !item.linked_student_id && !item.linked_registration_id && (query.source !== 'PUBLIC' || item.source !== 'ADMIN_ENTRY') && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email])).map((item: any) => ({
-      ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,
-      source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: item.student_code ? 'MISSING_CLASS' : 'UNCLASSIFIED',
-      assigned_room_name: item.room_id?.room_name || item.room_name || item.room_code || '',
-    }));
+    const publicRows = (query.source === 'FORMAL' ? [] : publicData)
+      .filter((item: any) => !item.linked_student_id && !item.linked_registration_id && matches([item.public_registration_code, item.full_name, item.student_code, item.phone_number, item.email]))
+      .map((item: any) => {
+        const validPublicSource = item.source === 'QR_SCAN' || item.source === 'PUBLIC';
+        const source = item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : validPublicSource ? 'PUBLIC' : 'INVALID';
+        return {
+          ...item, _id: String(item._id), registration_code: item.public_registration_code, student_id: null, student_code: item.student_code || null, full_name: item.full_name, class_id: null,
+          source, classification_status: !validPublicSource && source !== 'ADMIN_TEMPORARY' ? 'INVALID_SOURCE' : item.student_code ? 'MISSING_CLASS' : 'UNCLASSIFIED',
+          source_error: !validPublicSource && source !== 'ADMIN_TEMPORARY' ? `Nguồn đăng ký không hợp lệ: ${String(item.source ?? '(missing)')}` : undefined,
+          edit_policy: source === 'PUBLIC' || source === 'ADMIN_TEMPORARY' ? getRegistrationEditPolicy(source, false) : null,
+          assigned_room_name: item.room_id?.room_name || item.room_name || item.room_code || '',
+        };
+      });
     const data = [...formalRows, ...publicRows]
       .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
     const total = data.length;
@@ -582,7 +676,17 @@ export class RegistrationsService {
       this.publicRegModel.countDocuments(filter),
     ]);
     return {
-      data: data.map((item: any) => ({ ...item, source: item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC', classification_status: 'UNCLASSIFIED', student_id: null, class_id: null })),
+      data: data.map((item: any) => {
+        const source = item.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : item.source === 'QR_SCAN' || item.source === 'PUBLIC' ? 'PUBLIC' : 'INVALID';
+        return {
+          ...item,
+          source,
+          classification_status: source === 'INVALID' ? 'INVALID_SOURCE' : 'UNCLASSIFIED',
+          source_error: source === 'INVALID' ? `Nguồn đăng ký không hợp lệ: ${String(item.source ?? '(missing)')}` : undefined,
+          student_id: null,
+          class_id: null,
+        };
+      }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -623,8 +727,8 @@ export class RegistrationsService {
     this.validateId(id);
     const source = this.validateSource(sourceValue);
     const payload = { ...(dto as Record<string, unknown>) };
-    const formalFields = ['semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'preference', 'priority_group', 'applicant_profile'];
-    const publicFields = ['full_name', 'student_code', 'semester', 'academic_year', 'date_of_birth', 'gender', 'phone_number', 'room_type', 'priority_group', 'notes', 'applicant_profile'];
+    const formalFields = [...FORMAL_EDITABLE_FIELDS];
+    const publicFields = [...PUBLIC_EDITABLE_FIELDS];
     if (source !== 'FORMAL' && Object.prototype.hasOwnProperty.call(payload, 'preference')) {
       const preference = payload.preference;
       if (preference && typeof preference === 'object' && !Array.isArray(preference)) {
@@ -634,7 +738,7 @@ export class RegistrationsService {
       }
       delete payload.preference;
     }
-    const allowedFields = source === 'FORMAL' ? formalFields : publicFields;
+    const allowedFields: string[] = source === 'FORMAL' ? [...formalFields] : [...publicFields];
     const invalidFields = Object.keys(payload).filter((field) => !allowedFields.includes(field));
     if (invalidFields.length) {
       throw new BadRequestException(`Không thể cập nhật trường: ${invalidFields.join(', ')}`);
@@ -646,8 +750,30 @@ export class RegistrationsService {
     if (source === 'FORMAL') {
       const registration = await this.registrationModel.findById(id);
       if (!registration) throw new NotFoundException(`Không tìm thấy đơn đăng ký: ${id}`);
-      Object.assign(registration, payload);
-      if (typeof payload.phone_number === 'string') registration.phone_number = payload.phone_number.trim();
+      const formalPayload: Record<string, unknown> = { ...payload };
+      if (Object.prototype.hasOwnProperty.call(formalPayload, 'preference')) {
+        const preference = formalPayload.preference;
+        if (preference && typeof preference === 'object' && !Array.isArray(preference)) {
+          const values = preference as Record<string, unknown>;
+          const current = ((registration as any).preference || {}) as Record<string, unknown>;
+          for (const protectedField of ['room_type', 'notes']) {
+            if (Object.prototype.hasOwnProperty.call(values, protectedField) && values[protectedField] !== current[protectedField]) {
+              throw new BadRequestException(`Không thể cập nhật trường bảo vệ: preference.${protectedField}`);
+            }
+          }
+          const editablePreference = { ...values };
+          delete editablePreference.room_type;
+          delete editablePreference.notes;
+          if (Object.keys(editablePreference).length) {
+            formalPayload.preference = { ...current, ...editablePreference };
+          } else {
+            delete formalPayload.preference;
+          }
+        }
+      }
+      if (!Object.keys(formalPayload).length) throw new BadRequestException('Không có dữ liệu cần cập nhật');
+      Object.assign(registration, formalPayload);
+      if (typeof formalPayload.phone_number === 'string') registration.phone_number = formalPayload.phone_number.trim();
       return registration.save();
     }
 
@@ -659,11 +785,39 @@ export class RegistrationsService {
     if (source === 'PUBLIC' && registration.source === 'ADMIN_ENTRY') {
       throw new BadRequestException('Nguồn đăng ký QR không hợp lệ');
     }
+    if (registration.linked_student_id || registration.linked_registration_id) {
+      const lockedAfterLink = ['full_name', 'student_code', 'room_type', 'notes'];
+      const changedLockedField = lockedAfterLink.some((field) => Object.prototype.hasOwnProperty.call(payload, field));
+      if (changedLockedField) throw new ConflictException('Đăng ký đã liên kết; các trường cá nhân do hồ sơ chính thức quản lý.');
+    }
     const publicPayload: Record<string, unknown> = { ...payload };
     if (typeof publicPayload.full_name === 'string') publicPayload.full_name = publicPayload.full_name.trim();
     if (typeof publicPayload.phone_number === 'string') publicPayload.phone_number = publicPayload.phone_number.trim();
+    let codeResult: Awaited<ReturnType<RegistrationsService['studentCodeState']>> | undefined;
+    if (Object.prototype.hasOwnProperty.call(publicPayload, 'student_code')) {
+      codeResult = await this.studentCodeState(registration, publicPayload.student_code);
+      publicPayload.student_code = codeResult.code;
+      publicPayload.student_code_normalized = codeResult.code;
+      if (codeResult.state === 'NOT_FOUND' || codeResult.state === 'CONFLICT' || codeResult.state === 'PENDING_VALIDATION') {
+        return {
+          ...this.toPlain(registration),
+          student_code: registration.student_code || '',
+          student_code_state: codeResult.state,
+          student_code_message: codeResult.message,
+          persisted: false,
+        };
+      }
+    }
     Object.assign(registration, publicPayload);
-    return registration.save();
+    const saved = await registration.save();
+    if (!codeResult) return saved;
+    return {
+      ...this.toPlain(saved),
+      student_code_state: codeResult.state,
+      student_code_message: codeResult.message,
+      link_student_id: codeResult.student?._id || undefined,
+      persisted: true,
+    };
   }
 
   async remove(id: string, sourceValue: string) {
