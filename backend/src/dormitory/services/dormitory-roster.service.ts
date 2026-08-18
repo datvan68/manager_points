@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -22,6 +23,10 @@ import { CreateRosterEntryDto } from '../dto/create-roster-entry.dto';
 import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
+import { PdfTemplateService } from '../pdf-template/pdf-template.service';
+import { PdfTemplateRendererService } from '../pdf-template/pdf-template-renderer.service';
+import { resolveRosterPdfValues } from '../pdf-template/field-catalog';
+import { validateAndNormalizeLayout } from '../pdf-template/layout.validation';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -35,6 +40,8 @@ export class DormitoryRosterService {
     @InjectModel(Semester.name) private readonly semesterModel: Model<SemesterDocument>,
     @InjectModel(Contract.name) private readonly contractModel: Model<ContractDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
+    @Optional() private readonly pdfTemplateService?: PdfTemplateService,
+    @Optional() private readonly pdfTemplateRenderer?: PdfTemplateRendererService,
   ) {}
 
   private id(value: unknown) {
@@ -302,6 +309,19 @@ export class DormitoryRosterService {
     const entry: any = await this.rosterModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).populate('room_id').populate('bed_id').exec();
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
     const value = this.toResponse(entry);
+    const linkedStudent = this.plain(entry.student_id);
+    const activeRevision = this.pdfTemplateService && this.pdfTemplateRenderer
+      ? await this.pdfTemplateService.getActiveRevision('DORMITORY_APPLICATION')
+      : null;
+    const renderer = this.pdfTemplateRenderer;
+    if (activeRevision && renderer) {
+      const rendered = await renderer.render(
+        Buffer.from(activeRevision.source_pdf),
+        validateAndNormalizeLayout(activeRevision.layout),
+        resolveRosterPdfValues(value, linkedStudent),
+      );
+      return { buffer: rendered.buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+    }
     const pdfValues = this.applicationPdfValues(value, this.plain(entry.student_id));
     let browser: any;
     try {

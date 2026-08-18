@@ -46,6 +46,12 @@ import {
 } from '../students/schemas/student.schema';
 import { SemestersModule } from '../semesters/semesters.module';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
+import { DormitoryPdfTemplate, DormitoryPdfTemplateSchema } from './pdf-template/schemas/dormitory-pdf-template.schema';
+import { DormitoryPdfTemplateRevision, DormitoryPdfTemplateRevisionSchema } from './pdf-template/schemas/dormitory-pdf-template-revision.schema';
+import { PdfTemplateService } from './pdf-template/pdf-template.service';
+import { PdfTemplateIntakeService } from './pdf-template/pdf-template-intake.service';
+import { PdfTemplateRendererService } from './pdf-template/pdf-template-renderer.service';
+import { PdfTemplateController } from './pdf-template/pdf-template.controller';
 
 @Module({
   imports: [
@@ -61,6 +67,8 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
       { name: MaintenanceRequest.name, schema: MaintenanceRequestSchema },
       { name: Student.name, schema: StudentSchema },
       { name: Semester.name, schema: SemesterSchema },
+      { name: DormitoryPdfTemplate.name, schema: DormitoryPdfTemplateSchema },
+      { name: DormitoryPdfTemplateRevision.name, schema: DormitoryPdfTemplateRevisionSchema },
     ]),
   ],
   controllers: [
@@ -74,6 +82,7 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
     MaintenanceController,
     DormitoryReportsController,
     DormitoryQrController,
+    PdfTemplateController,
   ],
   providers: [
     BuildingsService,
@@ -87,6 +96,9 @@ import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
     DormitoryReportsService,
     DormitoryRosterService,
     DormitoryRosterIdentityService,
+    PdfTemplateService,
+    PdfTemplateIntakeService,
+    PdfTemplateRendererService,
   ],
   exports: [
     BuildingsService,

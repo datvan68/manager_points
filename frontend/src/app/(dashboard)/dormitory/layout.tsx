@@ -13,6 +13,7 @@ const dormitoryTabs = [
   { id: 'violations', href: '/dormitory/violations', label: 'Vi phạm' },
   { id: 'maintenance', href: '/dormitory/maintenance', label: 'Bảo trì' },
   { id: 'reports', href: '/dormitory/reports', label: 'Báo cáo' },
+  { id: 'pdf-template', href: '/dormitory/pdf-template', label: 'Mẫu PDF' },
 ];
 
 export default function DormitoryLayout({ children }: { children: React.ReactNode }) {

@@ -39,6 +39,9 @@
     ,"migration:dormitory-room-index:dry-run": "ts-node scripts/repair-dormitory-room-index.ts"
     ,"migration:dormitory-room-index:execute": "ts-node scripts/repair-dormitory-room-index.ts --execute"
     ,"reset:dormitory-roster:development": "ts-node scripts/reset-dormitory-roster.ts"
+    ,"seed:dormitory-pdf-template:dry-run": "ts-node scripts/seed-dormitory-pdf-template.ts"
+    ,"seed:dormitory-pdf-template:execute": "ts-node scripts/seed-dormitory-pdf-template.ts --execute"
+    ,"verify:dormitory-pdf-template": "ts-node scripts/verify-dormitory-pdf-template.ts"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",
