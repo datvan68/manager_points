@@ -60,12 +60,12 @@ const applicantProfileValue = (profile?: ApplicantProfile): ApplicantProfile => 
 export function formFromRegistration(row: DormitoryRosterEntry): EditForm {
   const student = row.student_id && typeof row.student_id === 'object' ? row.student_id : null;
   return {
-    full_name: row.full_name || student?.full_name || '',
-    student_code: row.student_code || student?.student_code || '',
+    full_name: student?.full_name || row.full_name || '',
+    student_code: student?.student_code || row.student_code || '',
     semester: row.semester || '',
     academic_year: row.academic_year || '',
-    date_of_birth: dateInputValue(row.date_of_birth),
-    gender: row.gender || '',
+    date_of_birth: dateInputValue(student?.date_bir || row.date_of_birth),
+    gender: student?.sex || row.gender || '',
     phone_number: row.phone_number || '',
     room_type: (row.room_type || 'Thường') as EditForm['room_type'],
     notes: row.notes || '',
@@ -73,10 +73,12 @@ export function formFromRegistration(row: DormitoryRosterEntry): EditForm {
   };
 }
 
-export function buildEditRegistrationPayload(editForm: EditForm, original?: EditForm): UpdateDormitoryRosterEntryInput {
-  const normalized = { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim() || undefined, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes.trim() || undefined, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
+export function buildEditRegistrationPayload(editForm: EditForm, original?: EditForm, linkedStudent = false): UpdateDormitoryRosterEntryInput {
+  const normalized = linkedStudent
+    ? { phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes.trim() || undefined, applicant_profile: compactApplicantProfile(editForm.applicant_profile) }
+    : { full_name: editForm.full_name.trim(), student_code: editForm.student_code.trim() || undefined, date_of_birth: editForm.date_of_birth, gender: editForm.gender as Exclude<EditForm['gender'], ''>, phone_number: editForm.phone_number.trim(), room_type: editForm.room_type, notes: editForm.notes.trim() || undefined, applicant_profile: compactApplicantProfile(editForm.applicant_profile) };
   if (!original) return normalized;
-  const originalPayload = buildEditRegistrationPayload(original);
+  const originalPayload = buildEditRegistrationPayload(original, undefined, linkedStudent);
   return Object.fromEntries(Object.entries(normalized).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify((originalPayload as any)[key]))) as UpdateDormitoryRosterEntryInput;
 }
 
@@ -92,7 +94,7 @@ export type DormitoryRegistrationEditModalProps = {
   requirePersonalDetails?: boolean;
 };
 
-export default function DormitoryRegistrationEditModal({ open, registration, canEdit = true, onOpenChange, onSuccess, onSubmit, restoreFocusRef, successMessage = 'Đã cập nhật đơn đăng ký', requirePersonalDetails = true }: DormitoryRegistrationEditModalProps) {
+export default function DormitoryRegistrationEditModal({ open, registration, canEdit = true, onOpenChange, onSuccess, onSubmit, restoreFocusRef, successMessage = 'Đã cập nhật mục Danh sách KTX', requirePersonalDetails = true }: DormitoryRegistrationEditModalProps) {
   const [form, setForm] = useState<EditForm>(emptyEditForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -131,7 +133,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
       setSaving(true);
       if (onSubmit) await onSubmit(registration, form);
       else {
-        const payload = buildEditRegistrationPayload(form, formFromRegistration(registration));
+        const payload = buildEditRegistrationPayload(form, formFromRegistration(registration), formalFieldsLocked);
         if (!Object.keys(payload).length) { setError('Chưa có thay đổi cần lưu.'); return; }
         await dormitoryApi.roster.update(registration._id, payload);
       }
@@ -140,7 +142,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
       restoreFocus();
       await onSuccess?.();
     } catch (err: any) {
-      const message = err?.message || 'Không thể cập nhật đơn đăng ký.';
+      const message = err?.message || 'Không thể cập nhật mục Danh sách KTX.';
       setError(message);
       toast.error(message);
     } finally { setSaving(false); }
@@ -151,15 +153,14 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
   return <Dialog open={open} onOpenChange={close}>
     <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
       <DialogHeader className="border-b border-white/50 pb-3">
-      <DialogTitle>Sửa đơn đăng ký</DialogTitle>
+      <DialogTitle>Sửa mục Danh sách KTX</DialogTitle>
       </DialogHeader>
       {!canEdit ? <p className="py-6 text-sm text-slate-600">Bạn không có quyền cập nhật mục Danh sách KTX.</p> : <form onSubmit={submit} className="grid gap-4 py-4 sm:grid-cols-2">
         {formalFieldsLocked ? <><Input label="Họ và tên" value={form.full_name || 'Chưa cập nhật'} readOnly /><Input label="Mã SV" value={form.student_code || 'Chưa cập nhật'} readOnly /></> : <><Input label="Họ và tên" required value={form.full_name} onChange={e => setField('full_name', e.target.value)} placeholder="Nhập họ và tên" /><Input label="Mã SV" value={form.student_code} onChange={e => setField('student_code', e.target.value)} placeholder="Nhập mã sinh viên (nếu có)" /></>}
-        <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label><Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal"><span className="truncate">{dateLabel(form.date_of_birth)}</span><Calendar size={15} /></Button></PopoverTrigger><PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start"><CustomCalendar startDate={form.date_of_birth ? new Date(`${form.date_of_birth}T00:00:00`) : null} endDate={null} onRangeSelect={() => undefined} onRangeConfirm={start => setField('date_of_birth', dateInputValue(start))} onCancel={() => setCalendarOpen(false)} onConfirm={() => setCalendarOpen(false)} /></PopoverContent></Popover></div>
-        <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={form.gender} onValueChange={value => setField('gender', value as EditForm['gender'])}><SelectTrigger aria-label="Giới tính"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+        {formalFieldsLocked ? <><Input label="Ngày sinh (theo Student)" value={dateLabel(form.date_of_birth)} readOnly /><Input label="Giới tính (theo Student)" value={form.gender === 'Male' ? 'Nam' : form.gender === 'Female' ? 'Nữ' : 'Khác'} readOnly /></> : <><div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label><Popover open={calendarOpen} onOpenChange={setCalendarOpen}><PopoverTrigger asChild><Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal"><span className="truncate">{dateLabel(form.date_of_birth)}</span><Calendar size={15} /></Button></PopoverTrigger><PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start"><CustomCalendar startDate={form.date_of_birth ? new Date(`${form.date_of_birth}T00:00:00`) : null} endDate={null} onRangeSelect={() => undefined} onRangeConfirm={start => setField('date_of_birth', dateInputValue(start))} onCancel={() => setCalendarOpen(false)} onConfirm={() => setCalendarOpen(false)} /></PopoverContent></Popover></div><div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={form.gender} onValueChange={value => setField('gender', value as EditForm['gender'])}><SelectTrigger aria-label="Giới tính"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div></>}
         <Input label="Số điện thoại" required type="tel" value={form.phone_number} onChange={e => setField('phone_number', e.target.value)} placeholder="Nhập số điện thoại" />
-        {formalFieldsLocked ? <Input label="Loại phòng" value={form.room_type} readOnly /> : <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={form.room_type} onValueChange={value => setField('room_type', value as EditForm['room_type'])}><SelectTrigger aria-label="Loại phòng"><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>}
-        <Input label="Ghi chú" multiline rows={3} value={form.notes} onChange={e => setField('notes', e.target.value)} readOnly={formalFieldsLocked} placeholder="Nhập ghi chú (nếu có)" containerClassName="sm:col-span-2" />
+        <div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={form.room_type} onValueChange={value => setField('room_type', value as EditForm['room_type'])}><SelectTrigger aria-label="Loại phòng"><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select></div>
+        <Input label="Ghi chú" multiline rows={3} value={form.notes} onChange={e => setField('notes', e.target.value)} placeholder="Nhập ghi chú (nếu có)" containerClassName="sm:col-span-2" />
         <ApplicantProfileFields value={form.applicant_profile} onChange={value => setField('applicant_profile', value)} className="sm:col-span-2" />
         {error && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{error}</p>}
         <DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => close(false)} disabled={saving}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang lưu...</> : 'Lưu thay đổi'}</Button></DialogFooter>

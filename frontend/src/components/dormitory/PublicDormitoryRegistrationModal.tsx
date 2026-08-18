@@ -35,7 +35,7 @@ export function ApplicantProfileFields({ value, onChange, className = '' }: { va
   return <section className={`space-y-4 rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA]/60 to-white/60 p-4 ${className}`}><h2 className="text-sm font-black text-[#1E293B]">Thông tin hồ sơ (không bắt buộc)</h2><div className="grid gap-3 sm:grid-cols-2"><Input label="Dân tộc" value={value.ethnicity || ''} onChange={e => set('ethnicity', e.target.value)} placeholder="Nhập dân tộc" /><Input label="Tôn giáo" value={value.religion || ''} onChange={e => set('religion', e.target.value)} placeholder="Nhập tôn giáo" /><Input label="Số CCCD/CMND" value={value.citizen_id_number || ''} onChange={e => set('citizen_id_number', e.target.value)} placeholder="Nhập số CCCD/CMND" /><div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày cấp CCCD/CMND</label><Popover open={issueDateCalendarOpen} onOpenChange={setIssueDateCalendarOpen}><PopoverTrigger asChild><Button type="button" variant="outline" aria-label="Ngày cấp CCCD/CMND" className="h-10 w-full justify-between rounded-xl border-white/90 bg-white/70 px-3 text-sm font-normal"><span>{issueDateLabel(value.citizen_id_issue_date || '')}</span><Calendar size={15} /></Button></PopoverTrigger><PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start"><CustomCalendar startDate={value.citizen_id_issue_date ? new Date(`${value.citizen_id_issue_date}T00:00:00`) : null} endDate={null} onRangeSelect={() => undefined} onRangeConfirm={start => set('citizen_id_issue_date', toDateValue(start))} onCancel={() => setIssueDateCalendarOpen(false)} onConfirm={() => setIssueDateCalendarOpen(false)} /></PopoverContent></Popover></div><Input label="Nơi cấp CCCD/CMND" value={value.citizen_id_issue_place || ''} onChange={e => set('citizen_id_issue_place', e.target.value)} placeholder="Nhập nơi cấp CCCD/CMND" /><Input label="Địa chỉ thường trú" value={value.permanent_address || ''} onChange={e => set('permanent_address', e.target.value)} placeholder="Nhập địa chỉ thường trú" /><Input label="Thông tin giấy chứng nhận ưu tiên" multiline rows={2} value={value.priority_certificate_details || ''} onChange={e => set('priority_certificate_details', e.target.value)} placeholder="Nhập thông tin giấy chứng nhận (nếu có)" containerClassName="sm:col-span-2" /></div><div className="grid gap-4 lg:grid-cols-2">{parentFields('father', 'Thông tin cha')}{parentFields('mother', 'Thông tin mẹ')}</div></section>;
 }
 
-export function PublicDormitoryRegistrationModal({ qrRoomId }: { qrRoomId?: string }) {
+export function PublicDormitoryRegistrationModal({ qrRoomId, open = true, onOpenChange }: { qrRoomId?: string; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const [form, setForm] = useState<FormState>({ ...emptyForm, qr_room_id: qrRoomId });
   const [semester, setSemester] = useState<PublicDormitorySemester | null>(null);
   const [semesterError, setSemesterError] = useState('');
@@ -43,6 +43,10 @@ export function PublicDormitoryRegistrationModal({ qrRoomId }: { qrRoomId?: stri
   const [saving, setSaving] = useState(false);
   const [successCode, setSuccessCode] = useState('');
   const [calendarOpen, setCalendarOpen] = useState(false);
+
+  useEffect(() => {
+    setForm(current => ({ ...current, qr_room_id: qrRoomId }));
+  }, [qrRoomId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +68,7 @@ export function PublicDormitoryRegistrationModal({ qrRoomId }: { qrRoomId?: stri
     try {
       setSaving(true);
       const result = await dormitoryApi.public.register(payload);
-      if (!result.success) { setError(result.message || 'Số điện thoại đã có đăng ký đang chờ xác nhận.'); return; }
+      if (!result.success) { setError(result.message || 'Không thể hoàn tất đăng ký.'); return; }
       setSuccessCode(result.roster_entry_code || '');
     } catch (err: any) {
       setError(err?.message || 'Không thể gửi đăng ký. Vui lòng thử lại.');
@@ -72,7 +76,7 @@ export function PublicDormitoryRegistrationModal({ qrRoomId }: { qrRoomId?: stri
   };
 
   return <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#EBF2FA] via-white to-[#DCE6F1] p-4">
-    <Dialog open>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto rounded-2xl bg-white/45 p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-2xl">
         {successCode ? <div className="py-8 text-center"><CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-600" /><DialogTitle className="text-xl font-black text-[#1E293B]">Đăng ký thành công</DialogTitle><p className="mt-2 text-sm text-slate-600">Mã đăng ký của bạn</p><p className="my-4 rounded-xl bg-white/70 px-4 py-3 font-mono text-xl font-black text-blue-700">{successCode}</p><p className="text-xs text-slate-500">Vui lòng lưu mã để tra cứu với bộ phận quản lý KTX.</p></div> : <>
           <DialogHeader className="mb-4 border-b border-white/60 pb-3"><DialogTitle className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-wider text-[#1E293B]">Đăng ký KTX {semester && <span className="text-[11px] font-semibold normal-case text-[#64748B]">{semester.semester_name}</span>}</DialogTitle></DialogHeader>

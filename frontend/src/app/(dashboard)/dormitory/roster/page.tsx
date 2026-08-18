@@ -259,6 +259,7 @@ export default function DormitoryRosterPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const rosterRequestRef = useRef(0); const studentRequestRef = useRef(0);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
   const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false); const [activeSemesterName, setActiveSemesterName] = useState(''); const [calendarOpen, setCalendarOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
@@ -292,9 +293,10 @@ export default function DormitoryRosterPage() {
 
   useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => {
+    const requestId = ++studentRequestRef.current;
     if (!createOpen || !studentSearch.trim() || student) { setStudentOptions([]); return; }
     const timer = window.setTimeout(async () => {
-      try { const result = await studentApi.getStudents({ search: studentSearch.trim(), page: 1, limit: 10, status: 'Studying' }); setStudentOptions(Array.isArray(result) ? result : result.data || []); } catch { setStudentOptions([]); }
+      try { const result = await studentApi.getStudents({ search: studentSearch.trim(), page: 1, limit: 10, status: 'Studying' }); if (studentRequestRef.current === requestId) setStudentOptions(Array.isArray(result) ? result : result.data || []); } catch { if (studentRequestRef.current === requestId) setStudentOptions([]); }
     }, 300);
     return () => window.clearTimeout(timer);
   }, [createOpen, studentSearch, student]);
@@ -307,6 +309,7 @@ export default function DormitoryRosterPage() {
   }, [createOpen]);
   const resetCreate = () => { setStudent(null); setStudentSearch(''); setStudentOptions([]); setCreateError(''); setSemesterError(''); setActiveSemesterName(''); setCalendarOpen(false); setCreateForm(emptyCreateForm()); };
   const selectStudent = (item: Student) => { setStudent(item); setStudentSearch(''); setStudentOptions([]); setCreateForm(current => ({ ...current, date_of_birth: dateInputValue(item.date_bir), gender: item.sex, room_type: item.sex === 'Female' ? current.room_type : 'Thường', phone_number: (item as Student & { phone_number?: string }).phone_number || '' })); };
+  const clearStudentSelection = (value: string) => { setStudent(null); setStudentSearch(value); setStudentOptions([]); setCreateForm(current => ({ ...current, date_of_birth: '', gender: '' })); };
   const submitCreate = async (event: React.FormEvent) => {
     event.preventDefault(); setCreateError('');
     const birthDate = createForm.date_of_birth ? new Date(`${createForm.date_of_birth}T00:00:00`) : null;
@@ -314,18 +317,19 @@ export default function DormitoryRosterPage() {
     if (semesterError || !createForm.semester || !createForm.academic_year) { setCreateError(semesterError || 'Chưa xác định được học kỳ active.'); return; }
     const temporaryName = student ? '' : studentSearch.trim();
     if (!student && !temporaryName) { setCreateError('Vui lòng chọn sinh viên từ kết quả tìm kiếm hoặc nhập họ tên.'); return; }
-    if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
-    if (!createForm.gender || !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
+    if (!student && (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date())) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
+    if (!student && (!createForm.gender || !createForm.phone_number.trim())) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
+    if (student && !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.phone_number.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
     if (!student) {
-      try { setCreateSaving(true); await dormitoryApi.roster.create({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
+      try { setCreateSaving(true); await dormitoryApi.roster.create({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender as Exclude<CreateForm['gender'], ''>, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true, 1); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
       return;
     }
-    const payload: CreateDormitoryRosterEntryInput = { student_id: student._id, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
-    try { setCreateSaving(true); await dormitoryApi.roster.create(payload); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
+    const payload: CreateDormitoryRosterEntryInput = { student_id: student._id, phone_number: createForm.phone_number.trim(), room_type: createForm.room_type, notes: createForm.notes || undefined };
+    try { setCreateSaving(true); await dormitoryApi.roster.create(payload); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true, 1); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
   };
   const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
-  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); } finally { setLoading(false); setRefreshing(false); } }, [search, page, pageSize]);
+  const load = useCallback(async (background = false, requestedPage = page) => { const requestId = ++rosterRequestRef.current; try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: requestedPage, limit: pageSize }); if (rosterRequestRef.current !== requestId) return; setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { if (rosterRequestRef.current === requestId) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); } } finally { if (rosterRequestRef.current === requestId) { setLoading(false); setRefreshing(false); } } }, [search, page, pageSize]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [search, pageSize]);
   const loadMoreMobile = useCallback(async () => {
@@ -333,8 +337,10 @@ export default function DormitoryRosterPage() {
     setMobileLoadingMore(true);
     const nextPage = mobilePageRef.current + 1;
     try {
+      const requestId = ++rosterRequestRef.current;
       const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
+      if (rosterRequestRef.current !== requestId) return;
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
       mobilePageRef.current = nextPage;
       mobileHasMoreRef.current = next.length === pageSize && nextPage * pageSize < res.meta.total;
@@ -353,7 +359,7 @@ export default function DormitoryRosterPage() {
   const deleteRegistration = async () => {
     if (!deleteRow) return;
     await dormitoryApi.roster.delete(deleteRow._id);
-    toast.success('Đã xóa đơn đăng ký'); setSelected(ids => ids.filter(id => id !== deleteRow._id)); setDeleteRow(null); await load(true);
+    toast.success('Đã xóa mục Danh sách KTX'); setSelected(ids => ids.filter(id => id !== deleteRow._id)); setDeleteRow(null); await load(true);
   };
   const removeSelected = async () => {
     if (bulkDeleting || !selected.length) return;
@@ -364,9 +370,9 @@ export default function DormitoryRosterPage() {
     const failedIds = selectedIds.filter((_, index) => results[index].status === 'rejected');
     setSelected(failedIds); setBulkDeleteOpen(false);
     if (deletedIds.length) await load(true);
-    if (!failedIds.length) toast.success(`Đã xóa ${deletedIds.length} đơn đăng ký`);
+    if (!failedIds.length) toast.success(`Đã xóa ${deletedIds.length} mục Danh sách KTX`);
     else if (deletedIds.length) toast.warning(`Đã xóa ${deletedIds.length} đơn, ${failedIds.length} đơn không thể xóa`);
-    else toast.error('Không thể xóa các đơn đăng ký đã chọn.');
+    else toast.error('Không thể xóa các mục Danh sách KTX đã chọn.');
     setBulkDeleting(false);
   };
   const openSelectedPdfPreview = () => {
@@ -380,7 +386,6 @@ export default function DormitoryRosterPage() {
   const columns: ResponsiveColumn<DormitoryRosterEntry>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
     { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
-    { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
     { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div> },
   ];
@@ -402,7 +407,7 @@ export default function DormitoryRosterPage() {
       </div>
     )}
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có đơn đăng ký nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="đơn đăng ký" />} /></div>
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có mục Danh sách KTX nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="mục Danh sách KTX" />} /></div>
     <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Xuất PDF</button>}</>} />
     <Dialog open={Boolean(pdfRow)} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRow(null); setPdfError(''); } }}>
       <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>Xem trước đơn KTX</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRow && void loadPdfPreview(pdfRow)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => setPdfRow(null)}>Đóng</Button>{pdfRow && <Button onClick={() => void downloadPdf(pdfRow)}>Xuất PDF</Button>}</DialogFooter></DialogContent>
@@ -419,15 +424,15 @@ export default function DormitoryRosterPage() {
       isOpen={Boolean(deleteRow)}
       onClose={() => setDeleteRow(null)}
       onConfirm={async () => {
-        try { await deleteRegistration(); } catch (err: any) { toast.error(err?.message || 'Không thể xóa đơn đăng ký.'); throw err; }
+        try { await deleteRegistration(); } catch (err: any) { toast.error(err?.message || 'Không thể xóa mục Danh sách KTX.'); throw err; }
       }}
-      title="Xóa đơn đăng ký"
+      title="Xóa mục Danh sách KTX"
       message={deleteRow ? <>Bạn có chắc muốn xóa đơn của <strong>{studentName(deleteRow)}</strong> ({studentCode(deleteRow)}) không?</> : null}
       confirmLabel="Xóa đơn"
       cancelLabel="Hủy"
       variant="danger"
     />
-    <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={removeSelected} title="Xóa đơn đăng ký đã chọn" message={`Bạn có chắc muốn xóa ${selected.length} đơn đăng ký đã chọn?`} confirmLabel="Xóa đơn" cancelLabel="Hủy" variant="danger" />
+    <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={removeSelected} title="Xóa mục Danh sách KTX đã chọn" message={`Bạn có chắc muốn xóa ${selected.length} mục Danh sách KTX đã chọn?`} confirmLabel="Xóa mục" cancelLabel="Hủy" variant="danger" />
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">
@@ -441,8 +446,8 @@ export default function DormitoryRosterPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
               <div className="relative">
-                <Input label="Sinh viên / họ tên tạm" required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => { setStudent(null); setStudentSearch(e.target.value); }} placeholder="Tìm sinh viên hoặc nhập họ tên để lưu tạm" autoComplete="off" />
-                {!student && studentSearch.trim() && <p className="mt-1 px-1 text-xs text-amber-700">Không chọn kết quả tìm kiếm: hồ sơ sẽ được lưu tạm để phân loại sau.</p>}
+                <div className="flex items-end gap-2"><Input label={student ? 'Sinh viên' : 'Họ và tên'} required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => clearStudentSelection(e.target.value)} placeholder="Tìm sinh viên hoặc nhập họ tên" autoComplete="off" readOnly={Boolean(student)} containerClassName="flex-1" />{student && <Button type="button" variant="outline" onClick={() => clearStudentSelection('')} className="mb-0 h-10 shrink-0">Chuyển nhập tay</Button>}</div>
+                {!student && studentSearch.trim() && <p className="mt-1 px-1 text-xs text-slate-500">Không chọn kết quả: hồ sơ chưa liên kết.</p>}
                 {studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">{studentOptions.map(item => <Button variant="ghost" type="button" key={item._id} onClick={() => selectStudent(item)} className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></Button>)}</div>}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -450,7 +455,7 @@ export default function DormitoryRosterPage() {
                   <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.date_of_birth)}</span><Calendar size={15} className="shrink-0 text-[#64748B]" /></Button>
+                       <Button type="button" variant="outline" disabled={Boolean(student)} className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.date_of_birth)}</span><Calendar size={15} className="shrink-0 text-[#64748B]" /></Button>
                     </PopoverTrigger>
                     <PopoverContent className="z-[100] w-auto overflow-hidden border-none bg-transparent p-0 shadow-none" align="start">
                       <CustomCalendar
@@ -468,7 +473,7 @@ export default function DormitoryRosterPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select disabled={Boolean(student)} value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
               </div>
               <Input label="Số điện thoại" required type="tel" value={createForm.phone_number} onChange={e => setCreateForm(f => ({ ...f, phone_number: e.target.value }))} placeholder="Nhập số điện thoại" />
             </section>

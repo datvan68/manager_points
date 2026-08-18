@@ -14,10 +14,9 @@ import {
   Wrench,
   Info,
   UserPlus,
-  ClipboardCheck,
-  X,
 } from 'lucide-react';
 import { dormitoryLabel } from '@/api/dormitory-enums';
+import { PublicDormitoryRegistrationModal } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -61,42 +60,6 @@ export default function PublicRoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
-  const [regSubmitting, setRegSubmitting] = useState(false);
-  const [regSuccess, setRegSuccess] = useState<{ roster_entry_code: string } | null>(null);
-  const [regForm, setRegForm] = useState({
-    full_name: '',
-    phone_number: '',
-    email: '',
-    student_code: '',
-    priority_group: 'Không',
-    notes: '',
-  });
-
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault();
-    if (!qrId) return;
-    setRegSubmitting(true);
-    try {
-      const res = await fetch(`${API_BASE}/dormitory/public/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...regForm,
-          qr_room_id: qrId,
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setRegSuccess({ roster_entry_code: result.roster_entry_code || '' });
-      } else {
-        alert(result.message || 'Đã có lỗi xảy ra');
-      }
-    } catch {
-      alert('Không thể gửi đăng ký. Vui lòng thử lại.');
-    } finally {
-      setRegSubmitting(false);
-    }
-  }
 
   useEffect(() => {
     if (!qrId) return;
@@ -265,101 +228,7 @@ export default function PublicRoomPage() {
         </div>
       </div>
 
-      {/* Registration Modal */}
-      {showRegister && !regSuccess && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={() => setShowRegister(false)}>
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between rounded-t-3xl sm:rounded-t-2xl">
-              <h2 className="text-lg font-bold text-gray-800">Đăng ký ở KTX</h2>
-              <button onClick={() => setShowRegister(false)} className="p-1 rounded-full hover:bg-gray-100">
-                <X size={20} className="text-gray-400" />
-              </button>
-            </div>
-
-            {/* Room summary */}
-            <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
-              <p className="text-sm text-blue-700 font-medium">Phòng {room.room_code} — {building?.name || ''}</p>
-              <p className="text-xs text-blue-500">{room.room_type} • {room.room_price?.toLocaleString('vi-VN')}đ/kỳ</p>
-            </div>
-
-            <form onSubmit={handleRegister} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Họ tên <span className="text-red-500">*</span></label>
-                <input type="text" required value={regForm.full_name} onChange={e => setRegForm(f => ({ ...f, full_name: e.target.value }))}
-                  placeholder="Nguyễn Văn A" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại <span className="text-red-500">*</span></label>
-                <input type="tel" required value={regForm.phone_number} onChange={e => setRegForm(f => ({ ...f, phone_number: e.target.value }))}
-                  placeholder="0912345678" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value={regForm.email} onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="email@example.com" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mã sinh viên <span className="text-gray-400 text-xs">(nếu có)</span></label>
-                <input type="text" value={regForm.student_code} onChange={e => setRegForm(f => ({ ...f, student_code: e.target.value }))}
-                  placeholder="SV001" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Đối tượng ưu tiên</label>
-                <select value={regForm.priority_group} onChange={e => setRegForm(f => ({ ...f, priority_group: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white">
-                  <option value="Không">Không</option>
-                  <option value="Chính sách">Chính sách</option>
-                  <option value="Xa nhà">Xa nhà</option>
-                  <option value="Học lực giỏi">Học lực giỏi</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                <textarea value={regForm.notes} onChange={e => setRegForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Yêu cầu đặc biệt, thời gian liên hệ phù hợp..."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" rows={2} />
-              </div>
-
-              <button type="submit" disabled={regSubmitting}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {regSubmitting ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Đang gửi...</>
-                ) : (
-                  <><UserPlus size={18} /> Gửi đăng ký</>
-                )}
-              </button>
-
-              <p className="text-[11px] text-gray-400 text-center">Không yêu cầu CCCD. Chúng tôi sẽ liên hệ qua số điện thoại.</p>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Success Modal */}
-      {regSuccess && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ClipboardCheck size={32} className="text-green-600" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Đăng ký thành công!</h2>
-            <p className="text-sm text-gray-500 mb-4">Mã đăng ký của bạn:</p>
-            <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4">
-              <p className="text-xl font-bold text-blue-700 font-mono">{regSuccess.roster_entry_code}</p>
-            </div>
-            <p className="text-xs text-gray-400 mb-6">Vui lòng lưu mã này. Chúng tôi sẽ liên hệ bạn qua số điện thoại đã cung cấp để xác nhận.</p>
-            <button onClick={() => { setRegSuccess(null); setShowRegister(false); }}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium text-sm hover:bg-blue-700 transition-colors">
-              Đã hiểu
-            </button>
-          </div>
-        </div>
-      )}
+      <PublicDormitoryRegistrationModal qrRoomId={qrId} open={showRegister} onOpenChange={setShowRegister} />
     </div>
   );
 }
