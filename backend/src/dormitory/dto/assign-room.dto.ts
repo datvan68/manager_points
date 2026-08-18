@@ -3,7 +3,7 @@ import { IsNotEmpty, IsMongoId } from 'class-validator';
 export class AssignRoomDto {
   @IsNotEmpty()
   @IsMongoId()
-  registration_id: string;
+  roster_entry_id: string;
 
   @IsNotEmpty()
   @IsMongoId()

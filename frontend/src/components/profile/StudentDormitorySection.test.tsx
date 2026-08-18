@@ -5,7 +5,7 @@ import { StudentDormitorySection } from "./StudentDormitorySection";
 const { getMine, updateMine } = vi.hoisted(() => ({ getMine: vi.fn(), updateMine: vi.fn() }));
 
 vi.mock("@/api/dormitory-api", () => ({
-  dormitoryApi: { registrations: { getMine, updateMine } },
+  dormitoryApi: { roster: { getMine, updateMine } },
 }));
 
 describe("StudentDormitorySection", () => {
@@ -15,7 +15,7 @@ describe("StudentDormitorySection", () => {
   });
 
   it("does not render a KTX section when the student has no formal registration", async () => {
-    getMine.mockResolvedValue({ has_dormitory_registration: false });
+    getMine.mockResolvedValue({ has_dormitory_roster: false, roster_entry: null });
     const { container } = render(<StudentDormitorySection />);
     await waitFor(() => expect(getMine).toHaveBeenCalledOnce());
     expect(screen.queryByRole("heading", { name: "Thông tin KTX" })).not.toBeInTheDocument();
@@ -24,9 +24,9 @@ describe("StudentDormitorySection", () => {
 
   it("sends only API-allowed changed fields and reloads the canonical record", async () => {
     getMine.mockResolvedValue({
-      has_dormitory_registration: true,
+      has_dormitory_roster: true,
       editable_fields: ["phone_number"],
-      registration: { registration_code: "DK-01", status: "Chờ duyệt", phone_number: "0900000000" },
+      roster_entry: { roster_entry_code: "DK-01", identity_state: "LINKED", phone_number: "0900000000", semester: "HK1", academic_year: "2026-2027" },
     });
     updateMine.mockResolvedValue({});
     render(<StudentDormitorySection />);

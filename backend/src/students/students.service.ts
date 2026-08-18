@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
@@ -24,7 +25,8 @@ import {
 } from '../auth/schemas/refresh-token.schema';
 import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
-import { Registration } from '../dormitory/schemas/registration.schema';
+import { DormitoryRosterEntry } from '../dormitory/schemas/dormitory-roster-entry.schema';
+import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-roster-identity.service';
 import {
   getRequesterRoleName,
   isStudent,
@@ -69,8 +71,9 @@ export class StudentsService implements OnModuleInit {
     @InjectModel(Class.name) private classModel: Model<ClassDocument>,
     @InjectModel(RefreshToken.name)
     private refreshTokenModel: Model<RefreshTokenDocument>,
-    @InjectModel(Registration.name) private registrationModel: Model<any>,
+    @InjectModel(DormitoryRosterEntry.name) private rosterModel: Model<any>,
     private configService: ConfigService,
+    @Optional() private readonly rosterIdentityService?: DormitoryRosterIdentityService,
   ) {}
 
   async onModuleInit() {
@@ -268,12 +271,12 @@ export class StudentsService implements OnModuleInit {
     return studentObj;
   }
 
-  private async attachDormitoryRegistrationStatus(student: any) {
+  private async attachDormitoryRosterStatus(student: any) {
     const studentObj = typeof student.toObject === 'function' ? student.toObject() : student;
-    const hasRegistration = Boolean(
-      await this.registrationModel.countDocuments({ student_id: studentObj._id }).exec(),
+    const hasRosterEntry = Boolean(
+      await this.rosterModel.countDocuments({ student_id: studentObj._id }).exec(),
     );
-    return { ...studentObj, has_dormitory_registration: hasRegistration };
+    return { ...studentObj, has_dormitory_roster: hasRosterEntry };
   }
 
   private async backfillStudentUserIds() {
@@ -584,6 +587,7 @@ export class StudentsService implements OnModuleInit {
         }
       }
 
+      await this.rosterIdentityService?.reconcileStudent((createdStudent as any)._id.toString()).catch((error) => this.logger.warn(`Roster reconciliation skipped after student creation: ${error instanceof Error ? error.message : String(error)}`));
       return await this.findOne((createdStudent as any)._id.toString());
     } catch (error: any) {
       if (error.code === 11000) {
@@ -1112,7 +1116,7 @@ export class StudentsService implements OnModuleInit {
         );
       }
 
-      return this.attachDormitoryRegistrationStatus(await this.attachAccountStatus(student));
+      return this.attachDormitoryRosterStatus(await this.attachAccountStatus(student));
     }
 
     const teacherClassIds = await this.getTeacherClassIds(requester);
@@ -1133,7 +1137,7 @@ export class StudentsService implements OnModuleInit {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
 
-    return this.attachDormitoryRegistrationStatus(await this.attachAccountStatus(student));
+      return this.attachDormitoryRosterStatus(await this.attachAccountStatus(student));
   }
 
   async resolve(identifier: string, requester?: any): Promise<any> {
@@ -1267,6 +1271,7 @@ export class StudentsService implements OnModuleInit {
       if (!updatedStudent) {
         throw new NotFoundException(`Student with ID ${id} not found`);
       }
+      await this.rosterIdentityService?.reconcileStudent(id).catch((error) => this.logger.warn(`Roster reconciliation skipped after student update: ${error instanceof Error ? error.message : String(error)}`));
       return await this.findOne(id, requester);
     } catch (error: any) {
       if (error.code === 11000) {

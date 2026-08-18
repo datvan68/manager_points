@@ -1,6 +1,7 @@
-import { IsMongoId } from 'class-validator';
+import { IsMongoId, IsNotEmpty } from 'class-validator';
 
 export class UnassignRoomDto {
+  @IsNotEmpty()
   @IsMongoId()
-  registration_id: string;
+  roster_entry_id: string;
 }

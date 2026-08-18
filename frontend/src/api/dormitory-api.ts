@@ -46,41 +46,30 @@ export interface Bed {
   has_history?: boolean;
 }
 
-export interface DormRegistration {
+export interface DormitoryRosterEntry {
   _id: string;
-  registration_code: string;
-  student_id: any;
+  roster_entry_code: string;
+  student_id?: any;
+  full_name?: string;
+  student_code?: string;
   room_id?: Room | string | null;
   bed_id?: Bed | string | null;
   semester: string;
   academic_year: string;
-  preference?: {
-    room_type?: string;
-    building_id?: string;
-    notes?: string;
-  };
-  priority_group: string;
-  status: 'Chờ duyệt' | 'Đã duyệt' | 'Từ chối';
-  rejection_reason?: string;
-  reviewed_by_id?: any;
-  reviewed_at?: string;
-  createdAt?: string;
-  source?: 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY' | 'INVALID';
-  classification_status?: 'CLASSIFIED' | 'MISSING_CLASS' | 'UNCLASSIFIED' | 'INVALID_SOURCE';
-  public_registration?: any;
+  semester_id?: string;
+  room_type?: 'Thường' | 'Máy lạnh';
+  notes?: string;
   date_of_birth?: string;
   gender?: 'Male' | 'Female' | 'Other';
   phone_number?: string;
+  applicant_profile?: ApplicantProfile;
+  identity_state?: 'LINKED' | 'UNLINKED' | 'CONFLICT';
+  createdAt?: string;
   assigned_room_name?: string;
   active_contract_id?: string;
-  applicant_profile?: ApplicantProfile;
   active_contract?: DormContract | null;
   editable_fields?: string[];
-  linked_student_id?: string;
-  linked_registration_id?: string;
-  edit_policy?: { source: string; linked: boolean; editableFields: string[]; protectedFields: string[]; canonicalOwner?: string | null } | null;
-  student_code_state?: 'MISSING' | 'PENDING_VALIDATION' | 'NOT_FOUND' | 'CONFLICT' | 'LINKABLE' | 'LINKED';
-  student_code_message?: string;
+  full_name_normalized?: string;
 }
 
 export interface ParentApplicantProfile {
@@ -90,47 +79,22 @@ export interface ApplicantProfile {
   ethnicity?: string; religion?: string; citizen_id_number?: string; citizen_id_issue_date?: string; citizen_id_issue_place?: string; permanent_address?: string;
   priority_certificate_details?: string; father?: ParentApplicantProfile; mother?: ParentApplicantProfile;
 }
-export interface SelfDormitoryRegistration {
-  has_dormitory_registration: boolean;
-  registration: DormRegistration | null;
-  history: Array<Pick<DormRegistration, '_id' | 'registration_code' | 'status' | 'semester' | 'academic_year' | 'createdAt'>>;
+export interface SelfDormitoryRosterResponse {
+  has_dormitory_roster: boolean;
+  roster_entry: DormitoryRosterEntry | null;
+  history: Array<Pick<DormitoryRosterEntry, '_id' | 'roster_entry_code' | 'semester' | 'academic_year' | 'createdAt'>>;
+  editable_fields?: string[];
 }
 
-export type DormRegistrationSource = 'FORMAL' | 'PUBLIC' | 'ADMIN_TEMPORARY';
-export type DormitoryDisplaySource = DormRegistrationSource | 'INVALID';
-
-export interface UpdateDormRegistrationInput {
-  semester?: string;
-  academic_year?: string;
+export interface CreateDormitoryRosterEntryInput {
+  student_id?: string;
+  full_name?: string;
   date_of_birth?: string;
   gender?: 'Male' | 'Female' | 'Other';
-  phone_number?: string;
-  preference?: {
-    room_type?: string;
-    building_id?: string;
-    notes?: string;
-  };
-  priority_group?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
-  full_name?: string;
-  student_code?: string;
-  room_type?: 'Thường' | 'Máy lạnh';
-  notes?: string;
-  applicant_profile?: ApplicantProfile;
-}
-
-export interface CreateDormRegistrationInput {
-  student_id: string;
-  semester: string;
-  academic_year: string;
-  date_of_birth: string;
-  gender: 'Male' | 'Female' | 'Other';
   phone_number: string;
-  preference?: {
-    room_type?: string;
-    building_id?: string;
-    notes?: string;
-  };
-  priority_group?: 'Chính sách' | 'Xa nhà' | 'Học lực giỏi' | 'Khó khăn' | 'Không';
+  student_code?: string;
+  room_type: 'Thường' | 'Máy lạnh';
+  notes?: string;
   applicant_profile?: ApplicantProfile;
 }
 
@@ -152,30 +116,7 @@ export interface PublicDormitoryRegistrationInput {
   applicant_profile?: ApplicantProfile;
 }
 
-export interface UnclassifiedRegistration {
-  _id: string;
-  public_registration_code: string;
-  full_name: string;
-  date_of_birth?: string;
-  phone_number: string;
-  email?: string;
-  student_code?: string;
-  room_code?: string;
-  building_name?: string;
-  room_type?: string;
-  semester?: string;
-  academic_year?: string;
-  status: string;
-  source: 'PUBLIC' | 'ADMIN_TEMPORARY';
-  classification_status: 'UNCLASSIFIED';
-  createdAt?: string;
-}
-
-export interface PublicLinkCandidateResponse {
-  state: 'LINKED' | 'ONE_MATCH' | 'AMBIGUOUS' | 'NO_MATCH';
-  source: any;
-  candidates: Array<any>;
-}
+export type UpdateDormitoryRosterEntryInput = Partial<CreateDormitoryRosterEntryInput>;
 
 export interface DormContract {
   _id: string;
@@ -183,7 +124,7 @@ export interface DormContract {
   student_id: any;
   bed_id: any;
   room_id: any;
-  registration_id?: any;
+  roster_entry_id?: any;
   start_date: string;
   end_date: string;
   status: 'Hiệu lực' | 'Hết hạn' | 'Đã hủy';
@@ -281,9 +222,8 @@ export interface DormitoryRegistrationSummary {
   assigned: number;
   male: number;
   female: number;
-  pending_confirmation: number;
-  pending_approval: number;
-  approved_unassigned: number;
+  unlinked: number;
+  unassigned: number;
   requested_room_type: { thuong: number; may_lanh: number; unknown: number };
 }
 
@@ -448,94 +388,56 @@ export const dormitoryApi = {
     },
   },
 
-  // ── Registrations ──
-  registrations: {
-    async getMine(): Promise<SelfDormitoryRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/me`);
+  // ── Canonical dormitory roster ──
+  roster: {
+    async getMine(): Promise<SelfDormitoryRosterResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/me`);
       return handleResponse(res);
     },
-    async getByStudent(studentId: string): Promise<SelfDormitoryRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/student/${studentId}`);
+    async getByStudent(studentId: string): Promise<SelfDormitoryRosterResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/student/${studentId}`);
       return handleResponse(res);
     },
-    async updateMine(dto: Pick<UpdateDormRegistrationInput, 'phone_number' | 'preference' | 'priority_group' | 'applicant_profile'>): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/me`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto),
-      });
+    async updateMine(dto: Pick<UpdateDormitoryRosterEntryInput, 'phone_number' | 'notes' | 'applicant_profile'>): Promise<SelfDormitoryRosterResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/me`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
-    async getAll(params?: QueryParams): Promise<PaginatedResponse<DormRegistration>> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations${buildQuery(params)}`);
+    async getAll(params?: QueryParams): Promise<PaginatedResponse<DormitoryRosterEntry>> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster${buildQuery(params)}`);
       return handleResponse(res);
     },
-    async getUnclassified(params?: QueryParams): Promise<PaginatedResponse<UnclassifiedRegistration>> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/unclassified${buildQuery(params)}`);
+    async getOne(id: string): Promise<DormitoryRosterEntry> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/${id}`);
       return handleResponse(res);
     },
-    async getOne(id: string, source?: DormRegistrationSource): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`);
+    async create(dto: CreateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
-    async getApplicationPdf(id: string, source: DormRegistrationSource, disposition: 'inline' | 'attachment' = 'inline'): Promise<Blob> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${encodeURIComponent(id)}/application-pdf${buildQuery({ source, disposition })}`);
+    async update(id: string, dto: UpdateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
+      return handleResponse(res);
+    },
+    async delete(id: string): Promise<{ success: boolean; id: string }> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/${id}`, { method: 'DELETE' });
+      return handleResponse(res);
+    },
+    async assignRoom(dto: { roster_entry_id: string; room_id: string; bed_id: string }): Promise<{ roster_entry?: DormitoryRosterEntry; room?: Room; bed?: Bed; active_contract_id?: string; message?: string }> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/assign-room`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
+      return handleResponse(res);
+    },
+    async unassignRoom(roster_entry_id: string): Promise<{ roster_entry?: DormitoryRosterEntry; room?: Room | null; bed?: Bed; message?: string }> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/unassign-room`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roster_entry_id }) });
+      return handleResponse(res);
+    },
+    async suggestRooms(id: string): Promise<Room[]> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/${id}/suggest-rooms`);
+      return handleResponse(res);
+    },
+    async getApplicationPdf(id: string, disposition: 'inline' | 'attachment' = 'inline'): Promise<Blob> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/${encodeURIComponent(id)}/application-pdf${buildQuery({ disposition })}`);
       if (!res.ok) return handleResponse(res);
       return res.blob();
-    },
-    async create(dto: CreateDormRegistrationInput): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
-      return handleResponse(res);
-    },
-    async createTemporary(dto: { full_name: string; date_of_birth: string; gender: 'Male' | 'Female' | 'Other'; phone_number: string; room_type?: 'Thường' | 'Máy lạnh'; notes?: string; applicant_profile?: ApplicantProfile }): Promise<any> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/temporary`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
-      return handleResponse(res);
-    },
-    async update(id: string, source: DormRegistrationSource, dto: UpdateDormRegistrationInput): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
-      return handleResponse(res);
-    },
-    async delete(id: string, source: DormRegistrationSource): Promise<{ success: boolean; id: string; source: DormRegistrationSource }> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${id}${buildQuery({ source })}`, { method: 'DELETE' });
-      return handleResponse(res);
-    },
-    async assignRoom(dto: { registration_id: string; room_id: string; bed_id: string }): Promise<{ registration?: DormRegistration; room?: Room; bed?: Bed; active_contract_id?: string; message?: string }> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/assign-room`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
-      return handleResponse(res);
-    },
-    async unassignRoom(registration_id: string): Promise<{ registration?: DormRegistration; room?: Room | null; bed?: Bed; message?: string }> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/unassign-room`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registration_id }),
-      });
-      return handleResponse(res);
-    },
-    async linkPublicRegistration(publicRegistrationId: string, studentId: string): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/link-student/${studentId}`, { method: 'POST' });
-      return handleResponse(res);
-    },
-    async getLinkCandidates(publicRegistrationId: string): Promise<PublicLinkCandidateResponse> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/link-candidates`);
-      return handleResponse(res);
-    },
-    async confirmLink(publicRegistrationId: string, dto: { student_id: string; expected_public_updated_at: string; expected_student_updated_at: string; sync_email: boolean; sync_gender: boolean }): Promise<DormRegistration> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/public/${publicRegistrationId}/confirm-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
-      return handleResponse(res);
-    },
-    async suggestRooms(registrationId: string): Promise<Room[]> {
-      const res = await httpClient(`${API_BASE}/dormitory/registrations/${registrationId}/suggest-rooms`);
-      return handleResponse(res);
     },
   },
 
@@ -709,7 +611,7 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/public/semester`);
       return handleResponse(res);
     },
-    async register(dto: PublicDormitoryRegistrationInput): Promise<{ success: boolean; registration_code?: string; code?: string; message: string }> {
+    async register(dto: PublicDormitoryRegistrationInput): Promise<{ success: boolean; roster_entry_code?: string; message: string }> {
       const res = await httpClient(`${API_BASE}/dormitory/public/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

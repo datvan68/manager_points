@@ -1,127 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dormitoryApi } from './dormitory-api';
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+const fetchMock = vi.fn();
+vi.stubGlobal('fetch', fetchMock);
 
-describe('dormitoryApi.registrations.create', () => {
-  beforeEach(() => vi.clearAllMocks());
+describe('dormitory roster API', () => {
+  beforeEach(() => fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({})) }));
 
-  it('serializes the canonical registration DTO without legacy field names', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'registration-1' })),
-    });
-
-    await dormitoryApi.registrations.create({
-      student_id: '507f1f77bcf86cd799439011',
-      semester: '1',
-      academic_year: '2026',
-      date_of_birth: '2003-01-15',
-      gender: 'Female',
-      phone_number: '0912345678',
-      priority_group: 'Khó khăn',
-      preference: { room_type: 'Máy lạnh', notes: 'Gần khu học tập' },
-    });
-
-    const [, options] = mockFetch.mock.calls[0];
-    expect(options.method).toBe('POST');
-    expect(JSON.parse(options.body)).toEqual({
-      student_id: '507f1f77bcf86cd799439011',
-      semester: '1',
-      academic_year: '2026',
-      date_of_birth: '2003-01-15',
-      gender: 'Female',
-      phone_number: '0912345678',
-      priority_group: 'Khó khăn',
-      preference: { room_type: 'Máy lạnh', notes: 'Gần khu học tập' },
-    });
-  });
-});
-
-describe('dormitoryApi.rooms.update', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('sends one PATCH request to the selected room endpoint', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'room-1' })) });
-    const payload = { room_code: 'A101', room_name: 'Phòng A101', building_id: 'building-1', room_type: 'Thường', bed_count: 4, room_price: 100000 };
-
-    await dormitoryApi.rooms.update('room-1', payload);
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/rooms/room-1');
-    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'PATCH' });
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual(payload);
-  });
-});
-
-describe('dormitoryApi.registrations.update/delete', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('sends the source discriminator in the update and delete requests', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ success: true, id: 'registration-1', source: 'PUBLIC' })) });
-
-    await dormitoryApi.registrations.update('registration-1', 'PUBLIC', { full_name: 'Nguyễn A' });
-    await dormitoryApi.registrations.delete('registration-1', 'PUBLIC');
-
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
-    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'PATCH' });
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ full_name: 'Nguyễn A' });
-    expect(mockFetch.mock.calls[1][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
-    expect(mockFetch.mock.calls[1][1]).toMatchObject({ method: 'DELETE' });
+  it('uses canonical roster CRUD endpoints and persists PATCH payloads', async () => {
+    await dormitoryApi.roster.create({ full_name: 'Nguyễn A', date_of_birth: '2003-01-01', gender: 'Other', phone_number: '0912345678', room_type: 'Thường' });
+    await dormitoryApi.roster.update('entry-1', { notes: 'updated' });
+    await dormitoryApi.roster.delete('entry-1');
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      expect.stringContaining('/dormitory/roster'),
+      expect.stringContaining('/dormitory/roster/entry-1'),
+      expect.stringContaining('/dormitory/roster/entry-1'),
+    ]);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ notes: 'updated' });
   });
 
-  it('serializes temporary edit fields at the top level without preference', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'registration-1' })) });
-
-    await dormitoryApi.registrations.update('registration-1', 'ADMIN_TEMPORARY', {
-      full_name: 'Nguyễn A', semester: 'HK2', academic_year: '2025-2026', date_of_birth: '2003-01-15', gender: 'Female',
-      phone_number: '0912345678', room_type: 'Máy lạnh', notes: 'Gần khu học tập', priority_group: 'Không',
-    });
-
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
-      full_name: 'Nguyễn A', semester: 'HK2', academic_year: '2025-2026', date_of_birth: '2003-01-15', gender: 'Female',
-      phone_number: '0912345678', room_type: 'Máy lạnh', notes: 'Gần khu học tập', priority_group: 'Không',
-    });
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).not.toHaveProperty('preference');
-  });
-});
-
-describe('dormitoryApi.registrations.getOne', () => {
-  it('includes the source discriminator for public detail reads', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ _id: 'registration-1', source: 'PUBLIC' })) });
-
-    await dormitoryApi.registrations.getOne('registration-1', 'PUBLIC');
-
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1?source=PUBLIC');
-  });
-});
-
-describe('dormitoryApi.registrations.unassignRoom', () => {
-  it('posts the registration id to the unassign endpoint', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'ok' })) });
-    await dormitoryApi.registrations.unassignRoom('registration-1');
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/unassign-room');
-    expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'POST' });
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ registration_id: 'registration-1' });
-  });
-});
-
-describe('dormitoryApi self-service and PDF endpoints', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('uses self-scoped endpoints without a client supplied student id', async () => {
-    mockFetch.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(JSON.stringify({ has_dormitory_registration: false, registration: null, history: [] })) });
-    await dormitoryApi.registrations.getMine();
-    await dormitoryApi.registrations.updateMine({ phone_number: '0912345678' });
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/me');
-    expect(mockFetch.mock.calls[1][0]).toContain('/dormitory/registrations/me');
-    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({ phone_number: '0912345678' });
-  });
-
-  it('requests server-generated application PDF with the selected disposition', async () => {
-    mockFetch.mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' })) });
-    await dormitoryApi.registrations.getApplicationPdf('registration-1', 'PUBLIC', 'inline');
-    expect(mockFetch.mock.calls[0][0]).toContain('/dormitory/registrations/registration-1/application-pdf?source=PUBLIC&disposition=inline');
+  it('sends only roster_entry_id for room assignment', async () => {
+    await dormitoryApi.roster.assignRoom({ roster_entry_id: 'entry-1', room_id: 'room-1', bed_id: 'bed-1' });
+    await dormitoryApi.roster.unassignRoom('entry-1');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ roster_entry_id: 'entry-1', room_id: 'room-1', bed_id: 'bed-1' });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ roster_entry_id: 'entry-1' });
   });
 });

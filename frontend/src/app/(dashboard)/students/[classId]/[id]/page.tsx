@@ -24,7 +24,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { classApi, Class } from '@/api/class-api';
 import { studentApi, Student } from '@/api/student-api';
 import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
-import { dormitoryApi, SelfDormitoryRegistration } from '@/api/dormitory-api';
+import { dormitoryApi, SelfDormitoryRosterResponse } from '@/api/dormitory-api';
 import StudentDormitoryCard from '@/components/students/StudentDormitoryCard';
 import { useAuth } from '@/providers/auth-provider';
 import { semesterApi } from '@/api/semester-api';
@@ -104,7 +104,7 @@ export default function StudentProfilePage() {
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   // ─── Dormitory State ───
-  const [dormData, setDormData] = useState<SelfDormitoryRegistration | null>(null);
+  const [dormData, setDormData] = useState<SelfDormitoryRosterResponse | null>(null);
   const [personalExpanded, setPersonalExpanded] = useMobileCardExpanded();
   const [academicExpanded, setAcademicExpanded] = useMobileCardExpanded();
 
@@ -133,7 +133,7 @@ export default function StudentProfilePage() {
   const loadDormitoryData = useCallback(async () => {
     if (!studentId) return;
     try {
-      const res = await dormitoryApi.registrations.getByStudent(studentId);
+      const res = await dormitoryApi.roster.getByStudent(studentId);
       setDormData(res);
     } catch {
       setDormData(null);
@@ -156,12 +156,12 @@ export default function StudentProfilePage() {
       semesterApi.getSemesters(),
       summariesPointApi.getSummariesPoints({ studentId }),
       academicRecordApi.getAcademicRecordsByStudent(studentId, { page: 1, limit: 10 }),
-      dormitoryApi.registrations.getByStudent(studentId).catch(() => ({ has_dormitory_registration: false, registration: null, history: [] })),
+      dormitoryApi.roster.getByStudent(studentId).catch(() => ({ has_dormitory_roster: false, roster_entry: null, history: [] })),
     ])
       .then(([classData, studentData, semestersData, summariesDataRes, recordsRes, dormRes]) => {
         setTargetClass(classData);
         setStudent(studentData);
-        setDormData(dormRes as SelfDormitoryRegistration);
+        setDormData(dormRes as SelfDormitoryRosterResponse);
 
         // Tìm học kỳ active và điểm rèn luyện tương ứng
         const activeSemester = semestersData.find(s => s.status === 'active');

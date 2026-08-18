@@ -32,23 +32,13 @@
     "migration:attendance-session-owner-index:execute": "ts-node scripts/migrate-attendance-session-owner-index.ts --execute",
     "migration:activities:rollback:dry-run": "ts-node scripts/rollback-unified-activities.ts",
     "migration:activities:rollback:execute": "ts-node scripts/rollback-unified-activities.ts --execute",
-    "migration:dormitory-naming:dry-run": "ts-node scripts/migrate-dormitory-naming.ts",
-    "migration:dormitory-naming:execute": "ts-node scripts/migrate-dormitory-naming.ts --execute",
-    "migration:dormitory-naming:rollback:dry-run": "ts-node scripts/rollback-dormitory-naming.ts",
-    "migration:dormitory-naming:rollback:execute": "ts-node scripts/rollback-dormitory-naming.ts --execute",
-    "audit:dormitory-capacity": "ts-node scripts/migrate-dormitory-capacity.ts",
-    "migration:dormitory-capacity:dry-run": "ts-node scripts/migrate-dormitory-capacity.ts",
-    "migration:dormitory-capacity:execute": "ts-node scripts/migrate-dormitory-capacity.ts --execute",
-    "migration:dormitory-capacity:rollback:execute": "ts-node scripts/migrate-dormitory-capacity.ts --rollback --execute"
-    ,"migration:dormitory-bed-index:dry-run": "ts-node scripts/migrate-dormitory-bed-index.ts"
+    "migration:dormitory-bed-index:dry-run": "ts-node scripts/migrate-dormitory-bed-index.ts"
     ,"migration:dormitory-bed-index:execute": "ts-node scripts/migrate-dormitory-bed-index.ts --execute"
     ,"migration:dormitory-building-status:dry-run": "ts-node scripts/migrate-dormitory-building-status.ts"
     ,"migration:dormitory-building-status:execute": "ts-node scripts/migrate-dormitory-building-status.ts --execute"
     ,"migration:dormitory-room-index:dry-run": "ts-node scripts/repair-dormitory-room-index.ts"
     ,"migration:dormitory-room-index:execute": "ts-node scripts/repair-dormitory-room-index.ts --execute"
-    ,"migration:dormitory-registration-reconciliation:dry-run": "ts-node scripts/report-dormitory-registration-reconciliation.ts"
-    ,"migration:dormitory-public-registration-index:dry-run": "ts-node scripts/repair-public-registration-code-index.ts"
-    ,"migration:dormitory-public-registration-index:execute": "ts-node scripts/repair-public-registration-code-index.ts --execute"
+    ,"reset:dormitory-roster:development": "ts-node scripts/reset-dormitory-roster.ts"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",

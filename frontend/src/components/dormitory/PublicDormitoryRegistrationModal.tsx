@@ -65,7 +65,7 @@ export function PublicDormitoryRegistrationModal({ qrRoomId }: { qrRoomId?: stri
       setSaving(true);
       const result = await dormitoryApi.public.register(payload);
       if (!result.success) { setError(result.message || 'Số điện thoại đã có đăng ký đang chờ xác nhận.'); return; }
-      setSuccessCode(result.registration_code || '');
+      setSuccessCode(result.roster_entry_code || '');
     } catch (err: any) {
       setError(err?.message || 'Không thể gửi đăng ký. Vui lòng thử lại.');
     } finally { setSaving(false); }

@@ -16,7 +16,7 @@ import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../auth/schemas/role.schema';
 import { Class } from '../../classes/schemas/class.schema';
 import { RefreshToken } from '../../auth/schemas/refresh-token.schema';
-import { Registration } from '../../dormitory/schemas/registration.schema';
+import { DormitoryRosterEntry } from '../../dormitory/schemas/dormitory-roster-entry.schema';
 import * as bcrypt from 'bcrypt';
 
 const mockStudent = {
@@ -175,7 +175,7 @@ describe('StudentsService', () => {
           },
         },
         {
-          provide: getModelToken(Registration.name),
+          provide: getModelToken(DormitoryRosterEntry.name),
           useValue: {
             countDocuments: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(0) }),
           },
@@ -188,7 +188,7 @@ describe('StudentsService', () => {
     classModel = module.get(getModelToken(Class.name));
     summaryPointModel = module.get(getModelToken(SummaryPoint.name));
     refreshTokenModel = module.get(getModelToken(RefreshToken.name));
-    registrationModel = module.get(getModelToken(Registration.name));
+    registrationModel = module.get(getModelToken(DormitoryRosterEntry.name));
 
     // Reset config service mock
     const configService = module.get<ConfigService>(ConfigService);
@@ -545,7 +545,7 @@ describe('StudentsService', () => {
     it('should expose KTX registration status only when a linked registration exists', async () => {
       registrationModel.countDocuments.mockReturnValueOnce({ exec: jest.fn().mockResolvedValue(1) });
       const result = await service.findOne(mockStudent._id);
-      expect(result.has_dormitory_registration).toBe(true);
+      expect(result.has_dormitory_roster).toBe(true);
       expect(registrationModel.countDocuments).toHaveBeenCalledWith({ student_id: mockStudent._id });
     });
 

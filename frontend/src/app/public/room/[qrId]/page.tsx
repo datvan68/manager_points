@@ -62,7 +62,7 @@ export default function PublicRoomPage() {
   const [error, setError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
   const [regSubmitting, setRegSubmitting] = useState(false);
-  const [regSuccess, setRegSuccess] = useState<{ registration_code: string } | null>(null);
+  const [regSuccess, setRegSuccess] = useState<{ roster_entry_code: string } | null>(null);
   const [regForm, setRegForm] = useState({
     full_name: '',
     phone_number: '',
@@ -87,7 +87,7 @@ export default function PublicRoomPage() {
       });
       const result = await res.json();
       if (result.success) {
-        setRegSuccess({ registration_code: result.registration_code });
+        setRegSuccess({ roster_entry_code: result.roster_entry_code || '' });
       } else {
         alert(result.message || 'Đã có lỗi xảy ra');
       }
@@ -350,7 +350,7 @@ export default function PublicRoomPage() {
             <h2 className="text-xl font-bold text-gray-800 mb-2">Đăng ký thành công!</h2>
             <p className="text-sm text-gray-500 mb-4">Mã đăng ký của bạn:</p>
             <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4">
-              <p className="text-xl font-bold text-blue-700 font-mono">{regSuccess.registration_code}</p>
+              <p className="text-xl font-bold text-blue-700 font-mono">{regSuccess.roster_entry_code}</p>
             </div>
             <p className="text-xs text-gray-400 mb-6">Vui lòng lưu mã này. Chúng tôi sẽ liên hệ bạn qua số điện thoại đã cung cấp để xác nhận.</p>
             <button onClick={() => { setRegSuccess(null); setShowRegister(false); }}

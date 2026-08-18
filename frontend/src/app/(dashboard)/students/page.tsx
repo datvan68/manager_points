@@ -265,7 +265,7 @@ function StudentsPageContent() {
 
   useEffect(() => {
     fetchDepartments();
-    dormitoryApi.registrations.getUnclassified({ limit: 1 }).then((result) => setUnclassifiedCount(result.meta.total)).catch(() => setUnclassifiedCount(0));
+    setUnclassifiedCount(0);
   }, []);
 
   useEffect(() => {
@@ -609,19 +609,6 @@ function StudentsPageContent() {
                     </div>
                   ) : (
                     <>
-                      {/* Global unclassified group stays outside faculty sections. */}
-                      <div className="flex flex-col gap-4 w-full">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-1 items-center"><span className="text-[14px] font-medium text-[#6b7280] tracking-wide">Chưa phân loại</span><div className="flex-1 h-px bg-[#f3f4f6] ml-4" /></div>
-                        </div>
-                        <div onClick={() => router.push('/students/unclassified')} className="group relative flex h-full w-full max-w-sm cursor-pointer flex-col gap-2 rounded-2xl border border-white/70 bg-white/50 p-[21px] shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-md">
-                          <div className="flex items-center justify-between"><span className="rounded-lg bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">Chưa phân loại</span><Users size={18} className="text-amber-600" /></div>
-                          <h4 className="text-[18px] font-bold text-slate-800">Chưa phân lớp</h4>
-                          <p className="text-xs text-gray-500">Đăng ký KTX chưa liên kết sinh viên</p>
-                          <div className="pt-3 border-t border-amber-100 text-sm font-bold text-amber-700">{unclassifiedCount} học viên</div>
-                        </div>
-                      </div>
-
                       {/* Cao đẳng Section */}
                       <div className="flex flex-col gap-4 w-full">
                         <div className="flex items-center justify-between w-full">

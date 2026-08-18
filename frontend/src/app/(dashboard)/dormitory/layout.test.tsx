@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DormitoryLayout from './layout';
 
 const push = vi.fn();
-let pathname = '/dormitory/registrations/abc';
+let pathname = '/dormitory/roster/abc';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
@@ -19,7 +19,7 @@ vi.mock('@/components/ui/TabNavigation', () => ({
 }));
 
 describe('DormitoryLayout', () => {
-  beforeEach(() => { push.mockReset(); pathname = '/dormitory/registrations/abc'; });
+  beforeEach(() => { push.mockReset(); pathname = '/dormitory/roster/abc'; });
 
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);

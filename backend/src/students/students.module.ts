@@ -16,7 +16,8 @@ import {
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
-import { Registration, RegistrationSchema } from '../dormitory/schemas/registration.schema';
+import { DormitoryRosterEntry, DormitoryRosterEntrySchema } from '../dormitory/schemas/dormitory-roster-entry.schema';
+import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-roster-identity.service';
 
 @Module({
   imports: [
@@ -28,11 +29,11 @@ import { Registration, RegistrationSchema } from '../dormitory/schemas/registrat
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
       { name: Class.name, schema: ClassSchema },
-      { name: Registration.name, schema: RegistrationSchema },
+      { name: DormitoryRosterEntry.name, schema: DormitoryRosterEntrySchema },
     ]),
   ],
   controllers: [StudentsController, StudentAccountSyncController],
-  providers: [StudentsService],
+  providers: [StudentsService, DormitoryRosterIdentityService],
   exports: [StudentsService],
 })
 export class StudentsModule {}

@@ -4,14 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
-import { dormitoryApi, SelfDormitoryRegistration, DormRegistration } from '@/api/dormitory-api';
+import { dormitoryApi, SelfDormitoryRosterResponse, DormitoryRosterEntry } from '@/api/dormitory-api';
 import { Student } from '@/api/student-api';
-import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, formFromRegistration, normalizeDormitoryRegistrationSource } from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, formFromRegistration } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import type { EditForm } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import { compactApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 
 interface StudentDormitoryCardProps {
-  registrationData: SelfDormitoryRegistration | null;
+  registrationData: SelfDormitoryRosterResponse | null;
   student?: Student | null;
   onRefresh?: () => Promise<void> | void;
   className?: string;
@@ -22,18 +22,18 @@ export function formatVndPrice(price: number | null | undefined): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 }
 
-export function getEffectiveRoomLabel(registration: DormRegistration): string {
+export function getEffectiveRoomLabel(registration: DormitoryRosterEntry): string {
   if (registration.room_id && typeof registration.room_id === 'object') return registration.room_id.room_name || registration.room_id.room_code || 'Chưa xếp phòng';
   if (registration.assigned_room_name) return registration.assigned_room_name;
   return 'Chưa xếp phòng';
 }
 
-export function getEffectiveBedLabel(registration: DormRegistration): string {
+export function getEffectiveBedLabel(registration: DormitoryRosterEntry): string {
   if (registration.bed_id && typeof registration.bed_id === 'object') return registration.bed_id.bed_code || 'Chưa xếp giường';
   return 'Chưa xếp giường';
 }
 
-export function getRoomPrice(registration: DormRegistration): number | null {
+export function getRoomPrice(registration: DormitoryRosterEntry): number | null {
   if (registration.room_id && typeof registration.room_id === 'object' && typeof registration.room_id.room_price === 'number') return registration.room_id.room_price;
   return null;
 }
@@ -62,9 +62,9 @@ export default function StudentDormitoryCard({ registrationData, student, onRefr
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useMobileCardExpanded();
-  const registration = registrationData?.registration;
+  const registration = registrationData?.roster_entry;
 
-  if (!registrationData?.has_dormitory_registration || !registration) {
+  if (!registrationData?.has_dormitory_roster || !registration) {
     return <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.35 }} className={`bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-4 sm:gap-5 w-full min-w-0 ${className || ''}`}>
       <div role="button" tabIndex={0} aria-expanded={expanded} aria-controls="student-dormitory-empty" onClick={() => setExpanded(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpanded(value => !value); } }} className="flex cursor-pointer items-center gap-[8px] w-full"><div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" /><h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">Thông tin KTX</h2><ChevronDown aria-hidden="true" className={`ml-auto h-4 w-4 text-[#64748B] transition-transform sm:hidden ${expanded ? 'rotate-180' : ''}`} /></div>
       <p id="student-dormitory-empty" className={`${expanded ? 'block' : 'hidden'} sm:block text-[13px] font-semibold text-[#64748B]`}>Không ở trong KTX</p>
@@ -82,18 +82,16 @@ export default function StudentDormitoryCard({ registrationData, student, onRefr
   const bedLabel = getEffectiveBedLabel(registration);
   const formattedPrice = formatVndPrice(getRoomPrice(registration));
 
-  const submitUpdate = async (row: DormRegistration, form: EditForm) => {
+  const submitUpdate = async (row: DormitoryRosterEntry, form: EditForm) => {
     if (isSelfStudent && !isStaff) {
       const applicantProfile = compactApplicantProfile(form.applicant_profile);
-      const payload: any = { phone_number: form.phone_number.trim(), priority_group: form.priority_group };
+      const payload: any = { phone_number: form.phone_number.trim(), notes: form.notes.trim() };
       if (applicantProfile) payload.applicant_profile = applicantProfile;
-      await dormitoryApi.registrations.updateMine(payload);
+      await dormitoryApi.roster.updateMine(payload);
       return;
     }
     if (isStaff) {
-      const source = normalizeDormitoryRegistrationSource(row.source);
-      if (source === 'INVALID') throw new Error('Nguồn đăng ký không hợp lệ; dữ liệu cần được kiểm tra trước khi sửa.');
-      await dormitoryApi.registrations.update(row._id, source, buildEditRegistrationPayload(source, form, formFromRegistration(row)));
+      await dormitoryApi.roster.update(row._id, buildEditRegistrationPayload(form, formFromRegistration(row)));
       return;
     }
     throw new Error('Bạn không có quyền cập nhật thông tin đơn này.');

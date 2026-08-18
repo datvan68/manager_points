@@ -21,7 +21,7 @@ export class CreateContractDto {
 
   @IsOptional()
   @IsMongoId()
-  registration_id?: string;
+  roster_entry_id?: string;
 
   @IsNotEmpty()
   @IsDateString()

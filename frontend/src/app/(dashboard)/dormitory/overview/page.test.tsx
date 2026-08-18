@@ -43,9 +43,8 @@ const mockStats = {
     assigned: 2,
     male: 2,
     female: 2,
-    pending_confirmation: 1,
-    pending_approval: 2,
-    approved_unassigned: 1,
+    unlinked: 1,
+    unassigned: 2,
     requested_room_type: { thuong: 3, may_lanh: 2, unknown: 0 },
   },
   invoice_summary: {

@@ -8,10 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { Bed, BedDocument } from '../schemas/bed.schema';
-import {
-  Registration,
-  RegistrationDocument,
-} from '../schemas/registration.schema';
+import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 import { CreateContractDto, CancelContractDto } from '../dto/create-contract.dto';
 import { RoomsService } from './rooms.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,8 +19,8 @@ export class ContractsService {
     @InjectModel(Contract.name)
     private contractModel: Model<ContractDocument>,
     @InjectModel(Bed.name) private bedModel: Model<BedDocument>,
-    @InjectModel(Registration.name)
-    private registrationModel: Model<RegistrationDocument>,
+    @InjectModel(DormitoryRosterEntry.name)
+    private rosterModel: Model<DormitoryRosterEntryDocument>,
     private roomsService: RoomsService,
   ) {}
 
@@ -39,13 +36,13 @@ export class ContractsService {
       );
     }
 
-    // BR5: Validate registration is approved and room is assigned
-    if (dto.registration_id) {
-      const reg = await this.registrationModel.findById(dto.registration_id);
-      if (!reg || reg.status !== 'Đã duyệt') {
-        throw new BadRequestException(
-          'Đăng ký chưa được duyệt hoặc không tồn tại',
-        );
+    if (dto.roster_entry_id) {
+      const entry = await this.rosterModel.findById(dto.roster_entry_id);
+      if (!entry || String(entry.student_id) !== String(dto.student_id)) {
+        throw new BadRequestException('Mục Danh sách KTX không tồn tại hoặc không thuộc sinh viên.');
+      }
+      if (String(entry.room_id) !== String(dto.room_id) || String(entry.bed_id) !== String(dto.bed_id)) {
+        throw new BadRequestException('Phòng và giường phải trùng với mục Danh sách KTX.');
       }
     }
 
@@ -110,12 +107,12 @@ export class ContractsService {
       .populate('student_id')
       .populate('room_id')
       .populate('bed_id')
-      .populate('registration_id')
+      .populate('roster_entry_id')
       .exec();
     if (!contract) {
       throw new NotFoundException(`Không tìm thấy hợp đồng: ${id}`);
     }
-    return contract;
+    return ((contract as any).toObject?.() || contract) as Contract;
   }
 
   /**

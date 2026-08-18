@@ -18,8 +18,8 @@ export class Contract {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
   room_id: Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Registration' })
-  registration_id: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'DormitoryRosterEntry' })
+  roster_entry_id?: Types.ObjectId;
 
   @Prop({ required: true })
   start_date: Date;

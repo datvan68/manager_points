@@ -11,14 +11,7 @@ import {
   MaintenanceRequest,
   MaintenanceRequestDocument,
 } from '../schemas/maintenance-request.schema';
-import {
-  Registration,
-  RegistrationDocument,
-} from '../schemas/registration.schema';
-import {
-  PublicRegistration,
-  PublicRegistrationDocument,
-} from '../schemas/public-registration.schema';
+import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 
 const ROOM_TYPES = ['Thường', 'Máy lạnh'] as const;
 const ROOM_STATES = ['Trống', 'Còn chỗ', 'Đầy', 'Bảo trì', 'Khóa', 'Chưa cấu hình'] as const;
@@ -64,10 +57,8 @@ export class DormitoryReportsService {
     private violationModel: Model<ViolationDocument>,
     @InjectModel(MaintenanceRequest.name)
     private maintenanceModel: Model<MaintenanceRequestDocument>,
-    @InjectModel(Registration.name)
-    private registrationModel: Model<RegistrationDocument>,
-    @InjectModel(PublicRegistration.name)
-    private publicRegistrationModel: Model<PublicRegistrationDocument>,
+    @InjectModel(DormitoryRosterEntry.name)
+    private rosterModel: Model<DormitoryRosterEntryDocument>,
   ) {}
 
   /**
@@ -210,14 +201,13 @@ export class DormitoryReportsService {
       utility_unpaid: 0,
     }));
 
-    const [buildings, rooms, beds, contracts, registrations, publicRegistrations, invoices, pendingMaintenance] =
+    const [buildings, rooms, beds, contracts, rosterEntries, invoices, pendingMaintenance] =
       await Promise.all([
         this.buildingModel.find().lean().exec(),
         this.roomModel.find().lean().exec(),
         this.bedModel.find({ status: { $ne: 'Đã nghỉ' } }).lean().exec(),
         this.contractModel.find().lean().exec(),
-        this.registrationModel.find().lean().exec(),
-        this.publicRegistrationModel.find().lean().exec(),
+        this.rosterModel.find().lean().exec(),
         this.invoiceModel.find().lean().exec(),
         this.maintenanceModel.countDocuments({ status: { $in: ['Mới', 'Đang xử lý'] } }),
       ]);
@@ -226,8 +216,7 @@ export class DormitoryReportsService {
     const roomList: any[] = rooms as any[];
     const bedList: any[] = beds as any[];
     const contractList: any[] = contracts as any[];
-    const formalRegistrations: any[] = registrations as any[];
-    const publicRegistrationList: any[] = publicRegistrations as any[];
+    const rosterList: any[] = rosterEntries as any[];
     const invoiceList: any[] = invoices as any[];
     const buildingById = new Map(buildingList.map((building) => [idOf(building._id), building]));
     const roomById = new Map(roomList.map((room) => [idOf(room._id), room]));
@@ -365,52 +354,35 @@ export class DormitoryReportsService {
       })),
     };
 
-    const unlinkedPublicRegistrations = publicRegistrationList.filter(
-      (registration) =>
-        !registration.linked_student_id &&
-        !registration.linked_registration_id &&
-        (registration.source === 'QR_SCAN' || registration.source === 'PUBLIC' || registration.source === 'ADMIN_ENTRY'),
-    );
-    const registrationRows = [
-      ...formalRegistrations.map((registration) => ({ ...registration, registration_source: 'FORMAL' })),
-      ...unlinkedPublicRegistrations.map((registration) => ({ ...registration, registration_source: registration.source === 'ADMIN_ENTRY' ? 'ADMIN_TEMPORARY' : 'PUBLIC' })),
-    ];
     const assignedRegistrationIds = new Set(
       contractList
-        .filter((contract) => contract.status === 'Hiệu lực' && contract.registration_id && contract.room_id)
-        .map((contract) => idOf(contract.registration_id))
+        .filter((contract) => contract.status === 'Hiệu lực' && contract.roster_entry_id && contract.room_id)
+        .map((contract) => idOf(contract.roster_entry_id))
         .filter((id): id is string => Boolean(id)),
     );
-    const requestedRoomType = (row: any) => row.preference?.room_type || row.room_type;
+    const requestedRoomType = (row: any) => row.room_type;
     const isAssigned = (row: any) => Boolean(
       row.room_id || row.bed_id || row.active_contract_id || assignedRegistrationIds.has(idOf(row._id) || ''),
     );
     const registrationSummary = {
-      total: registrationRows.length,
-      assigned: registrationRows.filter(isAssigned).length,
-      male: registrationRows.filter((row) => row.gender === 'Male').length,
-      female: registrationRows.filter((row) => row.gender === 'Female').length,
-      pending_confirmation: unlinkedPublicRegistrations.filter((row) => row.status === 'Chờ xác nhận').length,
-      pending_approval: formalRegistrations.filter((row) => row.status === 'Chờ duyệt').length,
-      approved_unassigned: registrationRows.filter(
-        (row) =>
-          (row.status === 'Đã duyệt' || row.status === 'Đã xác nhận') &&
-          !row.room_id &&
-          !row.bed_id &&
-          !assignedRegistrationIds.has(idOf(row._id) || ''),
-      ).length,
+      total: rosterList.length,
+      assigned: rosterList.filter(isAssigned).length,
+      male: rosterList.filter((row) => row.gender === 'Male').length,
+      female: rosterList.filter((row) => row.gender === 'Female').length,
+      unlinked: rosterList.filter((row) => row.identity_state !== 'LINKED').length,
+      unassigned: rosterList.filter((row) => !isAssigned(row)).length,
       requested_room_type: {
-        thuong: registrationRows.filter((row) => requestedRoomType(row) === 'Thường').length,
-        may_lanh: registrationRows.filter((row) => requestedRoomType(row) === 'Máy lạnh').length,
-        unknown: registrationRows.filter((row) => !ROOM_TYPES.includes(requestedRoomType(row))).length,
+        thuong: rosterList.filter((row) => requestedRoomType(row) === 'Thường').length,
+        may_lanh: rosterList.filter((row) => requestedRoomType(row) === 'Máy lạnh').length,
+        unknown: rosterList.filter((row) => !ROOM_TYPES.includes(requestedRoomType(row))).length,
       },
     };
 
     const category = (type: string) =>
       type === 'Phí phòng' ? 'fee' : type === 'Điện' || type === 'Nước' ? 'utility' : null;
     const feeSummary = { fee: { paid: 0, unpaid: 0 }, utility: { paid: 0, unpaid: 0 } };
-    for (const registration of registrationRows) {
-      const created = new Date(registration.createdAt);
+    for (const rosterEntry of rosterList) {
+      const created = new Date(rosterEntry.createdAt);
       const bucket = monthly.find(
         (item) => item.month === `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`,
       );
@@ -448,7 +420,7 @@ export class DormitoryReportsService {
       total_rooms: roomSummary.total_rooms,
       available_rooms: roomsWithBeds.length,
       active_contracts: activeContracts.length,
-      pending_registrations: registrationSummary.pending_approval,
+      pending_registrations: registrationSummary.unassigned,
       unpaid_invoices: outstandingInvoiceCount,
       pending_maintenance: pendingMaintenance,
       rooms: {
@@ -461,7 +433,7 @@ export class DormitoryReportsService {
         used: roomSummary.occupied_beds,
         free: roomSummary.free_beds,
       },
-      students: { registered: formalRegistrations.length, residing: activeContracts.length },
+      students: { registered: rosterList.filter((row) => row.student_id).length, residing: activeContracts.length },
       dormitory_fees: feeSummary.fee,
       utilities: feeSummary.utility,
       monthly,

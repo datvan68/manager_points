@@ -19,13 +19,13 @@ type ParentProfile = {
 
 type Registration = {
   _id?: string;
-  registration_code?: string;
+  roster_entry_code?: string;
+  identity_state?: string;
   semester?: string;
   academic_year?: string;
-  status?: string;
   phone_number?: string;
-  priority_group?: string;
-  preference?: { room_type?: string; building_id?: string; notes?: string };
+  room_type?: string;
+  notes?: string;
   assigned_room_name?: string;
   assigned_bed_code?: string;
   room_id?: { room_code?: string; room_name?: string } | string;
@@ -46,27 +46,25 @@ type Registration = {
 };
 
 type SelfRegistrationResponse = {
-  has_dormitory_registration?: boolean;
-  registration?: Registration | null;
+  has_dormitory_roster?: boolean;
+  roster_entry?: Registration | null;
   editable_fields?: string[];
   history?: Registration[];
 } & Registration;
 
-type RegistrationClient = typeof dormitoryApi.registrations & {
+type RegistrationClient = typeof dormitoryApi.roster & {
   getMine: () => Promise<SelfRegistrationResponse>;
   updateMine: (dto: Record<string, unknown>) => Promise<SelfRegistrationResponse>;
 };
 
-const client = dormitoryApi.registrations as RegistrationClient;
+const client = dormitoryApi.roster as RegistrationClient;
 
 type FormValues = Record<string, string>;
 
 const fields = [
   ["phone_number", "Số điện thoại"],
-  ["preference.room_type", "Loại phòng mong muốn"],
-  ["preference.building_id", "Tòa nhà mong muốn"],
-  ["preference.notes", "Ghi chú"],
-  ["priority_group", "Nhóm ưu tiên"],
+  ["room_type", "Loại phòng"],
+  ["notes", "Ghi chú"],
   ["applicant_profile.ethnicity", "Dân tộc"],
   ["applicant_profile.religion", "Tôn giáo"],
   ["applicant_profile.citizen_id_number", "Số CCCD/CMND"],
@@ -105,7 +103,7 @@ function assignPath(target: Record<string, any>, path: string, value: string) {
 }
 
 function registrationFrom(response: SelfRegistrationResponse): Registration | null {
-  if (response.registration) return response.registration;
+  if (response.roster_entry) return response.roster_entry;
   return response._id ? response : null;
 }
 
@@ -163,17 +161,17 @@ export function StudentDormitorySection() {
 
   if (loading) return <Skeleton aria-label="Đang tải thông tin KTX" className="h-56 w-full rounded-2xl bg-white/20" />;
   if (error) return <section className="rounded-2xl border border-red-200 bg-red-50/80 p-5" aria-label="Lỗi tải KTX"><div className="flex items-center gap-2 text-sm font-semibold text-red-700"><AlertTriangle className="h-4 w-4" />Không thể tải thông tin KTX</div><p className="mt-1 text-xs text-red-700">{error}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => void load()}><RefreshCw className="mr-1 h-3.5 w-3.5" />Thử lại</Button></section>;
-  if (!registration || response?.has_dormitory_registration === false) return null;
+  if (!registration || response?.has_dormitory_roster === false) return null;
 
   const roomName = registration.assigned_room_name || (typeof registration.room_id === "object" ? registration.room_id.room_name || registration.room_id.room_code : "");
   const bedCode = registration.assigned_bed_code || (typeof registration.bed_id === "object" ? registration.bed_id.bed_code : "");
   return <section className="rounded-2xl border border-white/70 bg-white/40 shadow-sm shadow-slate-300/40 backdrop-blur-md" aria-labelledby="student-dormitory-heading">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/60 px-5 py-4">
-      <div><h2 id="student-dormitory-heading" className="flex items-center gap-2 text-[15px] font-bold text-[#1E293B]"><Building2 className="h-5 w-5 text-[#1A73E8]" />Thông tin KTX</h2><p className="mt-1 text-xs text-[#64748B]">Mã đơn: {registration.registration_code || "Chưa có"}</p></div>
+      <div><h2 id="student-dormitory-heading" className="flex items-center gap-2 text-[15px] font-bold text-[#1E293B]"><Building2 className="h-5 w-5 text-[#1A73E8]" />Thông tin KTX</h2><p className="mt-1 text-xs text-[#64748B]">Mã mục: {registration.roster_entry_code || "Chưa có"}</p></div>
       {editing ? <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => { setValues(toForm(registration)); setEditing(false); }}><X className="mr-1 h-3.5 w-3.5" />Hủy</Button><Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save className="mr-1 h-3.5 w-3.5" />{saving ? "Đang lưu..." : "Lưu"}</Button></div> : editableFields.size > 0 ? <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}><Pencil className="mr-1 h-3.5 w-3.5" />Chỉnh sửa</Button> : null}
     </div>
     <div className="space-y-6 p-5">
-      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3"><Detail label="Trạng thái" value={registration.status} /><Detail label="Học kỳ" value={registration.semester} /><Detail label="Năm học" value={registration.academic_year} /><Detail label="Phòng đã xếp" value={roomName} /><Detail label="Giường đã xếp" value={bedCode} /><Detail label="Hợp đồng" value={registration.active_contract?.status || (registration.active_contract_id ? "Đang có hiệu lực" : "Chưa có")} /></div>
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3"><Detail label="Định danh" value={registration.identity_state} /><Detail label="Học kỳ" value={registration.semester} /><Detail label="Năm học" value={registration.academic_year} /><Detail label="Phòng đã xếp" value={roomName} /><Detail label="Giường đã xếp" value={bedCode} /><Detail label="Hợp đồng" value={registration.active_contract?.status || (registration.active_contract_id ? "Đang có hiệu lực" : "Chưa có")} /></div>
       <div><h3 className="mb-3 text-sm font-bold text-[#1E293B]">Thông tin đơn và người liên hệ</h3><div className="grid grid-cols-1 gap-4 md:grid-cols-2">{fields.map(([path, label]) => <Input key={path} label={label} multiline={path.endsWith("address") || path.endsWith("details") || path.endsWith("notes")} rows={2} value={editing ? values[path] ?? "" : getPath(registration, path) || "Chưa cập nhật"} readOnly={!editing || !isEditable(path) || saving} onChange={(event) => setValues((current) => ({ ...current, [path]: event.target.value }))} />)}</div></div>
     </div>
   </section>;

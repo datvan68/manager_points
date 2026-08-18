@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Calendar, DoorOpen, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import { ApplicantProfile, Bed, CreateDormRegistrationInput, dormitoryApi, DormRegistration, DormRegistrationSource, Room } from '@/api/dormitory-api';
+import { ApplicantProfile, Bed, CreateDormitoryRosterEntryInput, dormitoryApi, DormitoryRosterEntry, Room } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi, Semester } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -33,24 +33,22 @@ export const roomQuantityLabel = (room: Pick<Room, 'available_bed_count'> & Part
   ? `Còn ${room.available_bed_count} giường trống`
   : `Còn ${room.available_bed_count}/${room.max_students} giường trống`;
 export const isAvailableBed = (bed: Bed) => bed.status === 'Trống';
-export const studentName = (r: DormRegistration) => r.student_id?.full_name || r.public_registration?.full_name || (r as any).full_name || '—';
-export const studentCode = (r: DormRegistration) => {
-  const value = r.student_id?.student_code || r.public_registration?.student_code || (r as any).student_code;
+export const studentName = (r: DormitoryRosterEntry) => r.student_id?.full_name || r.full_name || '—';
+export const studentCode = (r: DormitoryRosterEntry) => {
+  const value = r.student_id?.student_code || r.student_code;
   return typeof value === 'string' && value.trim() ? value.trim() : 'Chưa có mã SV';
 };
-export const priorityLabel = (r: DormRegistration) => r.priority_group?.trim() && r.priority_group.trim() !== 'Không' ? 'Có' : 'Không';
-export const sourceLabel = (source?: DormRegistrationSource) => source === 'PUBLIC' ? 'QR' : 'Thủ công';
-export const roomLabel = (r: DormRegistration) => (r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id || 'Chưa xếp phòng';
-export const isUnassignedRoom = (r: DormRegistration) => !((r as any).assigned_room_name || (r as any).room_name || (r as any).room_code || r.preference?.building_id);
-export const hasAssignedBed = (r: DormRegistration) => Boolean(r.bed_id || (r.source === 'FORMAL' && (r as any).assigned_room_name));
-export type RoomAssignment = { room: Room | null; bed?: Bed; registration?: DormRegistration; active_contract_id?: string };
-export const applyRoomAssignment = (row: DormRegistration, assignment: RoomAssignment): DormRegistration => ({
+export const roomLabel = (r: DormitoryRosterEntry) => r.assigned_room_name || (typeof r.room_id === 'object' ? r.room_id.room_name || r.room_id.room_code : '') || 'Chưa xếp phòng';
+export const isUnassignedRoom = (r: DormitoryRosterEntry) => !r.room_id && !r.bed_id;
+export const hasAssignedBed = (r: DormitoryRosterEntry) => Boolean(r.bed_id);
+export type RoomAssignment = { room: Room | null; bed?: Bed; roster_entry?: DormitoryRosterEntry; active_contract_id?: string };
+export const applyRoomAssignment = (row: DormitoryRosterEntry, assignment: RoomAssignment): DormitoryRosterEntry => ({
   ...row,
-  ...(assignment.registration || {}),
+  ...(assignment.roster_entry || {}),
   room_id: assignment.room || undefined,
   bed_id: assignment.room ? assignment.bed || undefined : undefined,
   assigned_room_name: assignment.room ? assignment.room.room_name || assignment.room.room_code : undefined,
-  active_contract_id: assignment.active_contract_id || assignment.registration?.active_contract_id || row.active_contract_id,
+  active_contract_id: assignment.active_contract_id || assignment.roster_entry?.active_contract_id || row.active_contract_id,
 });
 export const createdDateLabel = (value?: string) => {
   if (!value) return '—';
@@ -75,25 +73,24 @@ const dateLabel = (value: string) => {
   return Number.isNaN(date.getTime()) ? 'Chọn ngày sinh' : date.toLocaleDateString('vi-VN');
 };
 
-function legacyRegistrationRows(rows: DormRegistration[]) {
+function rosterRows(rows: DormitoryRosterEntry[]) {
   const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
   return rows.map(row => ({
-    'Mã SV': text(row.student_id?.student_code) || text(row.public_registration?.student_code) || text((row as any).student_code),
-    'Họ và tên': text(row.student_id?.full_name) || text(row.public_registration?.full_name) || text((row as any).full_name),
-    'Phòng': text((row as any).assigned_room_name) || text((row as any).room_name) || text((row as any).room_code) || text(row.preference?.building_id),
-    'Ưu tiên': text(row.priority_group),
-    'Nguồn': row.source ? sourceLabel(row.source as DormRegistrationSource) : '',
+    'Mã SV': text(row.student_id?.student_code) || text(row.student_code),
+    'Họ và tên': text(row.student_id?.full_name) || text(row.full_name),
+    'Phòng': text(row.assigned_room_name) || text(typeof row.room_id === 'object' ? row.room_id.room_name || row.room_id.room_code : ''),
+    'Trạng thái định danh': row.identity_state || '',
     'Ngày tạo': row.createdAt ? createdDateLabel(row.createdAt) : '',
   }));
 }
 
-export const selectedPdfRegistration = (rows: DormRegistration[], selectedIds: string[]) => {
+export const selectedPdfRosterEntry = (rows: DormitoryRosterEntry[], selectedIds: string[]) => {
   if (selectedIds.length !== 1) return undefined;
   return rows.find(row => row._id === selectedIds[0]);
 };
 
 type RoomAssignmentPopoverProps = {
-  row: DormRegistration;
+  row: DormitoryRosterEntry;
   onAssigned: (assignment: RoomAssignment) => void;
 };
 
@@ -128,7 +125,7 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     setBeds([]);
     setError('');
     setLoading(true);
-    void dormitoryApi.registrations.suggestRooms(row._id)
+    void dormitoryApi.roster.suggestRooms(row._id)
       .then(setRooms)
       .catch((err: any) => setError(err?.message || 'Không thể tải danh sách phòng.'))
       .finally(() => setLoading(false));
@@ -158,10 +155,10 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     setAssigning(true);
     setError('');
     try {
-      const result = await dormitoryApi.registrations.assignRoom({ registration_id: row._id, room_id: room._id, bed_id: bed._id });
+      const result = await dormitoryApi.roster.assignRoom({ roster_entry_id: row._id, room_id: room._id, bed_id: bed._id });
       toast.success(currentRoomId ? 'Đã đổi phòng cho sinh viên' : 'Đã phân phòng cho sinh viên');
       setOpen(false);
-      onAssigned({ room: result.room || room, bed: result.bed || bed, registration: result.registration, active_contract_id: result.active_contract_id });
+      onAssigned({ room: result.room || room, bed: result.bed || bed, roster_entry: result.roster_entry, active_contract_id: result.active_contract_id });
     } catch (err: any) {
       setError(err?.message || 'Không thể phân phòng.');
     } finally {
@@ -174,10 +171,10 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     setAssigning(true);
     setError('');
     try {
-      const result = await dormitoryApi.registrations.unassignRoom(row._id);
+      const result = await dormitoryApi.roster.unassignRoom(row._id);
       toast.success('Đã bỏ chọn phòng');
       setOpen(false);
-      onAssigned({ room: null, bed: result.bed, registration: result.registration });
+      onAssigned({ room: null, bed: result.bed, roster_entry: result.roster_entry });
     } catch (err: any) {
       setError(err?.message || 'Không thể bỏ chọn phòng.');
     } finally { setAssigning(false); }
@@ -249,16 +246,15 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   );
 }
 
-export default function RegistrationsPage() {
+export default function DormitoryRosterPage() {
   const { hasPermission } = useAuth();
   const canCreate = hasPermission('DORM_REG_CREATE');
   const canView = hasPermission('DORM_REG_READ');
   const canUpdate = hasPermission('DORM_REG_UPDATE');
   const canDelete = hasPermission('DORM_REG_DELETE');
   const canAssignRoom = hasPermission('DORM_REG_UPDATE');
-  const [registrations, setRegistrations] = useState<DormRegistration[]>([]);
+  const [registrations, setRegistrations] = useState<DormitoryRosterEntry[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const [source, setSource] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
   const [selected, setSelected] = useState<string[]>([]);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -268,22 +264,22 @@ export default function RegistrationsPage() {
   const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
-  const [editRow, setEditRow] = useState<DormRegistration | null>(null);
-  const [deleteRow, setDeleteRow] = useState<DormRegistration | null>(null); const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [pdfRow, setPdfRow] = useState<DormRegistration | null>(null); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
+  const [editRow, setEditRow] = useState<DormitoryRosterEntry | null>(null);
+  const [deleteRow, setDeleteRow] = useState<DormitoryRosterEntry | null>(null); const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [pdfRow, setPdfRow] = useState<DormitoryRosterEntry | null>(null); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
 
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
-  const loadPdfPreview = async (row: DormRegistration) => {
+  const loadPdfPreview = async (row: DormitoryRosterEntry) => {
     if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
     setPdfRow(row); setPdfLoading(true); setPdfError('');
-    try { setPdfUrl(URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, row.source as DormRegistrationSource, 'inline'))); }
+    try { setPdfUrl(URL.createObjectURL(await dormitoryApi.roster.getApplicationPdf(row._id, 'inline'))); }
     catch (err: any) { setPdfError(err?.message || 'Không thể tạo bản xem trước đơn KTX.'); }
     finally { setPdfLoading(false); }
   };
-  const downloadPdf = async (row: DormRegistration) => {
+  const downloadPdf = async (row: DormitoryRosterEntry) => {
     try {
-      const url = URL.createObjectURL(await dormitoryApi.registrations.getApplicationPdf(row._id, row.source as DormRegistrationSource, 'attachment'));
-      const link = document.createElement('a'); link.href = url; link.download = `don-ky-tuc-xa-${String(row.registration_code || row._id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(await dormitoryApi.roster.getApplicationPdf(row._id, 'attachment'));
+      const link = document.createElement('a'); link.href = url; link.download = `danh-sach-ktx-${String(row.roster_entry_code || row._id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     } catch (err: any) { toast.error(err?.message || 'Không thể xuất PDF đơn KTX.'); }
   };
 
@@ -316,38 +312,34 @@ export default function RegistrationsPage() {
     const birthDate = createForm.date_of_birth ? new Date(`${createForm.date_of_birth}T00:00:00`) : null;
     if (semesterLoading) { setCreateError('Đang tải học kỳ active, vui lòng chờ.'); return; }
     if (semesterError || !createForm.semester || !createForm.academic_year) { setCreateError(semesterError || 'Chưa xác định được học kỳ active.'); return; }
-    const hasClass = Boolean(student && student.student_code && student.class_id);
     const temporaryName = student ? '' : studentSearch.trim();
-    if (!hasClass && !temporaryName) { setCreateError('Vui lòng chọn sinh viên từ kết quả tìm kiếm hoặc nhập họ tên để lưu tạm.'); return; }
-    if (student && !hasClass) { setCreateError('Sinh viên đã chọn chưa có mã sinh viên và lớp đầy đủ. Hãy xóa lựa chọn rồi nhập họ tên để lưu tạm.'); return; }
+    if (!student && !temporaryName) { setCreateError('Vui lòng chọn sinh viên từ kết quả tìm kiếm hoặc nhập họ tên.'); return; }
     if (!birthDate || Number.isNaN(birthDate.getTime()) || birthDate >= new Date()) { setCreateError('Ngày sinh phải là một ngày hợp lệ trong quá khứ.'); return; }
     if (!createForm.gender || !createForm.phone_number.trim()) { setCreateError('Vui lòng nhập đủ ngày sinh, giới tính và số điện thoại.'); return; }
     if (!/^[0-9+().\s-]{8,20}$/.test(createForm.phone_number.trim())) { setCreateError('Số điện thoại không hợp lệ.'); return; }
     if (!student) {
-      try { setCreateSaving(true); await dormitoryApi.registrations.createTemporary({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã lưu đăng ký tạm, chờ phân loại'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể lưu đăng ký tạm.'); } finally { setCreateSaving(false); }
+      try { setCreateSaving(true); await dormitoryApi.roster.create({ full_name: temporaryName, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined }); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
       return;
     }
-    const payload: CreateDormRegistrationInput = { student_id: student._id, semester: createForm.semester, academic_year: createForm.academic_year, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim() };
-    const preference = { room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
-    if (Object.values(preference).some(Boolean)) payload.preference = preference;
-    try { setCreateSaving(true); await dormitoryApi.registrations.create(payload); toast.success('Đã tạo đơn đăng ký KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể tạo đơn đăng ký.'); } finally { setCreateSaving(false); }
+    const payload: CreateDormitoryRosterEntryInput = { student_id: student._id, date_of_birth: createForm.date_of_birth, gender: createForm.gender, phone_number: createForm.phone_number.trim(), room_type: createForm.gender === 'Female' ? createForm.room_type : 'Thường', notes: createForm.notes || undefined };
+    try { setCreateSaving(true); await dormitoryApi.roster.create(payload); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
   };
   const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
-  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.registrations.getAll({ source: source || undefined, search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải danh sách đăng ký.'); toast.error(err?.message || 'Lỗi tải danh sách đăng ký'); } finally { setLoading(false); setRefreshing(false); } }, [source, search, page, pageSize]);
+  const load = useCallback(async (background = false) => { try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page, limit: pageSize }); setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); } finally { setLoading(false); setRefreshing(false); } }, [search, page, pageSize]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
-  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [source, search, pageSize]);
+  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [search, pageSize]);
   const loadMoreMobile = useCallback(async () => {
     if (mobileLoadingMore || !mobileHasMoreRef.current) return;
     setMobileLoadingMore(true);
     const nextPage = mobilePageRef.current + 1;
     try {
-      const res = await dormitoryApi.registrations.getAll({ source: source || undefined, search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
       mobilePageRef.current = nextPage;
       mobileHasMoreRef.current = next.length === pageSize && nextPage * pageSize < res.meta.total;
     } catch { setError('Không thể tải thêm đăng ký.'); } finally { setMobileLoadingMore(false); }
-  }, [source, search, pageSize, mobileLoadingMore]);
+  }, [search, pageSize, mobileLoadingMore]);
   useEffect(() => {
     const target = mobileSentinelRef.current;
     if (!target) return;
@@ -357,17 +349,17 @@ export default function RegistrationsPage() {
   }, [loadMoreMobile]);
   const allSelected = registrations.length > 0 && registrations.every(row => selected.includes(row._id));
   const toggleAll = (checked: boolean) => setSelected(checked ? registrations.map(row => row._id) : []);
-  const openEdit = (row: DormRegistration) => setEditRow(row);
+  const openEdit = (row: DormitoryRosterEntry) => setEditRow(row);
   const deleteRegistration = async () => {
     if (!deleteRow) return;
-    await dormitoryApi.registrations.delete(deleteRow._id, deleteRow.source as DormRegistrationSource);
+    await dormitoryApi.roster.delete(deleteRow._id);
     toast.success('Đã xóa đơn đăng ký'); setSelected(ids => ids.filter(id => id !== deleteRow._id)); setDeleteRow(null); await load(true);
   };
   const removeSelected = async () => {
     if (bulkDeleting || !selected.length) return;
     setBulkDeleting(true);
     const selectedIds = [...selected];
-    const results = await Promise.allSettled(selectedIds.map(id => { const row = registrations.find(item => item._id === id); return row ? dormitoryApi.registrations.delete(id, row.source as DormRegistrationSource) : Promise.reject(new Error('Không tìm thấy đơn đăng ký')); }));
+    const results = await Promise.allSettled(selectedIds.map(id => registrations.some(item => item._id === id) ? dormitoryApi.roster.delete(id) : Promise.reject(new Error('Không tìm thấy mục Danh sách KTX'))));
     const deletedIds = selectedIds.filter((_, index) => results[index].status === 'fulfilled');
     const failedIds = selectedIds.filter((_, index) => results[index].status === 'rejected');
     setSelected(failedIds); setBulkDeleteOpen(false);
@@ -378,17 +370,17 @@ export default function RegistrationsPage() {
     setBulkDeleting(false);
   };
   const openSelectedPdfPreview = () => {
-    const row = selectedPdfRegistration(registrations, selected);
+    const row = selectedPdfRosterEntry(registrations, selected);
     if (!row) {
       toast.error(selected.length ? 'Vui lòng chỉ chọn một đơn để xuất PDF.' : 'Vui lòng chọn một đơn để xuất PDF.');
       return;
     }
     void loadPdfPreview(row);
   };
-  const columns: ResponsiveColumn<DormRegistration>[] = [
+  const columns: ResponsiveColumn<DormitoryRosterEntry>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
-    { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'priority', header: 'Ưu tiên', render: (_, r) => priorityLabel(r) },
-    { key: 'status', header: 'Trạng thái', render: (_, r) => <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-bold text-purple-700">{sourceLabel(r.source as DormRegistrationSource)}</span> },
+    { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
+    { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
     { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div> },
   ];
@@ -403,15 +395,6 @@ export default function RegistrationsPage() {
         <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden sm:flex shrink-0 w-[231px]" />
         <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>
         <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
-          <Select value={source || 'ALL'} onValueChange={v => { setSource(v === 'ALL' ? '' : v); reset(); }}>
-            <SelectTrigger aria-label="Lọc nguồn" className="h-9 min-w-[115px] rounded-xl border border-white/80 bg-white/60 px-3 text-xs font-semibold text-slate-700 shadow-none"><SelectValue placeholder="Tất cả nguồn" /></SelectTrigger>
-            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/70 shadow-xl rounded-xl z-[100]">
-              <SelectItem value="ALL">Tất cả nguồn</SelectItem>
-              <SelectItem value="FORMAL">Chính thức</SelectItem>
-              <SelectItem value="PUBLIC">QR</SelectItem>
-              <SelectItem value="ADMIN_TEMPORARY">Nhập tạm</SelectItem>
-            </SelectContent>
-          </Select>
           {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
           {canCreate && <Button type="button" variant="outline" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
           <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>

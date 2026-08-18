@@ -229,9 +229,8 @@ export default function DormitoryOverviewPage() {
     assigned: 0,
     male: 0,
     female: 0,
-    pending_confirmation: 0,
-    pending_approval: 0,
-    approved_unassigned: 0,
+    unlinked: 0,
+    unassigned: 0,
     requested_room_type: { thuong: 0, may_lanh: 0, unknown: 0 },
   };
   const invoices = invoiceSummary || {
@@ -252,7 +251,7 @@ export default function DormitoryOverviewPage() {
           <p className="mt-0.5 text-xs text-slate-500">Theo dõi phòng, giường và công nợ theo từng phòng.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/dormitory/registrations" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
+          <Link href="/dormitory/roster" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
             <ClipboardCheck size={14} className="text-blue-600" /> Danh sách
           </Link>
           <Link href="/dormitory/invoices" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
@@ -453,7 +452,7 @@ export default function DormitoryOverviewPage() {
           <Stat label="Nữ" value={registrations.female} />
           <Stat label="Máy lạnh" value={registrations.requested_room_type.may_lanh} />
         </div>
-        <p className="mt-2.5 text-xs text-slate-500">Hồ sơ QR đã liên kết được loại khỏi tổng số để tránh đếm trùng. <Link href="/dormitory/registrations" className="font-semibold text-blue-600 hover:underline">Mở danh sách</Link></p>
+        <p className="mt-2.5 text-xs text-slate-500"><Link href="/dormitory/roster" className="font-semibold text-blue-600 hover:underline">Mở Danh sách KTX</Link></p>
       </Card>
 
       <div className="grid gap-2.5 text-xs text-slate-500 sm:grid-cols-3">
