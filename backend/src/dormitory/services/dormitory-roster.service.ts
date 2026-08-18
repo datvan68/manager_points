@@ -9,6 +9,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { randomUUID } from 'crypto';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { PDFDocument } from 'pdf-lib';
 import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 import { ApplicantProfile } from '../schemas/applicant-profile.schema';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
@@ -296,18 +299,24 @@ export class DormitoryRosterService {
   }
 
   async generateApplicationPdf(id: string) {
-    const entry: any = await this.rosterModel.findById(id).populate('student_id').populate('room_id').populate('bed_id').exec();
+    const entry: any = await this.rosterModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).populate('room_id').populate('bed_id').exec();
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
     const value = this.toResponse(entry);
-    const html = `<html><body><h1>Danh sách KTX</h1><p>Mã: ${this.escape(value.roster_entry_code)}</p><p>Họ tên: ${this.escape(value.full_name)}</p><p>Ngày sinh: ${this.escape(value.date_of_birth)}</p><p>Giới tính: ${this.escape(value.gender)}</p><p>Số điện thoại: ${this.escape(value.phone_number)}</p><p>Loại phòng: ${this.escape(value.room_type)}</p><p>Ghi chú: ${this.escape(value.notes)}</p></body></html>`;
+    const pdfValues = this.applicationPdfValues(value, this.plain(entry.student_id));
     let browser: any;
     try {
-      const puppeteer = await import('puppeteer');
+      const puppeteer = require('puppeteer');
       browser = await puppeteer.default.launch({ headless: true, args: ['--no-sandbox'] });
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      const buffer = await page.pdf({ format: 'A4', printBackground: true });
-      return { buffer: Buffer.from(buffer), filename: `danh-sach-ktx-${value.roster_entry_code}.pdf` };
+      await page.setContent(this.applicationPdfOverlayHtml(pdfValues), { waitUntil: 'load' });
+      const overlay = await page.pdf({ format: 'A4', printBackground: true, pageRanges: '1' });
+      const templatePath = join(__dirname, '../templates/dormitory-roster-application.pdf');
+      const template = await PDFDocument.load(await readFile(templatePath));
+      const overlayDocument = await PDFDocument.load(overlay);
+      const [overlayPage] = await template.embedPages([overlayDocument.getPages()[0]]);
+      template.getPages()[0].drawPage(overlayPage, { x: 0, y: 0, width: 595.32, height: 842.04 });
+      const buffer = await template.save({ useObjectStreams: false });
+      return { buffer: Buffer.from(buffer), filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
     } catch (error) {
       throw new ServiceUnavailableException('Không thể tạo PDF mục Danh sách lúc này.');
     } finally {
@@ -317,6 +326,71 @@ export class DormitoryRosterService {
 
   private escape(value: unknown) {
     return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' } as Record<string, string>)[character]);
+  }
+
+  private safeFilename(value: unknown) {
+    return String(value || 'don-ktx').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'don-ktx';
+  }
+
+  private formatPdfDate(value: unknown) {
+    const date = new Date(String(value || ''));
+    if (Number.isNaN(date.getTime())) return '';
+    return `${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}/${date.getUTCFullYear()}`;
+  }
+
+  private applicationPdfValues(roster: any, student: any) {
+    const linkedStudent = roster.identity_state === 'LINKED' && student ? student : null;
+    const profile = roster.applicant_profile || {};
+    const parent = (key: 'father' | 'mother') => profile[key] || {};
+    return {
+      name: linkedStudent?.full_name || roster.full_name,
+      dob: this.formatPdfDate(linkedStudent?.date_bir || roster.date_of_birth),
+      gender: ({ Male: 'Nam', Female: 'Nữ', Other: 'Khác' } as Record<string, string>)[linkedStudent?.sex || roster.gender] || '',
+      className: linkedStudent?.class_id?.class_name || '',
+      faculty: linkedStudent?.class_id?.dept_id?.name || '',
+      ethnicity: profile.ethnicity,
+      religion: profile.religion,
+      phone: roster.phone_number,
+      citizenId: profile.citizen_id_number,
+      citizenIssueDate: this.formatPdfDate(profile.citizen_id_issue_date),
+      citizenIssuePlace: profile.citizen_id_issue_place,
+      permanentAddress: profile.permanent_address,
+      fatherName: parent('father').full_name,
+      fatherAge: parent('father').age,
+      fatherAddress: parent('father').permanent_address,
+      fatherContactAddress: parent('father').contact_address,
+      fatherOccupation: parent('father').occupation,
+      fatherPhone: parent('father').phone_number,
+      motherName: parent('mother').full_name,
+      motherAge: parent('mother').age,
+      motherAddress: parent('mother').permanent_address,
+      motherContactAddress: parent('mother').contact_address,
+      motherOccupation: parent('mother').occupation,
+      motherPhone: parent('mother').phone_number,
+      priority: profile.priority_certificate_details,
+    };
+  }
+
+  private applicationPdfOverlayHtml(values: Record<string, unknown>) {
+    const fields: Array<[string, number, number, number, number?]> = [
+      ['name', 296, 191, 240], ['dob', 323.5, 215, 77], ['gender', 459, 215, 77],
+      ['className', 218, 239, 142], ['faculty', 396.8, 239, 139],
+      ['ethnicity', 241, 263, 56], ['religion', 354.5, 263, 49], ['phone', 466.4, 263, 69.6],
+      ['citizenId', 235.2, 287, 70], ['citizenIssueDate', 362.5, 287, 63], ['citizenIssuePlace', 480.7, 287, 55],
+      ['permanentAddress', 203, 311, 332], ['fatherName', 152.4, 335, 239.6], ['fatherAge', 396.8, 335, 139.2],
+      ['fatherAddress', 203, 359, 332], ['fatherContactAddress', 194.9, 383, 341.1], ['fatherOccupation', 194.9, 407, 114.9], ['fatherPhone', 375.9, 407, 160.1],
+      ['motherName', 152.4, 431, 196], ['motherAge', 386.4, 431, 149.6], ['motherAddress', 203, 455, 332], ['motherContactAddress', 194.9, 479, 341.1], ['motherOccupation', 194.9, 503, 114.9], ['motherPhone', 375.9, 503, 160.1], ['priority', 302.8, 527, 233.3],
+    ];
+    const field = (name: string, left: number, top: number, width: number, height = 18) => {
+      const value = String(values[name] ?? '');
+      const fontSize = value ? Math.max(7.5, Math.min(12, (width * 1.75) / Math.max(value.length, 1))) : 12;
+      const estimatedWidth = value.length * fontSize * 0.52;
+      const scaleX = value && estimatedWidth > width ? width / estimatedWidth : 1;
+      return `<span class="field" style="left:${left}pt;top:${top}pt;width:${width}pt;height:${height}pt;font-size:${fontSize.toFixed(2)}pt;transform:scaleX(${scaleX.toFixed(3)})">${this.escape(value)}</span>`;
+    };
+    return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:595.32pt 842.04pt;margin:0}*{box-sizing:border-box}html,body{margin:0;width:595.32pt;height:842.04pt;background:transparent}body{font-family:"Times New Roman","DejaVu Serif",serif;color:#000}.field{position:absolute;display:block;padding:1pt 0;background:#fff;line-height:16pt;white-space:nowrap;overflow:visible;transform-origin:left center}</style></head><body>
+      ${fields.map(([name, left, top, width, height]) => field(name, left, top, width, height)).join('')}
+    </body></html>`;
   }
 
   private async authorizeStudentView(student: any, requester?: RosterUser) {

@@ -1,5 +1,6 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
 import { ConflictException } from '@nestjs/common';
+import { PDFDocument } from 'pdf-lib';
 import { DormitoryRosterService } from './dormitory-roster.service';
 
 function query<T>(value: T) {
@@ -56,5 +57,50 @@ describe('DormitoryRosterService', () => {
 
     await expect(service.remove('507f1f77bcf86cd799439011')).rejects.toBeInstanceOf(ConflictException);
     expect(rosterModel.findByIdAndDelete).not.toHaveBeenCalled();
+  });
+
+  it('maps linked student and applicant data into a one-page A4 PDF without placeholders', async () => {
+    const { service, rosterModel } = setup();
+    const linkedStudent = { ...student, class_id: { class_name: 'CNTT K20', dept_id: { name: 'Công nghệ thông tin' } } };
+    const entry: any = {
+      _id: 'roster-1', roster_entry_code: 'DK-TEST', student_id: linkedStudent, full_name: 'Client override',
+      date_of_birth: new Date('2000-01-01'), gender: 'Female', phone_number: '0912345678', identity_state: 'LINKED',
+      applicant_profile: { ethnicity: 'Kinh', religion: 'Không', citizen_id_number: '012345678901', citizen_id_issue_date: new Date('2022-03-04'), citizen_id_issue_place: 'Cục CSQLHC', permanent_address: 'Hà Nội' },
+    };
+    rosterModel.findById.mockReturnValue(query(entry));
+
+    const result = await service.generateApplicationPdf('roster-1');
+    const document = await PDFDocument.load(result.buffer);
+    expect(result.filename).toBe('don-xin-vao-ktx-DK-TEST.pdf');
+    expect(document.getPageCount()).toBe(1);
+    expect(document.getPage(0).getWidth()).toBeCloseTo(595.32, 1);
+    expect(document.getPage(0).getHeight()).toBeCloseTo(842.04, 1);
+    const html = (service as any).applicationPdfOverlayHtml((service as any).applicationPdfValues((service as any).toResponse(entry), linkedStudent));
+    expect(html).toContain('Nguyễn Văn A');
+    expect(html).toContain('CNTT K20');
+    expect(html).not.toContain('undefined');
+    expect(html).not.toContain('null');
+    expect(html).toContain('font-family:"Times New Roman"');
+    expect(html).toContain('left:323.5pt');
+    expect(html).toContain('left:241pt');
+    expect(html).toContain('left:354.5pt');
+    expect(html).toContain('left:362.5pt');
+    expect(html).toContain('left:480.7pt');
+    expect((service as any).formatPdfDate('2024-04-14T00:00:00.000Z')).toBe('14/04/2024');
+  }, 30000);
+
+  it('keeps long values inside their measured field width with deterministic font fitting', () => {
+    const { service } = setup();
+    const html = (service as any).applicationPdfOverlayHtml({
+      name: 'Nguyễn Văn Tấn Đạt',
+      permanentAddress: 'Số 123 đường Nguyễn Trãi, phường Thanh Xuân Trung, quận Thanh Xuân, Hà Nội',
+      citizenIssueDate: '14/04/2024',
+      citizenIssuePlace: 'Cục Cảnh sát quản lý hành chính về trật tự xã hội',
+    });
+    expect(html).toContain('left:203pt');
+    expect(html).toContain('left:480.7pt');
+    expect(html).toMatch(/font-size:\d+\.\d{2}pt/);
+    expect(html).not.toContain('undefined');
+    expect(html).not.toContain('null');
   });
 });

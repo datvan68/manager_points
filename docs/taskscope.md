@@ -1,107 +1,97 @@
-# Task Identity and Pipeline
+# Taskscope: Fix PDF overlay đơn xin vào KTX
 
-Task: `fix-dormitory-roster-frontend-regressions` | Pipeline: `bugfix` | Profile: Full | Risk: medium | Base: `5c09d966` | Planning state: taskscope only; frontend implementation, backend changes, database mutation, deployment, and production operations are not authorized by this document update.
+## Task Identity and Pipeline
 
-# Objective
+- Task: `fix-dormitory-application-pdf-overlay`
+- Pipeline: `bug_fix`
+- Profile/rules: Full / 3.2.0
+- Repository/base: `D:\PROJECT\manager_points`, branch `main`, commit `654f7aa2`.
+- State: the PDF implementation is currently uncommitted. This taskscope update authorizes planning only; it does not authorize implementation, dependency changes, database changes, deployment, or production operations.
 
-Fix the current KTX frontend regressions without redesigning the established “Danh sách” UI. The admin roster, standalone public registration page, and room-QR registration path must use one canonical `DormitoryRosterEntry` form/data contract, reflect server-authoritative Student fields correctly, and remain stable under overlapping requests.
+## Risk Level
 
-# Confirmed Findings
+- Risk: high; the generated document contains student identity, CCCD, phone, address, and parent information.
+- Environment: development. The change is source-reversible and does not require persistent-data mutation.
+- Blast radius: the authenticated single-student PDF preview/download path under Dormitory Roster.
 
-1. `frontend/src/app/(dashboard)/dormitory/roster/page.tsx` declares the “Định danh” column twice with the same key, so the desktop/mobile data view can render duplicate content and unstable keys.
-2. `frontend/src/app/public/room/[qrId]/page.tsx` still owns a legacy registration form. It posts `full_name`, phone, email, Student code, priority group, and notes, but omits the date of birth and gender required by the canonical roster service. This room-QR path can therefore fail while `/public/dormitory/register` succeeds.
-3. The two public entry points have drifted: the room page uses raw `fetch`, `alert`, legacy fields, and “xác nhận” copy, while the standalone page uses `PublicDormitoryRegistrationModal` and the canonical payload builder.
-4. Linked Student fields have misleading edit behavior. The manager create form allows users to alter prefilled date of birth and gender even though the backend resolves linked identity from `student_id`. The edit modal also leaves date of birth/gender editable but locks manager-supplied room type/notes, causing apparent successful edits to revert or preventing valid edits.
-5. Legacy wording remains after the approval/source flow was removed: “đơn đăng ký”, “họ tên tạm”, “lưu tạm để phân loại”, and “chờ xác nhận”. This conflicts with the canonical “Danh sách KTX” flow and suggests an approval step that no longer exists.
-6. Roster loading and Student lookup rely only on timers. Requests already in flight are not cancelled or sequence-guarded, so an older search/page response can overwrite a newer result. A create operation also calls `reset()` and immediately invokes a `load` closure that may still contain the previous page.
-7. The public modal renders a controlled `Dialog open` without a controlled close handler. The visible close affordance has no reliable outcome, especially when the form is reused from the room detail page.
-8. Current focused tests cover API helpers and payload builders but do not render the roster page, submit either complete public flow, verify linked-field locking, exercise dialog closing, or simulate out-of-order responses. The existing focused tests, typecheck, and production build pass despite the confirmed UI bugs.
+## Objective
 
-# Scope Boundaries
+Correct the PDF value overlay so every mapped value is legible and placed only in the corresponding blank region of the original one-page A4 form, without covering labels, shifting static content, clipping valid data, or creating an additional page.
 
-Read/write boundaries:
+## Scope Boundaries
 
-- `frontend/src/app/(dashboard)/dormitory/roster/page.tsx`
-- `frontend/src/app/(dashboard)/dormitory/roster/page.test.tsx`
-- `frontend/src/app/public/dormitory/register/page.tsx`
-- `frontend/src/app/public/room/[qrId]/page.tsx`
-- a focused test beside `frontend/src/app/public/room/[qrId]/page.tsx`
-- `frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx`
-- `frontend/src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx`
-- `frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx`
-- `frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx`
-- `frontend/src/api/dormitory-api.ts` and `frontend/src/api/dormitory-api.test.ts` only if a frontend type or API wrapper must be aligned with the already-existing canonical backend contract
+- Approved/write boundaries:
+  - `backend/src/dormitory/services/dormitory-roster.service.ts`
+  - `backend/src/dormitory/services/dormitory-roster.service.spec.ts`
+  - `backend/src/dormitory/templates/dormitory-roster-application.pdf` only to verify that the versioned asset still matches the approved source; do not visually alter it.
+  - a focused synthetic visual fixture or test helper under `backend/src/dormitory/**` when required.
+- Review-only boundaries: `backend/package.json`, `backend/package-lock.json`, and `backend/nest-cli.json`; retain only changes required by the existing renderer/template asset.
+- Known symbols: `generateApplicationPdf`, `applicationPdfValues`, `applicationPdfOverlayHtml`, `formatPdfDate`.
 
-Preserve:
+## Out of Scope
 
-- the current “Danh sách” layout, toolbar, table/card hierarchy, responsive behavior, pagination, mobile incremental loading, selection/floating actions, QR dialog, create/edit dialogs, room assignment, delete confirmation, PDF preview/export, permission-aware actions, and loading/empty/error presentation;
-- the room information page and its room/bed/amenity presentation;
-- `/dormitory/roster`, `/public/dormitory/register`, `/public/room/[qrId]`, canonical API paths, permission codes, and public privacy behavior.
+- Frontend workflow changes, batch export, editing roster/student data, schema or DTO changes, migrations, signatures, photo upload, public registration, deployment, and production data.
+- Do not add new fields or fabricate unavailable values.
+- Do not replace or redesign the supplied static form.
 
-# Out of Scope
+## Context and Dependencies
 
-- Backend services, DTOs, schemas, indexes, identity matching, room assignment rules, or response changes.
-- Database reset, seed, migration, deployment, production changes, or legacy-data recovery.
-- Reintroducing `Registration`, `PublicRegistration`, approval/rejection, source filters, temporary collections, or compatibility endpoints.
-- Redesigning the KTX UI, changing shared visual tokens, or broadly refactoring common UI components.
-- Adding new applicant requirements beyond the existing canonical contract.
-- Exposing Student existence, PII, or raw MongoDB identifiers on public pages.
+- The source/template is an unencrypted, non-interactive, one-page A4 PDF (`595.32 x 842.04 pt`) using Times New Roman at approximately `14.04 pt` for form labels.
+- Confirmed root cause: every value is rendered as a fixed-width white `span`; several spans begin before the dotted blank and erase the underlying label.
+- Confirmed coordinate conflicts:
+  - `dob` currently starts at `x=294`, while `sinh:` ends near `x=323.5`;
+  - `ethnicity` starts at `x=218`, while `tộc:` ends near `x=241.0`;
+  - `religion` starts at `x=324`, while `giáo:` ends near `x=354.5`;
+  - `citizenIssueDate` covers `x=395..479`, overlapping the complete `Nơi cấp:` label at approximately `x=428.8..477.1`;
+  - permanent/parent address overlays start near `x=178`, before `trú:` has ended;
+  - phone and several other values begin at or before the final label glyph.
+- The overlay currently uses Arial `9 pt`, `white-space: nowrap`, and `overflow: hidden`, causing a visible typography mismatch and silent truncation of long values.
+- Existing tests validate page size and selected HTML strings but do not detect label erasure, overlap, font mismatch, or clipping.
+- Preserve the current server-authoritative mapping, `DORM_REG_READ`, `inline|attachment`, safe filename behavior, HTML escaping, Vietnamese Unicode, and one-page A4 response contract.
 
-# Implementation Steps
+## Steps
 
-1. Add characterization tests that render the affected pages/components and fail for the confirmed regressions before changing behavior. Keep existing helper tests, but do not treat them as sufficient interaction coverage.
-2. Make `PublicDormitoryRegistrationModal` the single owner of public registration state, validation, canonical payload construction, active-semester blocking, submit state, inline errors, and success-code display.
-3. Replace the legacy form/state/submit code inside `/public/room/[qrId]` with the canonical public form component configured with `qr_room_id`. Preserve the room detail page and CTA. Do not keep a second payload builder, raw registration `fetch`, `alert`, email, priority-group, or confirmation-specific copy in that page.
-4. Give the reusable public form explicit open/close behavior. Closing from the room page must return to the room detail without losing its loaded data. The standalone route must not render a close control that does nothing; it must either provide a meaningful navigation result or intentionally omit the affordance without changing shared dialog behavior globally.
-5. Define one frontend field-authority policy:
-   - linked Student: full name, Student code, date of birth, and gender are displayed as server-authoritative and are not presented as editable overrides;
-   - linked Student: phone number, room type, notes, and applicant profile remain editable when allowed by the backend contract;
-   - unlinked entry: validated full name, optional Student code, date of birth, gender, phone number, room type, notes, and applicant profile remain editable;
-   - active semester remains server-resolved and display-only.
-6. Apply that policy consistently to manager create and edit. Selecting a Student must prefill and lock authoritative identity values; clearing/changing the selection must explicitly return to manual mode. Never submit identity overrides that the server will discard for a linked Student.
-7. Remove the duplicate “Định danh” column. Keep exactly one column/badge and preserve the current ordering, styling, and responsive priorities of all other columns.
-8. Replace obsolete approval/temporary/source terminology with canonical user-facing language such as “mục Danh sách KTX”, “hồ sơ chưa liên kết”, and “đăng ký thành công”. “Đăng ký” remains valid as an action; no text may imply that a separate approval or confirmation is required before the entry appears in “Danh sách”.
-9. Make roster list/search and Student lookup latest-request-wins using request cancellation or a monotonically increasing request token. Debouncing must not permit stale responses to overwrite the current query. After create/edit/delete, reload using the settled current page/filter state; when creation resets to page 1, only the page-1 result may commit.
-10. Keep independent frontend requests parallel where safe and avoid adding new client-side waterfalls or duplicate API calls. Do not add dependencies for request management.
-11. Add focused regression tests for the acceptance criteria, then run focused tests, full frontend typecheck, production build, and a final scoped diff/status review.
+1. Capture a regression baseline by rendering a synthetic representative PDF at 150 DPI. Record the damaged static labels and the bounds of every variable region using the source PDF bbox data.
+2. Replace ad hoc field arguments with an explicit field-layout definition containing the verified blank-region bounds, alignment, font-size range, and overflow behavior for every mapped value.
+3. Move each white mask so it begins after the complete label and remains inside its dotted blank. In particular, separate CCCD, issue date, and issue place into non-overlapping regions.
+4. Match the template typography using a Vietnamese-capable Times New Roman-compatible font. Use deterministic shrink-to-fit for short single-line fields and bounded wrapping only for designated multiline address/priority fields; never silently clip a non-empty value.
+5. Keep missing values blank and preserve the existing mapping. Normalize dates deterministically without server-timezone date drift; render gender using the product-approved `Nam`, `Nữ`, or `Khác` value in its blank region.
+6. Add focused unit/regression tests for mapping, date formatting, escaping, missing values, field-layout non-overlap, and fit behavior. Add a synthetic rendered-PDF visual regression that masks only approved variable regions and verifies static pixels remain unchanged.
+7. Render fixtures containing short, maximum realistic, Vietnamese-diacritic, and missing values. Inspect the complete page after each correction, then run affected tests/build and final diff/status review.
 
-# Acceptance Criteria
+## Acceptance Criteria
 
-- AC-01: “Danh sách” renders exactly one “Định danh” column on desktop and one corresponding field on mobile; no duplicate column key is present.
-- AC-02: Both `/public/dormitory/register` and the registration CTA on `/public/room/[qrId]` submit the same canonical required fields: full name, date of birth, gender, phone number, room type, optional Student code/notes/profile, and `qr_room_id` only for the room path.
-- AC-03: A valid room-QR submission reaches `dormitoryApi.public.register`, shows the returned `roster_entry_code`, and does not use a parallel raw registration `fetch` or browser `alert` flow.
-- AC-04: Public validation and server errors are displayed inline, double-submit is prevented, active-semester failure blocks submission, and closing the room registration form returns to the already-loaded room page.
-- AC-05: Linked Student identity fields are visibly authoritative and cannot be edited as fake overrides. Editable supplied fields remain editable. Unlinked entries retain the manual edit capability required for later stable linking.
-- AC-06: Manager create sends `student_id` for a selected Student and does not send user-edited identity overrides; manual create sends the complete validated identity without raw ObjectId input.
-- AC-07: No affected KTX registration UI contains “lưu tạm để phân loại”, “chờ xác nhận”, approval/rejection wording, legacy source controls, email, or priority-group fields from the removed public flow.
-- AC-08: Slow older list/search/Student-lookup responses cannot replace newer state. Creation from any current page finishes on page 1 with data matching the current filter.
-- AC-09: The established “Danh sách” and room-detail visual structure and interaction set remain unchanged outside the scoped bug corrections.
-- AC-10: Focused interaction tests, frontend typecheck, and production build pass. Tests must reproduce the previously missed bugs rather than only inspecting source strings or pure helpers.
+- AC-01: The complete static phrases `Ngày, tháng, năm sinh:`, `Dân tộc:`, `Tôn giáo:`, `Điện thoại`, `CCCD:`, `Ngày cấp:`, `Nơi cấp:`, and every parent/address label remain fully visible.
+- AC-02: Each value begins inside its own dotted blank and no field mask or text intersects another label or variable region.
+- AC-03: Output typography is visually consistent with the source; Vietnamese glyphs render correctly and normal values are not undersized.
+- AC-04: Long representative names, faculty names, addresses, occupations, phone/CCCD values, and priority details are fully readable through bounded shrink or approved wrapping, with no silent clipping, overlap, or extra page.
+- AC-05: Dates are formatted `dd/MM/yyyy` consistently across server timezones; gender and all other available canonical values appear in the correct semantic field. Missing data produces a blank, never `undefined`, `null`, or a fabricated value.
+- AC-06: The output remains a valid one-page A4 PDF based on the unchanged approved template. Non-variable template pixels remain unchanged within the visual-test tolerance.
+- AC-07: Permission, response headers, inline/attachment behavior, safe filename, and privacy behavior remain unchanged.
+- AC-08: Focused backend tests and build pass, and the final diff contains no unrelated or real-person fixture data.
 
-# Verification
+## Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/roster/page.test.tsx" "src/app/(dashboard)/dormitory/layout.test.tsx" "src/app/public/room/[qrId]/page.test.tsx" "src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx" "src/components/dormitory/DormitoryRegistrationEditModal.test.tsx" "src/api/dormitory-api.test.ts"` => all focused render, submit, field-policy, close, API, and stale-response tests pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors.
-- `D:\PROJECT\manager_points\frontend` :: `npm run build` => Next.js production build succeeds and includes `/dormitory/roster`, `/public/dormitory/register`, and `/public/room/[qrId]`.
-- `D:\PROJECT\manager_points` :: focused `rg` inspection of the affected KTX paths => one canonical public submit implementation; no duplicate identity column; no obsolete temporary/approval copy or legacy room-form fields.
-- `D:\PROJECT\manager_points` :: `git diff --check` plus scoped status/diff review => no backend, database, shared UI redesign, generated artifact, or unrelated change.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory-roster.service.spec.ts` => mapping, layout bounds, fit behavior, missing values, dates, escaping, and one-page A4 assertions pass.
+- `D:\PROJECT\manager_points\backend` :: repository-native visual regression command added by the implementation, or the focused Jest test invoking its helper => the 150-DPI static-region comparison passes for all synthetic fixtures.
+- `D:\PROJECT\manager_points\backend` :: `npm run build` => Nest build succeeds and the template asset is present at its runtime path.
+- `D:\PROJECT\manager_points` :: render the final representative PDFs with Poppler at 150 DPI and inspect the complete page => no covered label, clipping, overlap, missing glyph, layout shift, or extra page.
+- `D:\PROJECT\manager_points` :: `git diff --check` and scoped `git status --short` review => no unintended changes or personal data artifacts.
 
-# Baseline Evidence
+## Safety Gates
 
-Recorded on base `5c09d966`:
+- Stop and request approval if the fix requires a new dependency/font download, template replacement, broader personal-data access, logging/telemetry of field values, schema/data mutation, or deployment.
+- Required gate artifact: dependency/license or privacy assessment, amended scope, exact rollback, and resume point.
+- Current planning gate: None.
 
-- focused Vitest: 5 files, 10 tests passed;
-- `npm run typecheck`: passed;
-- `npm run build`: passed and generated all three affected routes;
-- static inspection still confirmed Findings 1 through 7, demonstrating the test coverage gap described in Finding 8.
+## Artifacts and Checkpoints
 
-# Safety and Stop Conditions
+- Required implementation evidence: source/template checksum, field-layout table, synthetic fixture inputs, rendered 150-DPI PNGs or visual-diff result, focused test output, build output, and final scoped diff/status.
+- Never commit a PDF, PNG, snapshot, log, or test fixture containing real student information.
+- Validate the template checksum before final verification; checkpoint only at implementation-to-review handoff.
 
-- This is planning-only. Stop after writing this taskscope.
-- Preserve public privacy: no Student lookup response or UI may disclose whether a Student code exists.
-- Stop and request a backend follow-up if the canonical frontend payload is still rejected because the existing backend contract differs from the inspected DTO/service; do not silently expand this frontend task into backend work.
-- Stop if fixing the bugs requires a global dialog/data-table redesign, a new dependency, a route/API compatibility layer, persistent-data mutation, or deployment authority.
+## Execution Budgets
 
-# Rollback
-
-Revert only the scoped frontend bugfix commit. No data rollback is required because this task does not authorize database or backend mutation.
+- One writer per path; implementation followed by independent visual/privacy review.
+- Step deadline: 600 seconds, maximum 1800 seconds.
+- Idempotent retries: 2; engineering loops: 3; review remediation cycles: 2.
