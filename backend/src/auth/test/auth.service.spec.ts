@@ -496,6 +496,9 @@ describe('AuthService', () => {
             code: 'ROUTE_PERMISSION_DELETE',
           },
           { _id: 'id-SYSTEM_ADMIN', code: 'SYSTEM_ADMIN' },
+          { _id: 'id-PDF_TEMPLATE_READ', code: 'PDF_TEMPLATE_READ' },
+          { _id: 'id-PDF_TEMPLATE_MANAGE', code: 'PDF_TEMPLATE_MANAGE' },
+          { _id: 'id-PDF_TEMPLATE_DELETE', code: 'PDF_TEMPLATE_DELETE' },
         ]),
       });
       permissionModel.findOneAndUpdate = jest
@@ -574,6 +577,18 @@ describe('AuthService', () => {
       expect(systemOpsPerms).not.toContain('id-ROLE_CREATE');
       expect(systemOpsPerms).not.toContain('id-PERMISSION_CREATE');
       expect(systemOpsPerms).not.toContain('id-ADMIN_FULL');
+
+      // 5. Verify PDF template permissions are all available to the dormitory group
+      const dormitoryCall = groupCalls.find(
+        (c) => c[0].code === 'G_DORMITORY',
+      );
+      expect(dormitoryCall).toBeDefined();
+      const dormitoryPerms = dormitoryCall[1].$addToSet.permissions.$each;
+      expect(dormitoryPerms).toEqual(expect.arrayContaining([
+        'id-PDF_TEMPLATE_READ',
+        'id-PDF_TEMPLATE_MANAGE',
+        'id-PDF_TEMPLATE_DELETE',
+      ]));
     });
   });
 

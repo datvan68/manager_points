@@ -28,4 +28,17 @@ describe('PDF template API', () => {
     fetchMock.mockResolvedValueOnce({ ok: true, headers: new Headers({ 'content-type': 'text/html' }), blob: vi.fn() });
     await expect(pdfTemplateApi.source('DORMITORY_ROSTER_APPLICATION')).rejects.toThrow('không phải PDF');
   });
+
+  it('returns a non-empty PDF source after validating the response MIME', async () => {
+    const blob = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    fetchMock.mockResolvedValueOnce({ ok: true, headers: new Headers({ 'content-type': 'application/pdf' }), blob: vi.fn().mockResolvedValue(blob) });
+
+    await expect(pdfTemplateApi.source('DORMITORY_ROSTER_APPLICATION')).resolves.toBe(blob);
+  });
+
+  it('rejects an empty PDF source instead of letting the editor render it', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, headers: new Headers({ 'content-type': 'application/pdf' }), blob: vi.fn().mockResolvedValue(new Blob([], { type: 'application/pdf' })) });
+
+    await expect(pdfTemplateApi.source('DORMITORY_ROSTER_APPLICATION')).rejects.toThrow('Source PDF rỗng');
+  });
 });

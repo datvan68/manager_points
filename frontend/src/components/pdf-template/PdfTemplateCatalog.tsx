@@ -18,6 +18,10 @@ function CatalogPage() {
   const params = useSearchParams();
   const access = usePermission({ read: 'PDF_TEMPLATE_READ', manage: 'PDF_TEMPLATE_MANAGE', delete: 'PDF_TEMPLATE_DELETE' });
   const [items, setItems] = useState<PdfTemplateCatalogItem[]>([]);
+  const [availableCollections, setAvailableCollections] = useState<PdfTemplateCatalogItem[]>([]);
+  const [availableLoading, setAvailableLoading] = useState(true);
+  const [availableError, setAvailableError] = useState('');
+  const [availableRetry, setAvailableRetry] = useState(0);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(Number(params.get('page')) || 1);
   const [pageSize] = useState(20);
@@ -41,6 +45,29 @@ function CatalogPage() {
   };
   useEffect(() => { void load(); }, [page, pageSize, query, moduleCode, featureCode, configuration, sortBy, sortDirection]);
   useEffect(() => {
+    let cancelled = false;
+    setAvailableLoading(true);
+    setAvailableError('');
+    setAvailableCollections([]);
+    (async () => {
+      try {
+        const firstPage = await pdfTemplateApi.catalog({ page: 1, pageSize: 100, configured: 'false', sortBy: 'displayName', sortDirection: 'asc' });
+        const pageCount = Math.max(1, Math.ceil(firstPage.total / firstPage.pageSize));
+        const pages = [firstPage];
+        for (let nextPage = 2; nextPage <= pageCount; nextPage += 1) {
+          pages.push(await pdfTemplateApi.catalog({ page: nextPage, pageSize: 100, configured: 'false', sortBy: 'displayName', sortDirection: 'asc' }));
+        }
+        const unique = new Map(pages.flatMap((result) => result.items).filter((item) => !item.configured).map((item) => [item.templateTypeCode, item]));
+        if (!cancelled) setAvailableCollections([...unique.values()]);
+      } catch (cause: any) {
+        if (!cancelled) setAvailableError(cause?.message || 'Không thể tải collection chưa cấu hình.');
+      } finally {
+        if (!cancelled) setAvailableLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [availableRetry]);
+  useEffect(() => {
     const next = new URLSearchParams();
     [['page', page], ['search', query], ['moduleCode', moduleCode], ['featureCode', featureCode], ['configured', configuration], ['sortBy', sortBy], ['sortDirection', sortDirection]].forEach(([key, value]) => value && value !== 'all' && next.set(String(key), String(value)));
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
@@ -62,8 +89,9 @@ function CatalogPage() {
   };
 
   if (!access.read) return <div className="p-8 text-sm">Bạn không có quyền xem PDF template.</div>;
-  return <main className="space-y-6 p-6" aria-labelledby="pdf-template-title">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">PDF Template Designer</p><h1 id="pdf-template-title" className="text-2xl font-black text-slate-900">Quản lý mẫu PDF</h1><p className="text-sm text-slate-500">Mỗi collection đã đăng ký có tối đa một PDF và layout hiện hành.</p></div>{access.manage && <label className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Thêm mẫu<select aria-label="Collection chưa cấu hình" className="rounded-lg bg-white px-2 py-1 text-slate-900" defaultValue="" onChange={(event) => event.target.value && router.push(`/pdf-templates/new?templateTypeCode=${encodeURIComponent(event.target.value)}&returnTo=${encodeURIComponent(returnQuery.toString())}`)}><option value="">Chọn collection</option>{items.filter((item) => !item.configured).map((item) => <option key={item.templateTypeCode} value={item.templateTypeCode}>{item.displayName}</option>)}</select></label>}</div>
+  return <main className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6" aria-labelledby="pdf-template-title">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">PDF Template Designer</p><h1 id="pdf-template-title" className="text-2xl font-black text-slate-900">Quản lý mẫu PDF</h1><p className="text-sm text-slate-500">Mỗi collection đã đăng ký có tối đa một PDF và layout hiện hành.</p></div>{access.manage && <label className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Thêm mẫu<select aria-label="Collection chưa cấu hình" className="rounded-lg bg-white px-2 py-1 text-slate-900" defaultValue="" disabled={availableLoading || Boolean(availableError)} onChange={(event) => event.target.value && router.push(`/pdf-templates/new?templateTypeCode=${encodeURIComponent(event.target.value)}&returnTo=${encodeURIComponent(returnQuery.toString())}`)}><option value="">{availableLoading ? 'Đang tải collection...' : availableError ? 'Không tải được collection' : 'Chọn collection'}</option>{availableCollections.map((item) => <option key={item.templateTypeCode} value={item.templateTypeCode}>{item.displayName}</option>)}</select></label>}</div>
+    {access.manage && availableError && <div role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{availableError}<button type="button" className="ml-3 underline" onClick={() => setAvailableRetry((value) => value + 1)}>Thử lại</button></div>}
     <div className="grid gap-3 rounded-2xl border bg-white/80 p-4 md:grid-cols-4" aria-label="Bộ lọc PDF template">
       <label className="text-xs font-semibold text-slate-600">Tìm kiếm<input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Tên, mã collection..." className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
       <label className="text-xs font-semibold text-slate-600">Module<select value={moduleCode} onChange={(event) => { setModuleCode(event.target.value); setFeatureCode('all'); setPage(1); }} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option>{modules.map((value) => <option key={value}>{value}</option>)}</select></label>

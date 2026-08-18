@@ -59,14 +59,18 @@ export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
     let disposed = false;
     let loadingTask: any;
     let renderTask: any;
+    let document: any;
     setSourceState('loading'); setRenderedPage(null);
+    const canvas = canvasRef.current;
+    canvas.width = 0;
+    canvas.height = 0;
     (async () => {
       try {
         const pdfjs = await import('pdfjs-dist');
         pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
         loadingTask = pdfjs.getDocument({ url: sourceUrl, useWorkerFetch: true, isEvalSupported: false });
-        const document = await loadingTask.promise;
-        if (disposed) { await document.destroy(); return; }
+        document = await loadingTask.promise;
+        if (disposed) return;
         const pages = [];
         for (let index = 1; index <= document.numPages; index += 1) {
           const sourcePage = await document.getPage(index);
@@ -78,19 +82,19 @@ export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
         if (activePageIndex !== pageIndex) setPageIndex(activePageIndex);
         const activePage = await document.getPage(activePageIndex + 1);
         const viewport = activePage.getViewport({ scale: zoom });
-        const canvas = canvasRef.current;
-        if (!canvas || disposed) { await document.destroy(); return; }
+        if (!canvas || disposed) return;
         canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
         canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`;
         renderTask = activePage.render({ canvasContext: canvas.getContext('2d', { alpha: false })!, viewport });
         await renderTask.promise;
         if (!disposed) { setRenderedPage(activePageIndex); setSourceState('ready'); }
-        await document.destroy();
       } catch (error: any) {
         if (!disposed && error?.name !== 'RenderingCancelledException') { setSourceState('error'); setMessage(error?.message || 'Không thể phân tích hoặc render PDF.'); }
+      } finally {
+        if (document) await document.destroy();
       }
     })();
-    return () => { disposed = true; renderTask?.cancel(); loadingTask?.destroy?.(); };
+    return () => { disposed = true; renderTask?.cancel(); void loadingTask?.destroy?.(); };
   }, [sourceUrl, pageIndex, zoom, layout ? layout.pages.length : 0]);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
