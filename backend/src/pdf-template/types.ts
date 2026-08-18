@@ -2,6 +2,7 @@ import type { Types } from 'mongoose';
 
 export const PDF_TEMPLATE_READ = 'PDF_TEMPLATE_READ' as const;
 export const PDF_TEMPLATE_MANAGE = 'PDF_TEMPLATE_MANAGE' as const;
+export const PDF_TEMPLATE_DELETE = 'PDF_TEMPLATE_DELETE' as const;
 export const PDF_TEMPLATE_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const PDF_TEMPLATE_MAX_PAGES = 10;
 export const PDF_TEMPLATE_MAX_ITEMS_PER_PAGE = 100;
@@ -81,4 +82,3 @@ export type PdfTemplateTypeDescriptor = {
 };
 
 export type PdfTemplateAudit = { updatedBy: Types.ObjectId | null; updatedAt: Date };
-

@@ -15,5 +15,17 @@ describe('PDF template API', () => {
     expect(fetchMock.mock.calls[1][1].method).toBe('PUT');
     expect(fetchMock.mock.calls[1][1].body).toBeInstanceOf(FormData);
   });
-});
 
+  it('uses explicit create and versioned delete endpoints', async () => {
+    await pdfTemplateApi.create('DORMITORY_ROSTER_APPLICATION', { pages: [], items: [] }, new File(['%PDF-'], 'source.pdf', { type: 'application/pdf' }));
+    await pdfTemplateApi.delete('DORMITORY_ROSTER_APPLICATION', 3);
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[1][0]).toContain('?version=3');
+    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
+  });
+
+  it('rejects a source response with a non-PDF MIME type', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, headers: new Headers({ 'content-type': 'text/html' }), blob: vi.fn() });
+    await expect(pdfTemplateApi.source('DORMITORY_ROSTER_APPLICATION')).rejects.toThrow('không phải PDF');
+  });
+});

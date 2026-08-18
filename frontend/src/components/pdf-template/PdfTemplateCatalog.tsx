@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { pdfTemplateApi, PdfTemplateCatalogItem, PdfTemplateMetadata } from '@/api/pdf-template-api';
-import PdfTemplateEditor from './PdfTemplateEditor';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { pdfTemplateApi, PdfTemplateCatalogItem } from '@/api/pdf-template-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 
 function bytes(value: number) {
@@ -12,58 +12,70 @@ function bytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function Page() {
-  const access = usePermission({ read: 'PDF_TEMPLATE_READ', manage: 'PDF_TEMPLATE_MANAGE' });
+function CatalogPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const access = usePermission({ read: 'PDF_TEMPLATE_READ', manage: 'PDF_TEMPLATE_MANAGE', delete: 'PDF_TEMPLATE_DELETE' });
   const [items, setItems] = useState<PdfTemplateCatalogItem[]>([]);
-  const [selected, setSelected] = useState<PdfTemplateMetadata | null>(null);
-  const [query, setQuery] = useState('');
-  const [moduleCode, setModuleCode] = useState('all');
-  const [featureCode, setFeatureCode] = useState('all');
-  const [configuration, setConfiguration] = useState('all');
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(Number(params.get('page')) || 1);
+  const [pageSize] = useState(20);
+  const [query, setQuery] = useState(params.get('search') || '');
+  const [moduleCode, setModuleCode] = useState(params.get('moduleCode') || 'all');
+  const [featureCode, setFeatureCode] = useState(params.get('featureCode') || 'all');
+  const [configuration, setConfiguration] = useState(params.get('configured') || 'all');
+  const [sortBy, setSortBy] = useState(params.get('sortBy') || 'displayName');
+  const [sortDirection, setSortDirection] = useState(params.get('sortDirection') || 'asc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [mutating, setMutating] = useState(false);
 
   const load = async () => {
     setLoading(true); setError('');
-    try { setItems(await pdfTemplateApi.catalog()); }
-    catch (cause: any) { setError(cause?.message || 'Không thể tải catalog.'); }
+    try {
+      const result = await pdfTemplateApi.catalog({ page, pageSize, search: query, moduleCode, featureCode, configured: configuration, sortBy, sortDirection });
+      setItems(result.items); setTotal(result.total);
+    } catch (cause: any) { setError(cause?.message || 'Không thể tải catalog.'); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [page, pageSize, query, moduleCode, featureCode, configuration, sortBy, sortDirection]);
+  useEffect(() => {
+    const next = new URLSearchParams();
+    [['page', page], ['search', query], ['moduleCode', moduleCode], ['featureCode', featureCode], ['configured', configuration], ['sortBy', sortBy], ['sortDirection', sortDirection]].forEach(([key, value]) => value && value !== 'all' && next.set(String(key), String(value)));
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  }, [page, query, moduleCode, featureCode, configuration, sortBy, sortDirection, pathname, router]);
 
   const modules = useMemo(() => [...new Set(items.map((item) => item.moduleCode))].sort(), [items]);
   const features = useMemo(() => [...new Set(items.filter((item) => moduleCode === 'all' || item.moduleCode === moduleCode).map((item) => item.featureCode))].sort(), [items, moduleCode]);
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesText = !needle || [item.displayName, item.templateTypeCode, item.moduleCode, item.featureCode].some((value) => value.toLowerCase().includes(needle));
-      const matchesModule = moduleCode === 'all' || item.moduleCode === moduleCode;
-      const matchesFeature = featureCode === 'all' || item.featureCode === featureCode;
-      const matchesConfiguration = configuration === 'all' || (configuration === 'configured' ? item.configured : !item.configured);
-      return matchesText && matchesModule && matchesFeature && matchesConfiguration;
-    });
-  }, [items, query, moduleCode, featureCode, configuration]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const returnQuery = new URLSearchParams(params.toString()); returnQuery.set('page', String(page));
+
+  const deleteItem = async (item: PdfTemplateCatalogItem) => {
+    if (!access.delete || mutating) return;
+    if (!window.confirm(`Xóa PDF và toàn bộ layout của “${item.displayName}” (${item.templateTypeCode})? Collection vẫn được giữ nguyên và sẽ trở về Chưa cấu hình.`)) return;
+    if (window.prompt(`Nhập chính xác ${item.templateTypeCode} để xác nhận:`) !== item.templateTypeCode) return;
+    setMutating(true); setError('');
+    try { await pdfTemplateApi.delete(item.templateTypeCode, item.version); await load(); }
+    catch (cause: any) { setError(cause?.message || 'Không thể xóa template.'); }
+    finally { setMutating(false); }
+  };
 
   if (!access.read) return <div className="p-8 text-sm">Bạn không có quyền xem PDF template.</div>;
   return <main className="space-y-6 p-6" aria-labelledby="pdf-template-title">
-    <div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">PDF Template Designer</p><h1 id="pdf-template-title" className="text-2xl font-black text-slate-900">Quản lý mẫu PDF</h1><p className="text-sm text-slate-500">Chọn một collection đã đăng ký để preview synthetic và lưu trực tiếp cấu hình hiện hành.</p></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">PDF Template Designer</p><h1 id="pdf-template-title" className="text-2xl font-black text-slate-900">Quản lý mẫu PDF</h1><p className="text-sm text-slate-500">Mỗi collection đã đăng ký có tối đa một PDF và layout hiện hành.</p></div>{access.manage && <label className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Thêm mẫu<select aria-label="Collection chưa cấu hình" className="rounded-lg bg-white px-2 py-1 text-slate-900" defaultValue="" onChange={(event) => event.target.value && router.push(`/pdf-templates/new?templateTypeCode=${encodeURIComponent(event.target.value)}&returnTo=${encodeURIComponent(returnQuery.toString())}`)}><option value="">Chọn collection</option>{items.filter((item) => !item.configured).map((item) => <option key={item.templateTypeCode} value={item.templateTypeCode}>{item.displayName}</option>)}</select></label>}</div>
     <div className="grid gap-3 rounded-2xl border bg-white/80 p-4 md:grid-cols-4" aria-label="Bộ lọc PDF template">
-      <label className="text-xs font-semibold text-slate-600">Tìm kiếm<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tên, mã collection..." className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
-      <label className="text-xs font-semibold text-slate-600">Module<select value={moduleCode} onChange={(event) => { setModuleCode(event.target.value); setFeatureCode('all'); }} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option>{modules.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="text-xs font-semibold text-slate-600">Feature<select value={featureCode} onChange={(event) => setFeatureCode(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option>{features.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="text-xs font-semibold text-slate-600">Cấu hình<select value={configuration} onChange={(event) => setConfiguration(event.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option><option value="configured">Đã cấu hình</option><option value="missing">Chưa có PDF</option></select></label>
+      <label className="text-xs font-semibold text-slate-600">Tìm kiếm<input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Tên, mã collection..." className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" /></label>
+      <label className="text-xs font-semibold text-slate-600">Module<select value={moduleCode} onChange={(event) => { setModuleCode(event.target.value); setFeatureCode('all'); setPage(1); }} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option>{modules.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="text-xs font-semibold text-slate-600">Feature<select value={featureCode} onChange={(event) => { setFeatureCode(event.target.value); setPage(1); }} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option>{features.map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="text-xs font-semibold text-slate-600">Cấu hình<select value={configuration} onChange={(event) => { setConfiguration(event.target.value); setPage(1); }} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"><option value="all">Tất cả</option><option value="true">Đã cấu hình</option><option value="false">Chưa cấu hình</option></select></label>
     </div>
-    {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}<button type="button" className="ml-3 underline" onClick={() => void load()}>Thử lại</button></div>}
     {loading && <p className="rounded-xl border border-dashed p-8 text-sm text-slate-500">Đang tải danh sách template...</p>}
-    {!loading && !error && !visible.length && <p className="rounded-xl border border-dashed p-8 text-sm text-slate-500">Không có collection nào phù hợp bộ lọc.</p>}
-    {!loading && <div className="grid gap-4 md:grid-cols-2">{visible.map((item) => <article key={item.templateTypeCode} className="rounded-2xl border bg-white/80 p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-slate-400">{item.moduleCode} / {item.featureCode}</p><h2 className="mt-1 font-bold">{item.displayName}</h2></div><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${item.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.configured ? 'Đã cấu hình' : 'Chưa có PDF'}</span></div>
-      <p className="mt-2 break-all text-xs text-slate-500">{item.templateTypeCode}</p>
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-600"><div><dt className="font-semibold">Source</dt><dd>{item.sourceFilename || '—'}</dd></div><div><dt className="font-semibold">Trang / dung lượng</dt><dd>{item.pageCount || '—'} / {bytes(item.sourceBytes)}</dd></div><div><dt className="font-semibold">Checksum</dt><dd className="truncate" title={item.checksum || undefined}>{item.checksum || '—'}</dd></div><div><dt className="font-semibold">Cập nhật</dt><dd>{item.updatedAt ? new Date(item.updatedAt).toLocaleString('vi-VN') : '—'}</dd></div></dl>
-      {access.manage && <button type="button" onClick={async () => { try { setSelected(await pdfTemplateApi.metadata(item.templateTypeCode)); } catch (cause: any) { setError(cause?.message || 'Không thể mở template.'); } }} className="mt-4 rounded-xl bg-slate-800 px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-600">Edit template</button>}
-    </article>)}</div>}
-    {selected && access.manage && <PdfTemplateEditor metadata={selected} onSaved={async () => { setSelected(await pdfTemplateApi.metadata(selected.templateTypeCode)); await load(); }} />}
+    {!loading && !error && !items.length && <p className="rounded-xl border border-dashed p-8 text-sm text-slate-500">Không có collection nào phù hợp bộ lọc.</p>}
+    {!loading && <div className="overflow-x-auto rounded-2xl border bg-white"><table className="min-w-[1100px] w-full text-left text-sm"><caption className="sr-only">Danh sách PDF template theo collection</caption><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{[['displayName','Tên'],['templateTypeCode','Collection code'],['moduleCode','Module'],['featureCode','Feature'],['configured','Trạng thái'],['sourceFilename','Source filename'],['pageCount','Trang'],['sourceBytes','Dung lượng'],['checksum','Checksum'],['updatedAt','Cập nhật'],['actions','Thao tác']].map(([key, label]) => <th key={key} scope="col" className="px-4 py-3">{key === 'actions' ? label : <button type="button" onClick={() => { if (sortBy === key) setSortDirection((value) => value === 'asc' ? 'desc' : 'asc'); else { setSortBy(key); setSortDirection('asc'); } }}>{label}{sortBy === key ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}</button>}</th>)}</tr></thead><tbody className="divide-y">{items.map((item) => <tr key={item.templateTypeCode} className="align-top"><td className="px-4 py-4 font-semibold">{item.displayName}</td><td className="px-4 py-4 font-mono text-xs">{item.templateTypeCode}</td><td className="px-4 py-4">{item.moduleCode}</td><td className="px-4 py-4">{item.featureCode}</td><td className="px-4 py-4"><span className={item.configured ? 'text-emerald-700' : 'text-amber-700'}>{item.configured ? 'Đã cấu hình' : 'Chưa cấu hình'}</span></td><td className="px-4 py-4">{item.sourceFilename || '—'}</td><td className="px-4 py-4">{item.pageCount || '—'}</td><td className="px-4 py-4">{bytes(item.sourceBytes)}</td><td className="max-w-40 truncate px-4 py-4 font-mono text-xs" title={item.checksum || undefined}>{item.checksum || '—'}</td><td className="px-4 py-4 text-xs">{item.updatedAt ? new Date(item.updatedAt).toLocaleString('vi-VN') : '—'}</td><td className="px-4 py-4"><div className="flex gap-2 whitespace-nowrap">{item.configured && access.manage && <button type="button" disabled={mutating} onClick={() => router.push(`/pdf-templates/${encodeURIComponent(item.templateTypeCode)}/edit?returnTo=${encodeURIComponent(returnQuery.toString())}`)} className="rounded-lg border px-2 py-1 text-xs font-semibold">Sửa</button>}{!item.configured && access.manage && <button type="button" disabled={mutating} onClick={() => router.push(`/pdf-templates/new?templateTypeCode=${encodeURIComponent(item.templateTypeCode)}&returnTo=${encodeURIComponent(returnQuery.toString())}`)} className="rounded-lg border px-2 py-1 text-xs font-semibold">Thêm mẫu</button>}{item.configured && access.delete && <button type="button" disabled={mutating} onClick={() => void deleteItem(item)} className="rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700">Xóa</button>}</div></td></tr>)}</tbody></table></div>}
+    {!loading && totalPages > 1 && <nav aria-label="Phân trang PDF template" className="flex items-center justify-between text-sm"><span>Trang {page}/{totalPages} · {total} collection</span><div className="flex gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-50">Trước</button><button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-50">Sau</button></div></nav>}
   </main>;
 }
 
-export default function PdfTemplateCatalog() { return <RouteGuard requiredPermission="PDF_TEMPLATE_READ" fallbackPath="/"><Page /></RouteGuard>; }
+export default function PdfTemplateCatalog() { return <RouteGuard requiredPermission="PDF_TEMPLATE_READ" fallbackPath="/"><CatalogPage /></RouteGuard>; }

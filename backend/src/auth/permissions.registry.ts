@@ -646,6 +646,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép thay PDF nền, chỉnh layout và lưu template hiện hành.',
   },
   {
+    code: 'PDF_TEMPLATE_DELETE',
+    name: 'Xóa PDF Template Designer',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xóa PDF và layout đã lưu của một collection.',
+  },
+  {
     code: 'DORM_REG_UPDATE',
     name: 'Cập nhật Danh sách KTX',
     module: DORMITORY_MANAGER_GROUP.name,

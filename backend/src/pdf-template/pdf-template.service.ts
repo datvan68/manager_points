@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PdfTemplate, PdfTemplateDocument } from './schemas/pdf-template.schema';
@@ -10,6 +10,8 @@ import { validateAndNormalizeLayout } from './layout.validation';
 
 export type PdfTemplateRequester = { userId?: string; _id?: string; permissions?: string[]; roleCode?: string };
 export type SavePdfTemplateInput = { version: number; layout: unknown; source?: { buffer: Buffer; originalname?: string; mimetype?: string } };
+export type CreatePdfTemplateInput = { layout: unknown; source?: { buffer: Buffer; originalname?: string; mimetype?: string } };
+export type PdfTemplateCatalogQuery = { page?: string | number; pageSize?: string | number; search?: string; moduleCode?: string; featureCode?: string; configured?: string; sortBy?: string; sortDirection?: string };
 
 @Injectable()
 export class PdfTemplateService {
@@ -20,10 +22,12 @@ export class PdfTemplateService {
     private readonly renderer: PdfTemplateRendererService,
   ) {}
 
-  async catalog() {
+  private readonly logger = new Logger(PdfTemplateService.name);
+
+  async catalog(query: PdfTemplateCatalogQuery = {}) {
     const saved = await this.model.find({ active: true }).select('templateTypeCode moduleCode featureCode displayName sourceFilename sourceBytes pages sourceChecksum version audit').lean().exec();
     const byCode = new Map(saved.map((item: any) => [item.templateTypeCode, item]));
-    return this.registry.all().map((descriptor) => {
+    const all = this.registry.all().map((descriptor) => {
       const current: any = byCode.get(descriptor.templateTypeCode);
       return {
         moduleCode: descriptor.moduleCode,
@@ -39,7 +43,20 @@ export class PdfTemplateService {
         updatedBy: current?.audit?.updatedBy ? String(current.audit.updatedBy) : null,
         updatedAt: current?.audit?.updatedAt || null,
       };
+    }).filter((item) => {
+      const search = String(query.search || '').trim().toLowerCase();
+      const matchesSearch = !search || [item.displayName, item.templateTypeCode, item.moduleCode, item.featureCode].some((value) => value.toLowerCase().includes(search));
+      const matchesModule = !query.moduleCode || query.moduleCode === 'all' || item.moduleCode === query.moduleCode;
+      const matchesFeature = !query.featureCode || query.featureCode === 'all' || item.featureCode === query.featureCode;
+      const matchesConfigured = !query.configured || query.configured === 'all' || (query.configured === 'true' ? item.configured : !item.configured);
+      return matchesSearch && matchesModule && matchesFeature && matchesConfigured;
     });
+    const sortBy = ['displayName', 'templateTypeCode', 'moduleCode', 'featureCode', 'updatedAt', 'sourceBytes'].includes(String(query.sortBy)) ? String(query.sortBy) : 'displayName';
+    const direction = String(query.sortDirection).toLowerCase() === 'desc' ? -1 : 1;
+    all.sort((left: any, right: any) => String(left[sortBy] ?? '').localeCompare(String(right[sortBy] ?? ''), 'vi') * direction);
+    const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
+    const page = Math.max(1, Number(query.page) || 1);
+    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize };
   }
 
   async metadata(templateTypeCode: string) {
@@ -57,23 +74,49 @@ export class PdfTemplateService {
     return { layout: validateAndNormalizeLayout(layout, descriptor, parsed.pages), sourceChecksum: checksum };
   }
 
+  async create(templateTypeCode: string, input: CreatePdfTemplateInput, requester?: PdfTemplateRequester) {
+    const descriptor = this.descriptor(templateTypeCode);
+    const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
+    if (current) throw new ConflictException({ code: 'PDF_TEMPLATE_ALREADY_CONFIGURED', message: 'Collection đã có template.', currentVersion: current.version });
+    const parsed = input.source ? await this.intake.validate(input.source.buffer, input.source.originalname, input.source.mimetype) : null;
+    if (!parsed) throw new BadRequestException('Template mới phải có source PDF.');
+    const layout = validateAndNormalizeLayout(input.layout, descriptor, parsed.pages); const updatedBy = this.actor(requester);
+    const document = { templateTypeCode, moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, displayName: descriptor.displayName, sourceMimeType: 'application/pdf', sourceFilename: parsed.filename, sourceChecksum: parsed.checksum, sourceBytes: parsed.buffer.length, sourcePdf: parsed.buffer, pages: parsed.pages, layout, version: 1, active: true, audit: { updatedBy, updatedAt: new Date() }, updatedBy };
+    try { return await this.model.create(document).then((result: any) => { const plain = result.toObject ? result.toObject() : result; delete plain.sourcePdf; return plain; }); }
+    catch (error: any) { if (error?.code === 11000) throw new ConflictException({ code: 'PDF_TEMPLATE_ALREADY_CONFIGURED', message: 'Collection đã có template.' }); throw error; }
+  }
+
   async save(templateTypeCode: string, input: SavePdfTemplateInput, requester?: PdfTemplateRequester) {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
-    const expected = current?.version || 0; if (input.version !== expected) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
+    if (!current) throw new NotFoundException('Template chưa được cấu hình.');
+    const expected = current.version; if (!Number.isInteger(input.version) || input.version !== expected) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
     const parsed = input.source ? await this.intake.validate(input.source.buffer, input.source.originalname, input.source.mimetype) : current ? { buffer: Buffer.from(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum, pages: current.pages } as ValidatedPdfSource : null;
     if (!parsed) throw new NotFoundException('Template mới phải có source PDF.');
     const layout = validateAndNormalizeLayout(input.layout, descriptor, parsed.pages); const version = expected + 1; const updatedBy = this.actor(requester);
     const update = { moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, displayName: descriptor.displayName, sourceMimeType: 'application/pdf', sourceFilename: parsed.filename, sourceChecksum: parsed.checksum, sourceBytes: parsed.buffer.length, sourcePdf: parsed.buffer, pages: parsed.pages, layout, version, active: true, audit: { updatedBy, updatedAt: new Date() }, updatedBy };
-    const query: any = { templateTypeCode, version: expected };
+    const query: any = { templateTypeCode, active: true, version: expected };
     let result: any;
     try {
-      result = await this.model.findOneAndUpdate(query, { $set: update }, { new: true, upsert: expected === 0, setDefaultsOnInsert: true, runValidators: true }).select('-sourcePdf').lean().exec();
+      result = await this.model.findOneAndUpdate(query, { $set: update }, { new: true, upsert: false, runValidators: true }).select('-sourcePdf').lean().exec();
     } catch (error: any) {
       if (error?.code === 11000) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
       throw error;
     }
     if (!result) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
     return result;
+  }
+
+  async delete(templateTypeCode: string, version: number, requester?: PdfTemplateRequester) {
+    this.descriptor(templateTypeCode);
+    if (!Number.isInteger(version) || version < 1) throw new BadRequestException('Cần version hiện tại để xóa template.');
+    const current: any = await this.model.findOne({ templateTypeCode, active: true }).select('version sourceChecksum').lean().exec();
+    if (!current) throw new NotFoundException('Template chưa được cấu hình.');
+    if (current.version !== version) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: current.version });
+    const result: any = await this.model.deleteOne({ templateTypeCode, active: true, version }).exec();
+    if (!result.deletedCount) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: version });
+    const actor = requester?.userId || requester?._id || 'unknown';
+    this.logger.log(JSON.stringify({ event: 'pdf_template.deleted', templateTypeCode, actor, version, checksum: current.sourceChecksum, at: new Date().toISOString() }));
+    return { deleted: true, templateTypeCode, version };
   }
 
   async renderSynthetic(templateTypeCode: string, fixture: 'short' | 'long' | 'missing' | 'vietnamese' = 'short') { const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec(); if (!current) throw new NotFoundException('Template chưa được cấu hình.'); return this.renderer.render(Buffer.from(current.sourcePdf), current.layout, descriptor.syntheticFixture(this.fixture(fixture)).values); }
