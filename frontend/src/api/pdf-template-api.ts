@@ -6,8 +6,8 @@ export type PdfTemplatePage = { pageIndex: number; width: number; height: number
 export type PdfTemplateItem = { id: string; fieldKey: string; formatter: string; pageIndex: number; x: number; y: number; width: number; height: number; rotation: number; zIndex: number; style: PdfTemplateStyle };
 export type PdfTemplateLayout = { pages: PdfTemplatePage[]; items: PdfTemplateItem[] };
 export type PdfTemplateCatalogItem = { moduleCode: string; featureCode: string; templateTypeCode: string; displayName: string; configured: boolean; version: number; checksum: string | null; sourceFilename: string | null; pageCount: number; sourceBytes: number; updatedBy: string | null; updatedAt: string | null };
-export type PdfTemplateCatalogResponse = { items: PdfTemplateCatalogItem[]; total: number; page: number; pageSize: number };
-export type PdfTemplateMetadata = PdfTemplateCatalogItem & { sourcePermission: string; fields: Array<{ key: string; label: string; dataType: string; sensitive: boolean; syntheticSample: string; allowedFormatters: string[]; defaultStyle: PdfTemplateStyle }>; sourceFilename: string | null; sourceBytes: number; pages: PdfTemplatePage[] | null; layout: PdfTemplateLayout | null; audit?: { updatedBy: string | null; updatedAt: string } | null };
+export type PdfTemplateCatalogResponse = { items: PdfTemplateCatalogItem[]; total: number; page: number; pageSize: number; modules?: string[]; features?: string[] };
+export type PdfTemplateMetadata = PdfTemplateCatalogItem & { sourcePermission: string; fields: Array<{ key: string; label: string; dataType: string; sensitive: boolean; syntheticSample: string; allowedFormatters: string[]; defaultStyle: PdfTemplateStyle }>; sourceChecksum?: string | null; sourceFilename: string | null; sourceBytes: number; pages: PdfTemplatePage[] | null; layout: PdfTemplateLayout | null; audit?: { updatedBy: string | null; updatedAt: string } | null };
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> { return handleResponse(await httpClient(url, init)); }
 

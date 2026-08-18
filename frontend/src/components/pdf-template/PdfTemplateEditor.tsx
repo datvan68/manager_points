@@ -5,17 +5,22 @@ import type React from 'react';
 import { ApiError } from '@/api/http-client';
 import { pdfTemplateApi, PdfTemplateItem, PdfTemplateLayout, PdfTemplateMetadata } from '@/api/pdf-template-api';
 
-type Props = { metadata: PdfTemplateMetadata; onSaved: () => void };
+type Props = { metadata: PdfTemplateMetadata; onSaved: () => void; onDirtyChange?: (dirty: boolean) => void };
+type PdfRenderState = 'loading' | 'missing' | 'ready' | 'error';
+
+export function canRenderPdfOverlays(state: PdfRenderState, renderedPage: number | null, pageIndex: number) {
+  return state === 'ready' && renderedPage === pageIndex;
+}
 
 function initialLayout(metadata: PdfTemplateMetadata): PdfTemplateLayout {
   return { pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }], items: metadata.fields.map((field, index) => ({ id: crypto.randomUUID(), fieldKey: field.key, formatter: field.allowedFormatters[0], pageIndex: 0, x: 0.12, y: Math.min(0.94, 0.12 + (index % 25) * 0.025), width: 0.7, height: 0.025, rotation: 0, zIndex: index, style: field.defaultStyle })) };
 }
 
-export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
+export default function PdfTemplateEditor({ metadata, onSaved, onDirtyChange }: Props) {
   const [layout, setLayout] = useState<PdfTemplateLayout | null>(metadata.layout);
   const [source, setSource] = useState<File>();
   const [sourceUrl, setSourceUrl] = useState('');
-  const [sourceState, setSourceState] = useState<'loading' | 'missing' | 'ready' | 'error'>('loading');
+  const [sourceState, setSourceState] = useState<PdfRenderState>('loading');
   const [renderedPage, setRenderedPage] = useState<number | null>(null);
   const [retry, setRetry] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +36,8 @@ export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
   const [conflict, setConflict] = useState(false);
   const drag = useRef<{ id: string; x: number; y: number } | undefined>(undefined);
   const dirty = Boolean(source || (layout && JSON.stringify(layout) !== JSON.stringify(metadata.layout)));
+
+  useEffect(() => { onDirtyChange?.(dirty); return () => onDirtyChange?.(false); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -142,6 +149,7 @@ export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
   };
   const preview = async () => {
     if (!layout || clientErrors.length) return setMessage(clientErrors[0]);
+    if (!canRenderPdfOverlays(sourceState, renderedPage, pageIndex)) return setMessage('Hãy chờ trang PDF render thành công trước khi preview.');
     setBusy(true); setMessage('');
     try { const blob = await pdfTemplateApi.preview(metadata.templateTypeCode, layout, fixture, source); setPreviewUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); }); setMessage('Preview synthetic đã sẵn sàng.'); }
     catch (error: any) { setMessage(error?.message || 'Preview thất bại.'); }
@@ -149,6 +157,7 @@ export default function PdfTemplateEditor({ metadata, onSaved }: Props) {
   };
   const save = async () => {
     if (!layout || clientErrors.length || !window.confirm('Lưu template này thành cấu hình hiện hành?')) return;
+    if (!canRenderPdfOverlays(sourceState, renderedPage, pageIndex)) return setMessage('Hãy chờ trang PDF render thành công trước khi lưu.');
     setBusy(true); setMessage(''); setConflict(false);
     try {
       if (!metadata.configured && !source) throw new Error('Template mới cần source PDF.');

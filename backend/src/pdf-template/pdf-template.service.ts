@@ -56,12 +56,14 @@ export class PdfTemplateService {
     all.sort((left: any, right: any) => String(left[sortBy] ?? '').localeCompare(String(right[sortBy] ?? ''), 'vi') * direction);
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
     const page = Math.max(1, Number(query.page) || 1);
-    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize };
+    const modules = [...new Set(all.map((item) => item.moduleCode))].sort((left, right) => left.localeCompare(right, 'vi'));
+    const features = [...new Set(all.map((item) => item.featureCode))].sort((left, right) => left.localeCompare(right, 'vi'));
+    return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize, modules, features };
   }
 
   async metadata(templateTypeCode: string) {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).select('-sourcePdf').lean().exec();
-    return { moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, templateTypeCode, displayName: descriptor.displayName, sourcePermission: descriptor.sourcePermission, fields: descriptor.fields, configured: Boolean(current), version: current?.version || 0, sourceFilename: current?.sourceFilename || null, sourceChecksum: current?.sourceChecksum || null, sourceBytes: current?.sourceBytes || 0, pages: current?.pages || null, layout: current?.layout || null, audit: current?.audit ? { updatedBy: current.audit.updatedBy ? String(current.audit.updatedBy) : null, updatedAt: current.audit.updatedAt } : null };
+    return { moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, templateTypeCode, displayName: descriptor.displayName, sourcePermission: descriptor.sourcePermission, fields: descriptor.fields, configured: Boolean(current), version: current?.version || 0, checksum: current?.sourceChecksum || null, sourceChecksum: current?.sourceChecksum || null, sourceFilename: current?.sourceFilename || null, sourceBytes: current?.sourceBytes || 0, pages: current?.pages || null, layout: current?.layout || null, audit: current?.audit ? { updatedBy: current.audit.updatedBy ? String(current.audit.updatedBy) : null, updatedAt: current.audit.updatedAt } : null };
   }
 
   async source(templateTypeCode: string) { const current: any = await this.model.findOne({ templateTypeCode, active: true }).select('sourcePdf sourceFilename sourceChecksum').lean().exec(); if (!current) return null; return { buffer: Buffer.from(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum }; }
@@ -86,7 +88,7 @@ export class PdfTemplateService {
     catch (error: any) { if (error?.code === 11000) throw new ConflictException({ code: 'PDF_TEMPLATE_ALREADY_CONFIGURED', message: 'Collection đã có template.' }); throw error; }
   }
 
-  async save(templateTypeCode: string, input: SavePdfTemplateInput, requester?: PdfTemplateRequester) {
+  async update(templateTypeCode: string, input: SavePdfTemplateInput, requester?: PdfTemplateRequester) {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
     if (!current) throw new NotFoundException('Template chưa được cấu hình.');
     const expected = current.version; if (!Number.isInteger(input.version) || input.version !== expected) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
@@ -104,6 +106,11 @@ export class PdfTemplateService {
     }
     if (!result) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
     return result;
+  }
+
+  /** Compatibility wrapper for callers that still use the pre-contract name. */
+  async save(templateTypeCode: string, input: SavePdfTemplateInput, requester?: PdfTemplateRequester) {
+    return this.update(templateTypeCode, input, requester);
   }
 
   async delete(templateTypeCode: string, version: number, requester?: PdfTemplateRequester) {

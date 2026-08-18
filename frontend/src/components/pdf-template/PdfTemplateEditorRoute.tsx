@@ -14,8 +14,10 @@ function EditorRoute({ templateTypeCode, mode }: Props) {
   const access = usePermission({ manage: 'PDF_TEMPLATE_MANAGE' });
   const [metadata, setMetadata] = useState<PdfTemplateMetadata | null>(null);
   const [error, setError] = useState('');
+  const [dirty, setDirty] = useState(false);
   const returnTo = params.get('returnTo');
   const returnPath = returnTo ? `/pdf-templates?${returnTo}` : '/pdf-templates';
+  const goBack = () => { if (dirty && !window.confirm('Bạn có thay đổi chưa lưu. Rời trang sẽ mất các thay đổi này?')) return; router.push(returnPath); };
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +32,7 @@ function EditorRoute({ templateTypeCode, mode }: Props) {
   }, [templateTypeCode, mode]);
 
   if (!access.manage) return <div className="p-8 text-sm">Bạn không có quyền quản lý PDF template.</div>;
-  return <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6" aria-labelledby="pdf-editor-title"><button type="button" onClick={() => router.push(returnPath)} className="rounded-lg border px-3 py-2 text-sm font-semibold">← Quay lại catalog</button><h1 id="pdf-editor-title" className="text-2xl font-black">{mode === 'new' ? 'Thêm mẫu PDF' : 'Sửa mẫu PDF'}</h1>{error ? <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}<button type="button" className="ml-3 underline" onClick={() => router.push(returnPath)}>Quay lại</button></div> : metadata ? <PdfTemplateEditor metadata={metadata} onSaved={() => router.push(returnPath)} /> : <p className="rounded-xl border border-dashed p-8 text-sm text-slate-500">Đang tải metadata...</p>}</main>;
+  return <main className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6" aria-labelledby="pdf-editor-title"><button type="button" onClick={goBack} className="rounded-lg border px-3 py-2 text-sm font-semibold">← Quay lại catalog</button><h1 id="pdf-editor-title" className="text-2xl font-black">{mode === 'new' ? 'Thêm mẫu PDF' : 'Sửa mẫu PDF'}</h1>{error ? <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}<button type="button" className="ml-3 underline" onClick={goBack}>Quay lại</button></div> : metadata ? <PdfTemplateEditor metadata={metadata} onSaved={() => router.push(returnPath)} onDirtyChange={setDirty} /> : <p className="rounded-xl border border-dashed p-8 text-sm text-slate-500">Đang tải metadata...</p>}</main>;
 }
 
 export default function PdfTemplateEditorRoute(props: Props) {

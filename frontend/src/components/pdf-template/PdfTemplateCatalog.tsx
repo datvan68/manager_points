@@ -18,6 +18,7 @@ function CatalogPage() {
   const params = useSearchParams();
   const access = usePermission({ read: 'PDF_TEMPLATE_READ', manage: 'PDF_TEMPLATE_MANAGE', delete: 'PDF_TEMPLATE_DELETE' });
   const [items, setItems] = useState<PdfTemplateCatalogItem[]>([]);
+  const [facets, setFacets] = useState<{ modules: string[]; features: string[] }>({ modules: [], features: [] });
   const [availableCollections, setAvailableCollections] = useState<PdfTemplateCatalogItem[]>([]);
   const [availableLoading, setAvailableLoading] = useState(true);
   const [availableError, setAvailableError] = useState('');
@@ -39,7 +40,7 @@ function CatalogPage() {
     setLoading(true); setError('');
     try {
       const result = await pdfTemplateApi.catalog({ page, pageSize, search: query, moduleCode, featureCode, configured: configuration, sortBy, sortDirection });
-      setItems(result.items); setTotal(result.total);
+      setItems(result.items); setTotal(result.total); setFacets({ modules: result.modules || [], features: result.features || [] });
     } catch (cause: any) { setError(cause?.message || 'Không thể tải catalog.'); }
     finally { setLoading(false); }
   };
@@ -73,8 +74,8 @@ function CatalogPage() {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }, [page, query, moduleCode, featureCode, configuration, sortBy, sortDirection, pathname, router]);
 
-  const modules = useMemo(() => [...new Set(items.map((item) => item.moduleCode))].sort(), [items]);
-  const features = useMemo(() => [...new Set(items.filter((item) => moduleCode === 'all' || item.moduleCode === moduleCode).map((item) => item.featureCode))].sort(), [items, moduleCode]);
+  const modules = useMemo(() => facets.modules.length ? facets.modules : [...new Set(items.map((item) => item.moduleCode))].sort(), [facets.modules, items]);
+  const features = useMemo(() => facets.features.length ? facets.features : [...new Set(items.filter((item) => moduleCode === 'all' || item.moduleCode === moduleCode).map((item) => item.featureCode))].sort(), [facets.features, items, moduleCode]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const returnQuery = new URLSearchParams(params.toString()); returnQuery.set('page', String(page));
 
@@ -83,7 +84,7 @@ function CatalogPage() {
     if (!window.confirm(`Xóa PDF và toàn bộ layout của “${item.displayName}” (${item.templateTypeCode})? Collection vẫn được giữ nguyên và sẽ trở về Chưa cấu hình.`)) return;
     if (window.prompt(`Nhập chính xác ${item.templateTypeCode} để xác nhận:`) !== item.templateTypeCode) return;
     setMutating(true); setError('');
-    try { await pdfTemplateApi.delete(item.templateTypeCode, item.version); await load(); }
+    try { await pdfTemplateApi.delete(item.templateTypeCode, item.version); await load(); setAvailableRetry((value) => value + 1); }
     catch (cause: any) { setError(cause?.message || 'Không thể xóa template.'); }
     finally { setMutating(false); }
   };

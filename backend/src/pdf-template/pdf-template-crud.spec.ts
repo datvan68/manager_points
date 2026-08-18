@@ -43,10 +43,10 @@ describe('PdfTemplateService aggregate CRUD', () => {
 
   it('updates only an existing aggregate and rejects stale versions', async () => {
     const missing = setup();
-    await expect(missing.service.save('DORMITORY_ROSTER_APPLICATION', { version: 0, layout, source })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(missing.service.update('DORMITORY_ROSTER_APPLICATION', { version: 0, layout, source })).rejects.toBeInstanceOf(NotFoundException);
 
     const current = setup({ version: 2, sourcePdf: Buffer.from('%PDF-test'), sourceFilename: 'old.pdf', sourceChecksum: 'old' });
-    await expect(current.service.save('DORMITORY_ROSTER_APPLICATION', { version: 1, layout, source })).rejects.toBeInstanceOf(ConflictException);
+    await expect(current.service.update('DORMITORY_ROSTER_APPLICATION', { version: 1, layout, source })).rejects.toBeInstanceOf(ConflictException);
     expect(current.model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 

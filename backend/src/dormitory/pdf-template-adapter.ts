@@ -8,11 +8,24 @@ const fields = [
 ] as const;
 const bounds = [[296, 191, 240, 18], [323.5, 215, 77, 18], [459, 215, 77, 18], [218, 239, 142, 18], [396.8, 239, 139, 18], [241, 263, 56, 18], [354.5, 263, 49, 18], [466.4, 263, 69.6, 18], [235.2, 287, 70, 18], [362.5, 287, 63, 18], [480.7, 287, 55, 18], [203, 311, 332, 18], [152.4, 335, 239.6, 18], [396.8, 335, 139.2, 18], [203, 359, 332, 18], [194.9, 383, 341.1, 18], [194.9, 407, 114.9, 18], [375.9, 407, 160.1, 18], [152.4, 431, 196, 18], [386.4, 431, 149.6, 18], [203, 455, 332, 18], [194.9, 479, 341.1, 18], [194.9, 503, 114.9, 18], [375.9, 503, 160.1, 18], [302.8, 527, 233.3, 18]] as const;
 const key = (index: number) => fields[index][0];
+const vietnameseSamples: Record<string, string> = {
+  'student.fullName': 'Nguyễn Thị Minh Khánh', 'student.dateOfBirth': '02/01/2004', 'student.gender': 'Nữ', 'student.className': 'CNTT01', 'student.faculty': 'Công nghệ thông tin',
+  'applicant.ethnicity': 'Kinh', 'applicant.religion': 'Không', 'roster.phone': '0912345678', 'applicant.citizenId': '012345678901', 'applicant.citizenIssueDate': '01/02/2022', 'applicant.citizenIssuePlace': 'Hà Nội', 'applicant.permanentAddress': 'Hà Nội',
+  'parent.father.name': 'Nguyễn Văn Minh', 'parent.father.age': '45', 'parent.father.address': 'Hà Nội', 'parent.father.contactAddress': 'Hà Nội', 'parent.father.occupation': 'Kỹ sư', 'parent.father.phone': '0901234567',
+  'parent.mother.name': 'Trần Thị Lan', 'parent.mother.age': '43', 'parent.mother.address': 'Hà Nội', 'parent.mother.contactAddress': 'Hà Nội', 'parent.mother.occupation': 'Giáo viên', 'parent.mother.phone': '0907654321', 'applicant.priority': 'Không'
+};
+function syntheticValue(name: 'short' | 'long' | 'missing' | 'vietnamese', fieldKey: string, dataType: string, index: number) {
+  if (name === 'missing' && index % 3 === 0) return '';
+  if (dataType === 'date') return name === 'long' ? '2024-12-31' : '2004-01-02';
+  if (name === 'long') return `${fieldKey} - Giá trị rất dài để kiểm tra wrap và shrink trong biểu mẫu ký túc xá`;
+  if (name === 'vietnamese') return vietnameseSamples[fieldKey] || 'Giá trị mẫu';
+  return `Mẫu ${index + 1}`;
+}
 export const DORMITORY_ROSTER_APPLICATION_DESCRIPTOR: PdfTemplateTypeDescriptor = {
   moduleCode: 'DORMITORY', featureCode: 'DORMITORY_ROSTER', templateTypeCode: DORMITORY_ROSTER_APPLICATION, displayName: 'Mẫu đơn đăng ký KTX', sourcePermission: 'DORM_REG_READ',
   fields: fields.map(([fieldKey, label, dataType]) => ({ key: fieldKey, label, dataType: dataType as any, sensitive: fieldKey.includes('fullName') || fieldKey.includes('citizen') || fieldKey.includes('phone'), syntheticSample: fieldKey.toLowerCase().includes('date') ? '02/01/2004' : 'Giá trị mẫu', allowedFormatters: (fieldKey.toLowerCase().includes('date') ? ['date_ddmmyyyy'] : ['plain', ...(fieldKey.endsWith('gender') ? ['gender_vi'] : [])]) as PdfTemplateFormatter[], defaultStyle: { ...style, overflow: 'shrink', maxLines: 1 } })),
   pagePolicy: { minPages: 1, maxPages: 10, allowedDimensions: { width: 595.32, height: 842.04, tolerance: 2 } },
-  syntheticFixture: (name) => ({ name, values: Object.fromEntries(fields.map(([fieldKey], index) => [fieldKey, name === 'missing' && index % 3 === 0 ? '' : name === 'long' ? `${fieldKey} - Giá trị rất dài để kiểm tra wrap và shrink trong biểu mẫu ký túc xá` : name === 'vietnamese' ? 'Nguyễn Thị Minh Khánh' : `Mẫu ${index + 1}`])) }),
+  syntheticFixture: (name) => ({ name, values: Object.fromEntries(fields.map(([fieldKey, , dataType], index) => [fieldKey, syntheticValue(name, fieldKey, dataType, index)])) }),
   resolveValues: (context: any) => resolveDormitoryRosterPdfValues(context?.roster, context?.student),
 };
 
