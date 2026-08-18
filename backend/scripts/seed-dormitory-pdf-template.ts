@@ -1,21 +1,22 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import mongoose from 'mongoose';
-import { DEFAULT_PDF_TEMPLATE_LAYOUT, PDF_TEMPLATE_CODE, layoutChecksum } from '../src/dormitory/pdf-template/field-catalog';
-import { PdfTemplateIntakeService } from '../src/dormitory/pdf-template/pdf-template-intake.service';
+import { createHash } from 'crypto';
+import { DORMITORY_ROSTER_APPLICATION, createDefaultDormitoryLayout } from '../src/dormitory/pdf-template-adapter';
+import { PdfTemplateIntakeService } from '../src/pdf-template/pdf-template-intake.service';
 
 const SOURCE_PATH = join(__dirname, '..', 'src', 'dormitory', 'templates', 'dormitory-roster-application.pdf');
-const PERMISSIONS = ['DORM_PDF_TEMPLATE_READ', 'DORM_PDF_TEMPLATE_MANAGE', 'DORM_PDF_TEMPLATE_PUBLISH'];
+const PERMISSIONS = ['PDF_TEMPLATE_READ', 'PDF_TEMPLATE_MANAGE', 'DORM_REG_READ'];
 
 export async function buildSeedReport() {
   const buffer = await readFile(SOURCE_PATH);
   const source = await new PdfTemplateIntakeService().validate(buffer, 'dormitory-roster-application.pdf', 'application/pdf');
   return {
-    templateCode: PDF_TEMPLATE_CODE,
+    templateTypeCode: DORMITORY_ROSTER_APPLICATION,
     sourceChecksum: source.checksum,
-    layoutChecksum: layoutChecksum(DEFAULT_PDF_TEMPLATE_LAYOUT),
+    layoutChecksum: createHash('sha256').update(JSON.stringify(createDefaultDormitoryLayout(source.pages))).digest('hex'),
     sourceBytes: buffer.length,
-    intendedRevision: 1,
+    intendedVersion: 1,
     permissions: PERMISSIONS,
   };
 }
@@ -25,20 +26,17 @@ async function execute(report: Awaited<ReturnType<typeof buildSeedReport>>) {
   if (!process.env.MONGO_URI) throw new Error('Thiếu MONGO_URI cho seed execute.');
   await mongoose.connect(process.env.MONGO_URI);
   try {
-    const templates = mongoose.connection.collection('dormitory_pdf_templates');
-    const revisions = mongoose.connection.collection('dormitory_pdf_template_revisions');
-    const existing = await templates.findOne({ template_code: PDF_TEMPLATE_CODE });
+    const templates = mongoose.connection.collection('pdf_templates');
+    const existing = await templates.findOne({ templateTypeCode: DORMITORY_ROSTER_APPLICATION });
     if (existing) {
       console.log(JSON.stringify({ ...report, action: 'noop', reason: 'template_exists' }, null, 2));
       return;
     }
     const now = new Date();
-    const templateId = new mongoose.Types.ObjectId();
-    const revisionId = new mongoose.Types.ObjectId();
-    await templates.insertOne({ _id: templateId, template_code: PDF_TEMPLATE_CODE, name: 'Đơn xin vào ký túc xá', active: true, active_revision_id: revisionId, current_revision: 1, createdAt: now, updatedAt: now });
     const buffer = await readFile(SOURCE_PATH);
-    await revisions.insertOne({ _id: revisionId, template_code: PDF_TEMPLATE_CODE, template_id: templateId, revision: 1, revision_token: 0, status: 'PUBLISHED', source_filename: 'dormitory-roster-application.pdf', source_checksum: report.sourceChecksum, layout_checksum: report.layoutChecksum, source_pdf: buffer, layout: DEFAULT_PDF_TEMPLATE_LAYOUT, published_at: now, createdAt: now, updatedAt: now });
-    console.log(JSON.stringify({ ...report, action: 'created', revisionId: String(revisionId) }, null, 2));
+    const source = await new PdfTemplateIntakeService().validate(buffer, 'dormitory-roster-application.pdf', 'application/pdf');
+    await templates.insertOne({ templateTypeCode: DORMITORY_ROSTER_APPLICATION, moduleCode: 'DORMITORY', featureCode: 'DORMITORY_ROSTER', displayName: 'Mẫu đơn đăng ký KTX', sourceMimeType: 'application/pdf', sourceFilename: source.filename, sourceChecksum: source.checksum, sourceBytes: buffer.length, sourcePdf: buffer, pages: source.pages, layout: createDefaultDormitoryLayout(source.pages), version: 1, active: true, audit: { updatedBy: null, updatedAt: now }, updatedAt: now });
+    console.log(JSON.stringify({ ...report, action: 'created', version: 1 }, null, 2));
   } finally {
     await mongoose.disconnect();
   }

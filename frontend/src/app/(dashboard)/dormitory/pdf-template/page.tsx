@@ -1,8 +1,7 @@
 'use client';
 
-import PdfTemplateDesigner from '@/components/dormitory/pdf-template/PdfTemplateDesigner';
+import PdfTemplateCatalog from '@/components/pdf-template/PdfTemplateCatalog';
 
 export default function DormitoryPdfTemplatePage() {
-  return <PdfTemplateDesigner />;
+  return <PdfTemplateCatalog />;
 }
-

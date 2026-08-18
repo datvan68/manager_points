@@ -55,6 +55,7 @@ output/
 .agents/**/reports/*.html
 mcp_config.json
 backend/storage/
+backend/tmp/pdfs/
 .worktrees/
 # Test scripts
 backend/load-test-concurrent.js

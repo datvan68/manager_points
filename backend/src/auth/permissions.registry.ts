@@ -634,22 +634,16 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép tạo mục Danh sách KTX.',
   },
   {
-    code: 'DORM_PDF_TEMPLATE_READ',
-    name: 'Xem template PDF KTX',
+    code: 'PDF_TEMPLATE_READ',
+    name: 'Xem PDF Template Designer',
     module: DORMITORY_MANAGER_GROUP.name,
-    description: 'Cho phép xem metadata, source, revision và preview synthetic của template PDF KTX.',
+    description: 'Cho phép xem catalog, source và synthetic preview của PDF template.',
   },
   {
-    code: 'DORM_PDF_TEMPLATE_MANAGE',
-    name: 'Quản lý template PDF KTX',
+    code: 'PDF_TEMPLATE_MANAGE',
+    name: 'Quản lý PDF Template Designer',
     module: DORMITORY_MANAGER_GROUP.name,
-    description: 'Cho phép upload PDF, lưu draft, validate và khôi phục template PDF KTX.',
-  },
-  {
-    code: 'DORM_PDF_TEMPLATE_PUBLISH',
-    name: 'Publish template PDF KTX',
-    module: DORMITORY_MANAGER_GROUP.name,
-    description: 'Cho phép publish revision template PDF KTX đã được validate.',
+    description: 'Cho phép thay PDF nền, chỉnh layout và lưu template hiện hành.',
   },
   {
     code: 'DORM_REG_UPDATE',

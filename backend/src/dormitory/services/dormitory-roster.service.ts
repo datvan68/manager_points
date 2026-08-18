@@ -23,10 +23,8 @@ import { CreateRosterEntryDto } from '../dto/create-roster-entry.dto';
 import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
-import { PdfTemplateService } from '../pdf-template/pdf-template.service';
-import { PdfTemplateRendererService } from '../pdf-template/pdf-template-renderer.service';
-import { resolveRosterPdfValues } from '../pdf-template/field-catalog';
-import { validateAndNormalizeLayout } from '../pdf-template/layout.validation';
+import { PdfTemplateService as SharedPdfTemplateService } from '../../pdf-template/pdf-template.service';
+import { createDefaultDormitoryLayout, resolveDormitoryRosterPdfValues, DORMITORY_ROSTER_APPLICATION } from '../pdf-template-adapter';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -40,8 +38,7 @@ export class DormitoryRosterService {
     @InjectModel(Semester.name) private readonly semesterModel: Model<SemesterDocument>,
     @InjectModel(Contract.name) private readonly contractModel: Model<ContractDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
-    @Optional() private readonly pdfTemplateService?: PdfTemplateService,
-    @Optional() private readonly pdfTemplateRenderer?: PdfTemplateRendererService,
+    @Optional() private readonly sharedPdfTemplateService?: SharedPdfTemplateService,
   ) {}
 
   private id(value: unknown) {
@@ -310,18 +307,19 @@ export class DormitoryRosterService {
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
     const value = this.toResponse(entry);
     const linkedStudent = this.plain(entry.student_id);
-    const activeRevision = this.pdfTemplateService && this.pdfTemplateRenderer
-      ? await this.pdfTemplateService.getActiveRevision('DORMITORY_APPLICATION')
+    const resolvedValues = resolveDormitoryRosterPdfValues(value, linkedStudent);
+    const rendered = this.sharedPdfTemplateService
+      ? await this.sharedPdfTemplateService.renderCurrentFromContext(DORMITORY_ROSTER_APPLICATION, { roster: value, student: linkedStudent })
       : null;
-    const renderer = this.pdfTemplateRenderer;
-    if (activeRevision && renderer) {
-      const rendered = await renderer.render(
-        Buffer.from(activeRevision.source_pdf),
-        validateAndNormalizeLayout(activeRevision.layout),
-        resolveRosterPdfValues(value, linkedStudent),
-      );
+    if (rendered) {
       return { buffer: rendered.buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
     }
+    if (this.sharedPdfTemplateService) {
+      const bundledPath = join(__dirname, '../templates/dormitory-roster-application.pdf');
+      const fallback = await this.sharedPdfTemplateService.renderFallback(DORMITORY_ROSTER_APPLICATION, await readFile(bundledPath), createDefaultDormitoryLayout([{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }]), resolvedValues);
+      return { buffer: fallback.buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+    }
+    // Compatibility-only path for isolated legacy unit setups without the shared module.
     const pdfValues = this.applicationPdfValues(value, this.plain(entry.student_id));
     let browser: any;
     try {
@@ -337,15 +335,11 @@ export class DormitoryRosterService {
       template.getPages()[0].drawPage(overlayPage, { x: 0, y: 0, width: 595.32, height: 842.04 });
       const buffer = await template.save({ useObjectStreams: false });
       return { buffer: Buffer.from(buffer), filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
-    } catch (error) {
+    } catch {
       throw new ServiceUnavailableException('Không thể tạo PDF mục Danh sách lúc này.');
     } finally {
       if (browser) await browser.close().catch(() => undefined);
     }
-  }
-
-  private escape(value: unknown) {
-    return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' } as Record<string, string>)[character]);
   }
 
   private safeFilename(value: unknown) {
@@ -366,51 +360,27 @@ export class DormitoryRosterService {
       name: linkedStudent?.full_name || roster.full_name,
       dob: this.formatPdfDate(linkedStudent?.date_bir || roster.date_of_birth),
       gender: ({ Male: 'Nam', Female: 'Nữ', Other: 'Khác' } as Record<string, string>)[linkedStudent?.sex || roster.gender] || '',
-      className: linkedStudent?.class_id?.class_name || '',
-      faculty: linkedStudent?.class_id?.dept_id?.name || '',
-      ethnicity: profile.ethnicity,
-      religion: profile.religion,
-      phone: roster.phone_number,
-      citizenId: profile.citizen_id_number,
-      citizenIssueDate: this.formatPdfDate(profile.citizen_id_issue_date),
-      citizenIssuePlace: profile.citizen_id_issue_place,
-      permanentAddress: profile.permanent_address,
-      fatherName: parent('father').full_name,
-      fatherAge: parent('father').age,
-      fatherAddress: parent('father').permanent_address,
-      fatherContactAddress: parent('father').contact_address,
-      fatherOccupation: parent('father').occupation,
-      fatherPhone: parent('father').phone_number,
-      motherName: parent('mother').full_name,
-      motherAge: parent('mother').age,
-      motherAddress: parent('mother').permanent_address,
-      motherContactAddress: parent('mother').contact_address,
-      motherOccupation: parent('mother').occupation,
-      motherPhone: parent('mother').phone_number,
-      priority: profile.priority_certificate_details,
+      className: linkedStudent?.class_id?.class_name || '', faculty: linkedStudent?.class_id?.dept_id?.name || '',
+      ethnicity: profile.ethnicity, religion: profile.religion, phone: roster.phone_number, citizenId: profile.citizen_id_number,
+      citizenIssueDate: this.formatPdfDate(profile.citizen_id_issue_date), citizenIssuePlace: profile.citizen_id_issue_place,
+      permanentAddress: profile.permanent_address, fatherName: parent('father').full_name, fatherAge: parent('father').age,
+      fatherAddress: parent('father').permanent_address, fatherContactAddress: parent('father').contact_address,
+      fatherOccupation: parent('father').occupation, fatherPhone: parent('father').phone_number, motherName: parent('mother').full_name,
+      motherAge: parent('mother').age, motherAddress: parent('mother').permanent_address, motherContactAddress: parent('mother').contact_address,
+      motherOccupation: parent('mother').occupation, motherPhone: parent('mother').phone_number, priority: profile.priority_certificate_details,
     };
   }
 
   private applicationPdfOverlayHtml(values: Record<string, unknown>) {
     const fields: Array<[string, number, number, number, number?]> = [
-      ['name', 296, 191, 240], ['dob', 323.5, 215, 77], ['gender', 459, 215, 77],
-      ['className', 218, 239, 142], ['faculty', 396.8, 239, 139],
-      ['ethnicity', 241, 263, 56], ['religion', 354.5, 263, 49], ['phone', 466.4, 263, 69.6],
-      ['citizenId', 235.2, 287, 70], ['citizenIssueDate', 362.5, 287, 63], ['citizenIssuePlace', 480.7, 287, 55],
-      ['permanentAddress', 203, 311, 332], ['fatherName', 152.4, 335, 239.6], ['fatherAge', 396.8, 335, 139.2],
-      ['fatherAddress', 203, 359, 332], ['fatherContactAddress', 194.9, 383, 341.1], ['fatherOccupation', 194.9, 407, 114.9], ['fatherPhone', 375.9, 407, 160.1],
+      ['name', 296, 191, 240], ['dob', 323.5, 215, 77], ['gender', 459, 215, 77], ['className', 218, 239, 142], ['faculty', 396.8, 239, 139],
+      ['ethnicity', 241, 263, 56], ['religion', 354.5, 263, 49], ['phone', 466.4, 263, 69.6], ['citizenId', 235.2, 287, 70], ['citizenIssueDate', 362.5, 287, 63], ['citizenIssuePlace', 480.7, 287, 55],
+      ['permanentAddress', 203, 311, 332], ['fatherName', 152.4, 335, 239.6], ['fatherAge', 396.8, 335, 139.2], ['fatherAddress', 203, 359, 332], ['fatherContactAddress', 194.9, 383, 341.1], ['fatherOccupation', 194.9, 407, 114.9], ['fatherPhone', 375.9, 407, 160.1],
       ['motherName', 152.4, 431, 196], ['motherAge', 386.4, 431, 149.6], ['motherAddress', 203, 455, 332], ['motherContactAddress', 194.9, 479, 341.1], ['motherOccupation', 194.9, 503, 114.9], ['motherPhone', 375.9, 503, 160.1], ['priority', 302.8, 527, 233.3],
     ];
-    const field = (name: string, left: number, top: number, width: number, height = 18) => {
-      const value = String(values[name] ?? '');
-      const fontSize = value ? Math.max(7.5, Math.min(12, (width * 1.75) / Math.max(value.length, 1))) : 12;
-      const estimatedWidth = value.length * fontSize * 0.52;
-      const scaleX = value && estimatedWidth > width ? width / estimatedWidth : 1;
-      return `<span class="field" style="left:${left}pt;top:${top}pt;width:${width}pt;height:${height}pt;font-size:${fontSize.toFixed(2)}pt;transform:scaleX(${scaleX.toFixed(3)})">${this.escape(value)}</span>`;
-    };
-    return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:595.32pt 842.04pt;margin:0}*{box-sizing:border-box}html,body{margin:0;width:595.32pt;height:842.04pt;background:transparent}body{font-family:"Times New Roman","DejaVu Serif",serif;color:#000}.field{position:absolute;display:block;padding:1pt 0;background:#fff;line-height:16pt;white-space:nowrap;overflow:visible;transform-origin:left center}</style></head><body>
-      ${fields.map(([name, left, top, width, height]) => field(name, left, top, width, height)).join('')}
-    </body></html>`;
+    const escape = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' } as Record<string, string>)[character]);
+    const field = (name: string, left: number, top: number, width: number, height = 18) => { const value = String(values[name] ?? ''); const fontSize = value ? Math.max(7.5, Math.min(12, (width * 1.75) / Math.max(value.length, 1))) : 12; const estimatedWidth = value.length * fontSize * 0.52; const scaleX = value && estimatedWidth > width ? width / estimatedWidth : 1; return `<span class="field" style="left:${left}pt;top:${top}pt;width:${width}pt;height:${height}pt;font-size:${fontSize.toFixed(2)}pt;transform:scaleX(${scaleX.toFixed(3)})">${escape(value)}</span>`; };
+    return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:595.32pt 842.04pt;margin:0}*{box-sizing:border-box}html,body{margin:0;width:595.32pt;height:842.04pt;background:transparent}body{font-family:"Times New Roman","DejaVu Serif",serif;color:#000}.field{position:absolute;display:block;padding:1pt 0;background:#fff;line-height:16pt;white-space:nowrap;overflow:visible;transform-origin:left center}</style></head><body>${fields.map(([name, left, top, width, height]) => field(name, left, top, width, height)).join('')}</body></html>`;
   }
 
   private async authorizeStudentView(student: any, requester?: RosterUser) {

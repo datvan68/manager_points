@@ -42,6 +42,7 @@
     ,"seed:dormitory-pdf-template:dry-run": "ts-node scripts/seed-dormitory-pdf-template.ts"
     ,"seed:dormitory-pdf-template:execute": "ts-node scripts/seed-dormitory-pdf-template.ts --execute"
     ,"verify:dormitory-pdf-template": "ts-node scripts/verify-dormitory-pdf-template.ts"
+    ,"verify:pdf-templates": "ts-node scripts/verify-dormitory-pdf-template.ts"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",

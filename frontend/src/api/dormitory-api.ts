@@ -1,5 +1,6 @@
 import { httpClient, handleResponse } from './http-client';
 import { API_BASE } from './config';
+import { pdfTemplateApi } from './pdf-template-api';
 
 // ── Type Definitions ──
 
@@ -267,28 +268,6 @@ export interface DormDashboardStats {
   invoice_summary: DormitoryInvoiceSummary;
 }
 
-export const DORMITORY_PDF_TEMPLATE_CODE = 'DORMITORY_APPLICATION';
-export type PdfTemplatePermission = 'DORM_PDF_TEMPLATE_READ' | 'DORM_PDF_TEMPLATE_MANAGE' | 'DORM_PDF_TEMPLATE_PUBLISH';
-export interface DormitoryPdfTemplateFieldStyle {
-  fontFamily: 'Arial' | 'Times New Roman'; fontSize: number; minFontSize: number; fontWeight: 400 | 700;
-  color: string; horizontalAlign: 'left' | 'center' | 'right'; verticalAlign: 'top' | 'middle' | 'bottom';
-  lineHeight: number; padding: number; background: 'transparent' | 'white'; overflow: 'shrink' | 'wrap' | 'clip'; maxLines: number;
-}
-export interface DormitoryPdfTemplateField {
-  key: string; pageIndex: 0; x: number; y: number; width: number; height: number; rotation: number; zIndex: number;
-  formatter?: string; style: DormitoryPdfTemplateFieldStyle;
-}
-export interface DormitoryPdfTemplateLayout { pageWidth: 595.32; pageHeight: 842.04; fields: DormitoryPdfTemplateField[]; }
-export interface DormitoryPdfTemplateRevision {
-  id: string; templateCode: string; revision: number; revisionToken: number; status: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
-  sourceFilename: string; sourceChecksum: string; layoutChecksum: string; layout: DormitoryPdfTemplateLayout;
-  createdAt?: string; publishedAt?: string | null;
-}
-export interface DormitoryPdfTemplateMetadata {
-  templateCode: string; name: string; active: boolean; activeRevisionId?: string | null; currentRevision: number;
-  fallback?: boolean; defaultLayout?: DormitoryPdfTemplateLayout; activeRevision?: DormitoryPdfTemplateRevision | null;
-}
-
 interface PaginatedResponse<T> {
   data: T[];
   meta: { total: number; page: number; limit: number; totalPages: number };
@@ -313,49 +292,11 @@ function buildQuery(params?: QueryParams): string {
 
 export const dormitoryApi = {
   pdfTemplates: {
-    async list(): Promise<DormitoryPdfTemplateMetadata[]> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates`);
-      return handleResponse(res);
-    },
-    async get(templateCode = DORMITORY_PDF_TEMPLATE_CODE): Promise<DormitoryPdfTemplateMetadata> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}`);
-      return handleResponse(res);
-    },
-    async source(templateCode = DORMITORY_PDF_TEMPLATE_CODE, revisionId?: string): Promise<Blob> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/source${buildQuery({ revisionId })}`);
-      if (!res.ok) return handleResponse(res);
-      return res.blob();
-    },
-    async create(file: File, templateCode = DORMITORY_PDF_TEMPLATE_CODE): Promise<DormitoryPdfTemplateRevision> {
-      const form = new FormData(); form.append('file', file); form.append('template_code', templateCode);
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates`, { method: 'POST', body: form });
-      return handleResponse(res);
-    },
-    async update(templateCode: string, revisionId: string, revision: number, fields: DormitoryPdfTemplateField[]): Promise<DormitoryPdfTemplateRevision> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/drafts/${encodeURIComponent(revisionId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, fields }) });
-      return handleResponse(res);
-    },
-    async validate(templateCode: string, revisionId: string): Promise<{ valid: boolean; errors: string[]; warnings: string[]; layoutChecksum?: string }> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/drafts/${encodeURIComponent(revisionId)}/validate`, { method: 'POST' });
-      return handleResponse(res);
-    },
-    async preview(templateCode: string, revisionId: string, realRoster = false, rosterEntryId?: string): Promise<Blob> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/drafts/${encodeURIComponent(revisionId)}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ realRoster, rosterEntryId }) });
-      if (!res.ok) return handleResponse(res);
-      return res.blob();
-    },
-    async publish(templateCode: string, revisionId: string): Promise<DormitoryPdfTemplateRevision> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/drafts/${encodeURIComponent(revisionId)}/publish`, { method: 'POST' });
-      return handleResponse(res);
-    },
-    async revisions(templateCode = DORMITORY_PDF_TEMPLATE_CODE): Promise<DormitoryPdfTemplateRevision[]> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/revisions`);
-      return handleResponse(res);
-    },
-    async restore(templateCode: string, revisionId: string): Promise<DormitoryPdfTemplateRevision> {
-      const res = await httpClient(`${API_BASE}/dormitory/pdf-templates/${encodeURIComponent(templateCode)}/revisions/${encodeURIComponent(revisionId)}/restore`, { method: 'POST' });
-      return handleResponse(res);
-    },
+    catalog: () => pdfTemplateApi.catalog(),
+    metadata: (templateTypeCode: string) => pdfTemplateApi.metadata(templateTypeCode),
+    source: (templateTypeCode: string) => pdfTemplateApi.source(templateTypeCode),
+    preview: (templateTypeCode: string, layout: any, fixture = 'short', source?: File) => pdfTemplateApi.preview(templateTypeCode, layout, fixture, source),
+    save: (templateTypeCode: string, version: number, layout: any, source?: File) => pdfTemplateApi.save(templateTypeCode, version, layout, source),
   },
   // ── Buildings ──
   buildings: {
