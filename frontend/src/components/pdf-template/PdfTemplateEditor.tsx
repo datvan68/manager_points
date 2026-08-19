@@ -15,6 +15,8 @@ import {
   Handle,
 } from '@/components/dormitory/pdf-template/PdfTemplateDesigner';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 type Props = {
   metadata: PdfTemplateMetadata;
@@ -79,19 +81,21 @@ export default function PdfTemplateEditor({
   const [renderedPage, setRenderedPage] = useState<number | null>(null);
   const [retry, setRetry] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const previewButtonRef = useRef<HTMLButtonElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const [viewMode, setViewMode] = useState<'fit' | '100'>('fit');
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 800,
+    height: 600,
+  });
   const [pageIndex, setPageIndex] = useState(0);
   const [selected, setSelected] = useState<string>();
-  const [fixture, setFixture] = useState('short');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
-  const [snap, setSnap] = useState(true);
-  const [showGrid, setShowGrid] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
@@ -160,6 +164,37 @@ export default function PdfTemplateEditor({
   }, [sourceUrl]);
 
   useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setContainerSize({ width: rect.width, height: rect.height });
+        }
+      }
+    };
+    updateSize();
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        updateSize();
+      });
+      observer.observe(containerRef.current);
+    }
+    window.addEventListener('resize', updateSize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
+  const page = layout?.pages[pageIndex] || layout?.pages[0];
+  const availableWidth = Math.max(100, containerSize.width - 48);
+  const availableHeight = Math.max(100, containerSize.height - 48);
+  const fitScale = page ? Math.min(availableWidth / page.width, availableHeight / page.height) : 1;
+  const effectiveScale = viewMode === 'fit' ? Math.max(0.1, fitScale) : 1.0;
+
+  useEffect(() => {
     if (!sourceUrl || !canvasRef.current || !layout) return;
     let disposed = false;
     let loadingTask: any;
@@ -199,7 +234,7 @@ export default function PdfTemplateEditor({
         const activePageIndex = Math.min(pageIndex, document.numPages - 1);
         if (activePageIndex !== pageIndex) setPageIndex(activePageIndex);
         const activePage = await document.getPage(activePageIndex + 1);
-        const viewport = activePage.getViewport({ scale: zoom });
+        const viewport = activePage.getViewport({ scale: effectiveScale });
         if (!canvas || disposed) return;
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
@@ -228,7 +263,7 @@ export default function PdfTemplateEditor({
       renderTask?.cancel?.();
       void loadingTask?.destroy?.();
     };
-  }, [sourceUrl, pageIndex, zoom, layout ? layout.pages.length : 0]);
+  }, [sourceUrl, pageIndex, effectiveScale, layout ? layout.pages.length : 0]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -246,7 +281,6 @@ export default function PdfTemplateEditor({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPreviewOpen, previewUrl]);
 
-  const page = layout?.pages[pageIndex] || layout?.pages[0];
   const selectedItem = useMemo(
     () => layout?.items.find((item) => item.id === selected),
     [layout, selected]
@@ -355,12 +389,12 @@ export default function PdfTemplateEditor({
   const move = (event: React.PointerEvent) => {
     if (!dragRef.current || !layout || !page) return;
     const { mode, id, startX, startY, initialItem, handle } = dragRef.current;
-    const rawDx = (event.clientX - startX) / (page.width * zoom);
-    const rawDy = (event.clientY - startY) / (page.height * zoom);
+    const rawDx = (event.clientX - startX) / (page.width * effectiveScale);
+    const rawDy = (event.clientY - startY) / (page.height * effectiveScale);
 
     const snapStep = 0.005;
-    const dx = snap ? Math.round(rawDx / snapStep) * snapStep : rawDx;
-    const dy = snap ? Math.round(rawDy / snapStep) * snapStep : rawDy;
+    const dx = Math.round(rawDx / snapStep) * snapStep;
+    const dy = Math.round(rawDy / snapStep) * snapStep;
 
     if (mode === 'move') {
       const updated = moveField(initialItem, dx, dy);
@@ -452,7 +486,7 @@ export default function PdfTemplateEditor({
       const blob = await pdfTemplateApi.preview(
         metadata.templateTypeCode,
         layout,
-        fixture,
+        'vietnamese',
         source
       );
       setPreviewUrl((old) => {
@@ -522,13 +556,15 @@ export default function PdfTemplateEditor({
         <div className="relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10 gap-2 lg:gap-3 justify-between">
           <div className="flex items-center gap-2 min-w-0">
             {onBack && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={handleBackClick}
-                className="inline-flex items-center gap-1 text-[13px] font-semibold text-slate-700 hover:text-slate-900 transition-colors shrink-0"
+                className="h-7 px-2 text-[13px] font-semibold text-slate-700 hover:text-slate-900 transition-colors shrink-0"
               >
                 ← Quay lại
-              </button>
+              </Button>
             )}
             {onBack && <div className="h-4 w-px bg-slate-200/80 shrink-0" />}
             <h1 id="pdf-editor-title" className="text-[13.5px] font-bold text-slate-900 truncate shrink-0">
@@ -574,13 +610,15 @@ export default function PdfTemplateEditor({
         {/* Left: Back button, Title & Metadata */}
         <div className="flex items-center gap-2 min-w-0">
           {onBack && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={handleBackClick}
-              className="inline-flex items-center gap-1 text-[13px] font-semibold text-slate-700 hover:text-slate-900 transition-colors shrink-0"
+              className="h-7 px-2 text-[13px] font-semibold text-slate-700 hover:text-slate-900 transition-colors shrink-0"
             >
               ← Quay lại
-            </button>
+            </Button>
           )}
           {onBack && <div className="h-4 w-px bg-slate-200/80 shrink-0" />}
           <div className="flex items-center gap-1.5 min-w-0 truncate">
@@ -595,7 +633,7 @@ export default function PdfTemplateEditor({
 
         {/* Center: Controls */}
         <div className="flex items-center gap-2 lg:gap-3 shrink-0">
-          <label className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/70 hover:bg-white px-2 py-1 text-[12px] font-semibold text-slate-700 hover:text-slate-900 cursor-pointer transition-all shadow-xs shrink-0">
+          <label className="inline-flex items-center gap-1 rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm text-slate-700 hover:bg-white/70 hover:border-[#1A73E8]/20 hover:text-[#1A73E8] px-2.5 py-1 text-[12px] font-semibold cursor-pointer transition-all shadow-xs shrink-0">
             Thay PDF nền
             <input
               type="file"
@@ -611,7 +649,7 @@ export default function PdfTemplateEditor({
               aria-label="Trang PDF"
               value={pageIndex}
               onChange={(event) => setPageIndex(Number(event.target.value))}
-              className="rounded-lg border border-slate-200/80 bg-white/70 px-1.5 py-0.5 text-[12px] font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              className="rounded-xl border border-white/70 bg-white/50 px-2 py-0.5 text-[12px] font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
             >
               {layout.pages.map((entry) => (
                 <option key={entry.pageIndex} value={entry.pageIndex}>
@@ -621,55 +659,32 @@ export default function PdfTemplateEditor({
             </select>
           </label>
 
-          <label className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-600 shrink-0">
-            <span className="hidden sm:inline">Zoom</span>
-            <select
-              aria-label="Zoom"
-              value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
-              className="rounded-lg border border-slate-200/80 bg-white/70 px-1.5 py-0.5 text-[12px] font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+          <div className="flex items-center rounded-xl border border-white/70 bg-white/50 p-0.5 gap-0.5 shrink-0" role="group" aria-label="Chế độ xem">
+            <button
+              type="button"
+              onClick={() => setViewMode('fit')}
+              className={cn(
+                "px-2.5 py-0.5 text-[12px] font-semibold rounded-lg transition-all",
+                viewMode === 'fit'
+                  ? "bg-[#1A73E8] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              )}
             >
-              <option value="0.5">50%</option>
-              <option value="1">100%</option>
-              <option value="2">200%</option>
-            </select>
-          </label>
-
-          <div className="h-3.5 w-px bg-slate-200/80 hidden sm:block" />
-
-          <label className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-700 cursor-pointer select-none shrink-0">
-            <input
-              type="checkbox"
-              checked={snap}
-              onChange={(event) => setSnap(event.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Snap
-          </label>
-
-          <label className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-700 cursor-pointer select-none shrink-0">
-            <input
-              type="checkbox"
-              checked={showGrid}
-              onChange={(event) => setShowGrid(event.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Grid
-          </label>
-
-          <label className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-600 shrink-0">
-            <span className="hidden xl:inline">Fixture</span>
-            <select
-              value={fixture}
-              onChange={(event) => setFixture(event.target.value)}
-              className="rounded-lg border border-slate-200/80 bg-white/70 px-1.5 py-0.5 text-[12px] font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+              Fit page
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('100')}
+              className={cn(
+                "px-2.5 py-0.5 text-[12px] font-semibold rounded-lg transition-all",
+                viewMode === '100'
+                  ? "bg-[#1A73E8] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              )}
             >
-              <option value="short">Short</option>
-              <option value="long">Long</option>
-              <option value="missing">Missing</option>
-              <option value="vietnamese">Vietnamese</option>
-            </select>
-          </label>
+              100%
+            </button>
+          </div>
         </div>
 
         {/* Right: Status, Preview, Save */}
@@ -679,23 +694,27 @@ export default function PdfTemplateEditor({
               {message}
             </span>
           )}
-          <button
+          <Button
             ref={previewButtonRef}
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={preview}
             disabled={busy || clientErrors.length > 0}
-            className="inline-flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-900 px-3 py-1 text-[12px] font-bold text-white shadow-sm disabled:opacity-50 transition-colors shrink-0"
+            className="h-7 px-3 text-[12px] font-bold shrink-0 bg-slate-800 hover:bg-slate-900 text-white"
           >
             Preview
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="default"
+            size="sm"
             onClick={handleSaveClick}
             disabled={busy || clientErrors.length > 0 || !layout.items.length}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1 text-[12px] font-bold text-white shadow-sm disabled:opacity-50 transition-colors shrink-0"
+            className="h-7 px-3 text-[12px] font-bold shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
           >
             Save
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -734,18 +753,15 @@ export default function PdfTemplateEditor({
         {/* Main Workspace */}
         <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-stretch overflow-hidden">
           {/* Canvas Area */}
-          <div className="overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-4 lg:p-6 relative flex items-start justify-center min-h-[450px] lg:min-h-0">
+          <div
+            ref={containerRef}
+            className="overflow-auto rounded-2xl border border-slate-200 bg-slate-100 p-4 lg:p-6 relative flex items-start justify-center min-h-[450px] lg:min-h-0"
+          >
             <div
               className="relative mx-auto shadow-xl bg-white transition-all shrink-0"
               style={{
-                width: page.width * zoom,
-                height: page.height * zoom,
-                backgroundImage: showGrid
-                  ? 'linear-gradient(to right, rgba(37,99,235,.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,99,235,.12) 1px, transparent 1px)'
-                  : undefined,
-                backgroundSize: showGrid
-                  ? `${page.width * 0.05 * zoom}px ${page.height * 0.05 * zoom}px`
-                  : undefined,
+                width: page.width * effectiveScale,
+                height: page.height * effectiveScale,
               }}
             >
               <canvas
@@ -769,13 +785,15 @@ export default function PdfTemplateEditor({
               {sourceState === 'error' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 p-4 text-center text-sm text-red-700">
                   <p role="alert">{message || 'Không thể tải hoặc render PDF.'}</p>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setRetry((value) => value + 1)}
-                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
+                    className="border-red-200 bg-white text-red-700 hover:bg-red-50"
                   >
                     Thử lại
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -786,10 +804,10 @@ export default function PdfTemplateEditor({
                   .map((item) => {
                     const isSelected = selected === item.id;
                     const itemFontSize = item.style?.fontSize ?? 12;
-                    const effectiveFontSize = itemFontSize * zoom;
+                    const effectiveFontSize = itemFontSize * effectiveScale;
                     const hAlign = item.style?.horizontalAlign || 'left';
                     const vAlign = item.style?.verticalAlign || 'top';
-                    const padding = (item.style?.padding ?? 2) * zoom;
+                    const padding = (item.style?.padding ?? 2) * effectiveScale;
                     const lineHeight = item.style?.lineHeight ?? 1.15;
                     const bgWhite = item.style?.background === 'white';
 
@@ -828,10 +846,10 @@ export default function PdfTemplateEditor({
                             : 'border border-blue-400/70 bg-blue-50/40 text-blue-800 hover:border-blue-600 hover:bg-blue-100/50'
                         }`}
                         style={{
-                          left: item.x * page.width * zoom,
-                          top: item.y * page.height * zoom,
-                          width: item.width * page.width * zoom,
-                          height: item.height * page.height * zoom,
+                          left: item.x * page.width * effectiveScale,
+                          top: item.y * page.height * effectiveScale,
+                          width: item.width * page.width * effectiveScale,
+                          height: item.height * page.height * effectiveScale,
                           zIndex: isSelected ? 50 : item.zIndex + 1,
                           cursor: 'move',
                         }}
@@ -1101,18 +1119,17 @@ export default function PdfTemplateEditor({
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50/80">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-bold text-slate-900">Synthetic preview</h2>
-                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                  Fixture: <strong className="ml-1 font-mono">{fixture}</strong>
-                </span>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={closePreview}
-                className="rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400"
+                className="h-8 px-3 text-xs font-semibold"
                 aria-label="Đóng preview"
               >
                 Đóng preview
-              </button>
+              </Button>
             </div>
 
             {/* Modal Body */}
@@ -1127,13 +1144,15 @@ export default function PdfTemplateEditor({
               {!previewLoading && previewError && (
                 <div className="flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-red-700 max-w-md">
                   <p role="alert" className="font-medium">{previewError}</p>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={preview}
-                    className="rounded-xl border border-red-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 shadow-sm"
+                    className="border-red-200 bg-white text-red-700 hover:bg-red-50"
                   >
                     Thử lại
-                  </button>
+                  </Button>
                 </div>
               )}
 

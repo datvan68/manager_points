@@ -270,7 +270,7 @@ describe('PdfTemplateEditor', () => {
     expect(screen.queryByRole('button', { name: 'student.fullName' })).not.toBeInTheDocument();
   });
 
-  it('opens focused preview dialog with concise header, fixture context, PDF viewer, and explicit close button', async () => {
+  it('opens focused preview dialog with concise header, PDF viewer, and explicit close button', async () => {
     const previewSpy = vi.spyOn(pdfTemplateApi, 'preview').mockResolvedValue(
       new Blob(['dummy pdf preview content'], { type: 'application/pdf' })
     );
@@ -285,7 +285,7 @@ describe('PdfTemplateEditor', () => {
     expect(previewSpy).toHaveBeenCalledWith(
       'DORMITORY_ROSTER_APPLICATION',
       expect.any(Object),
-      'short',
+      'vietnamese',
       undefined
     );
 
@@ -293,8 +293,6 @@ describe('PdfTemplateEditor', () => {
     expect(dialog).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: 'Synthetic preview' })).toBeInTheDocument();
-    expect(screen.getByText(/Fixture:/)).toBeInTheDocument();
-    expect(screen.getByText('short')).toBeInTheDocument();
 
     const iframe = screen.getByTitle('Synthetic PDF preview') as HTMLIFrameElement;
     expect(iframe).toBeInTheDocument();
@@ -408,6 +406,10 @@ describe('PdfTemplateEditor', () => {
   it('scales fontSize proportionally from initial font size by height ratio during corner resize', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
+    // Switch to 100% mode for direct 1:1 pixel to page ratio gesture testing
+    const mode100Btn = screen.getByRole('button', { name: '100%' });
+    fireEvent.click(mode100Btn);
+
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     fireEvent.click(fieldElement);
 
@@ -482,33 +484,38 @@ describe('PdfTemplateEditor', () => {
     expect(fontSizeInput.value).toBe('12');
   });
 
-  it('renders canvas fieldKey label using effective style.fontSize scaled by active zoom and with contrast styling', async () => {
+  it('switches between Fit page and 100% view modes, updating effective scale for canvas overlays', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-
-    // Label element inside field
     const labelElement = fieldElement.querySelector('div');
     expect(labelElement).toBeInTheDocument();
-    // Default zoom is 1, initial fontSize is 12 -> style fontSize should be 12px
-    expect(labelElement?.style.fontSize).toBe('12px');
 
-    // Change zoom to 200% (zoom = 2)
-    const zoomSelect = screen.getByLabelText('Zoom');
-    fireEvent.change(zoomSelect, { target: { value: '2' } });
+    // In default 'fit' mode with mock container (800x600, available 752x552 against 595.32x842.04)
+    // fitScale = 552 / 842.04 = ~0.6555 -> effectiveFontSize = ~7.866px
+    const initialFontSize = parseFloat(labelElement?.style.fontSize || '0');
+    expect(initialFontSize).toBeGreaterThan(6);
+    expect(initialFontSize).toBeLessThan(12);
 
-    // Wait for overlay to re-render after zoom change
+    // Switch to 100% mode
+    const mode100Btn = screen.getByRole('button', { name: '100%' });
+    fireEvent.click(mode100Btn);
+
+    // In 100% mode, effectiveScale = 1.0 -> effectiveFontSize = 12px
     const updatedField = await screen.findByRole('button', { name: 'student.fullName' });
     const updatedLabel = updatedField.querySelector('div');
-    expect(updatedLabel?.style.fontSize).toBe('24px');
+    expect(updatedLabel?.style.fontSize).toBe('12px');
 
-    // When clicked / selected, field button receives selected high-contrast classes
-    fireEvent.click(updatedField);
-    expect(updatedField.className).toContain('text-blue-950');
-    expect(updatedField.className).toContain('font-bold');
+    // Switch back to Fit page mode
+    const fitPageBtn = screen.getByRole('button', { name: 'Fit page' });
+    fireEvent.click(fitPageBtn);
+
+    const refitField = await screen.findByRole('button', { name: 'student.fullName' });
+    const refitLabel = refitField.querySelector('div');
+    expect(parseFloat(refitLabel?.style.fontSize || '0')).toBeCloseTo(initialFontSize, 1);
   });
 
-  it('renders command bar with 41px visual rhythm, back button, title, and compact control groups', async () => {
+  it('renders command bar with 41px visual rhythm, back button, title, and compact control groups without Grid/Snap/Fixture', async () => {
     const onBack = vi.fn();
     const { container } = render(
       <PdfTemplateEditor
@@ -536,9 +543,16 @@ describe('PdfTemplateEditor', () => {
     // Controls
     expect(screen.getByText('Thay PDF nền')).toBeInTheDocument();
     expect(screen.getByLabelText('Trang PDF')).toBeInTheDocument();
-    expect(screen.getByLabelText('Zoom')).toBeInTheDocument();
-    expect(screen.getByLabelText('Snap')).toBeInTheDocument();
-    expect(screen.getByLabelText('Grid')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fit page' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '100%' })).toBeInTheDocument();
+
+    // Removed controls
+    expect(screen.queryByLabelText('Zoom')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Snap')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Grid')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Fixture')).not.toBeInTheDocument();
+
+    // Actions
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
@@ -578,6 +592,9 @@ describe('PdfTemplateEditor', () => {
         onDirtyChange={vi.fn()}
       />
     );
+
+    const mode100Btn = screen.getByRole('button', { name: '100%' });
+    fireEvent.click(mode100Btn);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     const innerContainer = fieldElement.querySelector('div');
@@ -754,5 +771,37 @@ describe('PdfTemplateEditor', () => {
     window.dispatchEvent(event);
 
     expect(preventDefaultSpy).toHaveBeenCalled();
+  });
+
+  it('maintains normalized field coordinate stability during responsive resize', async () => {
+    render(
+      <PdfTemplateEditor
+        metadata={mockMetadata}
+        onSaved={vi.fn()}
+        onDirtyChange={vi.fn()}
+      />
+    );
+
+    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
+    fireEvent.click(fieldElement);
+
+    const xInput = screen.getByLabelText('x') as HTMLInputElement;
+    const yInput = screen.getByLabelText('y') as HTMLInputElement;
+    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
+    const heightInput = screen.getByLabelText('height') as HTMLInputElement;
+
+    const initialX = xInput.value;
+    const initialY = yInput.value;
+    const initialWidth = widthInput.value;
+    const initialHeight = heightInput.value;
+
+    // Trigger window resize event
+    fireEvent(window, new Event('resize'));
+
+    // Field normalized coordinates must not move or mutate
+    expect(xInput.value).toBe(initialX);
+    expect(yInput.value).toBe(initialY);
+    expect(widthInput.value).toBe(initialWidth);
+    expect(heightInput.value).toBe(initialHeight);
   });
 });
