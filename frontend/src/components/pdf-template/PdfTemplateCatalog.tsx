@@ -1,14 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { pdfTemplateApi, PdfTemplateCatalogItem } from '@/api/pdf-template-api';
+import {
+  pdfTemplateApi,
+  PdfTemplateCatalogItem,
+  PdfTemplateMetadata,
+} from '@/api/pdf-template-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import { Button } from '@/components/ui/button';
 
 export interface PdfTemplateCatalogProps {
   routeBase?: string;
   lockedModuleCode?: string;
+}
+
+function formatUpdatedAt(value: string | null | undefined): string {
+  if (!value) return 'Chưa cập nhật';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Chưa cập nhật';
+  return new Intl.DateTimeFormat('vi-VN').format(date);
 }
 
 function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }: PdfTemplateCatalogProps) {
@@ -25,6 +37,13 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
   const [error, setError] = useState('');
   const [mutating, setMutating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PdfTemplateCatalogItem | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadTarget, setActiveUploadTarget] = useState<PdfTemplateCatalogItem | null>(null);
+  const [pendingReplace, setPendingReplace] = useState<{
+    item: PdfTemplateCatalogItem;
+    file: File;
+    metadata: PdfTemplateMetadata;
+  } | null>(null);
 
   const load = async () => {
     if (!access.read) return;
@@ -89,6 +108,63 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
 
   const returnQuery = params.toString();
 
+  const handleTriggerUpload = (item: PdfTemplateCatalogItem) => {
+    if (mutating) return;
+    setActiveUploadTarget(item);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const target = activeUploadTarget;
+    event.target.value = '';
+    if (!file || !target) return;
+
+    setMutating(true);
+    setError('');
+    try {
+      const metadata = await pdfTemplateApi.metadata(target.templateTypeCode);
+      if (!metadata.layout || !metadata.layout.items || metadata.layout.items.length === 0) {
+        setError(
+          `Template “${target.displayName}” chưa có layout hợp lệ. Vui lòng chọn "Chỉnh sửa" để cấu hình layout trước khi thay thế file PDF.`
+        );
+        return;
+      }
+      setPendingReplace({
+        item: target,
+        file,
+        metadata,
+      });
+    } catch (cause: any) {
+      setError(cause?.message || 'Không thể tải metadata của template.');
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleReplaceConfirm = async () => {
+    if (!pendingReplace || mutating) return;
+    setMutating(true);
+    setError('');
+    try {
+      await pdfTemplateApi.save(
+        pendingReplace.item.templateTypeCode,
+        pendingReplace.metadata.version,
+        pendingReplace.metadata.layout!,
+        pendingReplace.file
+      );
+      setPendingReplace(null);
+      await load();
+    } catch (cause: any) {
+      setError(cause?.message || 'Không thể thay thế file PDF mẫu.');
+    } finally {
+      setMutating(false);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || mutating) return;
     setMutating(true);
@@ -148,54 +224,78 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
               key={item.templateTypeCode}
               className="flex flex-col justify-between rounded-2xl border border-white/70 bg-white/60 p-5 shadow-sm backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-md"
             >
-              <div className="flex items-start justify-between gap-3">
-                <h2 className="text-base font-bold leading-snug text-slate-900">
-                  {item.displayName}
-                </h2>
-                <span
-                  className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                    item.configured
-                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border border-amber-200 bg-amber-50 text-amber-700'
-                  }`}
-                >
-                  {item.configured ? 'Đã tải lên' : 'Chưa tải lên'}
-                </span>
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-base font-bold leading-snug text-slate-900">
+                    {item.displayName}
+                  </h2>
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      item.configured
+                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border border-amber-200 bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {item.configured ? 'Đã tải lên' : 'Chưa tải lên'}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                  <span className="text-slate-400">Ngày cập nhật:</span>
+                  <span className="font-medium text-slate-700">{formatUpdatedAt(item.updatedAt)}</span>
+                </div>
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100/80 pt-4">
                 {item.configured ? (
                   <>
                     {access.manage && (
-                      <button
-                        type="button"
-                        disabled={mutating}
-                        onClick={() =>
-                          router.push(
-                            `${routeBase}/${encodeURIComponent(item.templateTypeCode)}/edit?returnTo=${encodeURIComponent(returnQuery)}`
-                          )
-                        }
-                        className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                      >
-                        Chỉnh sửa
-                      </button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={mutating}
+                          onClick={() => handleTriggerUpload(item)}
+                          className="rounded-xl border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+                        >
+                          Tải lên mẫu
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={mutating}
+                          onClick={() =>
+                            router.push(
+                              `${routeBase}/${encodeURIComponent(item.templateTypeCode)}/edit?returnTo=${encodeURIComponent(returnQuery)}`
+                            )
+                          }
+                          className="rounded-xl border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          Chỉnh sửa
+                        </Button>
+                      </>
                     )}
                     {access.delete && (
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={mutating}
                         onClick={() => setDeleteTarget(item)}
-                        className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        className="rounded-xl border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
                         Xóa
-                      </button>
+                      </Button>
                     )}
                   </>
                 ) : (
                   <>
                     {access.manage && (
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
                         disabled={mutating}
                         onClick={() =>
                           router.push(
@@ -205,7 +305,7 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
                         className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
                       >
                         Tải PDF lên
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
@@ -214,6 +314,15 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
           ))}
         </div>
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        aria-label="Chọn file PDF mẫu thay thế"
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
       <ConfirmModal
         isOpen={!!deleteTarget}
@@ -228,6 +337,21 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
         cancelLabel="Hủy"
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmModal
+        isOpen={!!pendingReplace}
+        variant="warning"
+        title="Thay thế file PDF nguồn"
+        message={
+          pendingReplace
+            ? `Thay thế file PDF nguồn cho “${pendingReplace.item.displayName}” (${pendingReplace.item.templateTypeCode}) bằng file “${pendingReplace.file.name}”? Toàn bộ vị trí và cấu hình các trường (${pendingReplace.metadata.layout?.items?.length ?? 0} trường) sẽ được giữ nguyên.`
+            : ''
+        }
+        confirmLabel="Thay thế"
+        cancelLabel="Hủy"
+        onClose={() => setPendingReplace(null)}
+        onConfirm={handleReplaceConfirm}
       />
     </main>
   );

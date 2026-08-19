@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { catalog, deleteApi, push, replace } = vi.hoisted(() => ({
+const { catalog, deleteApi, metadataApi, saveApi, push, replace } = vi.hoisted(() => ({
   catalog: vi.fn(),
   deleteApi: vi.fn(),
+  metadataApi: vi.fn(),
+  saveApi: vi.fn(),
   push: vi.fn(),
   replace: vi.fn(),
 }));
@@ -25,6 +27,8 @@ vi.mock('@/api/pdf-template-api', () => ({
   pdfTemplateApi: {
     catalog,
     delete: deleteApi,
+    metadata: metadataApi,
+    save: saveApi,
   },
 }));
 
@@ -42,7 +46,7 @@ const configuredItem = {
   pageCount: 1,
   sourceBytes: 100,
   updatedBy: null,
-  updatedAt: null,
+  updatedAt: '2026-08-15T10:30:00.000Z',
 };
 
 const unconfiguredItem = {
@@ -55,6 +59,47 @@ const unconfiguredItem = {
   sourceFilename: null,
   pageCount: 0,
   sourceBytes: 0,
+  updatedAt: null,
+};
+
+const mockLayout = {
+  pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }],
+  items: [
+    {
+      id: 'field-1',
+      fieldKey: 'student.fullName',
+      formatter: 'plain',
+      pageIndex: 0,
+      x: 0.1,
+      y: 0.1,
+      width: 0.3,
+      height: 0.025,
+      rotation: 0,
+      zIndex: 0,
+      style: {
+        fontFamily: 'Helvetica',
+        fontSize: 12,
+        minFontSize: 8,
+        fontWeight: 400,
+        color: '#000000',
+        horizontalAlign: 'left',
+        verticalAlign: 'top',
+        lineHeight: 1.15,
+        padding: 2,
+        background: 'transparent',
+        overflow: 'shrink',
+        maxLines: 1,
+      },
+    },
+  ],
+};
+
+const mockMetadataResponse = {
+  ...configuredItem,
+  sourcePermission: 'DORMITORY_ROSTER_MANAGE',
+  fields: [],
+  pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }],
+  layout: mockLayout,
 };
 
 const unrelatedItem = {
@@ -275,8 +320,122 @@ describe('PdfTemplateCatalog', () => {
 
     expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Chỉnh sửa' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tải lên mẫu' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tải PDF lên' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Xóa' })).not.toBeInTheDocument();
+  });
+
+  it('displays formatted "Ngày cập nhật" or "Chưa cập nhật" on cards', async () => {
+    render(<PdfTemplateCatalog />);
+
+    expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
+    expect(screen.getByText('Chưa cập nhật')).toBeInTheDocument();
+    expect(screen.getAllByText('Ngày cập nhật:').length).toBe(2);
+  });
+
+  it('triggers file selection and replaces PDF source after ConfirmModal confirmation', async () => {
+    metadataApi.mockResolvedValue(mockMetadataResponse);
+    saveApi.mockResolvedValue({});
+
+    const { container } = render(<PdfTemplateCatalog />);
+
+    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
+    fireEvent.click(uploadSourceBtn);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeInTheDocument();
+
+    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
+
+    // ConfirmModal should open
+    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Thay thế file PDF nguồn cho “Mẫu đơn đăng ký KTX”.*bằng file “new-template.pdf”\?/)
+    ).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole('button', { name: 'Thay thế' });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(saveApi).toHaveBeenCalledWith(
+        'DORMITORY_ROSTER_APPLICATION',
+        2,
+        mockLayout,
+        newPdfFile
+      );
+    });
+
+    // Should reload catalog
+    expect(catalog).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels PDF replacement when cancel button in ConfirmModal is clicked', async () => {
+    metadataApi.mockResolvedValue(mockMetadataResponse);
+
+    const { container } = render(<PdfTemplateCatalog />);
+
+    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
+    fireEvent.click(uploadSourceBtn);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
+
+    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
+
+    const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
+    fireEvent.click(cancelBtn);
+
+    expect(saveApi).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Thay thế file PDF nguồn' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('displays actionable error when metadata layout has no items', async () => {
+    metadataApi.mockResolvedValue({
+      ...mockMetadataResponse,
+      layout: { pages: [], items: [] },
+    });
+
+    const { container } = render(<PdfTemplateCatalog />);
+
+    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
+    fireEvent.click(uploadSourceBtn);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('chưa có layout hợp lệ');
+    expect(saveApi).not.toHaveBeenCalled();
+  });
+
+  it('displays error message when saving replaced PDF source fails', async () => {
+    metadataApi.mockResolvedValue(mockMetadataResponse);
+    saveApi.mockRejectedValueOnce(new Error('Lỗi xung đột version khi lưu'));
+
+    const { container } = render(<PdfTemplateCatalog />);
+
+    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
+    fireEvent.click(uploadSourceBtn);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
+    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
+
+    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole('button', { name: 'Thay thế' });
+    fireEvent.click(confirmBtn);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Lỗi xung đột version khi lưu');
   });
 
   it('renders error state and retries loading when retry button is clicked', async () => {

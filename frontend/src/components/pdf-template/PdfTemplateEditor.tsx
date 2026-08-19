@@ -759,6 +759,12 @@ export default function PdfTemplateEditor({
                     const itemFontSize = item.style?.fontSize ?? 12;
                     const effectiveFontSize = itemFontSize * effectiveScale;
                     const lineHeight = item.style?.lineHeight ?? 1.15;
+                    const padding = (item.style?.padding ?? 0) * effectiveScale;
+                    const fontFamily =
+                      item.style?.fontFamily === 'Times-Roman'
+                        ? '"Times New Roman", Times, serif'
+                        : 'Helvetica, Arial, sans-serif';
+                    const fontWeight = item.style?.fontWeight ?? 400;
 
                     return (
                       <div
@@ -776,7 +782,7 @@ export default function PdfTemplateEditor({
                           setSelected(item.id);
                         }}
                         className={cn(
-                          'absolute select-none cursor-move focus:outline-none transition-colors font-mono whitespace-nowrap leading-tight',
+                          'absolute select-none cursor-move focus:outline-none transition-colors whitespace-nowrap',
                           isSelected
                             ? 'text-blue-600 font-bold'
                             : 'text-slate-800 font-medium hover:text-blue-600'
@@ -787,6 +793,10 @@ export default function PdfTemplateEditor({
                           zIndex: isSelected ? 50 : item.zIndex + 1,
                           fontSize: `${effectiveFontSize}px`,
                           lineHeight,
+                          fontFamily,
+                          fontWeight: isSelected ? 700 : fontWeight,
+                          padding: `${padding}px`,
+                          color: isSelected ? undefined : item.style?.color,
                         }}
                       >
                         <span>{item.fieldKey}</span>

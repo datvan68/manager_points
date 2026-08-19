@@ -772,4 +772,20 @@ describe('PdfTemplateEditor', () => {
     expect(fieldElement.style.left).toBe(initialLeft);
     expect(fieldElement.style.top).toBe(initialTop);
   });
+
+  it('renders field overlay with saved typography and padding without monospace', async () => {
+    render(
+      <PdfTemplateEditor
+        metadata={mockMetadata}
+        onSaved={vi.fn()}
+        onDirtyChange={vi.fn()}
+      />
+    );
+
+    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
+    expect(fieldElement).toBeInTheDocument();
+    expect(fieldElement.className).not.toContain('font-mono');
+    expect(fieldElement.style.fontFamily).toContain('Helvetica');
+    expect(fieldElement.style.padding).toBeDefined();
+  });
 });

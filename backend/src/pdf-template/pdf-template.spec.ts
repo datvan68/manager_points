@@ -54,7 +54,7 @@ describe('shared PDF template contracts', () => {
     expect(result.pageCount).toBe(2);
   }, 30000);
 
-  it('verifies horizontal and vertical alignment geometry calculations on known page dimensions', () => {
+  it('verifies single-line anchor invariance across stored alignment properties on known page dimensions', () => {
     const pageWidth = 595.32;
     const pageHeight = 842.04;
     const baseItem = {
@@ -75,6 +75,10 @@ describe('shared PDF template contracts', () => {
     // fontSize = 12, totalTextHeight (1 line) = 12
     const lineWidths = [100];
 
+    // Single-line text fields must anchor directly at top-left without hidden box displacement
+    // top baseline: boxTop - padding - fontSize = 673.632 - 4 - 12 = 657.632
+    // left x: pageWidth * x + padding = 59.532 + 4 = 63.532
+
     // Left + Top
     const leftTopGeom = calculatePdfFieldGeometry(
       { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'left', verticalAlign: 'top' } as any },
@@ -87,12 +91,10 @@ describe('shared PDF template contracts', () => {
     expect(leftTopGeom.boxBottom).toBeCloseTo(589.428);
     expect(leftTopGeom.contentWidth).toBeCloseTo(289.66);
     expect(leftTopGeom.contentHeight).toBeCloseTo(76.204);
-    // top baseline: boxTop - padding - fontSize = 673.632 - 4 - 12 = 657.632
     expect(leftTopGeom.firstLineBaselineY).toBeCloseTo(657.632);
-    // left x: pageWidth * x + padding = 59.532 + 4 = 63.532
     expect(leftTopGeom.lineXs[0]).toBeCloseTo(63.532);
 
-    // Center + Middle
+    // Center + Middle (single-line retains top-left anchor)
     const centerMiddleGeom = calculatePdfFieldGeometry(
       { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'center', verticalAlign: 'middle' } as any },
       pageWidth,
@@ -100,12 +102,10 @@ describe('shared PDF template contracts', () => {
       lineWidths,
       12,
     );
-    // middle: topBaseline - (contentHeight - totalTextHeight) / 2 = 657.632 - (76.204 - 12) / 2 = 657.632 - 32.102 = 625.530
-    expect(centerMiddleGeom.firstLineBaselineY).toBeCloseTo(625.530);
-    // center x: xBase + (contentWidth - textWidth) / 2 = 63.532 + (289.66 - 100) / 2 = 63.532 + 94.83 = 158.362
-    expect(centerMiddleGeom.lineXs[0]).toBeCloseTo(158.362);
+    expect(centerMiddleGeom.firstLineBaselineY).toBeCloseTo(657.632);
+    expect(centerMiddleGeom.lineXs[0]).toBeCloseTo(63.532);
 
-    // Right + Bottom
+    // Right + Bottom (single-line retains top-left anchor)
     const rightBottomGeom = calculatePdfFieldGeometry(
       { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'right', verticalAlign: 'bottom' } as any },
       pageWidth,
@@ -113,14 +113,11 @@ describe('shared PDF template contracts', () => {
       lineWidths,
       12,
     );
-    // bottom: topBaseline - (contentHeight - totalTextHeight) = 657.632 - (76.204 - 12) = 593.428
-    // Equivalently: boxBottom + padding + totalTextHeight - fontSize = 589.428 + 4 + 12 - 12 = 593.428
-    expect(rightBottomGeom.firstLineBaselineY).toBeCloseTo(593.428);
-    // right x: xBase + (contentWidth - textWidth) = 63.532 + (289.66 - 100) = 253.192
-    expect(rightBottomGeom.lineXs[0]).toBeCloseTo(253.192);
+    expect(rightBottomGeom.firstLineBaselineY).toBeCloseTo(657.632);
+    expect(rightBottomGeom.lineXs[0]).toBeCloseTo(63.532);
   });
 
-  it('verifies multiline alignment and vertical offset calculations', () => {
+  it('verifies multiline wrapping alignment and vertical offset calculations', () => {
     const pageWidth = 600;
     const pageHeight = 800;
     const item = {
@@ -128,7 +125,7 @@ describe('shared PDF template contracts', () => {
       y: 0,
       width: 1,
       height: 0.5,
-      style: { ...style, padding: 10, lineHeight: 1.5, fontSize: 10, horizontalAlign: 'center', verticalAlign: 'top' } as any,
+      style: { ...style, overflow: 'wrap' as const, padding: 10, lineHeight: 1.5, fontSize: 10, horizontalAlign: 'center' as const, verticalAlign: 'top' as const },
     };
     // 2 lines: textWidths = [120, 80]
     // fontSize = 10, lineHeight = 15
@@ -156,6 +153,37 @@ describe('shared PDF template contracts', () => {
     // top baseline: pageHeight * (1 - 0.2) - padding - fontSize = 673.632 - 2 - 18 = 653.632
     expect(geom.firstLineBaselineY).toBeCloseTo(653.632);
     expect(geom.lineXs[0]).toBeCloseTo(59.532 + 2);
+  });
+
+  it('guarantees student.fullName top-left anchor geometry matches across standard and Unicode rendering', () => {
+    const pageWidth = 595.32;
+    const pageHeight = 842.04;
+    const fullNameItem = {
+      x: 0.12,
+      y: 0.15,
+      width: 0.7,
+      height: 0.025,
+      style: {
+        fontFamily: 'Times-Roman' as const,
+        fontSize: 12,
+        minFontSize: 8,
+        fontWeight: 400 as const,
+        color: '#000000',
+        horizontalAlign: 'left' as const,
+        verticalAlign: 'middle' as const,
+        lineHeight: 1.15,
+        padding: 2,
+        background: 'transparent' as const,
+        overflow: 'shrink' as const,
+        maxLines: 1,
+      },
+    };
+
+    const geom = calculatePdfFieldGeometry(fullNameItem, pageWidth, pageHeight, [180], 12);
+    // Expected top baseline: 842.04 * (1 - 0.15) - 2 - 12 = 715.734 - 14 = 701.734
+    expect(geom.firstLineBaselineY).toBeCloseTo(701.734);
+    // Expected left: 595.32 * 0.12 + 2 = 71.4384 + 2 = 73.4384
+    expect(geom.lineXs[0]).toBeCloseTo(73.4384);
   });
 });
 

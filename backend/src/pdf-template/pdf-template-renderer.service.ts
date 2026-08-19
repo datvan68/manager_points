@@ -50,19 +50,23 @@ export function calculatePdfFieldGeometry(
 
   const topBaseline = boxTop - item.style.padding - fontSize;
   let firstLineBaselineY = topBaseline;
-  if (item.style.verticalAlign === 'middle') {
-    firstLineBaselineY = topBaseline - Math.max(0, (contentHeight - totalTextHeight) / 2);
-  } else if (item.style.verticalAlign === 'bottom') {
-    firstLineBaselineY = topBaseline - Math.max(0, contentHeight - totalTextHeight);
+  if (lineCount > 1 && item.style.overflow === 'wrap') {
+    if (item.style.verticalAlign === 'middle') {
+      firstLineBaselineY = topBaseline - Math.max(0, (contentHeight - totalTextHeight) / 2);
+    } else if (item.style.verticalAlign === 'bottom') {
+      firstLineBaselineY = topBaseline - Math.max(0, contentHeight - totalTextHeight);
+    }
   }
 
   const xBase = pageWidth * item.x + item.style.padding;
   const lineXs = (lineWidths.length > 0 ? lineWidths : [0]).map((textWidth) => {
-    if (item.style.horizontalAlign === 'center') {
-      return xBase + Math.max(0, (contentWidth - textWidth) / 2);
-    }
-    if (item.style.horizontalAlign === 'right') {
-      return xBase + Math.max(0, contentWidth - textWidth);
+    if (lineCount > 1 && item.style.overflow === 'wrap') {
+      if (item.style.horizontalAlign === 'center') {
+        return xBase + Math.max(0, (contentWidth - textWidth) / 2);
+      }
+      if (item.style.horizontalAlign === 'right') {
+        return xBase + Math.max(0, contentWidth - textWidth);
+      }
     }
     return xBase;
   });
@@ -193,11 +197,10 @@ export class PdfTemplateRendererService {
       const height = item.height * pageHeight;
       const fitted = fittedFontSize(raw, item, pageWidth);
       const wrap = s.overflow === 'wrap';
-      const justify = s.verticalAlign === 'bottom' ? 'flex-end' : s.verticalAlign === 'middle' ? 'center' : 'flex-start';
-      const align = s.horizontalAlign === 'right' ? 'flex-end' : s.horizontalAlign === 'center' ? 'center' : 'flex-start';
       const bg = s.background === 'white' ? 'background:white;' : '';
-      const content = wrap ? value : `<div style="white-space:nowrap;overflow:hidden;text-overflow:clip;width:100%;text-align:${s.horizontalAlign};">${value}</div>`;
-      return `<span style="position:absolute;box-sizing:border-box;left:${item.x * pageWidth}pt;top:${item.y * pageHeight}pt;width:${width}pt;height:${height}pt;font:${s.fontWeight} ${fitted}pt ${s.fontFamily};color:${s.color};${bg}padding:${s.padding}pt;line-height:${s.lineHeight};display:flex;flex-direction:column;justify-content:${justify};align-items:${align};text-align:${s.horizontalAlign};overflow:hidden;transform:rotate(${item.rotation}deg);transform-origin:left top;">${content}</span>`;
+      const fontFamily = s.fontFamily === 'Times-Roman' ? "'Times New Roman', Times, serif" : 'Helvetica, Arial, sans-serif';
+      const content = wrap ? value : `<div style="white-space:nowrap;overflow:hidden;text-overflow:clip;width:100%;">${value}</div>`;
+      return `<span style="position:absolute;box-sizing:border-box;left:${item.x * pageWidth}pt;top:${item.y * pageHeight}pt;width:${width}pt;height:${height}pt;font-family:${fontFamily};font-size:${fitted}pt;font-weight:${s.fontWeight};color:${s.color};${bg}padding:${s.padding}pt;line-height:${s.lineHeight};overflow:hidden;transform:rotate(${item.rotation}deg);transform-origin:left top;">${content}</span>`;
     }).join('');
     return `<!doctype html><meta charset="utf-8"><style>@page{size:${pageWidth}pt ${pageHeight}pt;margin:0}html,body{margin:0;width:${pageWidth}pt;height:${pageHeight}pt;overflow:hidden;position:relative}</style>${fields}`;
   }
