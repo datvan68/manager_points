@@ -1,11 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { catalog, deleteApi, metadataApi, saveApi, push, replace } = vi.hoisted(() => ({
+const { catalog, deleteApi, push, replace } = vi.hoisted(() => ({
   catalog: vi.fn(),
   deleteApi: vi.fn(),
-  metadataApi: vi.fn(),
-  saveApi: vi.fn(),
   push: vi.fn(),
   replace: vi.fn(),
 }));
@@ -27,14 +25,12 @@ vi.mock('@/api/pdf-template-api', () => ({
   pdfTemplateApi: {
     catalog,
     delete: deleteApi,
-    metadata: metadataApi,
-    save: saveApi,
   },
 }));
 
 import PdfTemplateCatalog from './PdfTemplateCatalog';
 
-const configuredItem = {
+const rosterItem = {
   moduleCode: 'DORMITORY',
   featureCode: 'DORMITORY_ROSTER',
   templateTypeCode: 'DORMITORY_ROSTER_APPLICATION',
@@ -49,61 +45,38 @@ const configuredItem = {
   updatedAt: '2026-08-15T10:30:00.000Z',
 };
 
-const unconfiguredItem = {
-  ...configuredItem,
-  templateTypeCode: 'SECOND_REGISTERED_COLLECTION',
-  displayName: 'Bản cam kết nội trú',
+const contractItem = {
+  moduleCode: 'DORMITORY',
+  featureCode: 'DORMITORY_CONTRACT',
+  templateTypeCode: 'DORMITORY_RESIDENCE_CONTRACT',
+  displayName: 'Mẫu đơn hợp đồng nội trú',
   configured: false,
   version: 0,
   checksum: null,
   sourceFilename: null,
   pageCount: 0,
   sourceBytes: 0,
+  updatedBy: null,
   updatedAt: null,
 };
 
-const mockLayout = {
-  pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }],
-  items: [
-    {
-      id: 'field-1',
-      fieldKey: 'student.fullName',
-      formatter: 'plain',
-      pageIndex: 0,
-      x: 0.1,
-      y: 0.1,
-      width: 0.3,
-      height: 0.025,
-      rotation: 0,
-      zIndex: 0,
-      style: {
-        fontFamily: 'Helvetica',
-        fontSize: 12,
-        minFontSize: 8,
-        fontWeight: 400,
-        color: '#000000',
-        horizontalAlign: 'left',
-        verticalAlign: 'top',
-        lineHeight: 1.15,
-        padding: 2,
-        background: 'transparent',
-        overflow: 'shrink',
-        maxLines: 1,
-      },
-    },
-  ],
-};
-
-const mockMetadataResponse = {
-  ...configuredItem,
-  sourcePermission: 'DORMITORY_ROSTER_MANAGE',
-  fields: [],
-  pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }],
-  layout: mockLayout,
+const residenceInfoItem = {
+  moduleCode: 'DORMITORY',
+  featureCode: 'DORMITORY_ROSTER',
+  templateTypeCode: 'DORMITORY_RESIDENCE_INFO',
+  displayName: 'Mẫu đơn thông tin cư trú',
+  configured: false,
+  version: 0,
+  checksum: null,
+  sourceFilename: null,
+  pageCount: 0,
+  sourceBytes: 0,
+  updatedBy: null,
+  updatedAt: null,
 };
 
 const unrelatedItem = {
-  ...unconfiguredItem,
+  ...contractItem,
   moduleCode: 'STUDENT',
   templateTypeCode: 'STUDENT_TRANSCRIPT',
   displayName: 'Bảng điểm sinh viên',
@@ -117,8 +90,8 @@ describe('PdfTemplateCatalog', () => {
     mockPermissions.delete = true;
 
     catalog.mockResolvedValue({
-      items: [configuredItem, unconfiguredItem],
-      total: 2,
+      items: [rosterItem, contractItem, residenceInfoItem],
+      total: 3,
       page: 1,
       pageSize: 100,
     });
@@ -127,24 +100,37 @@ describe('PdfTemplateCatalog', () => {
   it('renders one card per registered PDF type ordered by displayName with correct status badges', async () => {
     render(<PdfTemplateCatalog />);
 
-    expect(await screen.findByText('Bản cam kết nội trú')).toBeInTheDocument();
-    expect(screen.getByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
+    expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
+    expect(screen.getByText('Mẫu đơn hợp đồng nội trú')).toBeInTheDocument();
+    expect(screen.getByText('Mẫu đơn thông tin cư trú')).toBeInTheDocument();
 
-    const unconfiguredBadge = screen.getByText('Chưa tải lên');
-    const configuredBadge = screen.getByText('Đã tải lên');
+    const unconfiguredBadges = screen.getAllByText('Chưa tải lên');
+    const configuredBadges = screen.getAllByText('Đã tải lên');
 
-    expect(unconfiguredBadge).toBeInTheDocument();
-    expect(configuredBadge).toBeInTheDocument();
+    expect(unconfiguredBadges.length).toBe(2);
+    expect(configuredBadges.length).toBe(1);
 
-    // Verify displayName ascending ordering
+    // Verify displayName ascending ordering in Vietnamese: 'đ' < 'h' < 't'
     const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(titles).toEqual(['Bản cam kết nội trú', 'Mẫu đơn đăng ký KTX']);
+    expect(titles).toEqual([
+      'Mẫu đơn đăng ký KTX',
+      'Mẫu đơn hợp đồng nội trú',
+      'Mẫu đơn thông tin cư trú',
+    ]);
 
     // Verify filter panel, table, visible pagination, and header dropdown are NOT present
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Bộ lọc PDF template')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Collection chưa cấu hình')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Phân trang PDF template')).not.toBeInTheDocument();
+  });
+
+  it('never renders "Tải lên mẫu" button on configured or unconfigured cards', async () => {
+    render(<PdfTemplateCatalog />);
+
+    expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tải lên mẫu' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Tải lên mẫu')).not.toBeInTheDocument();
   });
 
   it('navigates to edit route when "Chỉnh sửa" is clicked on a configured template', async () => {
@@ -161,11 +147,12 @@ describe('PdfTemplateCatalog', () => {
   it('navigates to new route when "Tải PDF lên" is clicked on an unconfigured template', async () => {
     render(<PdfTemplateCatalog />);
 
-    const uploadBtn = await screen.findByRole('button', { name: 'Tải PDF lên' });
-    fireEvent.click(uploadBtn);
+    const uploadBtns = await screen.findAllByRole('button', { name: 'Tải PDF lên' });
+    expect(uploadBtns.length).toBe(2);
+    fireEvent.click(uploadBtns[0]);
 
     expect(push).toHaveBeenCalledWith(
-      '/dormitory/pdf-template/new?templateTypeCode=SECOND_REGISTERED_COLLECTION&returnTo=test%3D1'
+      '/dormitory/pdf-template/new?templateTypeCode=DORMITORY_RESIDENCE_CONTRACT&returnTo=test%3D1'
     );
   });
 
@@ -210,7 +197,6 @@ describe('PdfTemplateCatalog', () => {
 
     expect(await screen.findByRole('heading', { name: 'Xóa mẫu PDF' })).toBeInTheDocument();
 
-    // Confirm button in the modal
     const modalConfirmBtns = screen.getAllByRole('button', { name: 'Xóa' });
     const modalConfirmBtn = modalConfirmBtns[modalConfirmBtns.length - 1];
     fireEvent.click(modalConfirmBtn);
@@ -218,7 +204,6 @@ describe('PdfTemplateCatalog', () => {
     await waitFor(() => {
       expect(deleteApi).toHaveBeenCalledWith('DORMITORY_ROSTER_APPLICATION', 2);
     });
-    // Catalog should be reloaded
     expect(catalog).toHaveBeenCalledTimes(2);
   });
 
@@ -242,7 +227,7 @@ describe('PdfTemplateCatalog', () => {
 
   it('filters by lockedModuleCode when provided', async () => {
     catalog.mockResolvedValue({
-      items: [configuredItem, unrelatedItem],
+      items: [rosterItem, unrelatedItem],
       total: 2,
       page: 1,
       pageSize: 100,
@@ -262,7 +247,7 @@ describe('PdfTemplateCatalog', () => {
 
   it('loads subsequent pages in parallel when total exceeds pageSize', async () => {
     const page2Item = {
-      ...unconfiguredItem,
+      ...contractItem,
       templateTypeCode: 'PAGE_2_COLLECTION',
       displayName: 'Mẫu trang 2',
     };
@@ -270,7 +255,7 @@ describe('PdfTemplateCatalog', () => {
     catalog.mockImplementation((query: Record<string, string | number>) => {
       if (query.page === 1) {
         return Promise.resolve({
-          items: [configuredItem],
+          items: [rosterItem],
           total: 101,
           page: 1,
           pageSize: 100,
@@ -329,113 +314,8 @@ describe('PdfTemplateCatalog', () => {
     render(<PdfTemplateCatalog />);
 
     expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
-    expect(screen.getByText('Chưa cập nhật')).toBeInTheDocument();
-    expect(screen.getAllByText('Ngày cập nhật:').length).toBe(2);
-  });
-
-  it('triggers file selection and replaces PDF source after ConfirmModal confirmation', async () => {
-    metadataApi.mockResolvedValue(mockMetadataResponse);
-    saveApi.mockResolvedValue({});
-
-    const { container } = render(<PdfTemplateCatalog />);
-
-    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
-    fireEvent.click(uploadSourceBtn);
-
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(fileInput).toBeInTheDocument();
-
-    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
-    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
-
-    // ConfirmModal should open
-    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
-    expect(
-      screen.getByText(/Thay thế file PDF nguồn cho “Mẫu đơn đăng ký KTX”.*bằng file “new-template.pdf”\?/)
-    ).toBeInTheDocument();
-
-    const confirmBtn = screen.getByRole('button', { name: 'Thay thế' });
-    fireEvent.click(confirmBtn);
-
-    await waitFor(() => {
-      expect(saveApi).toHaveBeenCalledWith(
-        'DORMITORY_ROSTER_APPLICATION',
-        2,
-        mockLayout,
-        newPdfFile
-      );
-    });
-
-    // Should reload catalog
-    expect(catalog).toHaveBeenCalledTimes(2);
-  });
-
-  it('cancels PDF replacement when cancel button in ConfirmModal is clicked', async () => {
-    metadataApi.mockResolvedValue(mockMetadataResponse);
-
-    const { container } = render(<PdfTemplateCatalog />);
-
-    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
-    fireEvent.click(uploadSourceBtn);
-
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
-    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
-
-    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
-
-    const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
-    fireEvent.click(cancelBtn);
-
-    expect(saveApi).not.toHaveBeenCalled();
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Thay thế file PDF nguồn' })).not.toBeInTheDocument();
-    });
-  });
-
-  it('displays actionable error when metadata layout has no items', async () => {
-    metadataApi.mockResolvedValue({
-      ...mockMetadataResponse,
-      layout: { pages: [], items: [] },
-    });
-
-    const { container } = render(<PdfTemplateCatalog />);
-
-    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
-    fireEvent.click(uploadSourceBtn);
-
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
-    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('chưa có layout hợp lệ');
-    expect(saveApi).not.toHaveBeenCalled();
-  });
-
-  it('displays error message when saving replaced PDF source fails', async () => {
-    metadataApi.mockResolvedValue(mockMetadataResponse);
-    saveApi.mockRejectedValueOnce(new Error('Lỗi xung đột version khi lưu'));
-
-    const { container } = render(<PdfTemplateCatalog />);
-
-    const uploadSourceBtn = await screen.findByRole('button', { name: 'Tải lên mẫu' });
-    fireEvent.click(uploadSourceBtn);
-
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-
-    const newPdfFile = new File(['dummy new pdf'], 'new-template.pdf', { type: 'application/pdf' });
-    fireEvent.change(fileInput, { target: { files: [newPdfFile] } });
-
-    expect(await screen.findByRole('heading', { name: 'Thay thế file PDF nguồn' })).toBeInTheDocument();
-
-    const confirmBtn = screen.getByRole('button', { name: 'Thay thế' });
-    fireEvent.click(confirmBtn);
-
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Lỗi xung đột version khi lưu');
+    expect(screen.getAllByText('Chưa cập nhật').length).toBe(2);
+    expect(screen.getAllByText('Ngày cập nhật:').length).toBe(3);
   });
 
   it('renders error state and retries loading when retry button is clicked', async () => {
@@ -447,7 +327,7 @@ describe('PdfTemplateCatalog', () => {
     expect(errorAlert).toHaveTextContent('Network failure');
 
     catalog.mockResolvedValueOnce({
-      items: [configuredItem],
+      items: [rosterItem],
       total: 1,
       page: 1,
       pageSize: 100,

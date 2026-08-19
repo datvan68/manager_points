@@ -1,81 +1,103 @@
-# Taskscope: Accurate PDF Field Anchoring and Catalog Source Replacement
+# Taskscope: Two Dormitory PDF Template Types and Simplified Catalog Actions
 
-Task: `fix-pdf-field-anchor-and-add-catalog-upload` | Pipeline: full-stack PDF template | Risk: high | Profile: Full
+## Task Identity and Pipeline
 
-## Authority
+- Task: `add-dormitory-residence-and-contract-pdf-types`
+- Pipeline: `feature_development`
+- Profile: Full
+- Rules: 3.2.0
+- Repository: `D:\PROJECT\manager_points`
+- Branch/base: `main` at `7b1f1dbd3755715c1a4faad12099e821c73db0cd`
+- Base state: `docs/taskscope.md` is the only pre-existing modified path and is replaced by this planning artifact.
+- Authority: Planning only. This scope does not authorize implementation.
 
-Planning only. This scope does not authorize implementation.
+## Risk Level
+
+- Risk: high because the change spans the Dormitory domain, the shared PDF registry, and the catalog UI.
+- Environment: development.
+- Reversibility: code-only and reversible; no database migration or persistent-template rewrite is included.
+- Blast radius: Dormitory PDF catalog registration and configured-card actions. Existing roster PDF generation must remain compatible.
 
 ## Objective
 
-Make the text position shown in the PDF editor match Preview and exported KTX PDFs, and let an operator replace a configured template's source PDF from the catalog without losing its saved fields. Show the last-updated date on every template card.
+Show exactly two registered Dormitory PDF template cards named `Mẫu đơn thông tin cư trú` and `Mẫu đơn hợp đồng nội trú`, while removing the configured-card action `Tải lên mẫu` without removing the initial `Tải PDF lên` action required to configure an empty template.
 
-## Boundary
+## Scope Boundaries
 
-PDF editor field overlay, PDF render geometry for both standard and Unicode text, configured-template card actions, source replacement using the existing aggregate update flow, update-date presentation, and focused tests. Preserve permissions, template type registration, field keys, saved layout schema, KTX value resolution, delete behavior, and the existing edit route.
+- Approved boundaries: `backend/src/dormitory/**`, `backend/src/pdf-template/**` tests that validate registry compatibility, and `frontend/src/components/pdf-template/**`.
+- Write boundaries:
+  - `backend/src/dormitory/pdf-template-adapter.ts`
+  - `backend/src/dormitory/dormitory.module.ts`
+  - `backend/src/dormitory/dormitory-pdf-template.spec.ts`
+  - `backend/src/pdf-template/pdf-template.spec.ts`
+  - `frontend/src/components/pdf-template/PdfTemplateCatalog.tsx`
+  - `frontend/src/components/pdf-template/PdfTemplateCatalog.test.tsx`
+- Known compatibility targets inspected but not expected to change: `backend/src/dormitory/services/dormitory-roster.service.ts`, `backend/src/pdf-template/pdf-template-crud.spec.ts`, and `backend/src/dormitory/dormitory-pdf-renderer.spec.ts`.
+- Existing template code `DORMITORY_ROSTER_APPLICATION`, saved PDF/layout records, editor routes, permissions, delete behavior, and shared PDF APIs are preserved.
 
-## Current Evidence
+## Out of Scope
 
-- The editor positions the visible field key directly at normalized `x/y`, but does not apply the stored internal width, height, padding, horizontal alignment, vertical alignment, font family, or renderer font metrics.
-- Preview/export applies those hidden style values. The KTX default is `verticalAlign: middle` with padding, so the real value is displaced inside an invisible field box even when the editor marker appears correctly placed.
-- Unicode values such as `Nguyễn Thị Minh Khánh` use the browser renderer, while non-Unicode values use `pdf-lib`; the two paths currently calculate text placement differently.
-- The editor uses a monospace field-key label, while output uses the saved PDF font. This prevents a reliable visual position comparison.
-- A configured catalog card currently exposes only `Chỉnh sửa` and `Xóa`. Source replacement exists inside the editor and the current update API already accepts a new PDF together with the existing version and layout.
-- Catalog data already includes nullable `updatedAt`; no backend schema or catalog response change is required to display the update date.
+- Adding contract-row Preview/Export controls or a contract PDF endpoint.
+- Changing the KTX roster selection/export workflow.
+- Migrating or renaming persisted template records.
+- Changing field placement, rendering geometry, editor UI, source validation, or the `Tải PDF lên` new-template flow.
+- Removing `metadata` or `save` APIs used by the editor; only the catalog's direct source-replacement UI is removed.
+- Adding building data or other fields that require new population/query behavior.
 
-## Decisions
+## Context and Dependencies
 
-- Define `x/y` as the top-left text anchor visible to the operator. Text-only fields must not receive a second horizontal or vertical displacement from hidden box alignment.
-- Keep `width/height` and the complete style object in persisted layouts for validation and backward compatibility. Do not migrate or rewrite saved coordinates.
-- Make editor, browser-rendered Unicode output, and `pdf-lib` output use one documented anchor contract. Convert top-left coordinates to a PDF baseline with actual font metrics rather than assuming `fontSize` equals glyph height.
-- Render the editor marker with the saved font family, weight, size, line height, and padding contract; remove the forced monospace font. Field-key text may differ from the final value, but its first glyph must start at the same anchor.
-- Existing horizontal/vertical alignment values remain stored but do not shift single-line text-only fields. Overflow and internal bounds remain available to constrain long output without changing the anchor.
-- Add `Tải lên mẫu` to configured cards for users with manage permission. The action selects a PDF, obtains the current metadata/layout, confirms replacement, and calls the existing versioned save endpoint with the new source and unchanged layout.
-- Do not silently fall back to a default layout. If metadata has no valid saved layout, the catalog action stops with an actionable error and directs the operator to `Chỉnh sửa`.
-- Use `ConfirmModal` before replacing the configured source. On validation failure or version conflict, keep the current card data, show the error, and reload the catalog when appropriate.
-- Show `Ngày cập nhật` on every card using `Intl.DateTimeFormat('vi-VN')`; show `Chưa cập nhật` for null or invalid values. Do not hardcode a date pattern.
-- Use the shared `Button` component for visible catalog actions and retain visible focus, disabled/loading state, an accessible file-input label, and permission gating.
-
-## Targets
-
-- `frontend/src/components/pdf-template/PdfTemplateEditor.tsx`
-- `frontend/src/components/pdf-template/PdfTemplateEditor.test.tsx`
-- `frontend/src/components/pdf-template/PdfTemplateCatalog.tsx`
-- `frontend/src/components/pdf-template/PdfTemplateCatalog.test.tsx`
-- `backend/src/pdf-template/pdf-template-renderer.service.ts`
-- `backend/src/pdf-template/pdf-template.spec.ts`
-- Existing `frontend/src/api/pdf-template-api.ts` save/metadata methods, inspected and reused without a new endpoint unless implementation evidence proves a narrow compatibility change is required
+- The catalog is generated from registered `PdfTemplateTypeDescriptor` values; the Dormitory module currently registers only `DORMITORY_ROSTER_APPLICATION_DESCRIPTOR`.
+- Reuse `DORMITORY_ROSTER_APPLICATION` for `Mẫu đơn thông tin cư trú`. Only its display name changes, so the configured source/layout and current roster rendering remain addressable.
+- Add one new stable code, `DORMITORY_RESIDENCE_CONTRACT`, for `Mẫu đơn hợp đồng nội trú`; use feature `DORMITORY_CONTRACT` and verified permission `DORM_CONTRACT_READ`. Do not add an alias descriptor, which would create a third card.
+- The information descriptor keeps its existing 25 field keys, fixtures, resolver, and default layout.
+- The contract descriptor exposes semantic keys resolved from `{ contract, student, room, bed, roster }`: contract code, start/end date, status; student code, full name, date of birth, gender; roster phone; citizen ID and permanent address; room code/name; and bed code/position. Personal identity/contact fields remain marked sensitive.
+- `ContractsService.findOne()` already populates student, room, bed, and roster references, but no runtime contract PDF export currently consumes a descriptor. This task registers and makes the type editable only.
+- Configured catalog cards currently contain a complete direct replacement flow: `Tải lên mẫu`, hidden file input, metadata fetch, pending state, save call, and replacement `ConfirmModal`. All of that catalog-only dead code is removed together.
 
 ## Steps
 
-1. Write geometry regression cases from the reported `student.fullName` example that compare the same normalized anchor across editor, Unicode browser output, and `pdf-lib` output on the known A4 page dimensions.
-2. Extract or centralize the text-anchor calculation used by the renderer. Remove hidden middle/center offsets for text-only fields and calculate the PDF baseline from the selected font's measured height/ascent.
-3. Make browser overlay CSS follow the same top-left anchor, font, padding, line-height, rotation origin, and overflow contract. Keep background transparent and avoid a visible field rectangle.
-4. Update the editor overlay to mirror the output typography and anchor contract at Fit and 100% zoom while preserving pointer/keyboard movement, selection, deletion, and direct font-size editing.
-5. Add a formatted `Ngày cập nhật` row to each catalog card with stable empty/invalid-date handling and long-content-safe layout.
-6. Add the configured-card `Tải lên mẫu` flow: select an `application/pdf` file, fetch current metadata, verify a saved layout exists, present `ConfirmModal`, then save with the card version, unchanged layout, and selected file.
-7. Reload the catalog after success, expose loading/error state without duplicate submission, clear the file input so the same file can be selected again, and preserve permission behavior.
-8. Extend focused tests for anchor parity, Vietnamese Unicode output, unchanged field payload during source replacement, date rendering, confirm/cancel, stale-version/error behavior, permission gating, and no regression to Edit/Delete/unconfigured upload.
+1. Backend/domain owner: rename the existing descriptor display label while preserving `DORMITORY_ROSTER_APPLICATION`, its 25 fields, resolver, fixture, and default-layout contract.
+2. Backend/domain owner: define `DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR` with the agreed code, feature, permission, semantic field palette, safe synthetic fixtures, default styles, page policy, and context resolver.
+3. Backend/module owner: register exactly the information and contract descriptors in `DormitoryModule`; do not register a compatibility alias.
+4. Backend/test owner: extend descriptor and registry tests to assert exact codes, names, permissions, uniqueness, expected field keys, sensitive flags, and fixture/resolver values while retaining existing roster-layout compatibility.
+5. Frontend/catalog owner: remove only the configured-card `Tải lên mẫu` button and its unreachable replacement state, handlers, hidden input, metadata/save imports, and replacement modal.
+6. Frontend/test owner: model the catalog response with exactly the two Dormitory types and verify ordering/status, configured Edit/Delete actions, absence of `Tải lên mẫu`, continued `Tải PDF lên` behavior for unconfigured cards, and permission gating.
+7. Verification owner: run focused tests, package static checks/build, then review the final scoped diff and repository status.
 
-## Verify
+## Acceptance Criteria
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- src/components/pdf-template/PdfTemplateEditor.test.tsx src/components/pdf-template/PdfTemplateCatalog.test.tsx` => editor anchor and catalog replacement tests pass
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand pdf-template.spec.ts pdf-template-crud.spec.ts` => standard/Unicode geometry and versioned source replacement contracts pass
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles
-- Manual A4 QA at Fit and 100% => the first glyph of `student.fullName` in editor, Preview, and downloaded KTX PDF starts at the same visual anchor within a 1 px/pt tolerance
-- Manual catalog QA => configured card shows update date; replacing its PDF retains every field id, key, page, coordinate, size, and style; failed replacement leaves the active template unchanged
-- `D:\PROJECT\manager_points` :: `git diff --check`, scoped diff review, and `git status --short` => no unintended changes
+- AC-01: The Dormitory PDF registry and `moduleCode=DORMITORY` catalog expose exactly two unique types: `DORMITORY_ROSTER_APPLICATION` / `Mẫu đơn thông tin cư trú` and `DORMITORY_RESIDENCE_CONTRACT` / `Mẫu đơn hợp đồng nội trú`.
+- AC-02: An existing configured `DORMITORY_ROSTER_APPLICATION` record remains configured, editable, and usable by current roster PDF rendering without data migration.
+- AC-03: The information type retains all 25 existing fields; the contract type exposes the approved contract/student/roster/room/bed palette with correct fixture and resolver output.
+- AC-04: No configured card renders a button named `Tải lên mẫu`, and the catalog no longer contains its file-selection or replacement-confirmation flow.
+- AC-05: A configured card still offers `Chỉnh sửa` and `Xóa` according to permissions; an unconfigured card still offers `Tải PDF lên` and opens the existing new-template route.
+- AC-06: No contract export endpoint, database migration, permission mutation, or third Dormitory template card is introduced.
 
-## Done
+## Verification
 
-- A field placed in the editor no longer shifts because of hidden padding or alignment when Previewed or exported, for both Vietnamese Unicode and standard text.
-- Fit/100% editor zoom changes display scale only and does not change the saved or rendered anchor.
-- A configured template card has an accessible `Tải lên mẫu` action that requires confirmation and replaces only the source PDF through optimistic version control.
-- Source replacement preserves the existing layout byte-for-byte at the API boundary except for server normalization that does not alter field values.
-- Every card displays a localized update date or `Chưa cập nhật`.
-- Focused frontend/backend checks and manual editor/Preview/export comparison pass.
+- AC-01, AC-02, AC-03 :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/dormitory/dormitory-pdf-template.spec.ts src/dormitory/dormitory-pdf-renderer.spec.ts` => both descriptors and existing roster layout contracts pass.
+- AC-01, AC-02 :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand src/pdf-template/pdf-template.spec.ts src/pdf-template/pdf-template-crud.spec.ts` => registry uniqueness and legacy code compatibility pass.
+- AC-01, AC-03, AC-06 :: `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles without descriptor or resolver errors.
+- AC-04, AC-05 :: `D:\PROJECT\manager_points\frontend` :: `npm test -- src/components/pdf-template/PdfTemplateCatalog.test.tsx` => catalog action and two-card tests pass.
+- AC-04, AC-05 :: `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no stale replacement-flow imports/state or TypeScript errors.
+- AC-01 through AC-06 :: `D:\PROJECT\manager_points` :: `git diff --check`, scoped diff review, and `git status --short` => no unintended changes.
 
-## Gate
+## Safety Gates
 
-Stop for approval if accurate anchor parity requires rewriting persisted `x/y`, removing `width/height` from the schema, or changing the meaning of multi-line/wrapped fields. No gate is required for correcting renderer baseline math, ignoring hidden alignment for single-line text-only fields, reusing the existing versioned update endpoint, or displaying existing `updatedAt` data.
+- Stop for approval if implementation requires changing the persisted `DORMITORY_ROSTER_APPLICATION` code, migrating/deleting existing templates, adding a contract export endpoint, or expanding contract queries/population.
+- No gate is required for changing the existing display name, registering the second descriptor, or removing the catalog-only configured-source replacement control.
+- Rollback: revert only the scoped code/test changes; no data rollback is expected.
+- Resume point: after the user approves any scope expansion listed above.
+
+## Artifacts and Checkpoints
+
+- Planning artifact: `docs/taskscope.md`.
+- Checkpoints/hashes: none during planning. Implementation must preserve the recorded base state and unrelated user changes.
+
+## Execution Budgets
+
+- Step deadline: 600 seconds; maximum 1,800 seconds when a focused build requires it.
+- Concurrency: one writer per path; serialize overlapping backend adapter/module edits.
+- Retry: at most 2 idempotent retries.
+- Engineering loop: at most 3 inspect/change/verify iterations.
+- Review remediation: at most 2 cycles.

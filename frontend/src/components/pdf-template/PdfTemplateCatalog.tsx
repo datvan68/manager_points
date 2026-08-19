@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   pdfTemplateApi,
   PdfTemplateCatalogItem,
-  PdfTemplateMetadata,
 } from '@/api/pdf-template-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import ConfirmModal from '@/components/modals/ConfirmModal';
@@ -37,13 +36,6 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
   const [error, setError] = useState('');
   const [mutating, setMutating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PdfTemplateCatalogItem | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeUploadTarget, setActiveUploadTarget] = useState<PdfTemplateCatalogItem | null>(null);
-  const [pendingReplace, setPendingReplace] = useState<{
-    item: PdfTemplateCatalogItem;
-    file: File;
-    metadata: PdfTemplateMetadata;
-  } | null>(null);
 
   const load = async () => {
     if (!access.read) return;
@@ -107,63 +99,6 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
   }, [access.read, lockedModuleCode]);
 
   const returnQuery = params.toString();
-
-  const handleTriggerUpload = (item: PdfTemplateCatalogItem) => {
-    if (mutating) return;
-    setActiveUploadTarget(item);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    const target = activeUploadTarget;
-    event.target.value = '';
-    if (!file || !target) return;
-
-    setMutating(true);
-    setError('');
-    try {
-      const metadata = await pdfTemplateApi.metadata(target.templateTypeCode);
-      if (!metadata.layout || !metadata.layout.items || metadata.layout.items.length === 0) {
-        setError(
-          `Template “${target.displayName}” chưa có layout hợp lệ. Vui lòng chọn "Chỉnh sửa" để cấu hình layout trước khi thay thế file PDF.`
-        );
-        return;
-      }
-      setPendingReplace({
-        item: target,
-        file,
-        metadata,
-      });
-    } catch (cause: any) {
-      setError(cause?.message || 'Không thể tải metadata của template.');
-    } finally {
-      setMutating(false);
-    }
-  };
-
-  const handleReplaceConfirm = async () => {
-    if (!pendingReplace || mutating) return;
-    setMutating(true);
-    setError('');
-    try {
-      await pdfTemplateApi.save(
-        pendingReplace.item.templateTypeCode,
-        pendingReplace.metadata.version,
-        pendingReplace.metadata.layout!,
-        pendingReplace.file
-      );
-      setPendingReplace(null);
-      await load();
-    } catch (cause: any) {
-      setError(cause?.message || 'Không thể thay thế file PDF mẫu.');
-    } finally {
-      setMutating(false);
-    }
-  };
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget || mutating) return;
@@ -250,32 +185,20 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
                 {item.configured ? (
                   <>
                     {access.manage && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={mutating}
-                          onClick={() => handleTriggerUpload(item)}
-                          className="rounded-xl border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-                        >
-                          Tải lên mẫu
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={mutating}
-                          onClick={() =>
-                            router.push(
-                              `${routeBase}/${encodeURIComponent(item.templateTypeCode)}/edit?returnTo=${encodeURIComponent(returnQuery)}`
-                            )
-                          }
-                          className="rounded-xl border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                        >
-                          Chỉnh sửa
-                        </Button>
-                      </>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={mutating}
+                        onClick={() =>
+                          router.push(
+                            `${routeBase}/${encodeURIComponent(item.templateTypeCode)}/edit?returnTo=${encodeURIComponent(returnQuery)}`
+                          )
+                        }
+                        className="rounded-xl border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        Chỉnh sửa
+                      </Button>
                     )}
                     {access.delete && (
                       <Button
@@ -315,15 +238,6 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
         </div>
       )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/pdf"
-        aria-label="Chọn file PDF mẫu thay thế"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
       <ConfirmModal
         isOpen={!!deleteTarget}
         variant="danger"
@@ -337,21 +251,6 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
         cancelLabel="Hủy"
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirm}
-      />
-
-      <ConfirmModal
-        isOpen={!!pendingReplace}
-        variant="warning"
-        title="Thay thế file PDF nguồn"
-        message={
-          pendingReplace
-            ? `Thay thế file PDF nguồn cho “${pendingReplace.item.displayName}” (${pendingReplace.item.templateTypeCode}) bằng file “${pendingReplace.file.name}”? Toàn bộ vị trí và cấu hình các trường (${pendingReplace.metadata.layout?.items?.length ?? 0} trường) sẽ được giữ nguyên.`
-            : ''
-        }
-        confirmLabel="Thay thế"
-        cancelLabel="Hủy"
-        onClose={() => setPendingReplace(null)}
-        onConfirm={handleReplaceConfirm}
       />
     </main>
   );

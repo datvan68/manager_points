@@ -47,12 +47,20 @@ import {
 import { SemestersModule } from '../semesters/semesters.module';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import { PdfTemplateModule } from '../pdf-template/pdf-template.module';
-import { DORMITORY_ROSTER_APPLICATION_DESCRIPTOR } from './pdf-template-adapter';
+import {
+  DORMITORY_ROSTER_APPLICATION_DESCRIPTOR,
+  DORMITORY_RESIDENCE_INFO_DESCRIPTOR,
+  DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR,
+} from './pdf-template-adapter';
 
 @Module({
   imports: [
     SemestersModule,
-    PdfTemplateModule.register([DORMITORY_ROSTER_APPLICATION_DESCRIPTOR]),
+    PdfTemplateModule.register([
+      DORMITORY_ROSTER_APPLICATION_DESCRIPTOR,
+      DORMITORY_RESIDENCE_INFO_DESCRIPTOR,
+      DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR,
+    ]),
     MongooseModule.forFeature([
       { name: Building.name, schema: BuildingSchema },
       { name: Room.name, schema: RoomSchema },

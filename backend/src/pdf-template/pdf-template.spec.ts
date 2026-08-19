@@ -1,7 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, createDefaultDormitoryLayout } from '../dormitory/pdf-template-adapter';
+import {
+  DORMITORY_ROSTER_APPLICATION_DESCRIPTOR,
+  DORMITORY_RESIDENCE_INFO_DESCRIPTOR,
+  DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR,
+  createDefaultDormitoryLayout,
+} from '../dormitory/pdf-template-adapter';
 import { validateAndNormalizeLayout } from './layout.validation';
 import { PdfTemplateIntakeService } from './pdf-template-intake.service';
 import { PdfTemplateRegistry } from './registry';
@@ -12,12 +17,20 @@ import { PDFDocument } from 'pdf-lib';
 describe('shared PDF template contracts', () => {
   const pages = [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }];
 
-  it('registers the KTX descriptor and isolates field keys', () => {
-    const registry = new PdfTemplateRegistry([DORMITORY_ROSTER_APPLICATION_DESCRIPTOR]);
+  it('registers the KTX descriptors and isolates field keys', () => {
+    const registry = new PdfTemplateRegistry([
+      DORMITORY_ROSTER_APPLICATION_DESCRIPTOR,
+      DORMITORY_RESIDENCE_INFO_DESCRIPTOR,
+      DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR,
+    ]);
     registry.onModuleInit();
     expect(registry.get('DORMITORY_ROSTER_APPLICATION').fields.map((field) => field.key)).toContain('student.fullName');
+    expect(registry.get('DORMITORY_RESIDENCE_INFO').fields.map((field) => field.key)).toContain('dormitory.semester');
+    expect(registry.get('DORMITORY_RESIDENCE_CONTRACT').fields.map((field) => field.key)).toContain('contract.code');
     expect(() => registry.get('UNKNOWN')).toThrow();
     expect(() => new PdfTemplateRegistry([DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, DORMITORY_ROSTER_APPLICATION_DESCRIPTOR])).toThrow('Duplicate');
+    expect(() => new PdfTemplateRegistry([DORMITORY_RESIDENCE_INFO_DESCRIPTOR, DORMITORY_RESIDENCE_INFO_DESCRIPTOR])).toThrow('Duplicate');
+    expect(() => new PdfTemplateRegistry([DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR, DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR])).toThrow('Duplicate');
   });
 
   it('normalizes geometry and rejects arbitrary paths/prototype keys', () => {
