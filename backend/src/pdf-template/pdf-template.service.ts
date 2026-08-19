@@ -13,6 +13,54 @@ export type SavePdfTemplateInput = { version: number; layout: unknown; source?: 
 export type CreatePdfTemplateInput = { layout: unknown; source?: { buffer: Buffer; originalname?: string; mimetype?: string } };
 export type PdfTemplateCatalogQuery = { page?: string | number; pageSize?: string | number; search?: string; moduleCode?: string; featureCode?: string; configured?: string; sortBy?: string; sortDirection?: string };
 
+export function normalizePersistedPdfSource(raw: unknown): Buffer {
+  if (!raw) {
+    throw new NotFoundException('Template chưa có source PDF.');
+  }
+
+  let buffer: Buffer | null = null;
+
+  if (Buffer.isBuffer(raw)) {
+    buffer = raw;
+  } else if (typeof (raw as any)?.value === 'function') {
+    const val = (raw as any).value(true);
+    if (Buffer.isBuffer(val)) {
+      buffer = val;
+    } else if (val instanceof Uint8Array) {
+      buffer = Buffer.from(val.buffer, val.byteOffset, val.byteLength);
+    } else if (val) {
+      buffer = Buffer.from(val);
+    }
+  } else if (raw instanceof Uint8Array) {
+    buffer = Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength);
+  } else if (raw instanceof ArrayBuffer) {
+    buffer = Buffer.from(raw);
+  } else if (typeof raw === 'object' && raw !== null) {
+    const obj = raw as any;
+    if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+      buffer = Buffer.from(obj.data);
+    } else if (obj.buffer instanceof ArrayBuffer || ArrayBuffer.isView(obj.buffer)) {
+      const buf = obj.buffer;
+      if (Buffer.isBuffer(buf)) {
+        buffer = buf;
+      } else if (buf instanceof Uint8Array) {
+        buffer = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
+      } else if (buf instanceof ArrayBuffer) {
+        buffer = Buffer.from(buf);
+      }
+    } else if (typeof obj.read === 'function' && typeof obj.length === 'function') {
+      const len = obj.length();
+      buffer = Buffer.from(obj.read(0, len));
+    }
+  }
+
+  if (!buffer || buffer.length === 0) {
+    throw new NotFoundException('Template chưa có source PDF.');
+  }
+
+  return buffer;
+}
+
 @Injectable()
 export class PdfTemplateService {
   constructor(
@@ -71,11 +119,15 @@ export class PdfTemplateService {
     return { moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, templateTypeCode, displayName: descriptor.displayName, sourcePermission: descriptor.sourcePermission, fields: descriptor.fields, configured: Boolean(current), version: current?.version || 0, checksum: current?.sourceChecksum || null, sourceChecksum: current?.sourceChecksum || null, sourceFilename: current?.sourceFilename || null, sourceBytes: current?.sourceBytes || 0, pages: current?.pages || null, layout: current?.layout || null, audit: current?.audit ? { updatedBy: current.audit.updatedBy ? String(current.audit.updatedBy) : null, updatedAt: current.audit.updatedAt } : null };
   }
 
-  async source(templateTypeCode: string) { const current: any = await this.model.findOne({ templateTypeCode, active: true }).select('sourcePdf sourceFilename sourceChecksum').lean().exec(); if (!current) return null; return { buffer: Buffer.from(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum }; }
+  async source(templateTypeCode: string) {
+    const current: any = await this.model.findOne({ templateTypeCode, active: true }).select('sourcePdf sourceFilename sourceChecksum').lean().exec();
+    if (!current) return null;
+    return { buffer: normalizePersistedPdfSource(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum };
+  }
 
   async validate(templateTypeCode: string, layout: unknown, source?: { buffer: Buffer; originalname?: string; mimetype?: string }) {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
-    const parsed = source ? await this.intake.validate(source.buffer, source.originalname, source.mimetype) : current ? { pages: current.pages, buffer: Buffer.from(current.sourcePdf) } as ValidatedPdfSource : null;
+    const parsed = source ? await this.intake.validate(source.buffer, source.originalname, source.mimetype) : current ? { pages: current.pages, buffer: normalizePersistedPdfSource(current.sourcePdf) } as ValidatedPdfSource : null;
     if (!parsed) throw new NotFoundException('Template chưa có source PDF.');
     const checksum = source ? (parsed as ValidatedPdfSource).checksum : current?.sourceChecksum || null;
     return { layout: validateAndNormalizeLayout(layout, descriptor, parsed.pages), sourceChecksum: checksum };
@@ -97,7 +149,7 @@ export class PdfTemplateService {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
     if (!current) throw new NotFoundException('Template chưa được cấu hình.');
     const expected = current.version; if (!Number.isInteger(input.version) || input.version !== expected) throw new ConflictException({ code: 'PDF_TEMPLATE_VERSION_CONFLICT', message: 'Template đã được thay đổi bởi operator khác.', currentVersion: expected });
-    const parsed = input.source ? await this.intake.validate(input.source.buffer, input.source.originalname, input.source.mimetype) : current ? { buffer: Buffer.from(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum, pages: current.pages } as ValidatedPdfSource : null;
+    const parsed = input.source ? await this.intake.validate(input.source.buffer, input.source.originalname, input.source.mimetype) : current ? { buffer: normalizePersistedPdfSource(current.sourcePdf), filename: current.sourceFilename, checksum: current.sourceChecksum, pages: current.pages } as ValidatedPdfSource : null;
     if (!parsed) throw new NotFoundException('Template mới phải có source PDF.');
     const layout = validateAndNormalizeLayout(input.layout, descriptor, parsed.pages); const version = expected + 1; const updatedBy = this.actor(requester);
     const update = { moduleCode: descriptor.moduleCode, featureCode: descriptor.featureCode, displayName: descriptor.displayName, sourceMimeType: 'application/pdf', sourceFilename: parsed.filename, sourceChecksum: parsed.checksum, sourceBytes: parsed.buffer.length, sourcePdf: parsed.buffer, pages: parsed.pages, layout, version, active: true, audit: { updatedBy, updatedAt: new Date() }, updatedBy };
@@ -131,17 +183,17 @@ export class PdfTemplateService {
     return { deleted: true, templateTypeCode, version };
   }
 
-  async renderSynthetic(templateTypeCode: string, fixture: 'short' | 'long' | 'missing' | 'vietnamese' = 'short') { const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec(); if (!current) throw new NotFoundException('Template chưa được cấu hình.'); return this.renderer.render(Buffer.from(current.sourcePdf), current.layout, descriptor.syntheticFixture(this.fixture(fixture)).values); }
+  async renderSynthetic(templateTypeCode: string, fixture: 'short' | 'long' | 'missing' | 'vietnamese' = 'short') { const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec(); if (!current) throw new NotFoundException('Template chưa được cấu hình.'); return this.renderer.render(normalizePersistedPdfSource(current.sourcePdf), current.layout, descriptor.syntheticFixture(this.fixture(fixture)).values); }
 
   async preview(templateTypeCode: string, layoutInput: unknown, fixture: 'short' | 'long' | 'missing' | 'vietnamese', source?: { buffer: Buffer; originalname?: string; mimetype?: string }) {
     const descriptor = this.descriptor(templateTypeCode); const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec();
-    const parsed = source ? await this.intake.validate(source.buffer, source.originalname, source.mimetype) : current ? { buffer: Buffer.from(current.sourcePdf), pages: current.pages } as ValidatedPdfSource : null;
+    const parsed = source ? await this.intake.validate(source.buffer, source.originalname, source.mimetype) : current ? { buffer: normalizePersistedPdfSource(current.sourcePdf), pages: current.pages } as ValidatedPdfSource : null;
     if (!parsed) throw new NotFoundException('Template chưa có source PDF.');
     const layout = validateAndNormalizeLayout(layoutInput, descriptor, parsed.pages);
     return this.renderer.render(parsed.buffer, layout, descriptor.syntheticFixture(this.fixture(fixture)).values);
   }
 
-  async renderCurrent(templateTypeCode: string, values: Record<string, unknown>) { const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec(); if (!current) return null; return this.renderer.render(Buffer.from(current.sourcePdf), current.layout, values); }
+  async renderCurrent(templateTypeCode: string, values: Record<string, unknown>) { const current: any = await this.model.findOne({ templateTypeCode, active: true }).lean().exec(); if (!current) return null; return this.renderer.render(normalizePersistedPdfSource(current.sourcePdf), current.layout, values); }
 
   async renderCurrentFromContext(templateTypeCode: string, context: unknown) {
     const descriptor = this.descriptor(templateTypeCode);

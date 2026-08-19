@@ -44,7 +44,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
           if (tab) router.push(tab.href);
         }}
       />
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {activeTab === 'registrations' || activeTab === 'buildings' || activeTab === 'pdf-template' ? (
           children
         ) : (

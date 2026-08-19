@@ -71,8 +71,12 @@ describe('DormitoryLayout', () => {
     unmount2();
 
     pathname = '/dormitory/pdf-template/DORMITORY_ROSTER_APPLICATION/edit';
-    render(<DormitoryLayout><div data-testid="c3">edit</div></DormitoryLayout>);
+    const { container } = render(<DormitoryLayout><div data-testid="c3">edit</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'pdf-template');
     expect(screen.getByTestId('c3')).toBeInTheDocument();
+
+    const wrapper = container.querySelector('.flex-1.min-h-0.flex.flex-col.overflow-hidden');
+    expect(wrapper).toBeInTheDocument();
+    expect(wrapper).toContainElement(screen.getByTestId('c3'));
   });
 });
