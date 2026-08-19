@@ -11,11 +11,16 @@ import {
 } from '@/api/pdf-template-api';
 import {
   moveField,
-  resizeField,
-  Handle,
 } from '@/components/dormitory/pdf-template/PdfTemplateDesigner';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -54,18 +59,6 @@ function initialLayout(metadata: PdfTemplateMetadata): PdfTemplateLayout {
     })),
   };
 }
-
-const RESIZE_HANDLES: {
-  handle: Handle;
-  cursor: string;
-  positionClass: string;
-  title: string;
-}[] = [
-  { handle: 'nw', cursor: 'cursor-nwse-resize', positionClass: '-top-1.5 -left-1.5', title: 'Resize northwest' },
-  { handle: 'ne', cursor: 'cursor-nesw-resize', positionClass: '-top-1.5 -right-1.5', title: 'Resize northeast' },
-  { handle: 'sw', cursor: 'cursor-nesw-resize', positionClass: '-bottom-1.5 -left-1.5', title: 'Resize southwest' },
-  { handle: 'se', cursor: 'cursor-nwse-resize', positionClass: '-bottom-1.5 -right-1.5', title: 'Resize southeast' },
-];
 
 export default function PdfTemplateEditor({
   metadata,
@@ -107,8 +100,6 @@ export default function PdfTemplateEditor({
 
   const dragRef = useRef<
     | {
-        mode: 'move' | 'resize';
-        handle?: Handle;
         id: string;
         startX: number;
         startY: number;
@@ -358,7 +349,6 @@ export default function PdfTemplateEditor({
       } catch {}
     }
     dragRef.current = {
-      mode: 'move',
       id: item.id,
       startX: event.clientX,
       startY: event.clientY,
@@ -367,28 +357,9 @@ export default function PdfTemplateEditor({
     setSelected(item.id);
   };
 
-  const startResize = (event: React.PointerEvent, item: PdfTemplateItem, handle: Handle) => {
-    event.stopPropagation();
-    event.preventDefault();
-    if (event.currentTarget.setPointerCapture) {
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {}
-    }
-    dragRef.current = {
-      mode: 'resize',
-      handle,
-      id: item.id,
-      startX: event.clientX,
-      startY: event.clientY,
-      initialItem: { ...item, style: { ...item.style } },
-    };
-    setSelected(item.id);
-  };
-
   const move = (event: React.PointerEvent) => {
     if (!dragRef.current || !layout || !page) return;
-    const { mode, id, startX, startY, initialItem, handle } = dragRef.current;
+    const { id, startX, startY, initialItem } = dragRef.current;
     const rawDx = (event.clientX - startX) / (page.width * effectiveScale);
     const rawDy = (event.clientY - startY) / (page.height * effectiveScale);
 
@@ -396,34 +367,8 @@ export default function PdfTemplateEditor({
     const dx = Math.round(rawDx / snapStep) * snapStep;
     const dy = Math.round(rawDy / snapStep) * snapStep;
 
-    if (mode === 'move') {
-      const updated = moveField(initialItem, dx, dy);
-      update(id, { x: updated.x, y: updated.y });
-    } else if (mode === 'resize' && handle) {
-      const updated = resizeField(initialItem, handle, dx, dy);
-      const isCornerResize =
-        (handle.includes('n') || handle.includes('s')) &&
-        (handle.includes('e') || handle.includes('w'));
-
-      let nextStyle = initialItem.style;
-      if (isCornerResize && initialItem.height > 0 && initialItem.style?.fontSize) {
-        const heightRatio = updated.height / initialItem.height;
-        const rawFontSize = initialItem.style.fontSize * heightRatio;
-        const scaledFontSize = Math.min(48, Math.max(6, Math.round(rawFontSize)));
-        nextStyle = {
-          ...initialItem.style,
-          fontSize: scaledFontSize,
-        };
-      }
-
-      update(id, {
-        x: updated.x,
-        y: updated.y,
-        width: updated.width,
-        height: updated.height,
-        style: nextStyle,
-      });
-    }
+    const updated = moveField(initialItem, dx, dy);
+    update(id, { x: updated.x, y: updated.y });
   };
 
   const stopDrag = (event: React.PointerEvent) => {
@@ -643,21 +588,29 @@ export default function PdfTemplateEditor({
             />
           </label>
 
-          <label className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-600 shrink-0">
+          <div className="inline-flex items-center gap-1 text-[12px] font-medium text-slate-600 shrink-0">
             <span className="hidden sm:inline">Trang</span>
-            <select
-              aria-label="Trang PDF"
-              value={pageIndex}
-              onChange={(event) => setPageIndex(Number(event.target.value))}
-              className="rounded-xl border border-white/70 bg-white/50 px-2 py-0.5 text-[12px] font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+            <Select
+              value={String(pageIndex)}
+              onValueChange={(val: string) => setPageIndex(Number(val))}
             >
-              {layout.pages.map((entry) => (
-                <option key={entry.pageIndex} value={entry.pageIndex}>
-                  {entry.pageIndex + 1} / {layout.pages.length}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger
+                aria-label="Trang PDF"
+                className="h-7 min-w-[72px] w-auto rounded-xl border border-white/70 bg-white/50 px-2 py-0.5 text-[12px] font-semibold text-slate-800"
+              >
+                <SelectValue placeholder={`${pageIndex + 1} / ${layout.pages.length}`}>
+                  {`${pageIndex + 1} / ${layout.pages.length}`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {layout.pages.map((entry) => (
+                  <SelectItem key={entry.pageIndex} value={String(entry.pageIndex)}>
+                    {entry.pageIndex + 1} / {layout.pages.length}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="flex items-center rounded-xl border border-white/70 bg-white/50 p-0.5 gap-0.5 shrink-0" role="group" aria-label="Chế độ xem">
             <button
@@ -805,25 +758,7 @@ export default function PdfTemplateEditor({
                     const isSelected = selected === item.id;
                     const itemFontSize = item.style?.fontSize ?? 12;
                     const effectiveFontSize = itemFontSize * effectiveScale;
-                    const hAlign = item.style?.horizontalAlign || 'left';
-                    const vAlign = item.style?.verticalAlign || 'top';
-                    const padding = (item.style?.padding ?? 2) * effectiveScale;
                     const lineHeight = item.style?.lineHeight ?? 1.15;
-                    const bgWhite = item.style?.background === 'white';
-
-                    const justifyClass =
-                      hAlign === 'center'
-                        ? 'justify-center text-center'
-                        : hAlign === 'right'
-                        ? 'justify-end text-right'
-                        : 'justify-start text-left';
-
-                    const itemsAlignClass =
-                      vAlign === 'middle'
-                        ? 'items-center'
-                        : vAlign === 'bottom'
-                        ? 'items-end'
-                        : 'items-start';
 
                     return (
                       <div
@@ -840,49 +775,21 @@ export default function PdfTemplateEditor({
                           event.stopPropagation();
                           setSelected(item.id);
                         }}
-                        className={`absolute select-none overflow-visible focus:outline-none transition-colors ${
+                        className={cn(
+                          'absolute select-none cursor-move focus:outline-none transition-colors font-mono whitespace-nowrap leading-tight',
                           isSelected
-                            ? 'border-2 border-blue-600 bg-blue-500/20 text-blue-950 font-bold shadow-md ring-2 ring-blue-400/40'
-                            : 'border border-blue-400/70 bg-blue-50/40 text-blue-800 hover:border-blue-600 hover:bg-blue-100/50'
-                        }`}
+                            ? 'text-blue-600 font-bold'
+                            : 'text-slate-800 font-medium hover:text-blue-600'
+                        )}
                         style={{
                           left: item.x * page.width * effectiveScale,
                           top: item.y * page.height * effectiveScale,
-                          width: item.width * page.width * effectiveScale,
-                          height: item.height * page.height * effectiveScale,
                           zIndex: isSelected ? 50 : item.zIndex + 1,
-                          cursor: 'move',
+                          fontSize: `${effectiveFontSize}px`,
+                          lineHeight,
                         }}
                       >
-                        <div
-                          className={`w-full h-full overflow-hidden truncate font-mono font-semibold leading-tight flex ${justifyClass} ${itemsAlignClass}`}
-                          style={{
-                            fontSize: `${effectiveFontSize}px`,
-                            padding: `${padding}px`,
-                            lineHeight,
-                            backgroundColor: bgWhite ? '#ffffff' : undefined,
-                            textAlign: hAlign,
-                          }}
-                        >
-                          <span className="truncate">{item.fieldKey}</span>
-                        </div>
-
-                        {/* 4 visible corner resize handles on selected item */}
-                        {isSelected &&
-                          RESIZE_HANDLES.map((h) => (
-                            <div
-                              key={h.handle}
-                              role="button"
-                              tabIndex={-1}
-                              title={h.title}
-                              aria-label={h.title}
-                              onPointerDown={(event) => startResize(event, item, h.handle)}
-                              onPointerMove={move}
-                              onPointerUp={stopDrag}
-                              onPointerCancel={stopDrag}
-                              className={`absolute ${h.positionClass} ${h.cursor} w-2.5 h-2.5 bg-blue-600 border border-white rounded-sm shadow-sm hover:scale-125 z-50 transition-transform`}
-                            />
-                          ))}
+                        <span>{item.fieldKey}</span>
                       </div>
                     );
                   })}
@@ -973,46 +880,7 @@ export default function PdfTemplateEditor({
                   {selectedItem.fieldKey}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {(['x', 'y', 'width', 'height', 'rotation', 'zIndex'] as const).map((key) => (
-                    <label
-                      key={key}
-                      className="flex items-center justify-between gap-1 text-[11px] font-medium text-slate-600"
-                    >
-                      <span>{key}</span>
-                      <input
-                        type="number"
-                        aria-label={key}
-                        step={key === 'rotation' || key === 'zIndex' ? '1' : '0.001'}
-                        value={selectedItem[key]}
-                        onChange={(event) =>
-                          update(selectedItem.id, { [key]: Number(event.target.value) })
-                        }
-                        className="w-16 rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-right text-xs font-mono"
-                      />
-                    </label>
-                  ))}
-                </div>
-
                 <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-600">
-                    <span>Formatter</span>
-                    <select
-                      value={selectedItem.formatter}
-                      onChange={(event) => update(selectedItem.id, { formatter: event.target.value })}
-                      className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                    >
-                      {(
-                        metadata.fields.find((f) => f.key === selectedItem.fieldKey)
-                          ?.allowedFormatters || ['plain']
-                      ).map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
                   <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-600">
                     <span>Font size</span>
                     <input
@@ -1020,6 +888,7 @@ export default function PdfTemplateEditor({
                       min="6"
                       max="48"
                       step="1"
+                      aria-label="Font size"
                       value={selectedItem.style.fontSize}
                       onChange={(event) =>
                         update(selectedItem.id, {
@@ -1031,68 +900,6 @@ export default function PdfTemplateEditor({
                       }
                       className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-right font-mono"
                     />
-                  </label>
-
-                  <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-600">
-                    <span>Align H</span>
-                    <select
-                      aria-label="Align H"
-                      value={selectedItem.style.horizontalAlign}
-                      onChange={(event) =>
-                        update(selectedItem.id, {
-                          style: {
-                            ...selectedItem.style,
-                            horizontalAlign: event.target.value as PdfTemplateItem['style']['horizontalAlign'],
-                          },
-                        })
-                      }
-                      className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                    >
-                      <option value="left">left</option>
-                      <option value="center">center</option>
-                      <option value="right">right</option>
-                    </select>
-                  </label>
-
-                  <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-600">
-                    <span>Align V</span>
-                    <select
-                      aria-label="Align V"
-                      value={selectedItem.style.verticalAlign}
-                      onChange={(event) =>
-                        update(selectedItem.id, {
-                          style: {
-                            ...selectedItem.style,
-                            verticalAlign: event.target.value as PdfTemplateItem['style']['verticalAlign'],
-                          },
-                        })
-                      }
-                      className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                    >
-                      <option value="top">top</option>
-                      <option value="middle">middle</option>
-                      <option value="bottom">bottom</option>
-                    </select>
-                  </label>
-
-                  <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-600">
-                    <span>Overflow</span>
-                    <select
-                      value={selectedItem.style.overflow}
-                      onChange={(event) =>
-                        update(selectedItem.id, {
-                          style: {
-                            ...selectedItem.style,
-                            overflow: event.target.value as PdfTemplateItem['style']['overflow'],
-                          },
-                        })
-                      }
-                      className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
-                    >
-                      <option value="shrink">shrink</option>
-                      <option value="wrap">wrap</option>
-                      <option value="clip">clip</option>
-                    </select>
                   </label>
                 </div>
               </div>

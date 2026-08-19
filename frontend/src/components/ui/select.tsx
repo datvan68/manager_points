@@ -19,8 +19,14 @@ interface SelectContextProps {
   openUp: boolean;
   error?: string;
   onSearchQueryChange?: (query: string) => void;
-  triggerRef: React.RefObject<HTMLDivElement>;
-  contentRef: React.RefObject<HTMLDivElement>;
+  triggerRef: React.RefObject<HTMLDivElement | null>;
+  contentRef: React.RefObject<HTMLDivElement | null>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  selectId: string;
+  highlightedIndex: number;
+  setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>;
+  registeredItems: Array<{ value: string; label: string }>;
+  registerItem: (value: string, label: string) => () => void;
 }
 
 const SelectContext = React.createContext<SelectContextProps | undefined>(undefined);
@@ -51,9 +57,30 @@ export const Select = ({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedLabel, setSelectedLabel] = React.useState("");
   const [openUp, setOpenUp] = React.useState(false);
+  const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
+  const [registeredItems, setRegisteredItems] = React.useState<Array<{ value: string; label: string }>>([]);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const triggerRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const generatedId = React.useId();
+  const selectId = `select-${generatedId.replace(/:/g, "")}`;
+
+  const registerItem = React.useCallback((itemValue: string, itemLabel: string) => {
+    setRegisteredItems((prev) => {
+      const idx = prev.findIndex((i) => i.value === itemValue);
+      if (idx >= 0) {
+        if (prev[idx].label === itemLabel) return prev;
+        const next = [...prev];
+        next[idx] = { value: itemValue, label: itemLabel };
+        return next;
+      }
+      return [...prev, { value: itemValue, label: itemLabel }];
+    });
+    return () => {
+      setRegisteredItems((prev) => prev.filter((i) => i.value !== itemValue));
+    };
+  }, []);
 
   // Close dropdown on click outside
   React.useEffect(() => {
@@ -71,12 +98,32 @@ export const Select = ({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Reset display label when the selection is cleared
+  // Reset display label when the selection is cleared or value changes
   React.useEffect(() => {
-    if (!value) {
+    if (value === undefined || value === null || value === "") {
       setSelectedLabel("");
+    } else {
+      const found = registeredItems.find((i) => i.value === String(value));
+      if (found) {
+        setSelectedLabel(found.label);
+      }
     }
-  }, [value]);
+  }, [value, registeredItems]);
+
+  // When opening/closing
+  React.useEffect(() => {
+    if (open) {
+      if (value !== undefined && value !== null && value !== "") {
+        const idx = registeredItems.findIndex((i) => i.value === String(value));
+        setHighlightedIndex(idx >= 0 ? idx : 0);
+      } else {
+        setHighlightedIndex(0);
+      }
+    } else {
+      setSearchQuery("");
+      setHighlightedIndex(-1);
+    }
+  }, [open, value, registeredItems]);
 
   // Dynamically calculate opening direction (upwards or downwards) based on viewport space
   React.useEffect(() => {
@@ -121,11 +168,20 @@ export const Select = ({
         onSearchQueryChange,
         triggerRef,
         contentRef,
+        inputRef,
+        selectId,
+        highlightedIndex,
+        setHighlightedIndex,
+        registeredItems,
+        registerItem,
       }}
     >
       <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
         {label && (
-          <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
+          <label
+            htmlFor={`${selectId}-input`}
+            className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]"
+          >
             {label}
             {required && <span className="text-red-500">*</span>}
           </label>
@@ -152,35 +208,128 @@ export const SelectValue = ({ placeholder, children }: any) => {
 };
 
 export const SelectTrigger = React.forwardRef<any, any>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, disabled, id, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectTrigger must be used inside Select");
 
-    const { open, setOpen, searchQuery, setSearchQuery, selectedLabel, error } = context;
+    const {
+      open,
+      setOpen,
+      searchQuery,
+      setSearchQuery,
+      selectedLabel,
+      error,
+      inputRef,
+      selectId,
+      highlightedIndex,
+      setHighlightedIndex,
+      registeredItems,
+      onValueChange,
+      value,
+    } = context;
 
-    // Extract placeholder text
+    // Extract placeholder text and value fallback
     let placeholder = "Chọn...";
+    let valueFallback: string | undefined;
     React.Children.forEach(children, (child: any) => {
       if (child && (child.type === SelectValue || child.props?.placeholder)) {
         placeholder = child.props.placeholder || placeholder;
+        if (child.props?.children && typeof child.props.children === 'string') {
+          valueFallback = child.props.children;
+        }
       }
     });
 
+    const displayValue = open
+      ? searchQuery
+      : selectedLabel || valueFallback || (value !== undefined && value !== null ? String(value) : "");
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (props.onKeyDown) {
+        props.onKeyDown(e);
+      }
+      if (e.defaultPrevented || disabled) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+        } else {
+          setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(0, registeredItems.length - 1)));
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+        } else {
+          setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+        }
+      } else if (e.key === "Enter") {
+        if (open) {
+          e.preventDefault();
+          if (highlightedIndex >= 0 && highlightedIndex < registeredItems.length) {
+            const item = registeredItems[highlightedIndex];
+            if (item) {
+              onValueChange?.(item.value);
+              context.setSelectedLabel(item.label);
+              setSearchQuery("");
+              setOpen(false);
+            }
+          }
+        } else {
+          e.preventDefault();
+          setOpen(true);
+        }
+      } else if (e.key === "Escape") {
+        if (open) {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(false);
+          setSearchQuery("");
+        }
+      } else if (e.key === "Tab") {
+        if (open) {
+          setOpen(false);
+        }
+      }
+    };
+
     return (
       <div
+        ref={ref}
         className={cn(
           `relative flex h-10 w-full items-center justify-between px-3 py-2 text-sm cursor-text outline-none focus:outline-none focus-visible:ring-0 ${controlBase}`,
+          disabled && "opacity-50 cursor-not-allowed pointer-events-none",
           error && "border-red-500 focus-within:ring-red-500/20 focus-within:border-red-500",
           className
         )}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (!disabled) {
+            setOpen(true);
+            inputRef.current?.focus();
+          }
+        }}
+        data-state={open ? "open" : "closed"}
+        {...props}
       >
         <input
+          ref={inputRef}
+          id={id || `${selectId}-input`}
           type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-controls={`${selectId}-content`}
+          aria-label={props["aria-label"]}
+          aria-labelledby={props["aria-labelledby"]}
+          aria-describedby={props["aria-describedby"]}
+          aria-invalid={Boolean(error)}
+          disabled={disabled}
           className="w-full bg-transparent border-none outline-none text-xs font-semibold text-[#1E293B] placeholder-slate-400 focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           placeholder={placeholder}
-          value={open ? searchQuery : (selectedLabel || "")}
+          value={displayValue}
           onChange={(e) => {
+            if (disabled) return;
             setOpen(true);
             setSearchQuery(e.target.value);
             if (context.onSearchQueryChange) {
@@ -189,8 +338,9 @@ export const SelectTrigger = React.forwardRef<any, any>(
           }}
           onClick={(e) => {
             e.stopPropagation();
-            setOpen(true);
+            if (!disabled) setOpen(true);
           }}
+          onKeyDown={handleKeyDown}
         />
         <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2 pointer-events-none text-[#64748B]" />
       </div>
@@ -199,14 +349,12 @@ export const SelectTrigger = React.forwardRef<any, any>(
 );
 SelectTrigger.displayName = "SelectTrigger";
 
-
-
 export const SelectContent = React.forwardRef<any, any>(
   ({ className, children, position = "popper", lazyLoad = false, onLoadMore, disablePortal = false, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectContent must be used inside Select");
 
-    const { open, searchQuery, openUp, triggerRef, contentRef } = context;
+    const { open, searchQuery, openUp, triggerRef, contentRef, selectId } = context;
 
     // Filter children SelectItem components based on searchQuery
     const filteredChildren = React.useMemo(() => {
@@ -214,8 +362,8 @@ export const SelectContent = React.forwardRef<any, any>(
       if (!searchQuery) return childrenArray;
 
       return childrenArray.filter((child: any) => {
-        if (child && child.props && child.props.value) {
-          const text = getChildText(child).toLowerCase();
+        if (child && child.props && child.props.value !== undefined) {
+          const text = (child.props.label || getChildText(child)).toLowerCase();
           return text.includes(searchQuery.toLowerCase());
         }
         return true; // Keep labels, groups, separators
@@ -223,7 +371,7 @@ export const SelectContent = React.forwardRef<any, any>(
     }, [children, searchQuery]);
 
     const hasItems = React.useMemo(() => {
-      return filteredChildren.some((child: any) => child && child.props && child.props.value);
+      return filteredChildren.some((child: any) => child && child.props && child.props.value !== undefined);
     }, [filteredChildren]);
 
     const [visibleCount, setVisibleCount] = React.useState(lazyLoad ? 5 : filteredChildren.length);
@@ -275,6 +423,9 @@ export const SelectContent = React.forwardRef<any, any>(
     const content = (
       <div
         ref={contentRef}
+        id={`${selectId}-content`}
+        role="listbox"
+        aria-label={props["aria-label"] || "Options"}
         data-select-content="true"
         className={cn(
           disablePortal ? "absolute" : "fixed",
@@ -299,6 +450,7 @@ export const SelectContent = React.forwardRef<any, any>(
                 bottom: rect && openUp ? window.innerHeight - rect.top + 6 : 'auto',
               }
         }
+        {...props}
       >
         <div 
           className={cn(
@@ -329,6 +481,7 @@ SelectContent.displayName = "SelectContent";
 export const SelectLabel = React.forwardRef<any, any>(
   ({ className, ...props }, ref) => (
     <div
+      ref={ref}
       className={cn("px-3 py-1.5 text-xs font-semibold text-[#64748B]", className)}
       {...props}
     />
@@ -341,10 +494,26 @@ export const SelectItem = React.forwardRef<any, any>(
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectItem must be used inside Select");
 
-    const { value, onValueChange, setOpen, setSearchQuery, setSelectedLabel } = context;
+    const {
+      value,
+      onValueChange,
+      setOpen,
+      setSearchQuery,
+      setSelectedLabel,
+      registerItem,
+      highlightedIndex,
+      setHighlightedIndex,
+      registeredItems,
+      selectId,
+    } = context;
 
-    const isSelected = value !== undefined && value !== null && value !== "" && value === itemValue;
+    const isSelected = value !== undefined && value !== null && value !== "" && String(value) === String(itemValue);
     const label = React.useMemo(() => customLabel || getChildText(children), [customLabel, children]);
+
+    // Register item in SelectContext
+    React.useEffect(() => {
+      return registerItem(String(itemValue), label);
+    }, [itemValue, label, registerItem]);
 
     // Track active value and update the trigger input display label
     React.useEffect(() => {
@@ -352,6 +521,9 @@ export const SelectItem = React.forwardRef<any, any>(
         setSelectedLabel(label);
       }
     }, [isSelected, label, setSelectedLabel]);
+
+    const itemIndex = registeredItems.findIndex((i) => i.value === String(itemValue));
+    const isHighlighted = highlightedIndex === itemIndex;
 
     const handleSelect = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -365,9 +537,18 @@ export const SelectItem = React.forwardRef<any, any>(
 
     return (
       <div
+        ref={ref}
+        role="option"
+        aria-selected={isSelected}
+        id={`${selectId}-option-${itemValue}`}
+        data-highlighted={isHighlighted ? "true" : undefined}
         onClick={handleSelect}
+        onMouseEnter={() => {
+          if (itemIndex >= 0) setHighlightedIndex(itemIndex);
+        }}
         className={cn(
           "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs font-medium outline-none text-[#1E293B] hover:bg-white/60 transition-all whitespace-nowrap",
+          isHighlighted && !isSelected && "bg-slate-100/80",
           isSelected && "bg-blue-50/80 text-[#1A73E8] font-bold",
           className
         )}
@@ -387,7 +568,7 @@ SelectItem.displayName = "SelectItem";
 
 export const SelectSeparator = React.forwardRef<any, any>(
   ({ className, ...props }, ref) => (
-    <div className={cn("-mx-1 my-1 h-px bg-slate-100", className)} {...props} />
+    <div ref={ref} className={cn("-mx-1 my-1 h-px bg-slate-100", className)} {...props} />
   )
 );
 SelectSeparator.displayName = "SelectSeparator";

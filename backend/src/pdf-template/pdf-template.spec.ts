@@ -141,6 +141,22 @@ describe('shared PDF template contracts', () => {
     expect(geom.lineXs[0]).toBe(240);
     expect(geom.lineXs[1]).toBe(260);
   });
+
+  it('computes field geometry accurately for custom direct font-size values', () => {
+    const pageWidth = 595.32;
+    const pageHeight = 842.04;
+    const itemWithDirectFontSize = {
+      x: 0.1,
+      y: 0.2,
+      width: 0.5,
+      height: 0.05,
+      style: { ...style, fontSize: 18, padding: 2, lineHeight: 1.15, horizontalAlign: 'left', verticalAlign: 'top' } as any,
+    };
+    const geom = calculatePdfFieldGeometry(itemWithDirectFontSize, pageWidth, pageHeight, [150], 18);
+    // top baseline: pageHeight * (1 - 0.2) - padding - fontSize = 673.632 - 2 - 18 = 653.632
+    expect(geom.firstLineBaselineY).toBeCloseTo(653.632);
+    expect(geom.lineXs[0]).toBeCloseTo(59.532 + 2);
+  });
 });
 
 const style = { fontFamily: 'Helvetica', fontSize: 12, minFontSize: 7, fontWeight: 400, color: '#000000', horizontalAlign: 'left', verticalAlign: 'top', lineHeight: 1.15, padding: 1, background: 'transparent', overflow: 'shrink', maxLines: 1 };

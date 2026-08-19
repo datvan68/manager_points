@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PdfTemplateEditor, { canRenderPdfOverlays } from './PdfTemplateEditor';
 import { pdfTemplateApi, PdfTemplateMetadata } from '@/api/pdf-template-api';
 
+let mockNumPages = 1;
+
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
   getDocument: () => ({
     promise: Promise.resolve({
-      numPages: 1,
+      get numPages() {
+        return mockNumPages;
+      },
       getPage: () =>
         Promise.resolve({
           getViewport: ({ scale }: { scale: number }) => ({
@@ -122,6 +126,7 @@ const mockMetadata: PdfTemplateMetadata = {
 describe('PdfTemplateEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNumPages = 1;
     HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({} as any);
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-pdf-url');
     globalThis.URL.revokeObjectURL = vi.fn();
@@ -153,59 +158,45 @@ describe('PdfTemplateEditor', () => {
     expect(canvasScrollContainer).toHaveClass('overflow-auto');
   });
 
-  it('displays 4 visible corner resize handles when a field is selected', async () => {
+  it('renders fields as text only with zero border, background, ring, shadow, or resize handles (AC-001)', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
-    // Wait for PDF rendering to finish and overlay to appear
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     expect(fieldElement).toBeInTheDocument();
 
-    // Click field to select it
-    fireEvent.click(fieldElement);
+    // Must NOT have border, background, ring, or shadow classes
+    expect(fieldElement.className).not.toMatch(/border|bg-|ring|shadow/);
+    expect(fieldElement.className).toContain('text-slate-800');
+    expect(fieldElement.className).toContain('font-medium');
 
-    // Verify 4 resize handles are rendered with correct accessible titles
-    expect(screen.getByTitle('Resize northwest')).toBeInTheDocument();
-    expect(screen.getByTitle('Resize northeast')).toBeInTheDocument();
-    expect(screen.getByTitle('Resize southwest')).toBeInTheDocument();
-    expect(screen.getByTitle('Resize southeast')).toBeInTheDocument();
+    // Zero resize handles rendered anywhere
+    expect(screen.queryByTitle('Resize northwest')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Resize northeast')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Resize southwest')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Resize southeast')).not.toBeInTheDocument();
   });
 
-  it('resizes field using corner handle gesture without unexpected move', async () => {
+  it('indicates selection purely via text styling without a bounding box or resize handles (AC-001)', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     fireEvent.click(fieldElement);
 
-    const seHandle = screen.getByTitle('Resize southeast');
+    // Selected state text styling
+    expect(fieldElement.className).toContain('text-blue-600');
+    expect(fieldElement.className).toContain('font-bold');
 
-    // Pointer down on resize handle
-    fireEvent.pointerDown(seHandle, {
-      pointerId: 1,
-      clientX: 200,
-      clientY: 100,
-    });
-
-    // Pointer move
-    fireEvent.pointerMove(seHandle, {
-      pointerId: 1,
-      clientX: 250,
-      clientY: 130,
-    });
-
-    // Pointer up
-    fireEvent.pointerUp(seHandle, {
-      pointerId: 1,
-    });
-
-    // Verify properties panel shows updated dimensions
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    expect(Number(widthInput.value)).toBeGreaterThan(0.3);
+    // Still no bounding box, border, ring, shadow, or resize handles
+    expect(fieldElement.className).not.toMatch(/border|bg-|ring|shadow/);
+    expect(screen.queryByTitle('Resize northwest')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Resize southeast')).not.toBeInTheDocument();
   });
 
-  it('moves field on pointer drag', async () => {
+  it('moves field on pointer drag (AC-002)', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
+    const initialLeft = parseFloat(fieldElement.style.left);
 
     // Drag field
     fireEvent.pointerDown(fieldElement, {
@@ -224,11 +215,11 @@ describe('PdfTemplateEditor', () => {
       pointerId: 1,
     });
 
-    const xInput = screen.getByLabelText('x') as HTMLInputElement;
-    expect(Number(xInput.value)).toBeGreaterThan(0.1);
+    const updatedLeft = parseFloat(fieldElement.style.left);
+    expect(updatedLeft).toBeGreaterThan(initialLeft);
   });
 
-  it('allows adding field from field palette and modifying properties', async () => {
+  it('allows adding field from field palette and modifying font size (AC-002, AC-003)', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     await screen.findByRole('button', { name: 'student.fullName' });
@@ -254,19 +245,137 @@ describe('PdfTemplateEditor', () => {
     expect(screen.queryByRole('heading', { name: 'Thuộc tính field' })).not.toBeInTheDocument();
   });
 
-  it('supports keyboard navigation for nudge and delete', async () => {
+  it('supports keyboard navigation for nudge and delete (AC-002)', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     fireEvent.click(fieldElement);
 
+    const initialLeft = parseFloat(fieldElement.style.left);
+
     // Arrow keys nudge
     fireEvent.keyDown(fieldElement, { key: 'ArrowRight' });
-    const xInput = screen.getByLabelText('x') as HTMLInputElement;
-    expect(Number(xInput.value)).toBeCloseTo(0.101);
+    const nudgedLeft = parseFloat(fieldElement.style.left);
+    expect(nudgedLeft).toBeGreaterThan(initialLeft);
 
     // Delete key removes field
     fireEvent.keyDown(fieldElement, { key: 'Delete' });
+    expect(screen.queryByRole('button', { name: 'student.fullName' })).not.toBeInTheDocument();
+  });
+
+  it('simplifies property panel to field identity, Font size, and Delete action while hiding raw geometry and advanced controls (AC-003)', async () => {
+    render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
+
+    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
+    fireEvent.click(fieldElement);
+
+    // Visible controls
+    expect(screen.getByRole('heading', { name: 'Thuộc tính field' })).toBeInTheDocument();
+    expect(screen.getAllByText('student.fullName').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText('Font size')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa field' })).toBeInTheDocument();
+
+    // Hidden controls (raw geometry, alignment, formatter, overflow)
+    expect(screen.queryByLabelText('x')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('y')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('width')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('height')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('rotation')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('zIndex')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Formatter')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Align H')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Align V')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Overflow')).not.toBeInTheDocument();
+  });
+
+  it('preserves stored geometry (width, height) and hidden style values in save payload after editing font size (AC-003)', async () => {
+    const saveSpy = vi.spyOn(pdfTemplateApi, 'save').mockResolvedValue({
+      templateTypeCode: 'DORMITORY_ROSTER_APPLICATION',
+      version: 2,
+      configured: true,
+      checksum: 'newcheck',
+      layout: mockMetadata.layout!,
+      updatedBy: 'tester',
+      updatedAt: '2026-08-19T00:00:00Z',
+    });
+    vi.spyOn(pdfTemplateApi, 'validate').mockResolvedValue({ valid: true, pages: [], warnings: [] });
+
+    render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
+
+    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
+    fireEvent.click(fieldElement);
+
+    // Change font size
+    const fontSizeInput = screen.getByLabelText('Font size');
+    fireEvent.change(fontSizeInput, { target: { value: '18' } });
+
+    // Save
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    fireEvent.click(saveBtn);
+    const confirmBtn = screen.getByRole('button', { name: 'Lưu template' });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(saveSpy).toHaveBeenCalled();
+      const savedLayout = saveSpy.mock.calls[0][2];
+      const savedItem = savedLayout.items.find((it: any) => it.fieldKey === 'student.fullName');
+      expect(savedItem).toBeDefined();
+      expect(savedItem.style.fontSize).toBe(18);
+      // Normalized width and height and existing styles are preserved!
+      expect(savedItem.width).toBe(0.3);
+      expect(savedItem.height).toBe(0.05);
+      expect(savedItem.style.horizontalAlign).toBe('left');
+      expect(savedItem.style.overflow).toBe('shrink');
+    });
+  });
+
+  it('replaces native page select with shared Select component and supports page switching (AC-004)', async () => {
+    mockNumPages = 2;
+    const multiPageMetadata: PdfTemplateMetadata = {
+      ...mockMetadata,
+      pages: [
+        { pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 },
+        { pageIndex: 1, width: 595.32, height: 842.04, rotation: 0 },
+      ],
+      layout: {
+        pages: [
+          { pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 },
+          { pageIndex: 1, width: 595.32, height: 842.04, rotation: 0 },
+        ],
+        items: [
+          {
+            ...mockMetadata.layout!.items[0],
+            pageIndex: 0,
+          },
+          {
+            ...mockMetadata.layout!.items[0],
+            id: 'item-page-2',
+            fieldKey: 'student.roomNumber',
+            pageIndex: 1,
+          },
+        ],
+      },
+    };
+
+    render(<PdfTemplateEditor metadata={multiPageMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
+
+    await screen.findByRole('button', { name: 'student.fullName' });
+
+    // Page selector is a shared Select combobox with label "Trang PDF"
+    const pageSelectTrigger = screen.getByRole('combobox', { name: 'Trang PDF' });
+    expect(pageSelectTrigger).toBeInTheDocument();
+    // Verify zero native <select> exists in the DOM
+    expect(document.querySelector('select')).not.toBeInTheDocument();
+
+    // Click trigger to open dropdown
+    fireEvent.click(pageSelectTrigger);
+
+    // Select page 2 option
+    const page2Option = await screen.findByRole('option', { name: '2 / 2' });
+    fireEvent.click(page2Option);
+
+    // Page 2 overlay should appear
+    await screen.findByRole('button', { name: 'student.roomNumber' });
     expect(screen.queryByRole('button', { name: 'student.fullName' })).not.toBeInTheDocument();
   });
 
@@ -384,10 +493,10 @@ describe('PdfTemplateEditor', () => {
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
     fireEvent.click(fieldElement);
 
-    // Modify width in sidebar
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    fireEvent.change(widthInput, { target: { value: '0.45' } });
-    expect(widthInput.value).toBe('0.45');
+    // Modify font size in sidebar
+    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
+    fireEvent.change(fontSizeInput, { target: { value: '20' } });
+    expect(fontSizeInput.value).toBe('20');
 
     // Open preview
     const previewButton = screen.getByRole('button', { name: 'Preview' });
@@ -398,102 +507,19 @@ describe('PdfTemplateEditor', () => {
     const closeBtn = screen.getByRole('button', { name: 'Đóng preview' });
     fireEvent.click(closeBtn);
 
-    // Confirm width value was preserved
-    const widthInputAfter = screen.getByLabelText('width') as HTMLInputElement;
-    expect(widthInputAfter.value).toBe('0.45');
-  });
-
-  it('scales fontSize proportionally from initial font size by height ratio during corner resize', async () => {
-    render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
-
-    // Switch to 100% mode for direct 1:1 pixel to page ratio gesture testing
-    const mode100Btn = screen.getByRole('button', { name: '100%' });
-    fireEvent.click(mode100Btn);
-
-    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    fireEvent.click(fieldElement);
-
-    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
-    expect(fontSizeInput.value).toBe('12');
-
-    const seHandle = screen.getByTitle('Resize southeast');
-
-    // Initial height is 0.05. Page height is 842.04.
-    // Dragging down by ~42.102 px (0.05 height) doubles height from 0.05 to 0.10.
-    // Height ratio = 0.10 / 0.05 = 2.0 -> fontSize = 12 * 2 = 24.
-    fireEvent.pointerDown(seHandle, {
-      pointerId: 1,
-      clientX: 200,
-      clientY: 100,
-    });
-
-    fireEvent.pointerMove(seHandle, {
-      pointerId: 1,
-      clientX: 250,
-      clientY: 142.102,
-    });
-
-    fireEvent.pointerUp(seHandle, {
-      pointerId: 1,
-    });
-
-    expect(fontSizeInput.value).toBe('24');
-  });
-
-  it('clamps scaled fontSize to supported range [6, 48] during extreme corner resize', async () => {
-    render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
-
-    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    fireEvent.click(fieldElement);
-
-    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
-    const seHandle = screen.getByTitle('Resize southeast');
-
-    // Extreme increase: height expands 5x -> raw font size = 60 -> clamped to 48
-    fireEvent.pointerDown(seHandle, { pointerId: 1, clientX: 200, clientY: 100 });
-    fireEvent.pointerMove(seHandle, { pointerId: 1, clientX: 250, clientY: 350 });
-    fireEvent.pointerUp(seHandle, { pointerId: 1 });
-
-    expect(fontSizeInput.value).toBe('48');
-
-    // Extreme decrease: height shrinks drastically past anchor -> raw font size < 6 -> clamped to 6
-    const nwHandle = screen.getByTitle('Resize northwest');
-    fireEvent.pointerDown(nwHandle, { pointerId: 2, clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(nwHandle, { pointerId: 2, clientX: 200, clientY: 600 });
-    fireEvent.pointerUp(nwHandle, { pointerId: 2 });
-
-    expect(Number(fontSizeInput.value)).toBe(6);
-  });
-
-  it('keeps font size unchanged during horizontal-only resize gesture', async () => {
-    render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
-
-    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    fireEvent.click(fieldElement);
-
-    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
-    expect(fontSizeInput.value).toBe('12');
-
-    const seHandle = screen.getByTitle('Resize southeast');
-
-    // Resize only horizontally (delta Y = 0)
-    fireEvent.pointerDown(seHandle, { pointerId: 1, clientX: 200, clientY: 100 });
-    fireEvent.pointerMove(seHandle, { pointerId: 1, clientX: 300, clientY: 100 });
-    fireEvent.pointerUp(seHandle, { pointerId: 1 });
-
-    expect(fontSizeInput.value).toBe('12');
+    // Confirm font size value was preserved
+    const fontSizeInputAfter = screen.getByLabelText('Font size') as HTMLInputElement;
+    expect(fontSizeInputAfter.value).toBe('20');
   });
 
   it('switches between Fit page and 100% view modes, updating effective scale for canvas overlays', async () => {
     render(<PdfTemplateEditor metadata={mockMetadata} onSaved={vi.fn()} onDirtyChange={vi.fn()} />);
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    const labelElement = fieldElement.querySelector('div');
-    expect(labelElement).toBeInTheDocument();
 
     // In default 'fit' mode with mock container (800x600, available 752x552 against 595.32x842.04)
     // fitScale = 552 / 842.04 = ~0.6555 -> effectiveFontSize = ~7.866px
-    const initialFontSize = parseFloat(labelElement?.style.fontSize || '0');
+    const initialFontSize = parseFloat(fieldElement.style.fontSize || '0');
     expect(initialFontSize).toBeGreaterThan(6);
     expect(initialFontSize).toBeLessThan(12);
 
@@ -503,16 +529,14 @@ describe('PdfTemplateEditor', () => {
 
     // In 100% mode, effectiveScale = 1.0 -> effectiveFontSize = 12px
     const updatedField = await screen.findByRole('button', { name: 'student.fullName' });
-    const updatedLabel = updatedField.querySelector('div');
-    expect(updatedLabel?.style.fontSize).toBe('12px');
+    expect(updatedField.style.fontSize).toBe('12px');
 
     // Switch back to Fit page mode
     const fitPageBtn = screen.getByRole('button', { name: 'Fit page' });
     fireEvent.click(fitPageBtn);
 
     const refitField = await screen.findByRole('button', { name: 'student.fullName' });
-    const refitLabel = refitField.querySelector('div');
-    expect(parseFloat(refitLabel?.style.fontSize || '0')).toBeCloseTo(initialFontSize, 1);
+    expect(parseFloat(refitField.style.fontSize || '0')).toBeCloseTo(initialFontSize, 1);
   });
 
   it('renders command bar with 41px visual rhythm, back button, title, and compact control groups without Grid/Snap/Fixture', async () => {
@@ -542,7 +566,7 @@ describe('PdfTemplateEditor', () => {
 
     // Controls
     expect(screen.getByText('Thay PDF nền')).toBeInTheDocument();
-    expect(screen.getByLabelText('Trang PDF')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Trang PDF' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fit page' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '100%' })).toBeInTheDocument();
 
@@ -555,51 +579,6 @@ describe('PdfTemplateEditor', () => {
     // Actions
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-  });
-
-  it('honors horizontalAlign and verticalAlign styling on canvas field overlays', async () => {
-    const customMetadata: PdfTemplateMetadata = {
-      ...mockMetadata,
-      layout: {
-        pages: [{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }],
-        items: [
-          {
-            id: 'item-custom-align',
-            fieldKey: 'student.fullName',
-            formatter: 'plain',
-            pageIndex: 0,
-            x: 0.1,
-            y: 0.1,
-            width: 0.3,
-            height: 0.05,
-            rotation: 0,
-            zIndex: 0,
-            style: {
-              ...mockMetadata.fields[0].defaultStyle,
-              horizontalAlign: 'center',
-              verticalAlign: 'bottom',
-              padding: 4,
-            },
-          },
-        ],
-      },
-    };
-
-    render(
-      <PdfTemplateEditor
-        metadata={customMetadata}
-        onSaved={vi.fn()}
-        onDirtyChange={vi.fn()}
-      />
-    );
-
-    const mode100Btn = screen.getByRole('button', { name: '100%' });
-    fireEvent.click(mode100Btn);
-
-    const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    const innerContainer = fieldElement.querySelector('div');
-    expect(innerContainer).toHaveClass('justify-center', 'text-center', 'items-end');
-    expect(innerContainer?.style.padding).toBe('4px');
   });
 
   it('opens ConfirmModal when Save is clicked and saves template when confirmed', async () => {
@@ -694,10 +673,10 @@ describe('PdfTemplateEditor', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('heading', { name: 'Xác nhận rời trang' })).not.toBeInTheDocument();
 
-    // Now make it dirty by modifying a field
+    // Now make it dirty by modifying font size
     fireEvent.click(fieldElement);
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    fireEvent.change(widthInput, { target: { value: '0.45' } });
+    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
+    fireEvent.change(fontSizeInput, { target: { value: '22' } });
 
     // Now click back -> ConfirmModal appears
     fireEvent.click(backBtn);
@@ -730,8 +709,8 @@ describe('PdfTemplateEditor', () => {
     fireEvent.click(fieldElement);
 
     // Make dirty
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    fireEvent.change(widthInput, { target: { value: '0.45' } });
+    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
+    fireEvent.change(fontSizeInput, { target: { value: '24' } });
 
     // Attempt replacing PDF
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -762,8 +741,8 @@ describe('PdfTemplateEditor', () => {
     fireEvent.click(fieldElement);
 
     // Make dirty
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    fireEvent.change(widthInput, { target: { value: '0.45' } });
+    const fontSizeInput = screen.getByLabelText('Font size') as HTMLInputElement;
+    fireEvent.change(fontSizeInput, { target: { value: '24' } });
 
     // Dispatch beforeunload event
     const event = new Event('beforeunload', { cancelable: true });
@@ -783,25 +762,14 @@ describe('PdfTemplateEditor', () => {
     );
 
     const fieldElement = await screen.findByRole('button', { name: 'student.fullName' });
-    fireEvent.click(fieldElement);
-
-    const xInput = screen.getByLabelText('x') as HTMLInputElement;
-    const yInput = screen.getByLabelText('y') as HTMLInputElement;
-    const widthInput = screen.getByLabelText('width') as HTMLInputElement;
-    const heightInput = screen.getByLabelText('height') as HTMLInputElement;
-
-    const initialX = xInput.value;
-    const initialY = yInput.value;
-    const initialWidth = widthInput.value;
-    const initialHeight = heightInput.value;
+    const initialLeft = fieldElement.style.left;
+    const initialTop = fieldElement.style.top;
 
     // Trigger window resize event
     fireEvent(window, new Event('resize'));
 
-    // Field normalized coordinates must not move or mutate
-    expect(xInput.value).toBe(initialX);
-    expect(yInput.value).toBe(initialY);
-    expect(widthInput.value).toBe(initialWidth);
-    expect(heightInput.value).toBe(initialHeight);
+    // Field normalized coordinates and overlay styles must remain stable
+    expect(fieldElement.style.left).toBe(initialLeft);
+    expect(fieldElement.style.top).toBe(initialTop);
   });
 });
