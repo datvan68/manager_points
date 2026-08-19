@@ -51,9 +51,14 @@ export class PdfTemplateService {
       const matchesConfigured = !query.configured || query.configured === 'all' || (query.configured === 'true' ? item.configured : !item.configured);
       return matchesSearch && matchesModule && matchesFeature && matchesConfigured;
     });
-    const sortBy = ['displayName', 'templateTypeCode', 'moduleCode', 'featureCode', 'updatedAt', 'sourceBytes'].includes(String(query.sortBy)) ? String(query.sortBy) : 'displayName';
+    const sortBy = ['displayName', 'templateTypeCode', 'moduleCode', 'featureCode', 'sourceFilename', 'pageCount', 'sourceBytes', 'checksum', 'updatedBy', 'updatedAt'].includes(String(query.sortBy)) ? String(query.sortBy) : 'displayName';
     const direction = String(query.sortDirection).toLowerCase() === 'desc' ? -1 : 1;
-    all.sort((left: any, right: any) => String(left[sortBy] ?? '').localeCompare(String(right[sortBy] ?? ''), 'vi') * direction);
+    all.sort((left: any, right: any) => {
+      const leftValue = left[sortBy] ?? '';
+      const rightValue = right[sortBy] ?? '';
+      if (['pageCount', 'sourceBytes'].includes(sortBy)) return (Number(leftValue) - Number(rightValue)) * direction;
+      return String(leftValue).localeCompare(String(rightValue), 'vi') * direction;
+    });
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
     const page = Math.max(1, Number(query.page) || 1);
     const modules = [...new Set(all.map((item) => item.moduleCode))].sort((left, right) => left.localeCompare(right, 'vi'));

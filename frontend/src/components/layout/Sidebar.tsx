@@ -14,8 +14,7 @@ import {
   User,
   Shield,
   BarChart3,
-  Compass
-  ,FileCog
+  Compass,
 } from "lucide-react";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
@@ -58,7 +57,6 @@ const allMenuItems = [
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
   { icon: BarChart3, label: "Báo cáo", href: "/reports" },
   { icon: Settings, label: "Quản trị hệ thống", href: "/system" },
-  { icon: FileCog, label: "PDF templates", href: "/pdf-templates" },
 ];
 
 // Global variables to persist sidebar state across client-side page transitions
@@ -206,7 +204,7 @@ const Sidebar = () => {
 
       try {
         if (isAdminUser(user)) {
-          setVisibleItems(allMenuItems.slice(0, 4).concat(allMenuItems.filter((item) => item.href === "/pdf-templates")));
+          setVisibleItems(allMenuItems.slice(0, 4));
           setIsSidebarLoading(false);
           return;
         }
@@ -228,10 +226,6 @@ const Sidebar = () => {
           // Luôn hiển thị mục "Hoạt động" cho tất cả người dùng đăng nhập
           if (item.href === "/activities") {
             return true;
-          }
-
-          if (item.href === "/pdf-templates") {
-            return hasPermission("PDF_TEMPLATE_READ");
           }
 
           const mapping = mappings.find(
@@ -290,7 +284,6 @@ const Sidebar = () => {
               "DATABASE_BACKUP_DELETE"
             );
           }
-          if (item.href === "/pdf-templates") return hasPermission("PDF_TEMPLATE_READ");
           return false;
         });
         setVisibleItems(fallbackFiltered);
