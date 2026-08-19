@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { pdfTemplateApi, PdfTemplateCatalogItem } from '@/api/pdf-template-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 export interface PdfTemplateCatalogProps {
   routeBase?: string;
@@ -23,6 +24,7 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mutating, setMutating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<PdfTemplateCatalogItem | null>(null);
 
   const load = async () => {
     if (!access.read) return;
@@ -87,26 +89,14 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
 
   const returnQuery = params.toString();
 
-  const deleteItem = async (item: PdfTemplateCatalogItem) => {
-    if (!access.delete || mutating) return;
-    if (
-      !window.confirm(
-        `Xóa PDF và toàn bộ layout của “${item.displayName}” (${item.templateTypeCode})? Collection vẫn được giữ nguyên và sẽ trở về Chưa cấu hình.`
-      )
-    ) {
-      return;
-    }
-    if (
-      window.prompt(`Nhập chính xác ${item.templateTypeCode} để xác nhận:`) !==
-      item.templateTypeCode
-    ) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || mutating) return;
     setMutating(true);
     setError('');
     try {
-      await pdfTemplateApi.delete(item.templateTypeCode, item.version);
+      await pdfTemplateApi.delete(deleteTarget.templateTypeCode, deleteTarget.version);
       await load();
+      setDeleteTarget(null);
     } catch (cause: any) {
       setError(cause?.message || 'Không thể xóa template.');
     } finally {
@@ -194,7 +184,7 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
                       <button
                         type="button"
                         disabled={mutating}
-                        onClick={() => void deleteItem(item)}
+                        onClick={() => setDeleteTarget(item)}
                         className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
                         Xóa
@@ -224,6 +214,21 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        variant="danger"
+        title="Xóa mẫu PDF"
+        message={
+          deleteTarget
+            ? `Xóa PDF và toàn bộ layout của “${deleteTarget.displayName}” (${deleteTarget.templateTypeCode})? Collection vẫn được giữ nguyên và sẽ trở về Chưa cấu hình.`
+            : ''
+        }
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+      />
     </main>
   );
 }

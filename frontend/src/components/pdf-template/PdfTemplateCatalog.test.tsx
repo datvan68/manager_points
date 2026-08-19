@@ -135,9 +135,27 @@ describe('PdfTemplateCatalog', () => {
     );
   });
 
-  it('executes delete with confirm and prompt verification on configured cards', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('DORMITORY_ROSTER_APPLICATION');
+  it('opens ConfirmModal when "Xóa" is clicked, and closes without deleting when cancelled', async () => {
+    render(<PdfTemplateCatalog />);
+
+    const deleteBtn = await screen.findByRole('button', { name: 'Xóa' });
+    fireEvent.click(deleteBtn);
+
+    expect(await screen.findByRole('heading', { name: 'Xóa mẫu PDF' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Xóa PDF và toàn bộ layout của “Mẫu đơn đăng ký KTX” \(DORMITORY_ROSTER_APPLICATION\)\?/)
+    ).toBeInTheDocument();
+
+    const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
+    fireEvent.click(cancelBtn);
+
+    expect(deleteApi).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Xóa mẫu PDF' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('deletes template when confirmed in ConfirmModal and reloads catalog', async () => {
     deleteApi.mockResolvedValue({});
 
     render(<PdfTemplateCatalog />);
@@ -145,31 +163,36 @@ describe('PdfTemplateCatalog', () => {
     const deleteBtn = await screen.findByRole('button', { name: 'Xóa' });
     fireEvent.click(deleteBtn);
 
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(promptSpy).toHaveBeenCalled();
-    await waitFor(() =>
-      expect(deleteApi).toHaveBeenCalledWith('DORMITORY_ROSTER_APPLICATION', 2)
-    );
+    expect(await screen.findByRole('heading', { name: 'Xóa mẫu PDF' })).toBeInTheDocument();
+
+    // Confirm button in the modal
+    const modalConfirmBtns = screen.getAllByRole('button', { name: 'Xóa' });
+    const modalConfirmBtn = modalConfirmBtns[modalConfirmBtns.length - 1];
+    fireEvent.click(modalConfirmBtn);
+
+    await waitFor(() => {
+      expect(deleteApi).toHaveBeenCalledWith('DORMITORY_ROSTER_APPLICATION', 2);
+    });
+    // Catalog should be reloaded
+    expect(catalog).toHaveBeenCalledTimes(2);
   });
 
-  it('cancels delete if user rejects confirm or mistypes prompt', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('DORMITORY_ROSTER_APPLICATION');
+  it('displays error message when deletion fails in ConfirmModal', async () => {
+    deleteApi.mockRejectedValueOnce(new Error('Lỗi máy chủ khi xóa'));
 
     render(<PdfTemplateCatalog />);
 
     const deleteBtn = await screen.findByRole('button', { name: 'Xóa' });
     fireEvent.click(deleteBtn);
 
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(deleteApi).not.toHaveBeenCalled();
+    expect(await screen.findByRole('heading', { name: 'Xóa mẫu PDF' })).toBeInTheDocument();
 
-    confirmSpy.mockReturnValue(true);
-    promptSpy.mockReturnValue('WRONG_CODE');
+    const modalConfirmBtns = screen.getAllByRole('button', { name: 'Xóa' });
+    const modalConfirmBtn = modalConfirmBtns[modalConfirmBtns.length - 1];
+    fireEvent.click(modalConfirmBtn);
 
-    fireEvent.click(deleteBtn);
-    expect(promptSpy).toHaveBeenCalled();
-    expect(deleteApi).not.toHaveBeenCalled();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Lỗi máy chủ khi xóa');
   });
 
   it('filters by lockedModuleCode when provided', async () => {
