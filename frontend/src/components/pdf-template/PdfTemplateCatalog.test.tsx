@@ -9,7 +9,7 @@ const { catalog, push, replace } = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace }),
-  usePathname: () => '/pdf-templates',
+  usePathname: () => '/dormitory/pdf-template',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -54,6 +54,13 @@ const unconfigured = {
   sourceBytes: 0,
 };
 
+const unrelatedUnconfigured = {
+  ...unconfigured,
+  moduleCode: 'STUDENT',
+  templateTypeCode: 'STUDENT_TRANSCRIPT',
+  displayName: 'Bảng điểm sinh viên',
+};
+
 describe('PdfTemplateCatalog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,7 +69,7 @@ describe('PdfTemplateCatalog', () => {
       : Promise.resolve({ items: [configured], total: 1, page: 1, pageSize: 20 }));
   });
 
-  it('loads add choices independently from the visible table result', async () => {
+  it('loads add choices independently from the visible table result and navigates using default routeBase', async () => {
     render(<PdfTemplateCatalog />);
 
     const picker = await screen.findByRole('combobox', { name: 'Collection chưa cấu hình' });
@@ -72,7 +79,28 @@ describe('PdfTemplateCatalog', () => {
     expect(screen.queryByRole('option', { name: 'Should be filtered' })).not.toBeInTheDocument();
 
     fireEvent.change(picker, { target: { value: 'SECOND_REGISTERED_COLLECTION' } });
-    expect(push).toHaveBeenCalledWith(expect.stringContaining('/pdf-templates/new?templateTypeCode=SECOND_REGISTERED_COLLECTION'));
+    expect(push).toHaveBeenCalledWith(expect.stringContaining('/dormitory/pdf-template/new?templateTypeCode=SECOND_REGISTERED_COLLECTION'));
+  });
+
+  it('navigates edit and new using custom routeBase', async () => {
+    render(<PdfTemplateCatalog routeBase="/custom/pdf-template" />);
+
+    const editBtn = await screen.findByRole('button', { name: 'Sửa' });
+    fireEvent.click(editBtn);
+    expect(push).toHaveBeenCalledWith(expect.stringContaining('/custom/pdf-template/DORMITORY_ROSTER_APPLICATION/edit'));
+  });
+
+  it('locks module code and hides module dropdown when lockedModuleCode is provided', async () => {
+    catalog.mockImplementation((query: Record<string, string | number>) => query.configured === 'false'
+      ? Promise.resolve({ items: [unconfigured, unrelatedUnconfigured], total: 2, page: 1, pageSize: 100 })
+      : Promise.resolve({ items: [configured], total: 1, page: 1, pageSize: 20 }));
+
+    render(<PdfTemplateCatalog lockedModuleCode="DORMITORY" />);
+
+    await waitFor(() => expect(catalog).toHaveBeenCalledWith(expect.objectContaining({ moduleCode: 'DORMITORY' })));
+    expect(screen.queryByLabelText('Module')).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Collection chưa cấu hình' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Bảng điểm sinh viên' })).not.toBeInTheDocument();
   });
 
   it('provides a vertical scroll region for the table page', async () => {

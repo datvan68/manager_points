@@ -6,9 +6,9 @@ import { pdfTemplateApi, PdfTemplateMetadata } from '@/api/pdf-template-api';
 import { RouteGuard, usePermission } from '@/components/guards/RouteGuard';
 import PdfTemplateEditor from './PdfTemplateEditor';
 
-type Props = { templateTypeCode: string; mode: 'new' | 'edit' };
+type Props = { templateTypeCode: string; mode: 'new' | 'edit'; routeBase?: string };
 
-function EditorRoute({ templateTypeCode, mode }: Props) {
+function EditorRoute({ templateTypeCode, mode, routeBase = '/dormitory/pdf-template' }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const access = usePermission({ manage: 'PDF_TEMPLATE_MANAGE' });
@@ -16,7 +16,7 @@ function EditorRoute({ templateTypeCode, mode }: Props) {
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
   const returnTo = params.get('returnTo');
-  const returnPath = returnTo ? `/pdf-templates?${returnTo}` : '/pdf-templates';
+  const returnPath = returnTo ? `${routeBase}?${returnTo}` : routeBase;
   const goBack = () => { if (dirty && !window.confirm('Bạn có thay đổi chưa lưu. Rời trang sẽ mất các thay đổi này?')) return; router.push(returnPath); };
 
   useEffect(() => {
@@ -36,5 +36,6 @@ function EditorRoute({ templateTypeCode, mode }: Props) {
 }
 
 export default function PdfTemplateEditorRoute(props: Props) {
-  return <RouteGuard requiredPermission="PDF_TEMPLATE_MANAGE" fallbackPath="/pdf-templates"><EditorRoute {...props} /></RouteGuard>;
+  const { routeBase = '/dormitory/pdf-template' } = props;
+  return <RouteGuard requiredPermission="PDF_TEMPLATE_MANAGE" fallbackPath={routeBase}><EditorRoute {...props} routeBase={routeBase} /></RouteGuard>;
 }

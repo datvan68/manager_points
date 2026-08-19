@@ -3,5 +3,5 @@
 import PdfTemplateCatalog from '@/components/pdf-template/PdfTemplateCatalog';
 
 export default function DormitoryPdfTemplatePage() {
-  return <PdfTemplateCatalog />;
+  return <PdfTemplateCatalog routeBase="/dormitory/pdf-template" lockedModuleCode="DORMITORY" />;
 }

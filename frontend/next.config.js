@@ -1,7 +1,25 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
+    async redirects() {
+        return [
+            {
+                source: '/pdf-templates',
+                destination: '/dormitory/pdf-template',
+                permanent: true,
+            },
+            {
+                source: '/pdf-templates/new',
+                destination: '/dormitory/pdf-template/new',
+                permanent: true,
+            },
+            {
+                source: '/pdf-templates/:templateTypeCode/edit',
+                destination: '/dormitory/pdf-template/:templateTypeCode/edit',
+                permanent: true,
+            },
+        ];
+    },
     async headers() {
         return [
             {
