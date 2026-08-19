@@ -33,10 +33,68 @@ const mockStats = {
     by_state: { trong: 1, con_cho: 1, day: 1, bao_tri: 0, khoa: 0, chua_cau_hinh: 1 },
   },
   room_rows: [
-    { room_id: 'r-empty', room_code: 'A100', room_name: 'Phòng A100', building_id: 'b1', building_code: 'A', building_name: 'Tòa A', room_type: 'Thường', total_beds: 2, occupied_beds: 0, free_beds: 2, state: 'Trống' },
-    { room_id: 'r-partial', room_code: 'A101', room_name: 'Phòng A101', building_id: 'b1', building_code: 'A', building_name: 'Tòa A', room_type: 'Thường', total_beds: 4, occupied_beds: 2, free_beds: 2, state: 'Còn chỗ' },
-    { room_id: 'r-full', room_code: 'B201', room_name: 'Phòng B201', building_id: 'b2', building_code: 'B', building_name: 'Tòa B', room_type: 'Máy lạnh', total_beds: 0, occupied_beds: 0, free_beds: 0, state: 'Chưa cấu hình' },
-    { room_id: 'r-unknown', room_code: 'B202', room_name: 'Phòng B202', building_id: 'b2', building_code: 'B', building_name: 'Tòa B', room_type: 'Máy lạnh', total_beds: 2, occupied_beds: 2, free_beds: 0, state: 'Đầy' },
+    {
+      room_id: 'r-empty',
+      room_code: 'A100',
+      room_name: 'Phòng A100',
+      building_id: 'b1',
+      building_code: 'A',
+      building_name: 'Tòa A',
+      room_type: 'Thường',
+      total_beds: 2,
+      occupied_beds: 0,
+      free_beds: 2,
+      state: 'Trống',
+      members: [],
+    },
+    {
+      room_id: 'r-partial',
+      room_code: 'A101',
+      room_name: 'Phòng A101',
+      building_id: 'b1',
+      building_code: 'A',
+      building_name: 'Tòa A',
+      room_type: 'Thường',
+      total_beds: 4,
+      occupied_beds: 2,
+      free_beds: 2,
+      state: 'Còn chỗ',
+      members: [
+        { full_name: 'Nguyễn Văn A', class_name: '12A1' },
+        { full_name: 'Trần Thị B', class_name: 'Chưa cập nhật' },
+      ],
+    },
+    {
+      room_id: 'r-full',
+      room_code: 'B201',
+      room_name: 'Phòng B201',
+      building_id: 'b2',
+      building_code: 'B',
+      building_name: 'Tòa B',
+      room_type: 'Máy lạnh',
+      total_beds: 0,
+      occupied_beds: 0,
+      free_beds: 0,
+      state: 'Chưa cấu hình',
+      members: [],
+    },
+    {
+      room_id: 'r-unknown',
+      room_code: 'B202',
+      room_name: 'Phòng B202',
+      building_id: 'b2',
+      building_code: 'B',
+      building_name: 'Tòa B',
+      room_type: 'Máy lạnh',
+      total_beds: 2,
+      occupied_beds: 2,
+      free_beds: 0,
+      state: 'Đầy',
+      members: [
+        { full_name: 'Lê Văn C', class_name: '11B3' },
+        { full_name: 'Phạm Thị D', class_name: '11B3' },
+      ],
+    },
   ],
   registration_summary: {
     total: 5,
@@ -103,6 +161,50 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.queryByLabelText('Lọc theo tòa nhà')).not.toBeInTheDocument();
     expect(screen.queryByText('Tòa nhà')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Đầy, 100% đã sử dụng')).toBeInTheDocument();
+  });
+
+  it('renders room members column with accessible Chi tiết buttons', async () => {
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    expect(screen.getByRole('columnheader', { name: 'Thành viên' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Xem thành viên phòng A100')).toBeInTheDocument();
+    expect(screen.getByLabelText('Xem thành viên phòng A101')).toBeInTheDocument();
+  });
+
+  it('opens member modal with full_name, class_name, handles fallback and closes properly', async () => {
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    // Click Chi tiết for room A101 (has 2 members, one with missing class)
+    fireEvent.click(screen.getByLabelText('Xem thành viên phòng A101'));
+
+    expect(screen.getByText('Thành viên phòng A101')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Họ tên' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Lớp' })).toBeInTheDocument();
+    expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
+    expect(screen.getByText('12A1')).toBeInTheDocument();
+    expect(screen.getByText('Trần Thị B')).toBeInTheDocument();
+    expect(screen.getByText('Chưa cập nhật')).toBeInTheDocument();
+
+    // Close via close button
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(screen.queryByText('Thành viên phòng A101')).not.toBeInTheDocument());
+  });
+
+  it('shows empty state when room has no members and closes on Escape', async () => {
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    // Click Chi tiết for empty room A100
+    fireEvent.click(screen.getByLabelText('Xem thành viên phòng A100'));
+
+    expect(screen.getByText('Thành viên phòng A100')).toBeInTheDocument();
+    expect(screen.getByText('Chưa có thành viên nào trong phòng này.')).toBeInTheDocument();
+
+    // Close via Escape key
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => expect(screen.queryByText('Thành viên phòng A100')).not.toBeInTheDocument());
   });
 
   it('refreshes visible data on an interval without overlapping requests', async () => {

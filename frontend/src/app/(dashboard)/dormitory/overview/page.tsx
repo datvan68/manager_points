@@ -21,6 +21,14 @@ import {
   DormitoryRoomRow,
   DormitoryRoomState,
 } from '@/api/dormitory-api';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const money = new Intl.NumberFormat('vi-VN', {
   style: 'currency',
@@ -130,6 +138,7 @@ export default function DormitoryOverviewPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState<DormitoryRoomRow | null>(null);
   const inFlightRef = useRef(false);
 
   const loadData = useCallback(async (initial = false) => {
@@ -338,13 +347,14 @@ export default function DormitoryOverviewPage() {
         </div>
 
         <div className="mt-2.5 overflow-x-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
-          <table className="min-w-[680px] w-full text-left text-sm">
+          <table className="min-w-[760px] w-full text-left text-sm">
             <thead className="border-b border-white/60 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
               <tr>
                 <th className="px-4 py-3">Phòng</th>
                 <th className="px-4 py-3">Loại</th>
                 <th className="px-4 py-3">Giường</th>
                 <th className="px-4 py-3">Còn chỗ</th>
+                <th className="px-4 py-3">Thành viên</th>
                 <th className="px-4 py-3 text-right">Trạng thái</th>
               </tr>
             </thead>
@@ -371,6 +381,16 @@ export default function DormitoryOverviewPage() {
                         {room.free_beds}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        aria-label={`Xem thành viên phòng ${room.room_code}`}
+                        onClick={() => setSelectedRoom(room)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/80 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-white hover:text-blue-600 transition-colors"
+                      >
+                        Chi tiết
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end">
                         <span
@@ -392,7 +412,7 @@ export default function DormitoryOverviewPage() {
                   </tr>
                 );
               })}
-              {!filteredRooms.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</td></tr>}
+              {!filteredRooms.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -466,6 +486,61 @@ export default function DormitoryOverviewPage() {
           <Wrench size={15} className="text-amber-600" /> Bảo trì đang mở: {data?.pending_maintenance || 0}
         </Link>
       </div>
+
+      <Dialog
+        open={Boolean(selectedRoom)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedRoom(null);
+        }}
+      >
+        <DialogContent className="max-w-md bg-white/95 backdrop-blur-xl border border-white/80 p-5 rounded-2xl shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Users size={18} className="text-blue-600" />
+              Thành viên phòng {selectedRoom?.room_code}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              {selectedRoom?.room_name ? `${selectedRoom.room_name} · ` : ''}
+              {selectedRoom?.building_name || ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2 max-h-80 overflow-y-auto">
+            {selectedRoom?.members && selectedRoom.members.length > 0 ? (
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2">Họ tên</th>
+                    <th className="px-3 py-2">Lớp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {selectedRoom.members.map((member, index) => (
+                    <tr key={index} className="hover:bg-slate-50/50">
+                      <td className="px-3 py-2.5 font-medium text-slate-800">{member.full_name}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{member.class_name || 'Chưa cập nhật'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="py-8 text-center text-xs text-slate-500">
+                Chưa có thành viên nào trong phòng này.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedRoom(null)}
+              className="rounded-xl border border-slate-200/80 bg-slate-100/80 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              Đóng
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

@@ -204,6 +204,11 @@ export interface DormitoryRoomSummary {
   };
 }
 
+export interface DormitoryRoomMember {
+  full_name: string;
+  class_name: string;
+}
+
 export interface DormitoryRoomRow {
   room_id: string;
   room_code: string;
@@ -216,6 +221,7 @@ export interface DormitoryRoomRow {
   occupied_beds: number;
   free_beds: number;
   state: DormitoryRoomState;
+  members?: DormitoryRoomMember[];
 }
 
 export interface DormitoryRegistrationSummary {

@@ -207,7 +207,15 @@ export class DormitoryReportsService {
         this.roomModel.find().lean().exec(),
         this.bedModel.find({ status: { $ne: 'Đã nghỉ' } }).lean().exec(),
         this.contractModel.find().lean().exec(),
-        this.rosterModel.find().lean().exec(),
+        this.rosterModel
+          .find()
+          .populate({
+            path: 'student_id',
+            select: 'full_name class_id',
+            populate: { path: 'class_id', select: 'class_name' },
+          })
+          .lean()
+          .exec(),
         this.invoiceModel.find().lean().exec(),
         this.maintenanceModel.countDocuments({ status: { $in: ['Mới', 'Đang xử lý'] } }),
       ]);
@@ -228,6 +236,68 @@ export class DormitoryReportsService {
       const roomBeds = bedsByRoom.get(roomId) || [];
       roomBeds.push(bed);
       bedsByRoom.set(roomId, roomBeds);
+    }
+
+    const activeContractRoomsByRosterId = new Map<string, Set<string>>();
+    for (const contract of contractList) {
+      if (contract.status === 'Hiệu lực' && contract.roster_entry_id && contract.room_id) {
+        const rosterId = idOf(contract.roster_entry_id);
+        const roomId = idOf(contract.room_id);
+        if (rosterId && roomId) {
+          if (!activeContractRoomsByRosterId.has(rosterId)) {
+            activeContractRoomsByRosterId.set(rosterId, new Set());
+          }
+          activeContractRoomsByRosterId.get(rosterId)!.add(roomId);
+        }
+      }
+    }
+
+    const membersByRoom = new Map<string, Array<{ full_name: string; class_name: string }>>();
+    const seenRosterByRoom = new Map<string, Set<string>>();
+
+    for (const roster of rosterList) {
+      const rosterId = idOf(roster._id);
+      const student = roster.student_id && typeof roster.student_id === 'object' ? roster.student_id : null;
+      const fullName = (student?.full_name || roster.full_name || 'Chưa cập nhật').trim() || 'Chưa cập nhật';
+      let className = 'Chưa cập nhật';
+      if (student?.class_id) {
+        if (
+          typeof student.class_id === 'object' &&
+          student.class_id.class_name &&
+          typeof student.class_id.class_name === 'string' &&
+          student.class_id.class_name.trim()
+        ) {
+          className = student.class_id.class_name.trim();
+        } else if (typeof student.class_id === 'string' && student.class_id.trim()) {
+          className = student.class_id.trim();
+        }
+      }
+
+      const member = { full_name: fullName, class_name: className };
+
+      const targetRoomIds = new Set<string>();
+      const directRoomId = idOf(roster.room_id);
+      if (directRoomId) {
+        targetRoomIds.add(directRoomId);
+      }
+      if (rosterId && activeContractRoomsByRosterId.has(rosterId)) {
+        for (const cRoomId of activeContractRoomsByRosterId.get(rosterId)!) {
+          targetRoomIds.add(cRoomId);
+        }
+      }
+
+      for (const roomId of targetRoomIds) {
+        if (!membersByRoom.has(roomId)) {
+          membersByRoom.set(roomId, []);
+          seenRosterByRoom.set(roomId, new Set());
+        }
+        const seenSet = seenRosterByRoom.get(roomId)!;
+        const dedupeKey = rosterId || `${fullName}-${className}`;
+        if (!seenSet.has(dedupeKey)) {
+          seenSet.add(dedupeKey);
+          membersByRoom.get(roomId)!.push(member);
+        }
+      }
     }
 
     const roomRows = roomList.map((rawRoom) => {
@@ -263,6 +333,7 @@ export class DormitoryReportsService {
         occupied_beds: occupiedBeds,
         free_beds: freeBeds,
         state,
+        members: membersByRoom.get(roomId) || [],
       };
     });
 
