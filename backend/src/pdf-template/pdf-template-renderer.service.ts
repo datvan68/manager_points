@@ -18,6 +18,69 @@ export function fittedFontSize(value: string, item: Pick<PdfTemplateLayoutItem, 
   return item.style.overflow === 'shrink' ? Math.max(item.style.minFontSize, Math.min(item.style.fontSize, available / estimated)) : item.style.fontSize;
 }
 
+export interface FieldGeometryCalculation {
+  boxTop: number;
+  boxBottom: number;
+  boxWidth: number;
+  boxHeight: number;
+  contentWidth: number;
+  contentHeight: number;
+  lineHeight: number;
+  totalTextHeight: number;
+  firstLineBaselineY: number;
+  lineXs: number[];
+}
+
+export function calculatePdfFieldGeometry(
+  item: Pick<PdfTemplateLayoutItem, 'x' | 'y' | 'width' | 'height' | 'style'>,
+  pageWidth: number,
+  pageHeight: number,
+  lineWidths: number[],
+  fontSize: number,
+): FieldGeometryCalculation {
+  const boxTop = pageHeight * (1 - item.y);
+  const boxBottom = pageHeight * (1 - item.y - item.height);
+  const boxWidth = pageWidth * item.width;
+  const boxHeight = pageHeight * item.height;
+  const contentWidth = Math.max(0, boxWidth - item.style.padding * 2);
+  const contentHeight = Math.max(0, boxHeight - item.style.padding * 2);
+  const lineHeight = fontSize * item.style.lineHeight;
+  const lineCount = Math.max(1, lineWidths.length);
+  const totalTextHeight = (lineCount - 1) * lineHeight + fontSize;
+
+  const topBaseline = boxTop - item.style.padding - fontSize;
+  let firstLineBaselineY = topBaseline;
+  if (item.style.verticalAlign === 'middle') {
+    firstLineBaselineY = topBaseline - Math.max(0, (contentHeight - totalTextHeight) / 2);
+  } else if (item.style.verticalAlign === 'bottom') {
+    firstLineBaselineY = topBaseline - Math.max(0, contentHeight - totalTextHeight);
+  }
+
+  const xBase = pageWidth * item.x + item.style.padding;
+  const lineXs = (lineWidths.length > 0 ? lineWidths : [0]).map((textWidth) => {
+    if (item.style.horizontalAlign === 'center') {
+      return xBase + Math.max(0, (contentWidth - textWidth) / 2);
+    }
+    if (item.style.horizontalAlign === 'right') {
+      return xBase + Math.max(0, contentWidth - textWidth);
+    }
+    return xBase;
+  });
+
+  return {
+    boxTop,
+    boxBottom,
+    boxWidth,
+    boxHeight,
+    contentWidth,
+    contentHeight,
+    lineHeight,
+    totalTextHeight,
+    firstLineBaselineY,
+    lineXs,
+  };
+}
+
 @Injectable()
 export class PdfTemplateRendererService {
   async render(sourcePdf: Buffer, layout: PdfTemplateLayout, values: Record<string, unknown>): Promise<PdfRenderResult> {
@@ -31,25 +94,44 @@ export class PdfTemplateRendererService {
         for (const item of pageItems) {
           const value = formatValue(values[item.fieldKey], item.formatter);
           if (!value) continue;
-          const style = item.style; const key = `${style.fontFamily}:${style.fontWeight}`;
+          const style = item.style;
+          const key = `${style.fontFamily}:${style.fontWeight}`;
           const fontName = style.fontFamily === 'Times-Roman' ? (style.fontWeight === 700 ? StandardFonts.TimesRomanBold : StandardFonts.TimesRoman) : (style.fontWeight === 700 ? StandardFonts.HelveticaBold : StandardFonts.Helvetica);
-          const font = fonts.get(key) || await document.embedFont(fontName); fonts.set(key, font);
-          const width = page.getWidth() * item.width; const height = page.getHeight() * item.height;
+          const font = fonts.get(key) || await document.embedFont(fontName);
+          fonts.set(key, font);
+          const width = page.getWidth() * item.width;
           const fontSize = fittedFontSize(value, item, page.getWidth());
-          if (style.background === 'white') page.drawRectangle({ x: page.getWidth() * item.x, y: page.getHeight() - (page.getHeight() * (item.y + item.height)), width, height, color: rgb(1, 1, 1), opacity: 1 });
           const lines = this.lines(value, font, fontSize, width - style.padding * 2, style.maxLines, style.overflow, item.fieldKey);
           if (!lines.length && value) throw new BadRequestException(`Giá trị không vừa field ${item.fieldKey}.`);
-          const lineHeight = fontSize * style.lineHeight; const totalHeight = lines.length * lineHeight;
-          const top = page.getHeight() - (page.getHeight() * item.y) - style.padding - fontSize;
-          const y = style.verticalAlign === 'bottom' ? page.getHeight() - (page.getHeight() * (item.y + item.height)) + style.padding : style.verticalAlign === 'middle' ? top - Math.max(0, (height - totalHeight) / 2) + fontSize : top;
+          const lineWidths = lines.map((line) => font.widthOfTextAtSize(line, fontSize));
+          const geom = calculatePdfFieldGeometry(item, page.getWidth(), page.getHeight(), lineWidths, fontSize);
+
+          if (style.background === 'white') {
+            page.drawRectangle({
+              x: page.getWidth() * item.x,
+              y: geom.boxBottom,
+              width: geom.boxWidth,
+              height: geom.boxHeight,
+              color: rgb(1, 1, 1),
+              opacity: 1,
+            });
+          }
+
           lines.forEach((line, lineIndex) => {
-            const textWidth = font.widthOfTextAtSize(line, fontSize); const xBase = page.getWidth() * item.x + style.padding;
-            const x = style.horizontalAlign === 'right' ? xBase + width - style.padding * 2 - textWidth : style.horizontalAlign === 'center' ? xBase + (width - style.padding * 2 - textWidth) / 2 : xBase;
-            page.drawText(line, { x, y: y - lineIndex * lineHeight, size: fontSize, font, color: this.color(style.color), rotate: degrees(item.rotation) });
+            const x = geom.lineXs[lineIndex];
+            const y = geom.firstLineBaselineY - lineIndex * geom.lineHeight;
+            page.drawText(line, {
+              x,
+              y,
+              size: fontSize,
+              font,
+              color: this.color(style.color),
+              rotate: degrees(item.rotation),
+            });
           });
         }
       }
-      return { buffer: Buffer.from(await document.save({ useObjectStreams: false }),), pageCount: document.getPageCount(), warnings: [] };
+      return { buffer: Buffer.from(await document.save({ useObjectStreams: false })), pageCount: document.getPageCount(), warnings: [] };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new ServiceUnavailableException('Không thể render PDF template lúc này.');
@@ -58,19 +140,31 @@ export class PdfTemplateRendererService {
 
   private lines(value: string, font: any, size: number, maxWidth: number, maxLines: number, overflow: PdfTemplateStyle['overflow'], fieldKey: string) {
     if (overflow === 'clip' || overflow === 'shrink') return [value];
-    const words = value.split(/\s+/); const result: string[] = []; let line = '';
-    for (const word of words) { const next = line ? `${line} ${word}` : word; if (font.widthOfTextAtSize(next, size) <= maxWidth || !line) line = next; else { result.push(line); line = word; } }
+    const words = value.split(/\s+/);
+    const result: string[] = [];
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= maxWidth || !line) line = next;
+      else {
+        result.push(line);
+        line = word;
+      }
+    }
     if (line) result.push(line);
     if (result.length > maxLines) throw new BadRequestException(`Giá trị vượt số dòng cho phép của field ${fieldKey}.`);
     return result;
   }
 
-  private color(value: string) { return rgb(parseInt(value.slice(1, 3), 16) / 255, parseInt(value.slice(3, 5), 16) / 255, parseInt(value.slice(5, 7), 16) / 255); }
+  private color(value: string) {
+    return rgb(parseInt(value.slice(1, 3), 16) / 255, parseInt(value.slice(3, 5), 16) / 255, parseInt(value.slice(5, 7), 16) / 255);
+  }
 
   private async renderWithBrowser(sourcePdf: Buffer, layout: PdfTemplateLayout, values: Record<string, unknown>): Promise<PdfRenderResult> {
     let browser: any;
     try {
-      const puppeteer = require('puppeteer'); browser = await (puppeteer.default || puppeteer).launch({ headless: true, args: ['--no-sandbox'] });
+      const puppeteer = require('puppeteer');
+      browser = await (puppeteer.default || puppeteer).launch({ headless: true, args: ['--no-sandbox'] });
       const page = await browser.newPage();
       const document = await PDFDocument.load(sourcePdf, { updateMetadata: false });
       for (const [pageIndex, target] of document.getPages().entries()) {
@@ -82,12 +176,29 @@ export class PdfTemplateRendererService {
         target.drawPage(overlayPage, { x: 0, y: 0, width: target.getWidth(), height: target.getHeight() });
       }
       return { buffer: Buffer.from(await document.save({ useObjectStreams: false })), pageCount: document.getPageCount(), warnings: [] };
-    } catch (error) { throw new ServiceUnavailableException(`Không thể render glyph Unicode trong PDF template: ${error instanceof Error ? error.message : 'unknown error'}`); } finally { if (browser) await browser.close().catch(() => undefined); }
+    } catch (error) {
+      throw new ServiceUnavailableException(`Không thể render glyph Unicode trong PDF template: ${error instanceof Error ? error.message : 'unknown error'}`);
+    } finally {
+      if (browser) await browser.close().catch(() => undefined);
+    }
   }
 
   private overlayHtml(layout: PdfTemplateLayout, values: Record<string, unknown>, pageIndex: number, pageWidth: number, pageHeight: number) {
     const escape = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' } as Record<string, string>)[char]);
-    const fields = layout.items.filter((item) => item.pageIndex === pageIndex).sort((a, b) => a.zIndex - b.zIndex).map((item) => { const raw = formatValue(values[item.fieldKey], item.formatter); const value = escape(raw); const s = item.style; const width = item.width * pageWidth; const fitted = s.overflow === 'shrink' ? Math.max(s.minFontSize, Math.min(s.fontSize, (width - s.padding * 2) / Math.max(raw.length * 0.52, 1))) : s.fontSize; const scale = s.overflow === 'shrink' ? Math.min(1, (width - s.padding * 2) / Math.max(raw.length * fitted * 0.52, 1)) : 1; const wrap = s.overflow === 'wrap'; return `<span style="left:${item.x * pageWidth}pt;top:${item.y * pageHeight}pt;width:${width}pt;height:${item.height * pageHeight}pt;font:${s.fontWeight} ${fitted}pt ${s.fontFamily};color:${s.color};text-align:${s.horizontalAlign};line-height:${s.lineHeight};padding:${s.padding}pt;white-space:${wrap ? 'pre-wrap' : 'nowrap'};word-break:${wrap ? 'break-word' : 'normal'};display:${wrap ? '-webkit-box' : 'block'};-webkit-line-clamp:${wrap ? s.maxLines : 'unset'};-webkit-box-orient:vertical;overflow:hidden;transform:rotate(${item.rotation}deg) scaleX(${scale});transform-origin:left top;">${value}</span>`; }).join('');
-    return `<!doctype html><meta charset="utf-8"><style>@page{size:${pageWidth}pt ${pageHeight}pt;margin:0}html,body{margin:0;width:${pageWidth}pt;height:${pageHeight}pt;overflow:hidden}span{position:absolute;display:block;box-sizing:border-box;transform-origin:center center}</style>${fields}`;
+    const fields = layout.items.filter((item) => item.pageIndex === pageIndex).sort((a, b) => a.zIndex - b.zIndex).map((item) => {
+      const raw = formatValue(values[item.fieldKey], item.formatter);
+      const value = escape(raw);
+      const s = item.style;
+      const width = item.width * pageWidth;
+      const height = item.height * pageHeight;
+      const fitted = fittedFontSize(raw, item, pageWidth);
+      const wrap = s.overflow === 'wrap';
+      const justify = s.verticalAlign === 'bottom' ? 'flex-end' : s.verticalAlign === 'middle' ? 'center' : 'flex-start';
+      const align = s.horizontalAlign === 'right' ? 'flex-end' : s.horizontalAlign === 'center' ? 'center' : 'flex-start';
+      const bg = s.background === 'white' ? 'background:white;' : '';
+      const content = wrap ? value : `<div style="white-space:nowrap;overflow:hidden;text-overflow:clip;width:100%;text-align:${s.horizontalAlign};">${value}</div>`;
+      return `<span style="position:absolute;box-sizing:border-box;left:${item.x * pageWidth}pt;top:${item.y * pageHeight}pt;width:${width}pt;height:${height}pt;font:${s.fontWeight} ${fitted}pt ${s.fontFamily};color:${s.color};${bg}padding:${s.padding}pt;line-height:${s.lineHeight};display:flex;flex-direction:column;justify-content:${justify};align-items:${align};text-align:${s.horizontalAlign};overflow:hidden;transform:rotate(${item.rotation}deg);transform-origin:left top;">${content}</span>`;
+    }).join('');
+    return `<!doctype html><meta charset="utf-8"><style>@page{size:${pageWidth}pt ${pageHeight}pt;margin:0}html,body{margin:0;width:${pageWidth}pt;height:${pageHeight}pt;overflow:hidden;position:relative}</style>${fields}`;
   }
 }

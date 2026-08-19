@@ -5,7 +5,7 @@ import { DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, createDefaultDormitoryLayout }
 import { validateAndNormalizeLayout } from './layout.validation';
 import { PdfTemplateIntakeService } from './pdf-template-intake.service';
 import { PdfTemplateRegistry } from './registry';
-import { PdfTemplateRendererService } from './pdf-template-renderer.service';
+import { PdfTemplateRendererService, calculatePdfFieldGeometry } from './pdf-template-renderer.service';
 import { TEST_MULTI_PAGE_DESCRIPTOR } from './test-fixtures/second-descriptor';
 import { PDFDocument } from 'pdf-lib';
 
@@ -53,6 +53,94 @@ describe('shared PDF template contracts', () => {
     expect(registry.get('TEST_MULTI_PAGE').fields.map((field) => field.key)).not.toContain('student.fullName');
     expect(result.pageCount).toBe(2);
   }, 30000);
+
+  it('verifies horizontal and vertical alignment geometry calculations on known page dimensions', () => {
+    const pageWidth = 595.32;
+    const pageHeight = 842.04;
+    const baseItem = {
+      x: 0.1,
+      y: 0.2,
+      width: 0.5,
+      height: 0.1,
+      style: { ...style, padding: 4, lineHeight: 1.2, fontSize: 12 },
+    };
+
+    // Expected box metrics:
+    // boxWidth = 595.32 * 0.5 = 297.66
+    // boxHeight = 842.04 * 0.1 = 84.204
+    // boxTop = 842.04 * (1 - 0.2) = 673.632
+    // boxBottom = 842.04 * (1 - 0.2 - 0.1) = 589.428
+    // contentWidth = 297.66 - 8 = 289.66
+    // contentHeight = 84.204 - 8 = 76.204
+    // fontSize = 12, totalTextHeight (1 line) = 12
+    const lineWidths = [100];
+
+    // Left + Top
+    const leftTopGeom = calculatePdfFieldGeometry(
+      { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'left', verticalAlign: 'top' } as any },
+      pageWidth,
+      pageHeight,
+      lineWidths,
+      12,
+    );
+    expect(leftTopGeom.boxTop).toBeCloseTo(673.632);
+    expect(leftTopGeom.boxBottom).toBeCloseTo(589.428);
+    expect(leftTopGeom.contentWidth).toBeCloseTo(289.66);
+    expect(leftTopGeom.contentHeight).toBeCloseTo(76.204);
+    // top baseline: boxTop - padding - fontSize = 673.632 - 4 - 12 = 657.632
+    expect(leftTopGeom.firstLineBaselineY).toBeCloseTo(657.632);
+    // left x: pageWidth * x + padding = 59.532 + 4 = 63.532
+    expect(leftTopGeom.lineXs[0]).toBeCloseTo(63.532);
+
+    // Center + Middle
+    const centerMiddleGeom = calculatePdfFieldGeometry(
+      { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'center', verticalAlign: 'middle' } as any },
+      pageWidth,
+      pageHeight,
+      lineWidths,
+      12,
+    );
+    // middle: topBaseline - (contentHeight - totalTextHeight) / 2 = 657.632 - (76.204 - 12) / 2 = 657.632 - 32.102 = 625.530
+    expect(centerMiddleGeom.firstLineBaselineY).toBeCloseTo(625.530);
+    // center x: xBase + (contentWidth - textWidth) / 2 = 63.532 + (289.66 - 100) / 2 = 63.532 + 94.83 = 158.362
+    expect(centerMiddleGeom.lineXs[0]).toBeCloseTo(158.362);
+
+    // Right + Bottom
+    const rightBottomGeom = calculatePdfFieldGeometry(
+      { ...baseItem, style: { ...baseItem.style, horizontalAlign: 'right', verticalAlign: 'bottom' } as any },
+      pageWidth,
+      pageHeight,
+      lineWidths,
+      12,
+    );
+    // bottom: topBaseline - (contentHeight - totalTextHeight) = 657.632 - (76.204 - 12) = 593.428
+    // Equivalently: boxBottom + padding + totalTextHeight - fontSize = 589.428 + 4 + 12 - 12 = 593.428
+    expect(rightBottomGeom.firstLineBaselineY).toBeCloseTo(593.428);
+    // right x: xBase + (contentWidth - textWidth) = 63.532 + (289.66 - 100) = 253.192
+    expect(rightBottomGeom.lineXs[0]).toBeCloseTo(253.192);
+  });
+
+  it('verifies multiline alignment and vertical offset calculations', () => {
+    const pageWidth = 600;
+    const pageHeight = 800;
+    const item = {
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 0.5,
+      style: { ...style, padding: 10, lineHeight: 1.5, fontSize: 10, horizontalAlign: 'center', verticalAlign: 'top' } as any,
+    };
+    // 2 lines: textWidths = [120, 80]
+    // fontSize = 10, lineHeight = 15
+    // totalTextHeight = (2 - 1) * 15 + 10 = 25
+    const geom = calculatePdfFieldGeometry(item, pageWidth, pageHeight, [120, 80], 10);
+    expect(geom.lineHeight).toBe(15);
+    expect(geom.totalTextHeight).toBe(25);
+    // Line 0 x: 10 + (580 - 120) / 2 = 10 + 230 = 240
+    // Line 1 x: 10 + (580 - 80) / 2 = 10 + 250 = 260
+    expect(geom.lineXs[0]).toBe(240);
+    expect(geom.lineXs[1]).toBe(260);
+  });
 });
 
 const style = { fontFamily: 'Helvetica', fontSize: 12, minFontSize: 7, fontWeight: 400, color: '#000000', horizontalAlign: 'left', verticalAlign: 'top', lineHeight: 1.15, padding: 1, background: 'transparent', overflow: 'shrink', maxLines: 1 };
