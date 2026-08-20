@@ -1,15 +1,15 @@
-# Taskscope: Complete invoice proof review and configurable transfer QR
+# Taskscope: Complete invoice payment review, due-date configuration, and transfer QR
 
 ## Metadata
 
-- Task: `dormitory-invoice-proof-review-and-transfer-qr`
+- Task: `dormitory-invoice-payment-review-due-date-and-transfer-qr`
 - Pipeline: planning-only / Full
 - Risk: high
 - Status: ready for implementation approval; this taskscope does not authorize implementation
 
 ## Objective
 
-Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection return the proof to the review queue, replace the hard-coded generated QR with a configurable default transfer-QR image, and compact the modal so its actions remain visible without avoidable vertical scrolling.
+Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection return the proof to the review queue, replace the relative automatic-collection-day setting with an explicit payment deadline, use a configurable default transfer-QR image without offering a QR download action, and compact the modal so its actions remain visible without avoidable vertical scrolling.
 
 ## Verified baseline
 
@@ -23,6 +23,8 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 - `Không duyệt` currently persists `payment_review.status = rejected`; the requested behavior is to keep the proof available and return it to `pending` so an authorized reviewer can confirm it again.
 - The payment QR is currently generated in the browser from a hard-coded MBBank/account payload (`1234567890`) instead of using an administrator-uploaded default QR image.
 - The shared modal has a `max-h` container with vertical scrolling, while the proof actions remain in the long left column and the QR card reserves a large square/right column. This can force users to scroll to reach actions.
+- The electricity/water configuration currently stores `configured_collection_days` and explains the deadline as the meter-reading date plus that number of days. Automatic invoice creation applies the same relative-day calculation.
+- `Hóa đơn thanh toán` currently exposes `Tải mã QR chuyển khoản` and downloads the configured QR as a local image file.
 - Relevant frontend/backend files already contain uncommitted work. Implementation must preserve those changes and avoid rewriting unrelated behavior.
 
 ## Functional scope
@@ -94,16 +96,27 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 - Persist only the stored image metadata/URL in the invoice configuration; do not store a browser object URL or base64 payload in the database.
 - Load the saved QR image into `Hóa đơn thanh toán` for every invoice by default. Remove the hard-coded account number/bank QR payload and the client-generated placeholder QR from this flow.
 - When no default QR has been configured or the image cannot load, show a compact, explicit unavailable state; do not display incorrect fallback banking details.
-- Keep the download action, but label and filename it as downloading the transfer QR rather than downloading the invoice.
-- Restrict QR configuration changes to the existing invoice-configuration permission. Viewing/downloading the configured QR follows the existing invoice access rules.
+- Remove `Tải mã QR chuyển khoản` and its client-side fetch/blob/download handling from `Hóa đơn thanh toán`. The QR remains visible for scanning only.
+- Restrict QR configuration changes to the existing invoice-configuration permission. Viewing the configured QR follows the existing invoice access rules.
 
 ### 7. Compact the QR and action area
 
 - Reduce the QR card's vertical footprint while preserving a scannable, undistorted image and readable unavailable state.
 - Move the context-appropriate action buttons into the QR/right-side area on desktop so they remain visible alongside the QR and do not sit below the long proof column.
-- Keep only actions valid for the current state: upload/send, replace/save, `Không duyệt`/`Duyệt`, `Bỏ duyệt`, download QR, and close as applicable; do not duplicate the same action in both columns.
+- Keep only actions valid for the current state: upload/send, replace/save, `Không duyệt`/`Duyệt`, `Bỏ duyệt`, and close as applicable; do not duplicate the same action in both columns and do not expose a QR download action.
 - Use a compact or sticky action arrangement at narrow widths so buttons remain reachable without covering content. The modal may scroll for genuinely tall proof images, but ordinary payment/review states at common desktop viewport heights must not require vertical scrolling just to reach actions.
 - Preserve keyboard focus order, visible focus states, disabled/loading states, and touch-friendly targets after moving the buttons.
+
+### 8. Replace automatic collection days with `Hạn thanh toán`
+
+- In `Cấu hình định mức & đơn giá điện - nước`, remove the visible `Số ngày thu tự động (ngày)` number input and its relative-date explanation.
+- Add a required `Hạn thanh toán` date control using the repository's existing date/calendar conventions. Store and submit a canonical date value rather than deriving the deadline in the browser from a number of days.
+- Treat the selected deadline as the deadline for the upcoming meter-reading/billing batch. Every invoice created by that completed batch receives this same explicit `due_date`, regardless of the order or exact time at which each room's meter reading is saved.
+- Require the deadline to be on or after the batch/payment start date. Show a clear validation error and prevent saving/creating invoices when it is earlier.
+- Update the utility configuration DTO/schema/API contract and automatic invoice-generation service so `configured_collection_days` is no longer the source of new invoice deadlines.
+- Preserve each existing invoice's stored `due_date`; changing the configured deadline must not retroactively rewrite previously created invoices.
+- Define compatibility for an existing configuration that only has `configured_collection_days`: allow it to load without crashing, but require an explicit `Hạn thanh toán` before the next new billing batch. Do not silently continue generating new deadlines from the legacy value.
+- Keep manual advanced invoice editing capable of displaying and updating the individual invoice `due_date` under its existing validation rules.
 
 ## Expected write boundary
 
@@ -122,10 +135,10 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 ## Out of scope
 
 - Removing payment-method or notes data from historical invoices or database schemas.
-- Changing electricity/water calculations, billing periods, due dates, meter readings, invoice deletion, or room selection.
+- Changing electricity/water calculations, billing periods, meter readings, invoice deletion, or room selection beyond assigning the configured explicit deadline to newly generated invoices.
 - Allowing members to approve, reject, or revoke their own proof unless they already hold the confirmation permission.
 - Deleting old proof files, changing upload storage, backfilling historical invoices, deployment, or production data mutation.
-- Generating VietQR data dynamically from bank-account fields, integrating a payment gateway, or supporting multiple QR images per building/room.
+- Generating VietQR data dynamically from bank-account fields, integrating a payment gateway, supporting multiple QR images per building/room, or downloading the displayed QR from the payment modal.
 - Redesigning `ResponsiveDataView` for unrelated pages.
 - Changing the visual design of unrelated dialogs or introducing a new generic modal framework.
 
@@ -136,9 +149,10 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 3. Consolidate proof viewing and review into `Hóa đơn thanh toán`, parameterizing its mode/state instead of maintaining a second complete dialog.
 4. Apply explicit invoice-column alignment and width rules, with `Thao tác` anchored to the right edge; change the shared table only if local column configuration cannot express the required layout.
 5. Change `Không duyệt` to an audited `pending -> pending` review attempt while keeping revocation as a separate approved-proof transition.
-6. Extend the existing invoice configuration and upload/API flow to store one default transfer-QR image, then replace the hard-coded generated QR in the shared modal.
-7. Move state-specific actions into a compact QR/right-side action area and refresh the modal/table from every returned invoice.
-8. Run focused frontend/backend tests, static checks, visual inspection, and final diff/status review.
+6. Extend the existing invoice configuration and upload/API flow to store one default transfer-QR image, replace the hard-coded generated QR in the shared modal, and remove its download action and download-only code.
+7. Replace `configured_collection_days` in the configuration and automatic-generation flow with an explicit required payment deadline for the upcoming batch, while retaining historical invoice deadlines.
+8. Move state-specific actions into a compact QR/right-side action area and refresh the modal/table from every returned invoice.
+9. Run focused frontend/backend tests, static checks, visual inspection, and final diff/status review.
 
 ## Acceptance criteria
 
@@ -160,13 +174,18 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 - AC-16: After `Không duyệt`, the authorized reviewer immediately sees both `Không duyệt` and `Duyệt` again without requiring a replacement upload.
 - AC-17: An authorized user can upload, preview, replace, and persist one valid default transfer-QR image from the invoice configuration modal; invalid files are rejected.
 - AC-18: `Hóa đơn thanh toán` displays the persisted QR image by default and contains no hard-coded bank/account QR payload. Missing or broken QR images show an explicit unavailable state.
-- AC-19: The QR download action downloads the configured QR with an appropriate label/filename and never downloads a generated QR containing placeholder account data.
+- AC-19: `Hóa đơn thanh toán` contains no `Tải mã QR chuyển khoản` button and no user-triggered QR download behavior; the configured QR remains visible for scanning.
 - AC-20: At common desktop viewport heights, ordinary submission and pending-review modal states expose their applicable buttons without vertical scrolling; narrow layouts remain usable and accessible.
+- AC-21: `Cấu hình định mức & đơn giá điện - nước` contains a required `Hạn thanh toán` date control and no `Số ngày thu tự động` input or relative-day helper text.
+- AC-22: Completing a meter-reading batch assigns the configured explicit deadline to every newly generated room invoice; invoice creation does not add `configured_collection_days` to each room's reading timestamp.
+- AC-23: A deadline earlier than the batch/payment start date is rejected with a visible validation message and creates no partially updated invoices.
+- AC-24: Updating the configured deadline affects only a subsequent billing batch and does not modify `due_date` on existing invoices.
+- AC-25: Legacy configurations without an explicit deadline load safely but cannot generate the next batch until an authorized user supplies a valid `Hạn thanh toán`.
 
 ## Verification
 
-- Frontend :: `D:\PROJECT\manager_points\frontend` :: run the focused invoice page tests => shared modal modes, pending return, default QR upload/display/download, compact actions, right-aligned action column, revoke confirmation, and resubmission behavior pass.
-- Backend :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts` plus focused invoice-configuration tests => pending-return audit, QR metadata persistence/permission/validation, authorized transitions, cleared paid markers, invalid transitions, and idempotency pass.
+- Frontend :: `D:\PROJECT\manager_points\frontend` :: run the focused invoice page tests => shared modal modes, pending return, default QR upload/display without download, explicit deadline configuration/validation, compact actions, right-aligned action column, revoke confirmation, and resubmission behavior pass.
+- Backend :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts` plus focused invoice-configuration tests => pending-return audit, QR metadata persistence/permission/validation, explicit batch deadline propagation, legacy-config handling, historical deadline preservation, authorized transitions, cleared paid markers, invalid transitions, and idempotency pass.
 - Static :: run repository-native frontend and backend type/lint checks for affected packages => no introduced errors.
 - Visual :: inspect the invoice table with and without selected rows at desktop and narrow widths => headers and cells remain balanced; `Thao tác` stays against the right edge and does not overlap. Inspect payment, pending-review, approved, and rejected/revoked states with configured, missing, and broken QR images; ordinary states expose actions without avoidable vertical scrolling.
 - Final :: `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md` and `git status --short` => taskscope has no whitespace errors and no implementation file was changed by this planning step.
@@ -177,5 +196,6 @@ Complete the shared Dormitory `Hóa đơn thanh toán` flow, make rejection retu
 - Assumption: `Bỏ duyệt` is a controlled reversal of collection, represented to the member as rejected/not collected while preserving approval and revocation audit evidence.
 - Assumption: "tải ảnh mã QR chuyển khoản để xác nhận mặc định" means an authorized user uploads one persistent default transfer-QR image in the existing invoice configuration modal, and all invoice payment modals display that image.
 - Assumption: `Không duyệt` is a non-terminal review attempt (`pending -> pending`), while `Bỏ duyệt` remains the action that reopens an approved payment for proof replacement.
+- Assumption: replacing `Số ngày thu tự động` with `Hạn thanh toán` means selecting one explicit calendar date for the upcoming monthly meter-reading batch, shared by invoices generated from that batch; it is not a renamed relative number-of-days field.
 - Use the existing invoice-confirm permission for `Bỏ duyệt`; introducing or assigning a new permission requires a product authorization decision.
 - Human Gate: schema migration/backfill, deletion of stored proof files, permission assignment changes, deployment, or production data mutation.

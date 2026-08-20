@@ -253,7 +253,7 @@ describe('Dormitory Invoices Page', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Cấu hình định mức & đơn giá điện - nước')).toBeDefined();
-      expect(screen.getByText(/Số ngày thu tự động/i)).toBeDefined();
+      expect(screen.getByText(/Hạn thanh toán/i)).toBeDefined();
     });
   });
 
@@ -266,17 +266,18 @@ describe('Dormitory Invoices Page', () => {
     await screen.findByText('Mã QR chuyển khoản mặc định');
     const input = document.getElementById('config-transfer-qr-upload') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['qr'], 'qr.webp', { type: 'image/webp' })] } });
+    fireEvent.change(screen.getByLabelText(/Hạn thanh toán/i), { target: { value: '2030-03-31' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
     await waitFor(() => expect(dormitoryApi.invoices.updateConfig).toHaveBeenCalledWith(expect.objectContaining({
       transfer_qr_image: expect.objectContaining({ url: '/uploads/transfer-qr.webp' }),
     })));
   });
 
-  it('shows and downloads the configured transfer QR without generated banking details (AC-18, AC-19)', async () => {
+  it('shows the configured transfer QR without generated banking details or download action (AC-18, AC-19)', async () => {
     (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
       electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
       water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
-      configured_collection_days: 10,
+       payment_deadline: '2030-03-31',
       transfer_qr_image: { url: '/uploads/default-transfer-qr.png', file_name: 'default-transfer-qr.png' },
     });
     render(<InvoicesPage />);
@@ -284,36 +285,14 @@ describe('Dormitory Invoices Page', () => {
     const qr = await screen.findByAltText('Mã QR chuyển khoản');
     expect(qr.getAttribute('src')).toContain('/uploads/default-transfer-qr.png');
     expect(screen.queryByText(/1234567890|MBBank/)).toBeNull();
-    expect(screen.getByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeNull();
   });
 
-  it('downloads the configured QR as a blob, revokes its object URL, and handles fetch failure', async () => {
-    (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
-      electricity: { quota_per_person: 15, unit_price: 2500 }, water: { quota_per_person: 4, unit_price: 10000 }, configured_collection_days: 10,
-      transfer_qr_image: { url: '/uploads/qr.png', file_name: 'qr.png' },
-    });
-    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, blob: vi.fn().mockResolvedValue(new Blob(['qr'], { type: 'image/png' })) }).mockResolvedValueOnce({ ok: false });
-    vi.stubGlobal('fetch', fetchMock);
-    const createObjectUrl = vi.fn().mockReturnValue('blob:download-qr');
-    const revokeObjectUrl = vi.fn();
-    Object.defineProperties(URL, {
-      createObjectURL: { configurable: true, value: createObjectUrl },
-      revokeObjectURL: { configurable: true, value: revokeObjectUrl },
-    });
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  it('does not expose a QR download action', async () => {
     render(<InvoicesPage />);
     fireEvent.click((await screen.findAllByRole('button', { name: /Đóng ngay/i }))[0]);
-    const download = await screen.findByRole('button', { name: /Tải mã QR chuyển khoản/i });
-    fireEvent.click(download);
-    await waitFor(() => expect(createObjectUrl).toHaveBeenCalled());
-    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download-qr');
-    fireEvent.click(download);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không thể tải mã QR chuyển khoản'));
-    expect(screen.getByText('Không thể tải mã QR chuyển khoản')).toBeDefined();
-    vi.unstubAllGlobals();
-    anchorClick.mockRestore();
-    delete (URL as any).createObjectURL;
-    delete (URL as any).revokeObjectURL;
+    await screen.findByText('Quét mã để thanh toán');
+    expect(screen.queryByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeNull();
   });
 
   it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước"', async () => {

@@ -80,6 +80,7 @@ describe('InvoicesService', () => {
       electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
       water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
       configured_collection_days: 10,
+      payment_deadline: new Date('2030-03-31T00:00:00.000Z'),
       save: jest.fn().mockImplementation(async function (this: any) {
         return this;
       }),

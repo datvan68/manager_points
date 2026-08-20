@@ -14,7 +14,6 @@ import {
   Droplets,
   Calendar as CalendarIcon,
   DollarSign,
-  Download,
   RefreshCw,
   Trash2,
 } from 'lucide-react';
@@ -190,7 +189,7 @@ export default function InvoicesPage() {
       unit_price: 10000,
       unit: 'm³',
     },
-    configured_collection_days: 10,
+    payment_deadline: '',
   });
 
   async function openConfigModal() {
@@ -210,7 +209,7 @@ export default function InvoicesPage() {
             unit_price: cfg.water?.unit_price ?? 10000,
             unit: cfg.water?.unit || 'm³',
           },
-          configured_collection_days: cfg.configured_collection_days ?? 10,
+          payment_deadline: cfg.payment_deadline ? new Date(cfg.payment_deadline).toISOString().slice(0, 10) : '',
           transfer_qr_image: cfg.transfer_qr_image,
         });
         setTransferQrImage(cfg.transfer_qr_image);
@@ -226,8 +225,8 @@ export default function InvoicesPage() {
 
   async function handleSaveConfig(e: React.FormEvent) {
     e.preventDefault();
-    if (configForm.configured_collection_days < 1) {
-      toast.error('Số ngày thu tự động phải lớn hơn hoặc bằng 1');
+    if (!configForm.payment_deadline) {
+      toast.error('Vui lòng chọn Hạn thanh toán');
       return;
     }
     try {
@@ -344,36 +343,6 @@ export default function InvoicesPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const handleDownloadQr = async (invoice: DormInvoice) => {
-    if (!transferQrImage?.url) return;
-    try {
-      const response = await fetch(getImageUrl(transferQrImage.url), { credentials: 'include' });
-      if (!response.ok) throw new Error('QR download failed');
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      try {
-        const roomName =
-          typeof invoice.room_id === 'object' && invoice.room_id
-            ? invoice.room_id.room_name || invoice.room_id.room_code
-            : 'KTX';
-        const safeRoom = String(roomName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_');
-        const month = formatBillingMonth(invoice.billing_month, invoice.billing_period).replace('/', '-');
-        const sourceExtension = transferQrImage.file_name?.split('.').pop()?.toLowerCase();
-        const extension = sourceExtension && ['png', 'jpg', 'jpeg', 'webp'].includes(sourceExtension) ? sourceExtension : 'png';
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        a.download = `Ma_QR_chuyen_khoan_${safeRoom}_${month}.${extension}`;
-        a.click();
-        toast.success('Đã tải mã QR chuyển khoản');
-      } finally {
-        URL.revokeObjectURL(objectUrl);
-      }
-    } catch {
-      setTransferQrImageFailed(true);
-      toast.error('Không thể tải mã QR chuyển khoản');
-    }
-  };
 
   // Tính toán xem trước ở client cho Modal Nâng cao
   const previewCalc = useMemo(() => {
@@ -1764,16 +1733,6 @@ export default function InvoicesPage() {
                       )}
                     </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDownloadQr(payingInvoice)}
-                      disabled={!transferQrImage?.url || transferQrImageFailed}
-                      className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
-                    >
-                      <Download size={14} className="text-[#1A73E8]" />
-                      <span>Tải mã QR chuyển khoản</span>
-                    </Button>
                     <div className="grid w-full grid-cols-2 gap-2 border-t border-slate-200/60 pt-3">
                       {isPendingReview && canConfirmInvoice && (
                         <>
@@ -1924,24 +1883,16 @@ export default function InvoicesPage() {
               <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
                 <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
                   <CalendarIcon size={14} className="text-[#64748B]" />
-                  Số ngày thu tự động (ngày) <span className="text-red-500">*</span>
+                  Hạn thanh toán <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
-                  min="1"
+                  type="date"
+                  aria-label="Hạn thanh toán"
                   required
-                  value={configForm.configured_collection_days}
-                  onChange={(e) =>
-                    setConfigForm((f) => ({
-                      ...f,
-                      configured_collection_days: Math.max(1, parseInt(e.target.value, 10) || 1),
-                    }))
-                  }
+                  value={configForm.payment_deadline || ''}
+                  onChange={(e) => setConfigForm((f) => ({ ...f, payment_deadline: e.target.value }))}
                   className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                 />
-                <p className="text-[11px] text-[#64748B]">
-                  Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
-                </p>
               </div>
 
               <div className="space-y-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3.5">

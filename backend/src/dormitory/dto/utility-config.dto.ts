@@ -2,6 +2,7 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsDateString,
   IsString,
   IsEnum,
   Matches,
@@ -60,10 +61,14 @@ export class UpdateUtilityConfigDto {
   @Type(() => UtilityTariffDto)
   water: UtilityTariffDto;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
   @Min(1)
-  configured_collection_days: number;
+  configured_collection_days?: number;
+
+  @IsNotEmpty()
+  @IsDateString()
+  payment_deadline?: string;
 
   @IsOptional()
   @ValidateNested()

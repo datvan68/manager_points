@@ -154,7 +154,8 @@ export interface UtilityConfig {
   _id?: string;
   electricity: UtilityTariff;
   water: UtilityTariff;
-  configured_collection_days: number;
+  configured_collection_days?: number;
+  payment_deadline?: string;
   transfer_qr_image?: PaymentProof;
   updated_by_id?: any;
   updatedAt?: string;
@@ -163,7 +164,8 @@ export interface UtilityConfig {
 export interface UpdateUtilityConfigInput {
   electricity: UtilityTariff;
   water: UtilityTariff;
-  configured_collection_days: number;
+  configured_collection_days?: number;
+  payment_deadline?: string;
   transfer_qr_image?: PaymentProof;
 }
 

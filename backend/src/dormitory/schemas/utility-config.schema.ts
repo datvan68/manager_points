@@ -44,8 +44,11 @@ export class UtilityConfig {
   })
   water: UtilityTariff;
 
-  @Prop({ default: 10, required: true })
+  @Prop()
   configured_collection_days: number;
+
+  @Prop()
+  payment_deadline?: Date;
 
   @Prop({ type: TransferQrImageSchema })
   transfer_qr_image?: TransferQrImage;

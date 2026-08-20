@@ -695,7 +695,7 @@ export class InvoicesService {
           unit_price: 10000,
           unit: 'm³',
         },
-        configured_collection_days: 10,
+        payment_deadline: undefined,
       });
       await config.save();
     }
@@ -723,7 +723,12 @@ export class InvoicesService {
       unit_price: Number(dto.water.unit_price),
       unit: dto.water.unit || 'm³',
     };
-    config.configured_collection_days = Number(dto.configured_collection_days);
+    if (dto.payment_deadline) {
+      const deadline = new Date(dto.payment_deadline);
+      if (isNaN(deadline.getTime())) throw new BadRequestException('Hạn thanh toán không hợp lệ');
+      config.payment_deadline = deadline;
+    }
+    if (dto.configured_collection_days !== undefined) config.configured_collection_days = Number(dto.configured_collection_days);
     if (dto.transfer_qr_image) {
       config.transfer_qr_image = {
         url: dto.transfer_qr_image.url,
@@ -882,10 +887,9 @@ export class InvoicesService {
     }> = [];
 
     const now = new Date();
-    const collectionDays = config.configured_collection_days || 10;
-    const dueDate = new Date(
-      now.getTime() + collectionDays * 24 * 60 * 60 * 1000,
-    );
+    if (!config.payment_deadline) throw new BadRequestException('Chưa cấu hình Hạn thanh toán cho kỳ thu mới');
+    const dueDate = new Date(config.payment_deadline);
+    if (dueDate < now) throw new BadRequestException('Hạn thanh toán phải từ ngày bắt đầu thu trở đi');
 
     for (const item of dto.readings || []) {
       try {
