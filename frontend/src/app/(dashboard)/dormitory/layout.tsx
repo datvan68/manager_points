@@ -11,9 +11,6 @@ const baseDormitoryTabs = [
   { id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' },
   { id: 'contracts', href: '/dormitory/contracts', label: 'Hợp đồng' },
   { id: 'invoices', href: '/dormitory/invoices', label: 'Hóa đơn' },
-  { id: 'violations', href: '/dormitory/violations', label: 'Vi phạm' },
-  { id: 'maintenance', href: '/dormitory/maintenance', label: 'Bảo trì' },
-  { id: 'reports', href: '/dormitory/reports', label: 'Báo cáo' },
 ];
 
 export default function DormitoryLayout({ children }: { children: React.ReactNode }) {

@@ -1119,11 +1119,9 @@ export class InvoicesService {
    * Xóa nhiều hóa đơn theo danh sách ID
    */
   async bulkDelete(ids: string[], user: any) {
-    throw new BadRequestException('Thao tác xóa hàng loạt hóa đơn đã bị vô hiệu hóa; hãy dùng duyệt chứng từ thanh toán');
-
     // Normalize and deduplicate IDs
     const uniqueIds = Array.from(
-      new Set(ids.map((id) => (id ? String(id).trim() : '')).filter(Boolean)),
+      new Set((ids || []).map((id) => (id ? String(id).trim() : '')).filter(Boolean)),
     );
 
     if (uniqueIds.length === 0) {

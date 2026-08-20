@@ -544,7 +544,7 @@ describe('Dormitory Invoices Page', () => {
     expect(screen.getByText(/Hiển thị 1-3 trên tổng số 3 hóa đơn/i)).toBeDefined();
   });
 
-  it('selects row checkboxes and shows FloatingActionBar with selected count', async () => {
+  it('selects row checkboxes and shows FloatingActionBar with Delete and Approve for admin (AC-01, AC-07)', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -554,14 +554,16 @@ describe('Dormitory Invoices Page', () => {
     const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
     expect(rowCheckboxes.length).toBeGreaterThanOrEqual(2);
 
-    // Select eligible pending-proof row
+    // Select unpaid row
     await act(async () => {
-      fireEvent.click(rowCheckboxes[1]);
+      fireEvent.click(rowCheckboxes[0]);
     });
 
     await waitFor(() => {
       expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole('button', { name: 'Xóa hóa đơn đã chọn' })).toBeDefined();
       expect(screen.getByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Không duyệt chứng từ đã chọn' })).toBeNull();
     });
 
     // Clear selection
@@ -571,11 +573,140 @@ describe('Dormitory Invoices Page', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /Duyệt chứng từ đã chọn/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Xóa hóa đơn đã chọn' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeNull();
     });
   });
 
-  it('executes bulk approve without exposing deletion', async () => {
+  it('shows Delete button only for users with DORM_INVOICE_DELETE permission (AC-02, AC-06)', async () => {
+    mockHasPermission.mockImplementation((perm: string) => perm === 'DORM_INVOICE_DELETE');
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    // Select unpaid row
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[0]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Xóa hóa đơn đã chọn' })).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeNull();
+    });
+  });
+
+  it('shows Approve button only for users with DORM_INVOICE_CONFIRM permission (AC-05, AC-06)', async () => {
+    mockHasPermission.mockImplementation((perm: string) => perm === 'DORM_INVOICE_CONFIRM');
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    // For confirm-only, only pending-proof row (index 1) is selectable
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[1]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Xóa hóa đơn đã chọn' })).toBeNull();
+    });
+  });
+
+  it('does not show selection checkboxes for users with neither permission (AC-06)', async () => {
+    mockHasPermission.mockReturnValue(false);
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    expect(rowCheckboxes.length).toBe(0);
+    expect(screen.queryByRole('button', { name: 'Xóa hóa đơn đã chọn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeNull();
+  });
+
+  it('opens delete confirmation modal and executes bulkDelete on confirm (AC-02, AC-03)', async () => {
+    (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
+      requested: 1,
+      deleted: ['inv-unpaid'],
+      not_found: [],
+      rejected: [],
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[0]);
+    });
+
+    const deleteBtn = await screen.findByRole('button', { name: 'Xóa hóa đơn đã chọn' });
+    await act(async () => {
+      fireEvent.click(deleteBtn);
+    });
+
+    // Confirmation modal appears
+    await waitFor(() => {
+      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
+      expect(screen.getByText(/Bạn có chắc chắn muốn xóa/i)).toBeDefined();
+    });
+
+    // Confirm delete
+    const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid']);
+    });
+  });
+
+  it('cancels delete confirmation modal without executing bulkDelete (AC-02)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[0]);
+    });
+
+    const deleteBtn = await screen.findByRole('button', { name: 'Xóa hóa đơn đã chọn' });
+    await act(async () => {
+      fireEvent.click(deleteBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
+    });
+
+    // Click cancel
+    const cancelBtn = screen.getByRole('button', { name: 'Hủy bỏ' });
+    await act(async () => {
+      fireEvent.click(cancelBtn);
+    });
+
+    expect(dormitoryApi.invoices.bulkDelete).not.toHaveBeenCalled();
+  });
+
+  it('executes bulk approve only for eligible invoices with pending proof (AC-05)', async () => {
     (dormitoryApi.invoices.bulkReviewProof as any).mockResolvedValue({
       requested: 1,
       results: [{ id: 'inv-pending', outcome: 'approved' }],
@@ -587,18 +718,38 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
     });
 
-    const rowCheckbox = document.querySelectorAll('tbody input[type="checkbox"]')[1] as HTMLInputElement;
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    // Select unpaid row without proof (index 0) and pending proof row (index 1)
     await act(async () => {
-      fireEvent.click(rowCheckbox);
+      fireEvent.click(rowCheckboxes[0]);
+      fireEvent.click(rowCheckboxes[1]);
     });
+
     const approveBtn = await screen.findByRole('button', { name: 'Duyệt chứng từ đã chọn' });
     await act(async () => {
       fireEvent.click(approveBtn);
     });
 
     await waitFor(() => {
+      // AC-05: Submits only the eligible pending-proof invoice id
       expect(dormitoryApi.invoices.bulkReviewProof).toHaveBeenCalledWith(['inv-pending'], 'approved', expect.any(String));
-      expect(screen.queryByRole('button', { name: /Xóa hóa đơn/i })).toBeNull();
+    });
+  });
+
+  it('does not render bulk reject button in FloatingActionBar (AC-07)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[0]);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Không duyệt/i })).toBeNull();
     });
   });
 });

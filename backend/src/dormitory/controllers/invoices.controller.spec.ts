@@ -182,12 +182,20 @@ describe('InvoicesController', () => {
     expect(await validate(valid)).toEqual([]);
   });
 
-  it('bulkDelete delegates to the hard-disabled legacy service path', async () => {
+  it('bulkDelete delegates to service.bulkDelete', async () => {
     const dto = { ids: ['inv-1', 'inv-2'] };
     const req = { user: { userId: 'admin-1' } };
 
-    service.bulkDelete = jest.fn().mockRejectedValue(new Error('disabled'));
-    await expect(controller.bulkDelete(dto, req)).rejects.toThrow('disabled');
+    const expectedResult = {
+      requested: 2,
+      deleted: ['inv-1'],
+      not_found: [],
+      rejected: [{ id: 'inv-2', reason: 'Không thể xóa hóa đơn đã thanh toán' }],
+    };
+    service.bulkDelete = jest.fn().mockResolvedValue(expectedResult);
+
+    const result = await controller.bulkDelete(dto, req);
     expect(service.bulkDelete).toHaveBeenCalledWith(dto.ids, req.user);
+    expect(result).toEqual(expectedResult);
   });
 });

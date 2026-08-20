@@ -65,6 +65,8 @@ describe('InvoicesService', () => {
     const meterReadingModel: any = jest.fn().mockImplementation((value: any) => ({ ...value }));
     meterReadingModel.findOne = jest.fn(() => query(null));
     meterReadingModel.findOneAndUpdate = jest.fn(() => query({}));
+    meterReadingModel.deleteMany = jest.fn(() => query({ deletedCount: 0 }));
+    meterReadingModel.deleteOne = jest.fn(() => query({ deletedCount: 0 }));
 
     const contractModel: any = {
       find: jest.fn(() => query([])),
@@ -961,10 +963,65 @@ describe('InvoicesService', () => {
     });
   });
 
-  describe('bulkDelete hard-disable (AC-09)', () => {
-    it('never deletes invoices through the legacy endpoint', async () => {
+  describe('bulkDelete (AC-03, AC-04)', () => {
+    it('deletes unpaid invoices and returns deterministic partial results', async () => {
+      const { service, invoiceModel, meterReadingModel } = setup(true);
+      const unpaidId1 = '507f1f77bcf86cd799439011';
+      const unpaidId2 = '507f1f77bcf86cd799439012';
+      const paidId = '507f1f77bcf86cd799439013';
+      const notFoundId = '507f1f77bcf86cd799439014';
+      const invalidId = 'invalid-id';
+
+      invoiceModel.find.mockReturnValue(
+        query([
+          { _id: unpaidId1, invoice_code: 'INV-1', status: 'Chưa thu' },
+          { _id: unpaidId2, invoice_code: 'INV-2', status: 'Chưa thanh toán' },
+          { _id: paidId, invoice_code: 'INV-3', status: 'Đã thu' },
+        ]),
+      );
+
+      const result = await service.bulkDelete(
+        [unpaidId1, unpaidId2, paidId, notFoundId, invalidId, unpaidId1],
+        { userId: 'admin-1' },
+      );
+
+      expect(result.requested).toBe(5); // Deduplicated 5 unique IDs
+      expect(result.deleted).toEqual([unpaidId1, unpaidId2]);
+      expect(result.not_found).toEqual([notFoundId]);
+      expect(result.rejected).toEqual([
+        { id: invalidId, reason: 'Mã hóa đơn không hợp lệ' },
+        { id: paidId, invoice_code: 'INV-3', reason: 'Không thể xóa hóa đơn đã thanh toán' },
+      ]);
+      expect(invoiceModel.deleteMany).toHaveBeenCalledWith({
+        _id: { $in: [expect.anything(), expect.anything()] },
+      });
+      // AC-04: Never calls delete on meterReadingModel
+      expect(meterReadingModel.deleteMany).not.toHaveBeenCalled();
+      expect(meterReadingModel.deleteOne).not.toHaveBeenCalled();
+    });
+
+    it('rejects empty or whitespace-only IDs list', async () => {
+      const { service } = setup();
+      await expect(service.bulkDelete([], { userId: 'admin-1' })).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.bulkDelete(['   ', ''], { userId: 'admin-1' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('handles paid status "Đã thanh toán" as non-deletable', async () => {
       const { service, invoiceModel } = setup();
-      await expect(service.bulkDelete(['507f1f77bcf86cd799439031'], { userId: 'admin-1' })).rejects.toThrow(BadRequestException);
+      const paidId = '507f1f77bcf86cd799439021';
+      invoiceModel.find.mockReturnValue(
+        query([{ _id: paidId, invoice_code: 'INV-PAID', status: 'Đã thanh toán' }]),
+      );
+
+      const result = await service.bulkDelete([paidId], { userId: 'admin-1' });
+      expect(result.deleted).toEqual([]);
+      expect(result.rejected).toEqual([
+        { id: paidId, invoice_code: 'INV-PAID', reason: 'Không thể xóa hóa đơn đã thanh toán' },
+      ]);
       expect(invoiceModel.deleteMany).not.toHaveBeenCalled();
     });
   });

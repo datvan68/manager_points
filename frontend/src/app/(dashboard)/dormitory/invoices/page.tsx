@@ -134,6 +134,29 @@ export default function InvoicesPage() {
     hasPermission('DORM_INVOICE_CONFIRM') ||
     hasPermission('admin') ||
     hasPermission('ADMIN_FULL');
+  const canDeleteInvoice =
+    hasPermission('DORM_INVOICE_DELETE') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
+  const canBulkAction = canConfirmInvoice || canDeleteInvoice;
+
+  const isDeleteEligible = useCallback((inv: DormInvoice) => {
+    return inv.status !== 'Đã thu' && inv.status !== 'Đã thanh toán';
+  }, []);
+
+  const isApproveEligible = useCallback((inv: DormInvoice) => {
+    return inv.payment_review?.status === 'pending' && Boolean(inv.payment_proof?.url);
+  }, []);
+
+  const isRowSelectable = useCallback(
+    (inv: DormInvoice) => {
+      if (!canBulkAction) return false;
+      if (canDeleteInvoice && isDeleteEligible(inv)) return true;
+      if (canConfirmInvoice && isApproveEligible(inv)) return true;
+      return false;
+    },
+    [canBulkAction, canDeleteInvoice, canConfirmInvoice, isDeleteEligible, isApproveEligible],
+  );
 
   const [invoices, setInvoices] = useState<DormInvoice[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -144,10 +167,12 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
 
-  // Selection & bulk review state
+  // Selection & bulk review / delete state
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkReviewing, setBulkReviewing] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -679,20 +704,75 @@ export default function InvoicesPage() {
     await submitReviewProof(decision);
   }
 
-  async function handleBulkReview(decision: 'approved' | 'rejected') {
-    if (bulkReviewing || selected.length === 0) return;
+  async function handleBulkApprove() {
+    if (bulkReviewing || bulkDeleting || selected.length === 0) return;
+    const selectedInvoices = invoices.filter((inv) => selected.includes(inv._id));
+    const eligibleIds = selectedInvoices.filter(isApproveEligible).map((inv) => inv._id);
+
+    if (eligibleIds.length === 0) {
+      toast.info('Không có hóa đơn nào đủ điều kiện duyệt chứng từ.');
+      return;
+    }
+
     try {
       setBulkReviewing(true);
-      const res = await dormitoryApi.invoices.bulkReviewProof(selected, decision, crypto.randomUUID());
+      const res = await dormitoryApi.invoices.bulkReviewProof(eligibleIds, 'approved', crypto.randomUUID());
       const failed = res.results.filter((item) => item.outcome !== 'approved');
+      const failedIds = failed.map((item) => item.id);
+      const remainingSelected = selected.filter((id) => !eligibleIds.includes(id) || failedIds.includes(id));
       await load(true);
-      setSelected(failed.map((item) => item.id));
-      if (failed.length) toast.warning(`Đã xử lý ${res.results.length - failed.length}/${res.results.length}; còn ${failed.length} hóa đơn cần kiểm tra.`);
-      else toast.success(`Đã ${decision === 'approved' ? 'duyệt' : 'không duyệt'} ${res.results.length} chứng từ.`);
+      setSelected(remainingSelected);
+      if (failed.length) {
+        toast.warning(`Đã xử lý ${res.results.length - failed.length}/${res.results.length}; còn ${failed.length} hóa đơn cần kiểm tra.`);
+      } else {
+        toast.success(`Đã duyệt ${res.results.length} chứng từ.`);
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Lỗi khi xử lý chứng từ.');
     } finally {
       setBulkReviewing(false);
+    }
+  }
+
+  function handleOpenDeleteConfirm() {
+    if (bulkDeleting || bulkReviewing || selected.length === 0) return;
+    const selectedInvoices = invoices.filter((inv) => selected.includes(inv._id));
+    const eligibleIds = selectedInvoices.filter(isDeleteEligible).map((inv) => inv._id);
+
+    if (eligibleIds.length === 0) {
+      toast.info('Không có hóa đơn nào đủ điều kiện xóa (chỉ xóa được hóa đơn chưa thanh toán).');
+      return;
+    }
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (bulkDeleting || selected.length === 0) return;
+    const selectedInvoices = invoices.filter((inv) => selected.includes(inv._id));
+    const eligibleIds = selectedInvoices.filter(isDeleteEligible).map((inv) => inv._id);
+    if (eligibleIds.length === 0) return;
+
+    try {
+      setBulkDeleting(true);
+      const res = await dormitoryApi.invoices.bulkDelete(eligibleIds);
+      const deletedSet = new Set(res.deleted || []);
+      const remainingSelected = selected.filter((id) => !deletedSet.has(id));
+      await load(true);
+      setSelected(remainingSelected);
+      setDeleteConfirmOpen(false);
+
+      const deletedCount = res.deleted?.length || 0;
+      const rejectedCount = (res.rejected?.length || 0) + (res.not_found?.length || 0);
+
+      if (rejectedCount > 0) {
+        toast.warning(`Đã xóa ${deletedCount}/${res.requested} hóa đơn; ${rejectedCount} hóa đơn không thể xóa.`);
+      } else {
+        toast.success(`Đã xóa thành công ${deletedCount} hóa đơn.`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi khi xóa hóa đơn.');
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -943,16 +1023,36 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Floating Action Bar cho thao tác duyệt chứng từ */}
-      {canConfirmInvoice && (
+      {/* Floating Action Bar cho thao tác hàng loạt */}
+      {canBulkAction && (
         <FloatingActionBar
           selectedCount={selected.length}
           onClear={() => setSelected([])}
           itemLabel="hóa đơn"
           actions={
             <>
-              <button type="button" aria-label="Không duyệt chứng từ đã chọn" disabled={bulkReviewing} onClick={() => void handleBulkReview('rejected')} className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 cursor-pointer">Không duyệt</button>
-              <button type="button" aria-label="Duyệt chứng từ đã chọn" disabled={bulkReviewing} onClick={() => void handleBulkReview('approved')} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer">Duyệt</button>
+              {canDeleteInvoice && (
+                <button
+                  type="button"
+                  aria-label="Xóa hóa đơn đã chọn"
+                  disabled={bulkDeleting || bulkReviewing}
+                  onClick={handleOpenDeleteConfirm}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 cursor-pointer"
+                >
+                  Xóa
+                </button>
+              )}
+              {canConfirmInvoice && (
+                <button
+                  type="button"
+                  aria-label="Duyệt chứng từ đã chọn"
+                  disabled={bulkReviewing || bulkDeleting}
+                  onClick={() => void handleBulkApprove()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                >
+                  Duyệt
+                </button>
+              )}
             </>
           }
         />
@@ -965,19 +1065,29 @@ export default function InvoicesPage() {
           columns={columns}
           isLoading={loading}
           keyExtractor={(inv) => inv._id}
-          selection={{
-            selectedKeys: selected,
-            onSelectRow: (key, checked) => {
-              const invoice = invoices.find((inv) => inv._id === key);
-              const eligible = invoice?.payment_review?.status === 'pending' && Boolean(invoice.payment_proof?.url);
-              if (!eligible) return;
-              setSelected((ids) => checked ? [...new Set([...ids, key])] : ids.filter((id) => id !== key));
-            },
-            onSelectAll: (checked) => setSelected(checked ? invoices.filter((inv) => inv.payment_review?.status === 'pending' && Boolean(inv.payment_proof?.url)).map((inv) => inv._id) : []),
-            allSelected:
-              invoices.filter((inv) => inv.payment_review?.status === 'pending' && Boolean(inv.payment_proof?.url)).length > 0 &&
-              invoices.filter((inv) => inv.payment_review?.status === 'pending' && Boolean(inv.payment_proof?.url)).every((inv) => selected.includes(inv._id)),
-          }}
+          selection={
+            canBulkAction
+              ? {
+                  selectedKeys: selected,
+                  onSelectRow: (key, checked) => {
+                    const invoice = invoices.find((inv) => inv._id === key);
+                    if (!invoice || !isRowSelectable(invoice)) return;
+                    setSelected((ids) =>
+                      checked ? [...new Set([...ids, key])] : ids.filter((id) => id !== key),
+                    );
+                  },
+                  onSelectAll: (checked) =>
+                    setSelected(
+                      checked
+                        ? invoices.filter(isRowSelectable).map((inv) => inv._id)
+                        : [],
+                    ),
+                  allSelected:
+                    invoices.filter(isRowSelectable).length > 0 &&
+                    invoices.filter(isRowSelectable).every((inv) => selected.includes(inv._id)),
+                }
+              : undefined
+          }
           emptyState={
             <div className="p-8 text-center text-sm text-slate-500">
               <FileText size={36} className="mx-auto mb-2 opacity-40" />
@@ -1005,6 +1115,16 @@ export default function InvoicesPage() {
           }
         />
       </div>
+
+      <ConfirmModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => !bulkDeleting && setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa hóa đơn đã chọn"
+        message={`Bạn có chắc chắn muốn xóa ${invoices.filter((inv) => selected.includes(inv._id) && isDeleteEligible(inv)).length} hóa đơn chưa thanh toán đã chọn? Thao tác này không thể hoàn tác.`}
+        confirmLabel="Xóa hóa đơn"
+        variant="danger"
+      />
 
       <ConfirmModal
         isOpen={revokeConfirmOpen}

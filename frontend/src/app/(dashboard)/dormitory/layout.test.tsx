@@ -41,9 +41,24 @@ describe('DormitoryLayout', () => {
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
     expect(screen.getAllByRole('button')[0]).toHaveTextContent('Tổng quan');
     expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Phòng' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hợp đồng' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hóa đơn' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
-    screen.getByRole('button', { name: 'Báo cáo' }).click();
-    expect(push).toHaveBeenCalledWith('/dormitory/reports');
+    expect(screen.queryByRole('button', { name: 'Vi phạm' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bảo trì' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Báo cáo' })).not.toBeInTheDocument();
+
+    screen.getByRole('button', { name: 'Hóa đơn' }).click();
+    expect(push).toHaveBeenCalledWith('/dormitory/invoices');
+  });
+
+  it('verifies Violations, Maintenance, and Reports tabs are absent for any permission set (AC-08)', () => {
+    mockHasPermission = vi.fn(() => true);
+    render(<DormitoryLayout><div>content</div></DormitoryLayout>);
+    expect(screen.queryByRole('button', { name: 'Vi phạm' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bảo trì' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Báo cáo' })).not.toBeInTheDocument();
   });
 
   it('includes the PDF tab when user has PDF_TEMPLATE_READ permission', () => {
@@ -78,5 +93,21 @@ describe('DormitoryLayout', () => {
     const wrapper = container.querySelector('.flex-1.min-h-0.flex.flex-col.overflow-hidden');
     expect(wrapper).toBeInTheDocument();
     expect(wrapper).toContainElement(screen.getByTestId('c3'));
+  });
+
+  it('renders direct child routes even when removed from navigation tabs (AC-09)', () => {
+    pathname = '/dormitory/reports';
+    const { unmount: unmountReports } = render(<DormitoryLayout><div data-testid="direct-reports">Reports Page</div></DormitoryLayout>);
+    expect(screen.getByTestId('direct-reports')).toBeInTheDocument();
+    unmountReports();
+
+    pathname = '/dormitory/violations';
+    const { unmount: unmountViolations } = render(<DormitoryLayout><div data-testid="direct-violations">Violations Page</div></DormitoryLayout>);
+    expect(screen.getByTestId('direct-violations')).toBeInTheDocument();
+    unmountViolations();
+
+    pathname = '/dormitory/maintenance';
+    render(<DormitoryLayout><div data-testid="direct-maintenance">Maintenance Page</div></DormitoryLayout>);
+    expect(screen.getByTestId('direct-maintenance')).toBeInTheDocument();
   });
 });
