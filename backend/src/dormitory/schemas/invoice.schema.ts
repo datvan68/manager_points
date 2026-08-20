@@ -131,7 +131,7 @@ export class Invoice {
   @Prop()
   payment_start_date?: Date;
 
-  @Prop({ required: true })
+  @Prop()
   due_date: Date;
 
   @Prop({ required: true, default: 0 })

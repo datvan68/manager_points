@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -29,6 +30,7 @@ import {
 import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
 import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
 import { randomUUID } from 'crypto';
+import { MeterReading, MeterReadingDocument } from '../schemas/meter-reading.schema';
 
 @Injectable()
 export class InvoicesService {
@@ -41,6 +43,8 @@ export class InvoicesService {
     private rosterModel: Model<DormitoryRosterEntryDocument>,
     @InjectModel(UtilityConfig.name)
     private utilityConfigModel: Model<UtilityConfigDocument>,
+    @Optional() @InjectModel(MeterReading.name)
+    private meterReadingModel?: Model<MeterReadingDocument>,
   ) {}
 
   /**
@@ -520,6 +524,10 @@ export class InvoicesService {
     if (invoice.status === 'Đã thu' || invoice.status === 'Đã thanh toán') {
       throw new BadRequestException('Hóa đơn đã được thanh toán');
     }
+    const config = await this.getUtilityConfig();
+    if (!config.payment_deadline || new Date(config.payment_deadline) < new Date()) {
+      throw new BadRequestException('Chưa cấu hình hạn thanh toán hợp lệ');
+    }
 
     const hasTransferProof = dto.payment_method === 'Chuyển khoản' && !!(dto.payment_proof || dto.proof_url);
     invoice.status = hasTransferProof ? 'Chưa thu' : 'Đã thu';
@@ -805,27 +813,27 @@ export class InvoicesService {
         .exec();
 
       // Hóa đơn gần nhất trước kỳ này
-      const lastInvoice = await this.invoiceModel
-        .findOne({
-          room_id: roomIdStr,
-          billing_month: { $ne: billingMonth },
-        })
-        .sort({ billing_month: -1, reading_date: -1, createdAt: -1 })
-        .exec();
+      const lastInvoice = this.meterReadingModel
+        ? await this.meterReadingModel.findOne({ room_id: roomIdStr, billing_month: { $lt: billingMonth } }).sort({ billing_month: -1 }).exec()
+        : await this.invoiceModel.findOne({ room_id: roomIdStr, billing_month: { $ne: billingMonth } }).sort({ billing_month: -1, reading_date: -1, createdAt: -1 }).exec();
 
       let previousElectricity = 0;
       let previousWater = 0;
 
       if (currentInvoice?.electricity?.previous_reading !== undefined) {
         previousElectricity = currentInvoice.electricity.previous_reading;
-      } else if (lastInvoice?.electricity?.current_reading !== undefined) {
-        previousElectricity = lastInvoice.electricity.current_reading;
+      } else if ((lastInvoice as any)?.electricity_reading !== undefined) {
+        previousElectricity = (lastInvoice as any).electricity_reading;
+      } else if ((lastInvoice as any)?.electricity?.current_reading !== undefined) {
+        previousElectricity = (lastInvoice as any).electricity.current_reading;
       }
 
       if (currentInvoice?.water?.previous_reading !== undefined) {
         previousWater = currentInvoice.water.previous_reading;
-      } else if (lastInvoice?.water?.current_reading !== undefined) {
-        previousWater = lastInvoice.water.current_reading;
+      } else if ((lastInvoice as any)?.water_reading !== undefined) {
+        previousWater = (lastInvoice as any).water_reading;
+      } else if ((lastInvoice as any)?.water?.current_reading !== undefined) {
+        previousWater = (lastInvoice as any).water.current_reading;
       }
 
       roomsData.push({
@@ -887,9 +895,8 @@ export class InvoicesService {
     }> = [];
 
     const now = new Date();
-    if (!config.payment_deadline) throw new BadRequestException('Chưa cấu hình Hạn thanh toán cho kỳ thu mới');
-    const dueDate = new Date(config.payment_deadline);
-    if (dueDate < now) throw new BadRequestException('Hạn thanh toán phải từ ngày bắt đầu thu trở đi');
+    const dueDate = config.payment_deadline && new Date(config.payment_deadline) >= now
+      ? new Date(config.payment_deadline) : undefined;
 
     for (const item of dto.readings || []) {
       try {
@@ -965,6 +972,14 @@ export class InvoicesService {
           );
         }
 
+        if (this.meterReadingModel) {
+          await this.meterReadingModel.findOneAndUpdate(
+            { room_id: item.room_id, billing_month: dto.billing_month },
+            { $set: { electricity_reading: currElec, water_reading: currWater, reading_date: now, occupant_count: occupantCount, roster_entry_ids: rosterEntryIds } },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+          ).exec();
+        }
+
         const isExempt = Boolean(item.is_exempt);
         const electricity = this.calculateUtility(
           occupantCount,
@@ -993,7 +1008,7 @@ export class InvoicesService {
         if (existingInvoice) {
           existingInvoice.reading_date = now;
           existingInvoice.payment_start_date = now;
-          existingInvoice.due_date = dueDate;
+          if (dueDate) existingInvoice.due_date = dueDate;
           existingInvoice.occupant_count = occupantCount;
           existingInvoice.roster_entry_ids = rosterEntryIds;
           existingInvoice.electricity = electricity;
@@ -1021,7 +1036,7 @@ export class InvoicesService {
             water,
             is_exempt: isExempt,
             payment_start_date: now,
-            due_date: dueDate,
+            ...(dueDate ? { due_date: dueDate } : {}),
             total_amount,
             status: 'Chưa thu',
             notes: item.notes,
@@ -1034,6 +1049,13 @@ export class InvoicesService {
           });
         }
       } catch (err: any) {
+        if (err?.code === 11000) {
+          const concurrentInvoice = await this.invoiceModel.findOne({ room_id: item.room_id, billing_month: dto.billing_month }).exec();
+          if (concurrentInvoice) {
+            results.push({ room_id: item.room_id, success: true, invoice: concurrentInvoice });
+            continue;
+          }
+        }
         results.push({
           room_id: item.room_id,
           success: false,

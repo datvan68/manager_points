@@ -17,6 +17,7 @@ import {
   UtilityConfig,
   UtilityConfigSchema,
 } from './schemas/utility-config.schema';
+import { MeterReading, MeterReadingSchema } from './schemas/meter-reading.schema';
 
 // Services
 import { BuildingsService } from './services/buildings.service';
@@ -73,6 +74,7 @@ import {
       { name: Contract.name, schema: ContractSchema },
       { name: Invoice.name, schema: InvoiceSchema },
       { name: UtilityConfig.name, schema: UtilityConfigSchema },
+      { name: MeterReading.name, schema: MeterReadingSchema },
       { name: Violation.name, schema: ViolationSchema },
       { name: MaintenanceRequest.name, schema: MaintenanceRequestSchema },
       { name: Student.name, schema: StudentSchema },

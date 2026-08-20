@@ -231,7 +231,12 @@ export default function InvoicesPage() {
     }
     try {
       setConfigSubmitting(true);
-      let nextConfig = configForm;
+      let nextConfig: UpdateUtilityConfigInput = {
+        ...configForm,
+        transfer_qr_image: configForm.transfer_qr_image
+          ? (({ url, file_name, mime_type, size }) => ({ url, file_name, mime_type, size }))(configForm.transfer_qr_image)
+          : undefined,
+      };
       if (configQrFile) {
         const uploadedQr = await dormitoryApi.invoices.uploadTransferQr(configQrFile);
         nextConfig = { ...configForm, transfer_qr_image: uploadedQr };
@@ -1885,14 +1890,24 @@ export default function InvoicesPage() {
                   <CalendarIcon size={14} className="text-[#64748B]" />
                   Hạn thanh toán <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
-                  aria-label="Hạn thanh toán"
-                  required
-                  value={configForm.payment_deadline || ''}
-                  onChange={(e) => setConfigForm((f) => ({ ...f, payment_deadline: e.target.value }))}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label="Chọn ngày thanh toán" className="flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-left text-sm text-[#1E293B]">
+                      <span>{configForm.payment_deadline ? formatDate(configForm.payment_deadline) : 'Chọn ngày'}</span><CalendarIcon size={14} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CustomCalendar
+                      startDate={configForm.payment_deadline ? new Date(`${configForm.payment_deadline}T00:00:00`) : null}
+                      endDate={null}
+                      minDate={new Date()}
+                      onRangeSelect={(start) => setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }))}
+                      onCancel={() => undefined}
+                      onConfirm={() => undefined}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <input aria-label="Hạn thanh toán" value={configForm.payment_deadline || ''} onChange={(e) => setConfigForm((f) => ({ ...f, payment_deadline: e.target.value }))} className="sr-only" />
               </div>
 
               <div className="space-y-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3.5">

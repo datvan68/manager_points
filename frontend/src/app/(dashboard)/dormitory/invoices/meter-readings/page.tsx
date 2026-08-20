@@ -62,6 +62,8 @@ export default function MeterReadingsPage() {
   const [cardsState, setCardsState] = useState<Record<string, CardState>>({});
 
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const inFlightSaves = useRef<Record<string, boolean>>({});
+  const pendingSaves = useRef<Record<string, { elec: number; water: number; isExempt?: boolean; notes?: string }>>({});
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -188,6 +190,11 @@ export default function MeterReadingsPage() {
     async (roomId: string, elec: number, water: number, isExempt?: boolean, notes?: string) => {
       const room = rooms.find((r) => r.room_id === roomId);
       if (!room) return;
+      if (inFlightSaves.current[roomId]) {
+        pendingSaves.current[roomId] = { elec, water, isExempt, notes };
+        return;
+      }
+      inFlightSaves.current[roomId] = true;
 
       try {
         setCardsState((prev) => ({
@@ -262,6 +269,13 @@ export default function MeterReadingsPage() {
             error: errorMsg,
           },
         }));
+      } finally {
+        inFlightSaves.current[roomId] = false;
+        const pending = pendingSaves.current[roomId];
+        delete pendingSaves.current[roomId];
+        if (pending) {
+          void triggerAutoSave(roomId, pending.elec, pending.water, pending.isExempt, pending.notes);
+        }
       }
     },
     [rooms, billingMonth],
