@@ -1,112 +1,109 @@
-# Taskscope: Stabilize dormitory utility configuration and meter readings
+# Taskscope: Restore pending review and eliminate multi-room meter duplicates
 
 ## Task Identity and Pipeline
 
-- Task: `dormitory-utility-config-and-meter-reading-stability`
+- Task: `dormitory-unapprove-and-meter-duplicate`
 - Pipeline: `bug_fix` / planning-only / Full
 - Repository: `D:\PROJECT\manager_points`
-- Base branch/commit: `main` / `b1af39159a08532f42436bab66de7dacee50ace8`
-- Rule manifest: canonical rules version `3.2.0`; SHA-256 values recorded under Artifacts and Checkpoints.
-- Status: ready for implementation approval; this document does not authorize implementation.
+- Base state: branch `main`, commit `3e62d329cbce40d2719c8bd8e1fc6d262af374c7`.
+- Status: ready for implementation approval; this taskscope does not authorize implementation or database mutation.
 
 ## Risk Level
 
 - Risk: high.
 - Environment: development.
-- Evidence: the change crosses the frontend and backend Dormitory modules and must preserve meter baselines independently from deletable invoices. Introducing a durable meter-reading record/index or backfill changes persistent schema/data and requires a Human Gate.
-- Blast radius: Dormitory invoice configuration, invoice payment availability, utility autosave, invoice deletion, and historical meter baselines. Existing paid invoices and unrelated invoice types must remain unchanged.
+- Evidence: the change crosses frontend/backend Dormitory behavior, includes concurrent writes to two uniquely indexed MongoDB collections, and may require live index reconciliation.
+- Reversibility: code/test changes are Git-reversible. Creating or dropping database indexes is persistent and gated.
+- Blast radius: transfer-proof review states and electricity/water saving for Dormitory invoices only.
 
 ## Objective
 
-Administrators can configure the invoice deadline with `CustomCalendar`, save an existing transfer QR without DTO validation failure, record each room's electricity/water readings exactly once without requiring a payment deadline, retain the last recorded baseline after an unpaid invoice is deleted, and expose invoice payment only when a valid deadline is configured.
+After an approved transfer proof is unapproved, it returns to `pending`/“Chờ duyệt” and can be reviewed again. Saving readings for two or more distinct rooms in the same billing month completes without an exposed duplicate-key error or lost latest reading.
 
 ## Scope Boundaries
 
-- Approved boundaries: `frontend/src/app/(dashboard)/dormitory/invoices/**`, `frontend/src/api/dormitory-api.ts`, `backend/src/dormitory/**`, and a narrowly scoped Dormitory migration/backfill script if the approved persistence design requires it.
-- Write boundaries:
-  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx`
+- Approved boundaries: `frontend/src/app/(dashboard)/dormitory/invoices/**`, `frontend/src/api/dormitory-api.ts`, `backend/src/dormitory/**`, `backend/scripts/*dormitory*meter*`, and the related backend package scripts.
+- Expected write paths:
+  - `backend/src/dormitory/services/invoices.service.ts`
+  - `backend/src/dormitory/services/invoices.service.spec.ts`
   - `frontend/src/app/(dashboard)/dormitory/invoices/page.test.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.tsx`
+  - `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.tsx` only if regression evidence proves a remaining client scheduling defect
   - `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx`
-  - `frontend/src/api/dormitory-api.ts`
-  - `backend/src/dormitory/dto/utility-config.dto.ts`
-  - `backend/src/dormitory/schemas/invoice.schema.ts` only if making pre-payment `due_date` optional is necessary
-  - new/updated Dormitory meter-reading schema, module registration, service, controller, and focused specs under `backend/src/dormitory/**`
-  - a new `backend/scripts/*dormitory*meter*` backfill/verification script only after the Human Gate
-- Known targets: `InvoicesPage.openConfigModal`, `InvoicesPage.handleSaveConfig`, the utility-config modal date field, `MeterReadingsPage.triggerAutoSave`, `handleInputChange`, `handleInputBlur`, `InvoicesService.getMeterReadings`, `saveBulkMeterReadings`, `pay`, `bulkDelete`, `UpdateUtilityConfigDto`, and the unique `{ room_id, billing_month }` invoice index.
-- Excluded boundaries: room deletion semantics, paid-invoice deletion rules, tariff formula/quota behavior, payment-proof review workflow, non-utility invoice types, deployment, and production execution.
+  - a guarded Dormitory meter/invoice index inspection-repair script under `backend/scripts/**` and `backend/package.json` if live index drift is confirmed
+- Known targets: `InvoicesService.reviewPaymentProof`, `saveBulkMeterReadings`, `MeterReadingsPage.triggerAutoSave`, the `MeterReading` and `Invoice` compound indexes, and focused page/service specs.
+- Excluded boundaries: proof upload rules, tariff calculations, room lifecycle, historical invoice deletion/backfill, deployment, non-Dormitory modules, and production/staging writes.
 
 ## Out of Scope
 
-- Changing electricity/water pricing formulas, roster occupancy rules, invoice statuses, or historical paid invoices.
-- Deleting or rewriting existing invoice history.
-- Deploying, executing a database migration, or mutating staging/production data.
-- Refactoring shared `CustomCalendar`; consume its current single-date API through the existing Popover pattern.
+- Changing the meaning of an explicit “Không duyệt” action; rejection attempts continue to leave the proof reviewable according to existing behavior.
+- Removing proofs or revocation audit metadata.
+- Changing pricing, payment deadlines, or invoice collection rules.
+- Running index repair against any database as part of planning or ungated implementation.
+- Deleting the unrelated untracked invoice-proof upload files present at preflight.
 
 ## Context and Dependencies
 
-- The configuration modal currently uses native `<input type="date">`; the repository already provides `frontend/src/components/calendar/CustomCalendar.tsx` and working single-date Popover examples.
-- `openConfigModal` stores the API's full `transfer_qr_image` in `configForm`. Saving without uploading a replacement sends server-owned `uploaded_at`; `TransferQrImageDto` does not allow that property, producing `transfer_qr_image.property uploaded_at should not exist` under whitelist validation.
-- Meter inputs schedule an 800 ms autosave and also save immediately on blur. Once a timer callback has started, blur can launch another request for the same room. Both requests can observe no current invoice and race to insert against the unique `{ room_id, billing_month }` index, leaking a duplicate-key failure.
-- `getMeterReadings` derives the previous baseline only from invoices. `bulkDelete` physically removes unpaid invoices, so deleting the only invoice that contains a reading also removes the baseline.
-- `saveBulkMeterReadings` currently throws before processing any room when `UtilityConfig.payment_deadline` is absent or expired, and writes that deadline into the invoice. This incorrectly couples meter capture to payment availability.
-- The invoice schema currently requires `due_date`; payment service and UI currently do not enforce the new rule that fee payment is closed until configuration supplies a valid deadline.
+- `reviewPaymentProof(..., 'revoked', ...)` currently writes `payment_review.status = 'rejected'` in both MongoDB and the returned invoice. The UI consequently renders a rejected state. Existing UI logic already renders “Chờ duyệt” and review actions when the API returns `pending`.
+- The meter page sends one POST per room. Different rooms can save concurrently; repeated requests for the same room are queued client-side.
+- The backend independently upserts `MeterReading` and then saves `Invoice`. Its catch block treats every MongoDB `E11000` as an invoice insert race, queries only `Invoice`, and may either expose the duplicate or return stale data as false success.
+- Source schemas declare the intended unique compound keys `{ room_id, billing_month }`. A repeatable failure starting with room 2 is therefore consistent with a stale live single-field unique index or malformed/duplicated room IDs; the actual `E11000.index` and `keyValue` must be captured before selecting an index repair.
+- Current service tests do not inject `meterReadingModel`, so the meter upsert path is untested. The frontend fixture covers only one room.
 
 ## Steps
 
-1. Backend owner: add focused regression tests reproducing concurrent same-room saves, baseline lookup after unpaid-invoice deletion, recording without a deadline, and backend payment rejection without a valid deadline.
-2. Persistence owner: introduce a canonical per-room/per-billing-month meter-reading record (unique key, readings, reading timestamp, room/roster snapshot linkage as needed). Make meter saving atomically upsert this record and derive prior readings from it rather than from deletable invoices. Keep invoice creation/update idempotent under concurrent requests and translate residual duplicate-key races into the existing successful record/update path.
-3. Persistence owner: define a dry-run backfill from existing utility invoices into the canonical meter-reading records, report conflicts without overwriting divergent readings, and execute it only after the Human Gate. Invoice deletion must not delete canonical meter readings.
-4. Backend owner: remove the deadline precondition from `saveBulkMeterReadings`. Permit a utility invoice to exist before collection opens; apply the configured deadline when collection becomes available and reject `pay` server-side when no valid deadline is configured. Preserve due dates already stored on historical invoices.
-5. Frontend owner: serialize/coalesce saves per room so debounce and blur cannot create overlapping requests; ensure the latest dirty values are saved after an in-flight request completes.
-6. Frontend owner: replace the configuration deadline input with `CustomCalendar` inside the established Popover pattern, keeping `YYYY-MM-DD` form state and an appropriate minimum date.
-7. Frontend owner: map API QR metadata to an explicit update payload containing only `url`, `file_name`, `mime_type`, and `size`; do not send `uploaded_at`. Disable or replace `Đóng ngay` with a clear configuration-required state until a valid deadline exists.
-8. Test/review owners: run focused frontend/backend suites, type checks, migration dry-run against fixtures or an approved development database, independently review persistence/concurrency/payment behavior, then inspect the final diff and status.
+1. Backend diagnosis owner: reproduce with two distinct room IDs in one billing month and record the redacted `E11000` collection, index name, key pattern, and `keyValue`. Add a default read-only index inspection command that compares live indexes with the named canonical compound indexes.
+2. Review-state owner: change the atomic revoke update and returned object to `payment_review.status = 'pending'`; keep the proof, set invoice status to `Chưa thu`, retain revoker ID/time, and clear `paid_at`/`confirmed_by_id`.
+3. Backend test owner: inject a meter-reading model into the service fixture. Cover two distinct rooms, same-room concurrent writes with different latest values, meter-index and invoice-index duplicate paths, and absence of partial/false-success results.
+4. Persistence owner: classify duplicate errors by collection/index. Retry only same-key races through an atomic update that persists the latest validated payload; do not convert unrelated unique-index failures into success. Ensure meter and invoice outcomes cannot be reported successful with divergent readings; use a supported transaction or an explicitly tested compensation/retry sequence compatible with the configured MongoDB topology.
+5. Index owner, conditional on Step 1: add a dry-run-first repair script that reports extra/missing/mismatched indexes and proposes only the exact Dormitory meter/invoice index changes. Add an execute mode only behind the Human Gate, with backup/rollback and a postcondition check.
+6. Frontend test owner: model two room cards blurred/saved in quick succession and rapid same-room edits. Assert distinct room payloads persist independently and the same-room queue sends the latest values. Change production scheduling only if this regression fails independently of backend/index behavior.
+7. Review/verification owners: verify the revoke state end-to-end in page/service tests, run focused meter tests and package static checks, independently review concurrency/index handling, then inspect final diff/status.
 
 ## Acceptance Criteria
 
-- AC-01: The configuration modal renders `CustomCalendar`, selects one date, stores it as local `YYYY-MM-DD`, closes correctly on confirm/cancel, and disallows invalid past deadlines according to the existing payment rule.
-- AC-02: Opening an existing configuration with a QR and saving it unchanged succeeds; the update request never contains `transfer_qr_image.uploaded_at`. Replacing the QR also succeeds with allowed metadata only.
-- AC-03: Debounce plus blur, rapid edits, or two concurrent API calls for one room/month produce one canonical meter record and one invoice, with no duplicate-key error exposed to the user and with the latest submitted valid readings persisted.
-- AC-04: After recording readings and deleting the related unpaid invoice, reopening the meter-reading page retains those readings as the prior/default baseline. A later period continues from that baseline. Paid-invoice deletion behavior is unchanged.
-- AC-05: Valid readings can be saved when `payment_deadline` is missing or expired; calculation, roster snapshot, and recorded status still succeed.
-- AC-06: Without a valid configured deadline, the frontend does not offer an actionable `Đóng ngay`, and direct payment API calls fail with a bounded business error while reading/editing remains available.
-- AC-07: After saving a valid deadline, eligible unpaid utility invoices expose payment; the backend applies a consistent effective due date without rewriting historical paid-invoice deadlines.
-- AC-08: Existing tariff calculation, empty-room handling, partial bulk failures, paid-invoice edit protection, QR file restrictions, and payment-proof review tests remain green.
-- AC-09: Backfill dry-run is idempotent, reports counts/conflicts, and does not mutate data; execution is separately gated and preserves invoice history.
+- AC-01: Revoking an approved proof atomically stores and returns `payment_review.status = 'pending'`, invoice status `Chưa thu`, revoker audit fields, and no paid confirmation fields.
+- AC-02: After revoke, the invoice modal displays “Chờ duyệt” and offers the normal review actions again; it does not display a rejected terminal state.
+- AC-03: Explicit “Không duyệt” behavior and its audit attempt remain unchanged.
+- AC-04: Two distinct valid rooms saved in the same month create/update distinct canonical meter readings and invoices without `E11000` reaching the user.
+- AC-05: Concurrent or rapidly repeated saves for one room/month end with the latest valid submitted readings in both meter and invoice records; no stale invoice is returned as successful.
+- AC-06: A duplicate from an unrelated or stale index is reported with a bounded diagnostic and is never misclassified as a successful invoice race.
+- AC-07: Service tests execute the real meter-model branch and frontend tests cover at least two distinct rooms plus same-room coalescing.
+- AC-08: Index inspection is read-only and deterministic. If repair is required, execution changes only reviewed Dormitory indexes and passes postcondition checks after explicit approval.
+- AC-09: Existing proof-review, paid-invoice protection, tariff, partial-result, and single-room save tests remain green.
 
 ## Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/page.test.tsx" "src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx"` => all focused UI regressions pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors introduced.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/invoices.service.spec.ts dormitory/controllers/invoices.controller.spec.ts` => concurrency, persistence, deadline, DTO, and existing Dormitory invoice regressions pass.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/invoices.service.spec.ts dormitory/controllers/invoices.controller.spec.ts` => review transitions, multi-room writes, duplicate classification, latest-write, and existing regressions pass.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => Nest build succeeds.
-- `D:\PROJECT\manager_points\backend` :: approved migration dry-run command defined by the implementation => zero writes; deterministic created/skipped/conflict counts.
-- `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended paths.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/page.test.tsx" "src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx"` => revoke UI and two-room/same-room save regressions pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors introduced.
+- `D:\PROJECT\manager_points\backend` :: new index inspection script in default dry-run mode => zero writes and an exact expected-versus-live index report.
+- `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended changed paths; unrelated upload files remain untouched.
 
 ## Safety Gates
 
-- Gate trigger: adding/indexing the canonical meter-reading collection and backfilling persistent data.
-- Required artifact: reviewed schema/index diff, dry-run report with redacted counts/conflicts, exact execute command/environment, backup/rollback procedure, and final verification plan.
-- Approval: explicit user approval is required before schema/index application or backfill execution in any database. Planning and code generation alone do not grant execution authority.
-- Rollback: retain invoice data as the source history; remove only newly backfilled meter records by a bounded migration marker if rollback is approved. Never delete invoice history.
-- Resume point: after code/tests/build and dry-run artifact pass; before any database write.
+- Trigger: executing any database index create/drop/rename/rebuild or other persistent-data mutation.
+- Required artifact: redacted `E11000` evidence, live-versus-canonical index report, reviewed exact index operations/environment, backup confirmation, rollback command, and postcondition plan.
+- Approval: explicit user approval is required immediately before execution in the named database environment. Dry-run and code generation do not grant execution authority.
+- Rollback: recreate only the recorded pre-change index definitions; do not delete invoice or meter-reading documents.
+- Resume point: after code/tests/build, dry-run, and independent review pass; before the first database write.
 
 ## Artifacts and Checkpoints
 
 - Task artifact: `docs/taskscope.md`.
-- Base commit: `b1af39159a08532f42436bab66de7dacee50ace8`.
-- Rule hashes:
-  - `.agents/Rules/safety.md`: `6a3f283b835394b1af1f6380d94cba260acbed8a60d3065dd5365bb15806a772`
-  - `.agents/Rules/global.md`: `67806f70a5f89adf42e3be88413cc76cc27a02c90fad0609ae71de34d046a43f`
-  - `antigravity-operating-contract.md`: `51f3677c7e44121529cc0a4b17e5667bcbd2147ee63c6f30207c10d5deb51790`
-  - `.agents/Workflows/orchestrator.md`: `b782109e896b2fa48a6523358a788a9db9b81b72f3d8fc66f70019395738d716`
-  - `.agents/Workflows/pipeline.md`: `0419c072380887f96b37fe4eb48dae764306f46fb03190b176a43ebcea3f41f3`
-- Material implementation checkpoint: after focused tests/build and migration dry-run artifacts are complete, before requesting the Human Gate.
+- Base commit: `3e62d329cbce40d2719c8bd8e1fc6d262af374c7`.
+- Preflight unrelated files: `backend/uploads/invoice-proof-11d635af-2354-472d-8b35-4346790c2672.jpg` and `backend/uploads/invoice-proof-d7ad5f32-4d33-4e53-80ba-a148dba8721d.jpg`; preserve unchanged.
+- Rule manifest version `3.2.0`; SHA-256:
+  - safety: `6a3f283b835394b1af1f6380d94cba260acbed8a60d3065dd5365bb15806a772`
+  - global: `67806f70a5f89adf42e3be88413cc76cc27a02c90fad0609ae71de34d046a43f`
+  - operating contract: `51f3677c7e44121529cc0a4b17e5667bcbd2147ee63c6f30207c10d5deb51790`
+  - orchestrator: `b782109e896b2fa48a6523358a788a9db9b81b72f3d8fc66f70019395738d716`
+  - pipeline: `0419c072380887f96b37fe4eb48dae764306f46fb03190b176a43ebcea3f41f3`
+- Material checkpoint: reviewed dry-run/index evidence and green code checks, immediately before the Human Gate.
 
 ## Execution Budgets
 
 - Step deadline: 600 seconds default, 1,800 seconds maximum.
-- Concurrency: at most four active agents; one writer per path; serialize schema/service edits and frontend page/test edits by ownership.
+- Concurrency: at most four active agents; one writer per path; serialize service/spec and page/test ownership.
 - Retry limits: two idempotent retries, three engineering mutation/verification iterations, and two review-remediation cycles shared across the task.
-- Stop conditions: overlapping dirty changes, scope expansion outside Dormitory, a divergent backfill conflict requiring product policy, a public contract change, or any unapproved persistent-data mutation.
+- Stop conditions: unidentified duplicate source, conflicting live index evidence, unsupported transaction topology without a tested alternative, overlapping dirty changes, scope expansion, or any unapproved database mutation.

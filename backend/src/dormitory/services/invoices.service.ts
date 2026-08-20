@@ -625,10 +625,10 @@ export class InvoicesService {
       const revokerId = user._id || user.userId;
       const updateResult = await this.invoiceModel.updateOne(
         { _id: id, payment_method: 'Chuyển khoản', 'payment_review.status': 'approved', status: 'Đã thu', payment_proof: { $exists: true } },
-        { $set: { 'payment_review.status': 'rejected', 'payment_review.revoked_by_id': revokerId, 'payment_review.revoked_at': now, status: 'Chưa thu' }, $unset: { paid_at: 1, confirmed_by_id: 1 } },
+        { $set: { 'payment_review.status': 'pending', 'payment_review.revoked_by_id': revokerId, 'payment_review.revoked_at': now, status: 'Chưa thu' }, $unset: { paid_at: 1, confirmed_by_id: 1 } },
       ).exec();
       if (updateResult.modifiedCount !== 1) throw new BadRequestException('Chứng từ không ở trạng thái đã duyệt');
-      invoice.payment_review = { ...invoice.payment_review, status: 'rejected', revoked_by_id: revokerId, revoked_at: now };
+      invoice.payment_review = { ...invoice.payment_review, status: 'pending', revoked_by_id: revokerId, revoked_at: now };
       invoice.status = 'Chưa thu';
       invoice.paid_at = undefined;
       invoice.confirmed_by_id = undefined;
@@ -899,6 +899,13 @@ export class InvoicesService {
       ? new Date(config.payment_deadline) : undefined;
 
     for (const item of dto.readings || []) {
+      let meterPayload: {
+        electricity_reading: number;
+        water_reading: number;
+        reading_date: Date;
+        occupant_count: number;
+        roster_entry_ids: any[];
+      } | undefined;
       try {
         if (!Types.ObjectId.isValid(item.room_id)) {
           throw new BadRequestException('Mã phòng không hợp lệ');
@@ -972,10 +979,11 @@ export class InvoicesService {
           );
         }
 
+        meterPayload = { electricity_reading: currElec, water_reading: currWater, reading_date: now, occupant_count: occupantCount, roster_entry_ids: rosterEntryIds };
         if (this.meterReadingModel) {
           await this.meterReadingModel.findOneAndUpdate(
             { room_id: item.room_id, billing_month: dto.billing_month },
-            { $set: { electricity_reading: currElec, water_reading: currWater, reading_date: now, occupant_count: occupantCount, roster_entry_ids: rosterEntryIds } },
+            { $set: meterPayload },
             { upsert: true, new: true, setDefaultsOnInsert: true },
           ).exec();
         }
@@ -1049,10 +1057,33 @@ export class InvoicesService {
           });
         }
       } catch (err: any) {
-        if (err?.code === 11000) {
+        if (err?.code === 11000 && this.isCanonicalDuplicate(err, 'meter')) {
+          try {
+            if (!this.meterReadingModel || !meterPayload) throw err;
+            await this.meterReadingModel.findOneAndUpdate(
+              { room_id: item.room_id, billing_month: dto.billing_month },
+              { $set: meterPayload },
+              { upsert: true, new: true, setDefaultsOnInsert: true },
+            ).exec();
+          } catch (retryError: any) {
+            err = retryError;
+          }
+        } else if (err?.code === 11000 && this.isCanonicalDuplicate(err, 'invoice')) {
           const concurrentInvoice = await this.invoiceModel.findOne({ room_id: item.room_id, billing_month: dto.billing_month }).exec();
-          if (concurrentInvoice) {
-            results.push({ room_id: item.room_id, success: true, invoice: concurrentInvoice });
+          if (concurrentInvoice && meterPayload) {
+            concurrentInvoice.reading_date = meterPayload.reading_date;
+            concurrentInvoice.occupant_count = meterPayload.occupant_count;
+            concurrentInvoice.roster_entry_ids = meterPayload.roster_entry_ids;
+            concurrentInvoice.electricity = {
+              ...(concurrentInvoice.electricity || {}),
+              current_reading: meterPayload.electricity_reading,
+            } as any;
+            concurrentInvoice.water = {
+              ...(concurrentInvoice.water || {}),
+              current_reading: meterPayload.water_reading,
+            } as any;
+            const saved = await concurrentInvoice.save();
+            results.push({ room_id: item.room_id, success: true, invoice: saved });
             continue;
           }
         }
@@ -1065,6 +1096,16 @@ export class InvoicesService {
     }
 
     return { results };
+  }
+
+  private isCanonicalDuplicate(error: any, collection: 'meter' | 'invoice') {
+    const text = [error?.collection, error?.modelName, error?.index, error?.keyPattern, error?.message]
+      .filter(Boolean).join(' ').toLowerCase();
+    const hasCanonicalKey = text.includes('room_id') && text.includes('billing_month');
+    const hasCollection = collection === 'meter'
+      ? /meter(reading)?/.test(text)
+      : /invoice/.test(text);
+    return hasCanonicalKey && (hasCollection || !error?.collection && !error?.modelName && !error?.index);
   }
 
   /**

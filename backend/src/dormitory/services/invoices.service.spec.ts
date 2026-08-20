@@ -35,7 +35,7 @@ describe('InvoicesService', () => {
     { _id: 'roster-2', room_id: roomId, full_name: 'Trần Thị B' },
   ];
 
-  function setup() {
+  function setup(withMeter = false) {
     const saved = jest.fn().mockImplementation(async function (this: any) {
       return {
         ...this,
@@ -61,6 +61,10 @@ describe('InvoicesService', () => {
     invoiceModel.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
     invoiceModel.updateOne = jest.fn(() => query({ modifiedCount: 1 }));
     invoiceModel.deleteMany = jest.fn(() => query({ deletedCount: 1 }));
+
+    const meterReadingModel: any = jest.fn().mockImplementation((value: any) => ({ ...value }));
+    meterReadingModel.findOne = jest.fn(() => query(null));
+    meterReadingModel.findOneAndUpdate = jest.fn(() => query({}));
 
     const contractModel: any = {
       find: jest.fn(() => query([])),
@@ -101,6 +105,7 @@ describe('InvoicesService', () => {
       roomModel,
       rosterModel,
       utilityConfigModel,
+      withMeter ? meterReadingModel : undefined,
     );
 
     return {
@@ -111,6 +116,7 @@ describe('InvoicesService', () => {
       rosterModel,
       contractModel,
       utilityConfigModel,
+      meterReadingModel,
       configDoc,
     };
   }
@@ -609,7 +615,7 @@ describe('InvoicesService', () => {
 
       const result = await service.reviewPaymentProof('inv-1', 'revoked', { userId: 'admin-2' });
       expect(result.status).toBe('Chưa thu');
-      expect(result.payment_review?.status).toBe('rejected');
+      expect(result.payment_review?.status).toBe('pending');
       expect(result.payment_review?.revoked_by_id).toBe('admin-2');
       expect(result.payment_review?.revoked_at).toBeDefined();
       expect(result.confirmed_by_id).toBeUndefined();
@@ -804,7 +810,7 @@ describe('InvoicesService', () => {
 
   describe('saveBulkMeterReadings (AC-03, AC-04, AC-05, AC-06, AC-07)', () => {
     it('saves valid readings, snapshots config & roster, and calculates server dates (AC-04, AC-05)', async () => {
-      const { service, saved, invoiceModel } = setup();
+      const { service, saved, invoiceModel } = setup(true);
       // No existing invoice in this month
       invoiceModel.findOne.mockReturnValueOnce(query(null));
       // Previous invoice
@@ -838,7 +844,7 @@ describe('InvoicesService', () => {
     });
 
     it('saves readings for empty room with 0 occupants and charges full consumption (AC-07)', async () => {
-      const { service, saved, invoiceModel, rosterModel, roomModel } = setup();
+      const { service, saved, invoiceModel, rosterModel, roomModel } = setup(true);
       const emptyRoomId = '507f1f77bcf86cd799439022';
       const emptyRoom = {
         _id: emptyRoomId,
@@ -881,7 +887,7 @@ describe('InvoicesService', () => {
     });
 
     it('handles partial failures without failing other valid rooms (AC-06)', async () => {
-      const { service, invoiceModel } = setup();
+      const { service, invoiceModel } = setup(true);
       // First room: no invoice, previous 100
       invoiceModel.findOne.mockReturnValueOnce(query(null));
       invoiceModel.findOne.mockReturnValueOnce(
@@ -925,7 +931,7 @@ describe('InvoicesService', () => {
     });
 
     it('rejects modifying paid invoices (AC-07)', async () => {
-      const { service, invoiceModel } = setup();
+      const { service, invoiceModel } = setup(true);
       invoiceModel.findOne.mockReturnValue(
         query({
           _id: 'paid-inv',

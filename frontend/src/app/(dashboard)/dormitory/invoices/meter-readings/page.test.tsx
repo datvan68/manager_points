@@ -116,4 +116,37 @@ describe('Dormitory Meter Readings Page (AC-10)', () => {
     expect(mainEl?.className).toContain('sm:p-6');
     expect(mainEl?.className).toContain('overflow-y-auto');
   });
+
+  it('saves two room cards independently when both are blurred quickly', async () => {
+    const secondRoom = {
+      ...mockMeterReadingsData.rooms[0],
+      room_id: 'room-2',
+      room: { ...mockMeterReadingsData.rooms[0].room, _id: 'room-2', room_code: 'P102', room_name: 'Phòng 102' },
+    };
+    (dormitoryApi.invoices.getMeterReadings as any).mockResolvedValue({
+      ...mockMeterReadingsData,
+      rooms: [mockMeterReadingsData.rooms[0], secondRoom],
+    });
+    (dormitoryApi.invoices.saveBulkMeterReadings as any).mockImplementation(async (payload: any) => ({
+      results: [{ room_id: payload.readings[0].room_id, success: true, invoice: { _id: `inv-${payload.readings[0].room_id}`, status: 'Chưa thu' } }],
+    }));
+
+    render(<MeterReadingsPage />);
+    await waitFor(() => expect(screen.getByText('Phòng 102')).toBeDefined());
+
+    const electricityInputs = screen.getAllByLabelText(/Số điện mới/i);
+    const waterInputs = screen.getAllByLabelText(/Số nước mới/i);
+    fireEvent.change(electricityInputs[0], { target: { value: '161' } });
+    fireEvent.change(waterInputs[0], { target: { value: '21' } });
+    fireEvent.blur(waterInputs[0]);
+    fireEvent.change(electricityInputs[1], { target: { value: '171' } });
+    fireEvent.change(waterInputs[1], { target: { value: '31' } });
+    fireEvent.blur(waterInputs[1]);
+
+    await waitFor(() => expect(dormitoryApi.invoices.saveBulkMeterReadings).toHaveBeenCalledTimes(2));
+    const payloads = (dormitoryApi.invoices.saveBulkMeterReadings as any).mock.calls.map((call: any[]) => call[0]);
+    expect(payloads.map((payload: any) => payload.readings[0].room_id).sort()).toEqual(['room-1', 'room-2']);
+    expect(payloads.find((payload: any) => payload.readings[0].room_id === 'room-1').readings[0].electricity_reading).toBe(161);
+    expect(payloads.find((payload: any) => payload.readings[0].room_id === 'room-2').readings[0].electricity_reading).toBe(171);
+  });
 });
