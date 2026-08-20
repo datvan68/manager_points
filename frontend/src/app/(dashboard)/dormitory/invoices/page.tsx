@@ -5,32 +5,28 @@ import { useRouter } from 'next/navigation';
 import {
   Search,
   CheckCircle,
-  Plus,
   SlidersHorizontal,
   FileText,
   X,
   Upload,
-  AlertCircle,
   Eye,
   Zap,
   Droplets,
   Calendar as CalendarIcon,
-  Users,
   DollarSign,
-  Settings,
-  LayoutGrid,
-  LayoutList,
+  Download,
   RefreshCw,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import {
   dormitoryApi,
   DormInvoice,
   Room,
   CreateMonthlyInvoiceInput,
   UpdateMonthlyInvoiceInput,
-  UtilityConfig,
   UpdateUtilityConfigInput,
 } from '@/api/dormitory-api';
+import { API_ORIGIN } from '@/api/config';
 import { toast } from 'sonner';
 import { CustomPagination } from '@/components/ui/pagination';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
@@ -38,21 +34,37 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Research } from '@/components/ui/Research';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
+
+// Helper tạo URL ảnh đầy đủ cho frontend
+export function getImageUrl(url?: string): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 // Helper format tiền tệ
-function formatMoney(amount?: number): string {
+export function formatMoney(amount?: number): string {
   if (amount === undefined || amount === null || isNaN(amount)) return '0đ';
   return `${Number(amount).toLocaleString('vi-VN')}đ`;
 }
 
 // Helper format kỳ thu
-function formatBillingMonth(billingMonth?: string, billingPeriod?: string): string {
+export function formatBillingMonth(billingMonth?: string, billingPeriod?: string): string {
   if (billingMonth && /^\d{4}-\d{2}$/.test(billingMonth)) {
     const [year, month] = billingMonth.split('-');
     return `${month}/${year}`;
@@ -65,8 +77,28 @@ function formatBillingMonth(billingMonth?: string, billingPeriod?: string): stri
   return '—';
 }
 
+// Helper format khoảng thời gian kỳ thu
+export function getMonthPeriodRange(billingMonth?: string, billingPeriod?: string): string {
+  let year = new Date().getFullYear();
+  let month = new Date().getMonth() + 1;
+  if (billingMonth && /^\d{4}-\d{2}$/.test(billingMonth)) {
+    const parts = billingMonth.split('-');
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+  } else if (billingPeriod) {
+    const match = /^T(\d{2})\/(\d{4})$/.exec(billingPeriod);
+    if (match) {
+      month = parseInt(match[1], 10);
+      year = parseInt(match[2], 10);
+    }
+  }
+  const lastDay = new Date(year, month, 0).getDate();
+  const mStr = String(month).padStart(2, '0');
+  return `01/${mStr} - ${lastDay}/${mStr}/${year}`;
+}
+
 // Helper format ngày
-function formatDate(dateStr?: string | Date): string {
+export function formatDate(dateStr?: string | Date): string {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
@@ -78,7 +110,7 @@ function formatDate(dateStr?: string | Date): string {
 }
 
 // Helper chuyển Date sang YYYY-MM-DD
-function toDateValue(date: Date | null | string): string {
+export function toDateValue(date: Date | null | string): string {
   if (!date) return '';
   if (typeof date === 'string') return date;
   const year = date.getFullYear();
@@ -88,7 +120,7 @@ function toDateValue(date: Date | null | string): string {
 }
 
 // Chuẩn hóa trạng thái hiển thị (chỉ có Chưa thu hoặc Đã thu)
-function getDisplayStatus(status?: string): 'Chưa thu' | 'Đã thu' {
+export function getDisplayStatus(status?: string): 'Chưa thu' | 'Đã thu' {
   if (status === 'Đã thu' || status === 'Đã thanh toán') return 'Đã thu';
   return 'Chưa thu';
 }
@@ -245,6 +277,9 @@ export default function InvoicesPage() {
   const [updateProofSubmitting, setUpdateProofSubmitting] = useState(false);
   const updateProofInputRef = useRef<HTMLInputElement>(null);
 
+  // QR Code Data URL cho modal thanh toán/kiểm tra
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
   // Load danh sách phòng
   useEffect(() => {
     dormitoryApi.rooms
@@ -254,30 +289,76 @@ export default function InvoicesPage() {
   }, []);
 
   // Load danh sách hóa đơn
-  const load = useCallback(async (background = false) => {
-    try {
-      if (background) setRefreshing(true);
-      else setLoading(true);
-      const params: any = { page, limit: pageSize };
-      if (filterStatus === 'Chưa thu') params.status = 'Chưa thu';
-      else if (filterStatus === 'Đã thu') params.status = 'Đã thu';
-      if (filterMonth) params.billing_month = filterMonth;
-      if (search) params.search = search;
+  const load = useCallback(
+    async (background = false) => {
+      try {
+        if (background) setRefreshing(true);
+        else setLoading(true);
+        const params: any = { page, limit: pageSize };
+        if (filterStatus === 'Chưa thu') params.status = 'Chưa thu';
+        else if (filterStatus === 'Đã thu') params.status = 'Đã thu';
+        if (filterMonth) params.billing_month = filterMonth;
+        if (search) params.search = search;
 
-      const res = await dormitoryApi.invoices.getAll(params);
-      setInvoices(res.data || []);
-      setMeta(res.meta);
-    } catch (err: any) {
-      toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [filterStatus, filterMonth, search, page, pageSize]);
+        const res = await dormitoryApi.invoices.getAll(params);
+        setInvoices(res.data || []);
+        setMeta(res.meta);
+      } catch (err: any) {
+        toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [filterStatus, filterMonth, search, page, pageSize],
+  );
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Tạo QR Code cho modal active
+  useEffect(() => {
+    const activeInvoice = payingInvoice || viewingInvoice;
+    if (!activeInvoice) {
+      setQrCodeDataUrl('');
+      return;
+    }
+    const roomName =
+      typeof activeInvoice.room_id === 'object' && activeInvoice.room_id
+        ? activeInvoice.room_id.room_name || activeInvoice.room_id.room_code
+        : 'KTX';
+    const amount = activeInvoice.total_amount || 0;
+    const month = formatBillingMonth(activeInvoice.billing_month, activeInvoice.billing_period);
+    const invoiceCode = activeInvoice.invoice_code || activeInvoice._id;
+
+    const qrPayload = `STK: 1234567890 | Ngan hang: MBBank | ND: KTX ${roomName} T${month.replace('/', '')} ${invoiceCode} | So tien: ${amount}`;
+    QRCode.toDataURL(qrPayload, {
+      width: 280,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.error('QR render error:', err));
+  }, [payingInvoice, viewingInvoice]);
+
+  const handleDownloadQr = (invoice: DormInvoice) => {
+    if (!qrCodeDataUrl) return;
+    const roomName =
+      typeof invoice.room_id === 'object' && invoice.room_id
+        ? invoice.room_id.room_name || invoice.room_id.room_code
+        : 'KTX';
+    const month = formatBillingMonth(invoice.billing_month, invoice.billing_period).replace('/', '-');
+    const a = document.createElement('a');
+    a.href = qrCodeDataUrl;
+    a.download = `Hoa_don_${roomName}_${month}.png`;
+    a.click();
+    toast.success('Đã tải mã QR hóa đơn');
+  };
 
   // Tính toán xem trước ở client cho Modal Nâng cao
   const previewCalc = useMemo(() => {
@@ -580,6 +661,118 @@ export default function InvoicesPage() {
     }
   }
 
+  // Khai báo các cột cho ResponsiveDataView (đồng bộ theo phong cách trang Phòng)
+  const columns: ResponsiveColumn<DormInvoice>[] = useMemo(
+    () => [
+      {
+        key: 'room_id',
+        header: 'Phòng',
+        priority: 'primary',
+        render: (_, inv) => {
+          const roomName =
+            typeof inv.room_id === 'object' && inv.room_id
+              ? inv.room_id.room_name || inv.room_id.room_code || 'Phòng'
+              : '—';
+          return <span className="font-semibold text-[#1E293B]">{roomName}</span>;
+        },
+      },
+      {
+        key: 'billing_month',
+        header: 'Kỳ thu',
+        priority: 'secondary',
+        render: (_, inv) => (
+          <span className="text-[#1E293B] font-medium">
+            {formatBillingMonth(inv.billing_month, inv.billing_period)}
+          </span>
+        ),
+      },
+      {
+        key: 'electricity',
+        header: 'Tiền điện',
+        className: 'text-right',
+        render: (_, inv) => (
+          <span className="text-right text-[#1E293B] font-medium block">
+            {formatMoney(inv.electricity?.amount)}
+          </span>
+        ),
+      },
+      {
+        key: 'water',
+        header: 'Tiền nước',
+        className: 'text-right',
+        render: (_, inv) => (
+          <span className="text-right text-[#1E293B] font-medium block">
+            {formatMoney(inv.water?.amount)}
+          </span>
+        ),
+      },
+      {
+        key: 'total_amount',
+        header: 'Tổng tiền',
+        className: 'text-right',
+        render: (_, inv) => (
+          <div className="text-right">
+            <div className="font-bold text-[#1A73E8]">{formatMoney(inv.total_amount)}</div>
+            {inv.is_exempt && (
+              <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg inline-block mt-0.5 border border-amber-500/20">
+                Miễn thu
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Trạng thái',
+        className: 'text-center',
+        render: (_, inv) => {
+          const displayStatus = getDisplayStatus(inv.status);
+          return displayStatus === 'Đã thu' ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
+              <CheckCircle size={13} />
+              Đã thu
+            </span>
+          ) : (
+            <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
+              Chưa thu
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        header: 'Thao tác',
+        priority: 'action',
+        className: 'text-right',
+        render: (_, inv) => {
+          const displayStatus = getDisplayStatus(inv.status);
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {displayStatus === 'Chưa thu' ? (
+                <button
+                  onClick={() => openPayModal(inv)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
+                  title="Đóng tiền ngay"
+                >
+                  <CheckCircle size={14} /> Đóng ngay
+                </button>
+              ) : (
+                <button
+                  onClick={() => openProofModal(inv)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                  title="Kiểm tra chứng từ thanh toán"
+                >
+                  <Eye size={14} /> Kiểm tra
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   return (
     <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
       {/* Toolbar theo phong cách của trang Phòng */}
@@ -670,34 +863,6 @@ export default function InvoicesPage() {
           </Select>
         </div>
 
-        {/* Toggle Chế độ xem Table / Cards */}
-        <div className="flex items-center h-9 p-0.5 rounded-xl border border-white/80 bg-white/50 shadow-2xs shrink-0">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-1 rounded-lg transition-all duration-150 cursor-pointer ${
-              viewMode === 'table'
-                ? 'bg-[#1A73E8] text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-            title="Xem dạng bảng"
-            aria-label="Xem dạng bảng"
-          >
-            <LayoutList size={15} />
-          </button>
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`p-1 rounded-lg transition-all duration-150 cursor-pointer ${
-              viewMode === 'cards'
-                ? 'bg-[#1A73E8] text-white shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-            title="Xem dạng thẻ"
-            aria-label="Xem dạng thẻ"
-          >
-            <LayoutGrid size={15} />
-          </button>
-        </div>
-
         {/* Cụm nút thao tác bên phải */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* Nút Cấu hình định mức & đơn giá */}
@@ -736,145 +901,20 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Hiển thị Dạng Bảng hoặc Dạng Thẻ */}
-      {viewMode === 'cards' ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {loading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-white/75 bg-white/45 p-5 shadow-sm shadow-slate-300/30 backdrop-blur-md animate-pulse space-y-3"
-                >
-                  <div className="h-5 bg-slate-200/60 rounded-xl w-1/3" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="h-16 bg-slate-100/70 rounded-xl" />
-                    <div className="h-16 bg-slate-100/70 rounded-xl" />
-                  </div>
-                  <div className="h-8 bg-slate-200/50 rounded-xl" />
-                </div>
-              ))
-            ) : invoices.length === 0 ? (
-              <div className="col-span-full rounded-2xl border border-white/75 bg-white/45 p-12 text-center text-[#64748B] shadow-sm shadow-slate-300/30 backdrop-blur-md">
-                <FileText size={36} className="mx-auto mb-2 opacity-40" />
-                Không có hóa đơn nào phù hợp
-              </div>
-            ) : (
-              invoices.map((inv) => {
-                const displayStatus = getDisplayStatus(inv.status);
-                const roomName =
-                  typeof inv.room_id === 'object' && inv.room_id
-                    ? inv.room_id.room_name || inv.room_id.room_code || 'Phòng'
-                    : '—';
-
-                const elecAmount = inv.electricity?.amount ?? 0;
-                const waterAmount = inv.water?.amount ?? 0;
-
-                return (
-                  <div
-                    key={inv._id}
-                    className="rounded-2xl border border-white/75 bg-white/50 backdrop-blur-md p-4 sm:p-5 shadow-sm shadow-slate-300/30 flex flex-col justify-between gap-3.5 transition-all duration-150 hover:bg-white/65 hover:scale-[1.01]"
-                  >
-                    {/* Card Header */}
-                    <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-white/60">
-                      <div>
-                        <div className="font-bold text-base text-[#1E293B]">{roomName}</div>
-                      </div>
-                      <div>
-                        {displayStatus === 'Đã thu' ? (
-                          <button
-                            onClick={() => openProofModal(inv)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-150 cursor-pointer shadow-2xs"
-                            title="Bấm để xem ảnh chứng từ chuyển khoản"
-                          >
-                            <CheckCircle size={13} />
-                            Đã thu
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
-                            Chưa thu
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex items-center justify-between text-[#64748B] font-medium bg-slate-500/5 px-2.5 py-1.5 rounded-xl border border-slate-500/10">
-                        <span className="flex items-center gap-1.5">
-                          <CalendarIcon size={14} className="text-[#1A73E8]" /> Kỳ thu:
-                        </span>
-                        <span className="font-semibold text-[#1E293B]">
-                          {formatBillingMonth(inv.billing_month, inv.billing_period)}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* Điện */}
-                        <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-2.5 space-y-1">
-                          <div className="flex items-center gap-1 font-semibold text-amber-800 text-[11px]">
-                            <Zap size={13} className="text-amber-600" /> Tiền điện
-                          </div>
-                          <div className="font-bold text-[#1E293B] text-sm">
-                            {formatMoney(elecAmount)}
-                          </div>
-                        </div>
-
-                        {/* Nước */}
-                        <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-2.5 space-y-1">
-                          <div className="flex items-center gap-1 font-semibold text-sky-800 text-[11px]">
-                            <Droplets size={13} className="text-sky-600" /> Tiền nước
-                          </div>
-                          <div className="font-bold text-[#1E293B] text-sm">
-                            {formatMoney(waterAmount)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Tổng tiền */}
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs font-semibold text-[#64748B]">Tổng tiền:</span>
-                        <div className="text-right">
-                          <div className="text-base font-extrabold text-[#1A73E8]">
-                            {formatMoney(inv.total_amount)}
-                          </div>
-                          {inv.is_exempt && (
-                            <span className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block">
-                              Miễn thu
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card Footer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-white/60">
-                      {displayStatus === 'Chưa thu' ? (
-                        <button
-                          onClick={() => openPayModal(inv)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
-                          title="Đóng tiền ngay"
-                        >
-                          <CheckCircle size={14} /> Đóng ngay
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => openProofModal(inv)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
-                          title="Kiểm tra chứng từ thanh toán"
-                        >
-                          <Eye size={14} /> Kiểm tra
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Pagination cho Card View */}
-          <div className="rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md shadow-sm shadow-slate-300/30 overflow-hidden">
+      {/* Responsive Data View kiểu Table của Phòng */}
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
+        <ResponsiveDataView
+          data={invoices}
+          columns={columns}
+          isLoading={loading}
+          keyExtractor={(inv) => inv._id}
+          emptyState={
+            <div className="p-8 text-center text-sm text-slate-500">
+              <FileText size={36} className="mx-auto mb-2 opacity-40" />
+              Không có hóa đơn nào phù hợp
+            </div>
+          }
+          pagination={
             <CustomPagination
               totalItems={meta?.total ?? invoices.length}
               pageSize={pageSize}
@@ -888,330 +928,929 @@ export default function InvoicesPage() {
               isLoading={loading}
               label="hóa đơn"
             />
-          </div>
-        </div>
-      ) : (
-        /* Bảng hiển thị 7 cột chuẩn kèm CustomPagination */
-        <div className="rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md shadow-sm shadow-slate-300/30 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-white/60 border-b border-white/80">
-                  <th className="p-3 text-left font-semibold text-[#64748B] text-xs uppercase tracking-wider">Phòng</th>
-                  <th className="p-3 text-left font-semibold text-[#64748B] text-xs uppercase tracking-wider">Kỳ thu</th>
-                  <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider">Tiền điện</th>
-                  <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider">Tiền nước</th>
-                  <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider pr-8">Tổng tiền</th>
-                  <th className="p-3 text-center font-semibold text-[#64748B] text-xs uppercase tracking-wider px-8 min-w-[140px]">Trạng thái</th>
-                  <th className="p-3 text-center font-semibold text-[#64748B] text-xs uppercase tracking-wider">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b border-white/40">
-                      {Array.from({ length: 7 }).map((_, j) => (
-                        <td key={j} className="p-3">
-                          <div className="h-4 bg-slate-200/50 rounded-xl animate-pulse" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : invoices.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-10 text-center text-[#64748B]">
-                      <FileText size={36} className="mx-auto mb-2 opacity-40" />
-                      Không có hóa đơn nào phù hợp
-                    </td>
-                  </tr>
-                ) : (
-                  invoices.map((inv) => {
-                    const displayStatus = getDisplayStatus(inv.status);
-                    const roomName =
-                      typeof inv.room_id === 'object' && inv.room_id
-                        ? inv.room_id.room_name || inv.room_id.room_code || 'Phòng'
-                        : '—';
-
-                    const elecAmount = inv.electricity?.amount ?? 0;
-                    const waterAmount = inv.water?.amount ?? 0;
-
-                    return (
-                      <tr key={inv._id} className="border-b border-white/40 hover:bg-white/50 transition-all duration-150">
-                        {/* 1. Phòng */}
-                        <td className="p-3 font-semibold text-[#1E293B]">
-                          {roomName}
-                        </td>
-
-                        {/* 2. Kỳ thu */}
-                        <td className="p-3 text-[#1E293B] font-medium">
-                          {formatBillingMonth(inv.billing_month, inv.billing_period)}
-                        </td>
-
-                        {/* 3. Tiền điện */}
-                        <td className="p-3 text-right text-[#1E293B] font-medium">
-                          {formatMoney(elecAmount)}
-                        </td>
-
-                        {/* 4. Tiền nước */}
-                        <td className="p-3 text-right text-[#1E293B] font-medium">
-                          {formatMoney(waterAmount)}
-                        </td>
-
-                        {/* 5. Tổng tiền (giãn cách với cột Trạng thái nhờ pr-8) */}
-                        <td className="p-3 text-right font-bold text-[#1A73E8] pr-8 whitespace-nowrap">
-                          {formatMoney(inv.total_amount)}
-                          {inv.is_exempt && (
-                            <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg inline-block mt-0.5 border border-amber-500/20">
-                              Miễn thu
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 6. Trạng thái (giãn cách với cột Tổng tiền nhờ px-8 và min-w-[140px]) */}
-                        <td className="p-3 text-center px-8 min-w-[140px] whitespace-nowrap">
-                          {displayStatus === 'Đã thu' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
-                              <CheckCircle size={13} />
-                              Đã thu
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
-                              Chưa thu
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 7. Thao tác */}
-                        <td className="p-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {displayStatus === 'Chưa thu' ? (
-                              <button
-                                onClick={() => openPayModal(inv)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
-                                title="Đóng tiền ngay"
-                              >
-                                <CheckCircle size={14} /> Đóng ngay
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => openProofModal(inv)}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
-                                title="Kiểm tra chứng từ thanh toán"
-                              >
-                                <Eye size={14} /> Kiểm tra
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* CustomPagination cho Table View */}
-          <CustomPagination
-            totalItems={meta?.total ?? invoices.length}
-            pageSize={pageSize}
-            currentPage={page}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPage(1);
-              setPageSize(size);
-            }}
-            pageSizeOptions={[10, 20, 50, 100]}
-            isLoading={loading}
-            label="hóa đơn"
-          />
-        </div>
-      )}
+          }
+        />
+      </div>
 
       {/* ========================================================================= */}
       {/* MODAL NÂNG CAO (Lập đợt thu / Chỉnh sửa thông số) */}
       {/* ========================================================================= */}
-      {advancedModalOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
-          onClick={() => !advancedSubmitting && setAdvancedModalOpen(false)}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-2xl shadow-xl space-y-5 my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div>
-                <h2 className="text-lg font-bold text-[#1E293B]">
-                  {editingInvoice ? 'Chỉnh sửa thông số hóa đơn' : 'Lập đợt thu tiền phòng'}
-                </h2>
-                <p className="text-xs text-[#64748B] mt-0.5">
-                  Tùy chỉnh định mức, số người, đơn giá và tính toán số tiền theo phòng
-                </p>
+      <Dialog open={advancedModalOpen} onOpenChange={setAdvancedModalOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+          <DialogHeader className="border-b border-white/50 pb-3">
+            <DialogTitle className="text-lg font-bold text-[#1E293B]">
+              {editingInvoice ? 'Chỉnh sửa thông số hóa đơn' : 'Lập đợt thu tiền phòng'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveAdvanced} className="space-y-4 pt-2">
+            {/* Chọn phòng & kỳ thu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B]">
+                  Phòng <span className="text-red-500">*</span>
+                </label>
+                <select
+                  disabled={!!editingInvoice}
+                  value={advancedForm.room_id}
+                  onChange={(e) => handleSelectRoom(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
+                >
+                  <option value="">-- Chọn phòng --</option>
+                  {rooms.map((r) => (
+                    <option key={r._id} value={r._id}>
+                      {r.room_name || r.room_code}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <button
-                onClick={() => setAdvancedModalOpen(false)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B]">
+                  Kỳ thu (Tháng/Năm) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="month"
+                  disabled={!!editingInvoice}
+                  value={advancedForm.billing_month}
+                  onChange={(e) => setAdvancedForm((f) => ({ ...f, billing_month: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
+                />
+              </div>
             </div>
 
-            <form onSubmit={handleSaveAdvanced} className="space-y-4">
-              {/* Chọn phòng & kỳ thu */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B]">
-                    Phòng <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    disabled={!!editingInvoice}
-                    value={advancedForm.room_id}
-                    onChange={(e) => handleSelectRoom(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
-                  >
-                    <option value="">-- Chọn phòng --</option>
-                    {rooms.map((r) => (
-                      <option key={r._id} value={r._id}>
-                        {r.room_name || r.room_code}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B]">
-                    Kỳ thu (Tháng/Năm) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="month"
-                    disabled={!!editingInvoice}
-                    value={advancedForm.billing_month}
-                    onChange={(e) => setAdvancedForm((f) => ({ ...f, billing_month: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
-                  />
-                </div>
+            {/* Ngày ghi số & Số người ở */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+                  <CalendarIcon size={14} className="text-[#64748B]" />
+                  Ngày ghi chỉ số <span className="text-red-500">*</span>
+                </label>
+                <Popover open={readingDateCalendarOpen} onOpenChange={setReadingDateCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] flex items-center justify-between text-left focus:ring-2 focus:ring-[#1A73E8]/30"
+                    >
+                      <span>{advancedForm.reading_date ? formatDate(advancedForm.reading_date) : 'Chọn ngày'}</span>
+                      <CalendarIcon size={14} className="text-[#64748B]" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                    <CustomCalendar
+                      startDate={advancedForm.reading_date ? new Date(`${advancedForm.reading_date}T00:00:00`) : null}
+                      endDate={null}
+                      onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, reading_date: toDateValue(start) }))}
+                      onRangeConfirm={(start) => {
+                        setAdvancedForm((f) => ({ ...f, reading_date: toDateValue(start) }));
+                        setReadingDateCalendarOpen(false);
+                      }}
+                      onCancel={() => setReadingDateCalendarOpen(false)}
+                      onConfirm={() => setReadingDateCalendarOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              {/* Ngày ghi số & Số người ở */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-                    <CalendarIcon size={14} className="text-[#64748B]" />
-                    Ngày ghi chỉ số <span className="text-red-500">*</span>
-                  </label>
-                  <Popover open={readingDateCalendarOpen} onOpenChange={setReadingDateCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 cursor-pointer"
-                      >
-                        <span>{advancedForm.reading_date ? formatDate(advancedForm.reading_date) : 'Chọn ngày ghi'}</span>
-                        <CalendarIcon size={14} className="text-[#64748B]" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
-                      <CustomCalendar
-                        startDate={advancedForm.reading_date ? new Date(`${advancedForm.reading_date}T00:00:00`) : null}
-                        endDate={null}
-                        onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, reading_date: toDateValue(start) }))}
-                        onRangeConfirm={(start) => {
-                          setAdvancedForm((f) => ({ ...f, reading_date: toDateValue(start) }));
-                          setReadingDateCalendarOpen(false);
-                        }}
-                        onCancel={() => setReadingDateCalendarOpen(false)}
-                        onConfirm={() => setReadingDateCalendarOpen(false)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B]">Số người ở thực tế</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={advancedForm.occupant_count}
+                  onChange={(e) =>
+                    setAdvancedForm((f) => ({
+                      ...f,
+                      occupant_count: Math.max(0, parseInt(e.target.value, 10) || 0),
+                    }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                />
+              </div>
+            </div>
 
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-                    <Users size={14} className="text-[#64748B]" />
-                    Số người ở thực tế (để tính định mức) <span className="text-red-500">*</span>
-                  </label>
+            {/* Chỉ số điện */}
+            <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-800 text-xs flex items-center gap-1">
+                  <Zap size={14} className="text-amber-600" /> Chỉ số Điện (kWh)
+                </span>
+                <span className="text-xs text-amber-700 font-medium">
+                  Tiêu thụ: <b>{previewCalc.electricity.consumption} kWh</b> | Vượt: <b>{previewCalc.electricity.excess} kWh</b>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Số cũ</label>
                   <input
                     type="number"
                     min="0"
-                    value={advancedForm.occupant_count}
-                    onChange={(e) => setAdvancedForm((f) => ({ ...f, occupant_count: parseInt(e.target.value, 10) || 0 }))}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                    value={advancedForm.electricity.previous_reading}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        electricity: { ...f.electricity, previous_reading: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Số mới</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.electricity.current_reading}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        electricity: { ...f.electricity, current_reading: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Định mức/người</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.electricity.quota_per_person}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        electricity: { ...f.electricity, quota_per_person: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Đơn giá (đ)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.electricity.unit_price}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        electricity: { ...f.electricity, unit_price: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
                   />
                 </div>
               </div>
+            </div>
 
+            {/* Chỉ số nước */}
+            <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sky-800 text-xs flex items-center gap-1">
+                  <Droplets size={14} className="text-sky-600" /> Chỉ số Nước (m³)
+                </span>
+                <span className="text-xs text-sky-700 font-medium">
+                  Tiêu thụ: <b>{previewCalc.water.consumption} m³</b> | Vượt: <b>{previewCalc.water.excess} m³</b>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Số cũ</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.water.previous_reading}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        water: { ...f.water, previous_reading: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Số mới</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.water.current_reading}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        water: { ...f.water, current_reading: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Định mức/người</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.water.quota_per_person}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        water: { ...f.water, quota_per_person: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#64748B]">Đơn giá (đ)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.water.unit_price}
+                    onChange={(e) =>
+                      setAdvancedForm((f) => ({
+                        ...f,
+                        water: { ...f.water, unit_price: parseFloat(e.target.value) || 0 },
+                      }))
+                    }
+                    className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Thời hạn thu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+                  <CalendarIcon size={14} className="text-[#64748B]" />
+                  Ngày bắt đầu thu
+                </label>
+                <Popover open={startDateCalendarOpen} onOpenChange={setStartDateCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] flex items-center justify-between text-left focus:ring-2 focus:ring-[#1A73E8]/30"
+                    >
+                      <span>{advancedForm.payment_start_date ? formatDate(advancedForm.payment_start_date) : 'Chọn ngày bắt đầu'}</span>
+                      <CalendarIcon size={14} className="text-[#64748B]" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                    <CustomCalendar
+                      startDate={advancedForm.payment_start_date ? new Date(`${advancedForm.payment_start_date}T00:00:00`) : null}
+                      endDate={null}
+                      onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, payment_start_date: toDateValue(start) }))}
+                      onRangeConfirm={(start) => {
+                        setAdvancedForm((f) => ({ ...f, payment_start_date: toDateValue(start) }));
+                        setStartDateCalendarOpen(false);
+                      }}
+                      onCancel={() => setStartDateCalendarOpen(false)}
+                      onConfirm={() => setStartDateCalendarOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+                  <CalendarIcon size={14} className="text-[#64748B]" />
+                  Hạn kết thúc thu
+                </label>
+                <Popover open={dueDateCalendarOpen} onOpenChange={setDueDateCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] flex items-center justify-between text-left focus:ring-2 focus:ring-[#1A73E8]/30"
+                    >
+                      <span>{advancedForm.due_date ? formatDate(advancedForm.due_date) : 'Chọn hạn thanh toán'}</span>
+                      <CalendarIcon size={14} className="text-[#64748B]" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                    <CustomCalendar
+                      startDate={advancedForm.due_date ? new Date(`${advancedForm.due_date}T00:00:00`) : null}
+                      endDate={null}
+                      onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, due_date: toDateValue(start) }))}
+                      onRangeConfirm={(start) => {
+                        setAdvancedForm((f) => ({ ...f, due_date: toDateValue(start) }));
+                        setDueDateCalendarOpen(false);
+                      }}
+                      onCancel={() => setDueDateCalendarOpen(false)}
+                      onConfirm={() => setDueDateCalendarOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Checkbox Miễn thu */}
+            <div className="flex items-center gap-2 p-2.5 bg-slate-500/5 rounded-xl border border-slate-500/10">
+              <input
+                type="checkbox"
+                id="is_exempt"
+                checked={advancedForm.is_exempt}
+                onChange={(e) => setAdvancedForm((f) => ({ ...f, is_exempt: e.target.checked }))}
+                className="w-4 h-4 text-[#1A73E8] rounded-xl focus:ring-[#1A73E8]"
+              />
+              <label htmlFor="is_exempt" className="text-xs font-medium text-[#1E293B] cursor-pointer">
+                <b>Không thu đợt này</b> (Vẫn lưu chỉ số công-tơ, tổng tiền phải thu = 0đ)
+              </label>
+            </div>
+
+            {/* Ghi chú */}
+            <div>
+              <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
+              <textarea
+                rows={2}
+                value={advancedForm.notes}
+                onChange={(e) => setAdvancedForm((f) => ({ ...f, notes: e.target.value }))}
+                placeholder="Ghi chú về đợt thu, sự cố công tơ..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+              />
+            </div>
+
+            {/* Hộp tổng kết tiền xem trước */}
+            <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-[#1A73E8] font-semibold">Tổng tiền phải thu dự tính</div>
+                <div className="text-xl font-black text-[#1E293B] mt-0.5">
+                  {formatMoney(previewCalc.totalAmount)}
+                </div>
+              </div>
+              <div className="text-right text-[11px] text-[#64748B] space-y-0.5 font-medium">
+                <div>Điện: {formatMoney(previewCalc.electricity.amount)}</div>
+                <div>Nước: {formatMoney(previewCalc.water.amount)}</div>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={advancedSubmitting}
+                onClick={() => setAdvancedModalOpen(false)}
+                className="flex-1 rounded-xl"
+              >
+                Hủy
+              </Button>
+              <Button
+                type="submit"
+                disabled={advancedSubmitting}
+                className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
+              >
+                {advancedSubmitting ? 'Đang lưu...' : editingInvoice ? 'Cập nhật' : 'Tạo đợt thu'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL THU TIỀN (Theo kiểu UI Mockup 2 cột kèm QR và Timeline) */}
+      {/* ========================================================================= */}
+      <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-3xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+          {payingInvoice && (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-xl font-bold text-[#1E293B]">
+                      Hóa đơn thanh toán
+                    </DialogTitle>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <CheckCircle size={13} className="shrink-0" />
+                      Sẵn sàng
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    {typeof payingInvoice.room_id === 'object' && payingInvoice.room_id
+                      ? payingInvoice.room_id.room_name || payingInvoice.room_id.room_code
+                      : 'Phòng'}{' '}
+                    - Tháng {formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}
+                  </p>
+                </div>
+              </div>
+
+              {/* 2-Column Content */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
+                {/* Cột trái: Chi tiết chi phí, timeline & form xác nhận */}
+                <div className="md:col-span-7 space-y-4">
+                  {/* Bảng kê chi phí */}
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Tiền điện</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMoney(payingInvoice.electricity?.amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Tiền nước</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMoney(payingInvoice.water?.amount)}
+                      </span>
+                    </div>
+                    <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
+                      <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
+                      <div className="text-right">
+                        <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
+                          {formatMoney(payingInvoice.total_amount)}
+                        </span>
+                        {payingInvoice.is_exempt && (
+                          <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block ml-2">
+                            Miễn thu
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Timeline Kỳ thu & Hạn thanh toán */}
+                  <div className="relative pl-5 space-y-3 text-xs">
+                    <div className="absolute left-1.5 top-1.5 bottom-1.5 w-0.5 bg-slate-200" />
+
+                    <div className="relative flex items-start gap-2.5">
+                      <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-[#F8FAFC]" />
+                      <div>
+                        <p className="text-[11px] text-slate-400 font-medium">Kỳ thanh toán</p>
+                        <p className="font-semibold text-slate-700">
+                          {getMonthPeriodRange(payingInvoice.billing_month, payingInvoice.billing_period)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="relative flex items-start gap-2.5">
+                      <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-[#F8FAFC]" />
+                      <div>
+                        <p className="text-[11px] text-slate-400 font-medium">Hạn thanh toán</p>
+                        <p className="font-bold text-amber-600">{formatDate(payingInvoice.due_date)}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form xác nhận đóng tiền */}
+                  <form onSubmit={handleConfirmPay} className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1.5">
+                        Phương thức thanh toán <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['Chuyển khoản', 'Tiền mặt'] as const).map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setPayMethod(method)}
+                            className={`p-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer ${
+                              payMethod === method
+                                ? 'border-[#1A73E8] bg-blue-50/80 text-[#1A73E8] shadow-xs'
+                                : 'border-slate-200/80 bg-white/70 text-[#1E293B] hover:bg-white'
+                            }`}
+                          >
+                            {method === 'Chuyển khoản' ? <DollarSign size={14} /> : <CheckCircle size={14} />}
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Upload ảnh chứng từ */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
+                        <span>Ảnh chứng từ thanh toán</span>
+                        {payMethod === 'Chuyển khoản' && (
+                          <span className="text-[11px] text-[#1A73E8] font-normal">Khuyến nghị đính kèm bill</span>
+                        )}
+                      </label>
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          onChange={handleProofFileChange}
+                          className="hidden"
+                          id="pay-proof-upload"
+                        />
+                        {!payProofFile ? (
+                          <label
+                            htmlFor="pay-proof-upload"
+                            className="flex flex-col items-center justify-center p-3.5 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                          >
+                            <Upload size={20} className="text-[#1A73E8] mb-1" />
+                            <span className="text-xs font-medium text-[#1E293B]">Bấm để chọn file ảnh bill/chứng từ</span>
+                            <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                          </label>
+                        ) : (
+                          <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+                            <div className="flex items-center gap-2 truncate">
+                              <CheckCircle size={15} className="text-emerald-700 shrink-0" />
+                              <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPayProofFile(null);
+                                setPayProofPreview(null);
+                              }}
+                              className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
+                            >
+                              Hủy
+                            </button>
+                          </div>
+                        )}
+
+                        {payProofPreview && (
+                          <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
+                            <img
+                              src={payProofPreview}
+                              alt="Xem trước chứng từ"
+                              className="max-h-36 w-auto object-contain rounded-lg shadow-2xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ghi chú */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú xác nhận</label>
+                      <textarea
+                        rows={2}
+                        value={payNotes}
+                        onChange={(e) => setPayNotes(e.target.value)}
+                        placeholder="Ghi chú người nộp, số tài khoản, mã giao dịch..."
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/70 text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                      />
+                    </div>
+
+                    {/* Submit Actions */}
+                    <div className="flex gap-2.5 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={paySubmitting}
+                        onClick={() => setPayModalOpen(false)}
+                        className="flex-1 rounded-xl"
+                      >
+                        Hủy
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={paySubmitting}
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {paySubmitting ? 'Đang xử lý...' : 'Xác nhận thu'}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Cột phải: Thẻ Quét mã QR thanh toán & Tải hóa đơn */}
+                <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Quét mã để thanh toán
+                  </p>
+
+                  <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
+                    {qrCodeDataUrl ? (
+                      <img
+                        src={qrCodeDataUrl}
+                        alt="Mã QR thanh toán"
+                        className="w-full h-full object-contain rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                        Đang tạo mã QR...
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleDownloadQr(payingInvoice)}
+                    className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
+                  >
+                    <Download size={14} className="text-[#1A73E8]" />
+                    <span>Tải hóa đơn</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL KIỂM TRA & CẬP NHẬT CHỨNG TỪ (Theo kiểu UI Mockup 2 cột) */}
+      {/* ========================================================================= */}
+      <Dialog open={proofModalOpen} onOpenChange={setProofModalOpen}>
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-3xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+          {viewingInvoice && (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-xl font-bold text-[#1E293B]">
+                      Kiểm tra chứng từ thanh toán
+                    </DialogTitle>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      <CheckCircle size={13} className="shrink-0" />
+                      Đã thu
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    {typeof viewingInvoice.room_id === 'object' && viewingInvoice.room_id
+                      ? viewingInvoice.room_id.room_name || viewingInvoice.room_id.room_code
+                      : 'Phòng'}{' '}
+                    - Tháng {formatBillingMonth(viewingInvoice.billing_month, viewingInvoice.billing_period)}
+                  </p>
+                </div>
+              </div>
+
+              {/* 2-Column Content */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
+                {/* Cột trái: Chi tiết chi phí, thông tin thu & ảnh chứng từ */}
+                <div className="md:col-span-7 space-y-4">
+                  {/* Bảng kê chi phí */}
+                  <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Tiền điện</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMoney(viewingInvoice.electricity?.amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Tiền nước</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatMoney(viewingInvoice.water?.amount)}
+                      </span>
+                    </div>
+                    <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
+                      <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
+                      <div className="text-right">
+                        <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
+                          {formatMoney(viewingInvoice.total_amount)}
+                        </span>
+                        {viewingInvoice.is_exempt && (
+                          <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block ml-2">
+                            Miễn thu
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thông tin thanh toán */}
+                  <div className="grid grid-cols-2 gap-2.5 text-xs bg-white/60 p-3 rounded-xl border border-slate-200/70">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Phương thức</span>
+                      <span className="font-semibold text-slate-800">
+                        {viewingInvoice.payment_method || 'Chuyển khoản'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Ngày thu</span>
+                      <span className="font-semibold text-slate-800">
+                        {formatDate(viewingInvoice.paid_at)}
+                      </span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block text-[11px]">Người xác nhận</span>
+                      <span className="font-semibold text-slate-800">
+                        {viewingInvoice.confirmed_by_id?.full_name ||
+                          viewingInvoice.confirmed_by_id?.user_name ||
+                          'Quản lý KTX'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Ảnh chứng từ hiện tại */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-[#1E293B]">
+                      Ảnh chứng từ hiện tại
+                    </label>
+                    {viewingInvoice.payment_proof?.url ? (
+                      <div className="space-y-2">
+                        <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
+                          <img
+                            src={viewingInvoice.payment_proof.url}
+                            alt="Chứng từ thanh toán"
+                            className="max-h-52 w-auto object-contain rounded-lg shadow-sm"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <a
+                            href={viewingInvoice.payment_proof.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
+                          >
+                            <Eye size={12} /> Xem ảnh kích thước đầy đủ
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-[#64748B] bg-slate-500/5">
+                        <FileText size={24} className="mx-auto mb-1 opacity-30" />
+                        <p className="text-xs font-medium">Chưa có ảnh chứng từ thanh toán cho hóa đơn này</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cập nhật ảnh mới nếu up sai */}
+                  <div className="border-t border-slate-200/60 pt-3 space-y-3">
+                    <label className="block text-xs font-semibold text-[#1E293B]">
+                      Cập nhật ảnh mới (nếu tải lên sai)
+                    </label>
+
+                    <input
+                      ref={updateProofInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      onChange={handleUpdateProofFileChange}
+                      className="hidden"
+                      id="update-proof-upload"
+                    />
+
+                    {!updateProofFile ? (
+                      <label
+                        htmlFor="update-proof-upload"
+                        className="flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                      >
+                        <Upload size={18} className="text-[#1A73E8] mb-1" />
+                        <span className="text-xs font-medium text-[#1E293B]">
+                          Bấm để chọn ảnh mới thay thế
+                        </span>
+                        <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                      </label>
+                    ) : (
+                      <div className="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-500/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUpdateProofFile(null);
+                              setUpdateProofPreview(null);
+                            }}
+                            className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
+                          >
+                            <X size={13} /> Hủy chọn
+                          </button>
+                        </div>
+                        {updateProofPreview && (
+                          <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
+                            <img
+                              src={updateProofPreview}
+                              alt="Ảnh mới"
+                              className="max-h-40 w-auto object-contain rounded-md"
+                            />
+                          </div>
+                        )}
+                        <div className="text-[11px] text-[#64748B] truncate">
+                          {updateProofFile.name} ({(updateProofFile.size / 1024).toFixed(1)} KB)
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ghi chú */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
+                      <textarea
+                        rows={2}
+                        value={updateProofNotes}
+                        onChange={(e) => setUpdateProofNotes(e.target.value)}
+                        placeholder="Ghi chú thêm về chứng từ..."
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/70 text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Buttons */}
+                  <div className="flex gap-2.5 pt-2 border-t border-slate-100">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={updateProofSubmitting}
+                      onClick={() => setProofModalOpen(false)}
+                      className="flex-1 rounded-xl"
+                    >
+                      Đóng
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={
+                        updateProofSubmitting ||
+                        (!updateProofFile && updateProofNotes === (viewingInvoice.notes || ''))
+                      }
+                      onClick={handleSaveUpdatedProof}
+                      className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
+                    >
+                      {updateProofSubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Cột phải: Thẻ Quét mã QR & Tải hóa đơn */}
+                <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Quét mã để thanh toán
+                  </p>
+
+                  <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
+                    {qrCodeDataUrl ? (
+                      <img
+                        src={qrCodeDataUrl}
+                        alt="Mã QR thanh toán"
+                        className="w-full h-full object-contain rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                        Đang tạo mã QR...
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleDownloadQr(viewingInvoice)}
+                    className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
+                  >
+                    <Download size={14} className="text-[#1A73E8]" />
+                    <span>Tải hóa đơn</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL CẤU HÌNH DÙNG CHUNG (Định mức, đơn giá, số ngày thu tự động) */}
+      {/* ========================================================================= */}
+      <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+          <DialogHeader className="border-b border-white/50 pb-3">
+            <DialogTitle className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
+              <SlidersHorizontal size={20} />
+              Cấu hình định mức & đơn giá điện - nước
+            </DialogTitle>
+          </DialogHeader>
+
+          {configLoading ? (
+            <div className="py-8 text-center text-sm text-[#64748B]">Đang tải cấu hình...</div>
+          ) : (
+            <form onSubmit={handleSaveConfig} className="space-y-4 pt-2">
               {/* Thông số điện */}
               <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-amber-800 text-xs flex items-center gap-1">
-                    <Zap size={14} className="text-amber-600" /> Chỉ số điện (kWh)
-                  </span>
-                  <span className="text-[11px] font-semibold text-amber-700">
-                    Tiêu thụ: {previewCalc.electricity.consumption} kWh | Vượt:{' '}
-                    {previewCalc.electricity.excess} kWh | Thành tiền:{' '}
-                    {formatMoney(previewCalc.electricity.amount)}
-                  </span>
+                <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
+                  <Zap size={16} className="text-amber-600" />
+                  Thông số Điện
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[#64748B] block mb-1">Chỉ số cũ</label>
+                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                      Định mức/người (kWh) <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
-                      value={advancedForm.electricity.previous_reading}
+                      required
+                      value={configForm.electricity.quota_per_person}
                       onChange={(e) =>
-                        setAdvancedForm((f) => ({
+                        setConfigForm((f) => ({
                           ...f,
-                          electricity: { ...f.electricity, previous_reading: parseFloat(e.target.value) || 0 },
+                          electricity: {
+                            ...f.electricity,
+                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                          },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
                   <div>
-                    <label className="text-[#64748B] block mb-1">Chỉ số mới</label>
+                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                      Đơn giá (đ/kWh) <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
-                      value={advancedForm.electricity.current_reading}
+                      required
+                      value={configForm.electricity.unit_price}
                       onChange={(e) =>
-                        setAdvancedForm((f) => ({
+                        setConfigForm((f) => ({
                           ...f,
-                          electricity: { ...f.electricity, current_reading: parseFloat(e.target.value) || 0 },
+                          electricity: {
+                            ...f.electricity,
+                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                          },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#64748B] block mb-1">Định mức/người</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.electricity.quota_per_person}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          electricity: { ...f.electricity, quota_per_person: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#64748B] block mb-1">Đơn giá (đ/kWh)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.electricity.unit_price}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          electricity: { ...f.electricity, unit_price: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
                 </div>
@@ -1219,740 +1858,102 @@ export default function InvoicesPage() {
 
               {/* Thông số nước */}
               <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sky-800 text-xs flex items-center gap-1">
-                    <Droplets size={14} className="text-sky-600" /> Chỉ số nước (m³)
-                  </span>
-                  <span className="text-[11px] font-semibold text-sky-700">
-                    Tiêu thụ: {previewCalc.water.consumption} m³ | Vượt:{' '}
-                    {previewCalc.water.excess} m³ | Thành tiền:{' '}
-                    {formatMoney(previewCalc.water.amount)}
-                  </span>
+                <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
+                  <Droplets size={16} className="text-sky-600" />
+                  Thông số Nước
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[#64748B] block mb-1">Chỉ số cũ</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.water.previous_reading}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          water: { ...f.water, previous_reading: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#64748B] block mb-1">Chỉ số mới</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.water.current_reading}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          water: { ...f.water, current_reading: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#64748B] block mb-1">Định mức/người</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.water.quota_per_person}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          water: { ...f.water, quota_per_person: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[#64748B] block mb-1">Đơn giá (đ/m³)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={advancedForm.water.unit_price}
-                      onChange={(e) =>
-                        setAdvancedForm((f) => ({
-                          ...f,
-                          water: { ...f.water, unit_price: parseFloat(e.target.value) || 0 },
-                        }))
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Ngày bắt đầu thu & Hạn nộp */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-                    <CalendarIcon size={14} className="text-[#64748B]" />
-                    Ngày bắt đầu thu
-                  </label>
-                  <Popover open={startDateCalendarOpen} onOpenChange={setStartDateCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 cursor-pointer"
-                      >
-                        <span>{advancedForm.payment_start_date ? formatDate(advancedForm.payment_start_date) : 'Chọn ngày bắt đầu'}</span>
-                        <CalendarIcon size={14} className="text-[#64748B]" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
-                      <CustomCalendar
-                        startDate={advancedForm.payment_start_date ? new Date(`${advancedForm.payment_start_date}T00:00:00`) : null}
-                        endDate={null}
-                        onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, payment_start_date: toDateValue(start) }))}
-                        onRangeConfirm={(start) => {
-                          setAdvancedForm((f) => ({ ...f, payment_start_date: toDateValue(start) }));
-                          setStartDateCalendarOpen(false);
-                        }}
-                        onCancel={() => setStartDateCalendarOpen(false)}
-                        onConfirm={() => setStartDateCalendarOpen(false)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-                    <CalendarIcon size={14} className="text-[#64748B]" />
-                    Hạn kết thúc thu <span className="text-red-500">*</span>
-                  </label>
-                  <Popover open={dueDateCalendarOpen} onOpenChange={setDueDateCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 cursor-pointer"
-                      >
-                        <span>{advancedForm.due_date ? formatDate(advancedForm.due_date) : 'Chọn hạn thu'}</span>
-                        <CalendarIcon size={14} className="text-[#64748B]" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
-                      <CustomCalendar
-                        startDate={advancedForm.due_date ? new Date(`${advancedForm.due_date}T00:00:00`) : null}
-                        endDate={null}
-                        onRangeSelect={(start) => setAdvancedForm((f) => ({ ...f, due_date: toDateValue(start) }))}
-                        onRangeConfirm={(start) => {
-                          setAdvancedForm((f) => ({ ...f, due_date: toDateValue(start) }));
-                          setDueDateCalendarOpen(false);
-                        }}
-                        onCancel={() => setDueDateCalendarOpen(false)}
-                        onConfirm={() => setDueDateCalendarOpen(false)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              {/* Checkbox Miễn thu / Không thu */}
-              <div className="flex items-center gap-2 p-2.5 bg-slate-500/5 rounded-xl border border-slate-500/10">
-                <input
-                  type="checkbox"
-                  id="is_exempt"
-                  checked={advancedForm.is_exempt}
-                  onChange={(e) => setAdvancedForm((f) => ({ ...f, is_exempt: e.target.checked }))}
-                  className="w-4 h-4 text-[#1A73E8] rounded-xl focus:ring-[#1A73E8]"
-                />
-                <label htmlFor="is_exempt" className="text-xs font-medium text-[#1E293B] cursor-pointer">
-                  <b>Không thu đợt này</b> (Vẫn lưu chỉ số công-tơ, tổng tiền phải thu = 0đ)
-                </label>
-              </div>
-
-              {/* Ghi chú */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
-                <textarea
-                  rows={2}
-                  value={advancedForm.notes}
-                  onChange={(e) => setAdvancedForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="Ghi chú về đợt thu, sự cố công tơ..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
-                />
-              </div>
-
-              {/* Hộp tổng kết tiền xem trước */}
-              <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-[#1A73E8] font-semibold">Tổng tiền phải thu dự tính</div>
-                  <div className="text-xl font-black text-[#1E293B] mt-0.5">
-                    {formatMoney(previewCalc.totalAmount)}
-                  </div>
-                </div>
-                <div className="text-right text-[11px] text-[#64748B] space-y-0.5 font-medium">
-                  <div>Điện: {formatMoney(previewCalc.electricity.amount)}</div>
-                  <div>Nước: {formatMoney(previewCalc.water.amount)}</div>
-                </div>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  disabled={advancedSubmitting}
-                  onClick={() => setAdvancedModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01] cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={advancedSubmitting}
-                  className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {advancedSubmitting ? 'Đang lưu...' : editingInvoice ? 'Cập nhật' : 'Tạo đợt thu'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL THU TIỀN (Xác nhận thanh toán & upload chứng từ) */}
-      {/* ========================================================================= */}
-      {payModalOpen && payingInvoice && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
-          onClick={() => !paySubmitting && setPayModalOpen(false)}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-md shadow-xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <h2 className="text-lg font-bold text-[#1E293B]">Xác nhận thu tiền</h2>
-              <button
-                onClick={() => setPayModalOpen(false)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-3 bg-slate-500/5 rounded-xl border border-slate-500/10 space-y-1 text-xs text-[#64748B]">
-              <div>
-                Phòng:{' '}
-                <b className="text-[#1E293B]">
-                  {typeof payingInvoice.room_id === 'object'
-                    ? payingInvoice.room_id?.room_name || payingInvoice.room_id?.room_code
-                    : '—'}
-                </b>
-              </div>
-              <div>
-                Kỳ thu: <b className="text-[#1E293B]">{formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}</b>
-              </div>
-              <div>
-                Số tiền: <b className="text-emerald-700 text-sm font-bold">{formatMoney(payingInvoice.total_amount)}</b>
-              </div>
-            </div>
-
-            <form onSubmit={handleConfirmPay} className="space-y-4">
-              {/* Phương thức */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1.5">
-                  Phương thức thanh toán <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Chuyển khoản', 'Tiền mặt'] as const).map((method) => (
-                    <button
-                      key={method}
-                      type="button"
-                      onClick={() => setPayMethod(method)}
-                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer ${
-                        payMethod === method
-                          ? 'border-[#1A73E8] bg-blue-50/80 text-[#1A73E8] shadow-xs'
-                          : 'border-slate-200/80 bg-white/70 text-[#1E293B] hover:bg-white'
-                      }`}
-                    >
-                      {method === 'Chuyển khoản' ? <DollarSign size={14} /> : <CheckCircle size={14} />}
-                      {method}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Upload ảnh chứng từ (Khuyến khích/bắt buộc khi Chuyển khoản) */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1.5 flex items-center justify-between">
-                  <span>Ảnh chứng từ thanh toán</span>
-                  {payMethod === 'Chuyển khoản' && (
-                    <span className="text-[11px] text-[#1A73E8] font-normal">Khuyến nghị đính kèm bill</span>
-                  )}
-                </label>
-                <div className="space-y-2">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/webp"
-                    onChange={handleProofFileChange}
-                    className="hidden"
-                    id="pay-proof-upload"
-                  />
-                  {!payProofFile ? (
-                    <label
-                      htmlFor="pay-proof-upload"
-                      className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
-                    >
-                      <Upload size={22} className="text-[#1A73E8] mb-1" />
-                      <span className="text-xs font-medium text-[#1E293B]">Bấm để chọn file ảnh bill/chứng từ</span>
-                      <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                      Định mức/người (m³) <span className="text-red-500">*</span>
                     </label>
-                  ) : (
-                    <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
-                      <div className="flex items-center gap-2 truncate">
-                        <CheckCircle size={16} className="text-emerald-700 shrink-0" />
-                        <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPayProofFile(null);
-                          setPayProofPreview(null);
-                        }}
-                        className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
-                      >
-                        Hủy
-                      </button>
-                    </div>
-                  )}
-
-                  {payProofPreview && (
-                    <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
-                      <img
-                        src={payProofPreview}
-                        alt="Xem trước chứng từ"
-                        className="max-h-40 w-auto object-contain rounded-lg shadow-2xs"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Ghi chú */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú xác nhận</label>
-                <textarea
-                  rows={2}
-                  value={payNotes}
-                  onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Ghi chú người nộp, số tài khoản, mã giao dịch..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
-                />
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  disabled={paySubmitting}
-                  onClick={() => setPayModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01] cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={paySubmitting}
-                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {paySubmitting ? 'Đang xử lý...' : 'Xác nhận thu'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL KIỂM TRA & CẬP NHẬT CHỨNG TỪ (Khi click Đã thu hoặc nút Kiểm tra) */}
-      {/* ========================================================================= */}
-      {proofModalOpen && viewingInvoice && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
-          onClick={() => !updateProofSubmitting && setProofModalOpen(false)}
-          onKeyDown={(e) => e.key === 'Escape' && !updateProofSubmitting && setProofModalOpen(false)}
-          tabIndex={-1}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-lg shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div>
-                <h2 className="text-lg font-bold text-[#1E293B]">Kiểm tra chứng từ thanh toán</h2>
-                <span className="text-xs text-emerald-700 font-medium">Trạng thái: Đã thu</span>
-              </div>
-              <button
-                onClick={() => setProofModalOpen(false)}
-                disabled={updateProofSubmitting}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer disabled:opacity-50"
-                aria-label="Đóng"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Thông tin thanh toán */}
-            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10">
-              <div>
-                <span className="text-[#64748B] block">Phòng</span>
-                <span className="font-semibold text-[#1E293B]">
-                  {typeof viewingInvoice.room_id === 'object'
-                    ? viewingInvoice.room_id?.room_name || viewingInvoice.room_id?.room_code
-                    : '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block">Kỳ thu</span>
-                <span className="font-semibold text-[#1E293B]">
-                  {formatBillingMonth(viewingInvoice.billing_month, viewingInvoice.billing_period)}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block">Tổng tiền</span>
-                <span className="font-bold text-emerald-700 text-sm">
-                  {formatMoney(viewingInvoice.total_amount)}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block">Phương thức</span>
-                <span className="font-semibold text-[#1E293B]">
-                  {viewingInvoice.payment_method || 'Chuyển khoản'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block">Ngày thu</span>
-                <span className="font-semibold text-[#1E293B]">
-                  {formatDate(viewingInvoice.paid_at)}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block">Người xác nhận</span>
-                <span className="font-semibold text-[#1E293B]">
-                  {viewingInvoice.confirmed_by_id?.full_name ||
-                    viewingInvoice.confirmed_by_id?.user_name ||
-                    'Quản lý KTX'}
-                </span>
-              </div>
-            </div>
-
-            {/* Ảnh chứng từ hiện tại */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-[#1E293B]">
-                Ảnh chứng từ hiện tại
-              </label>
-              {viewingInvoice.payment_proof?.url ? (
-                <div className="space-y-2">
-                  <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
-                    <img
-                      src={viewingInvoice.payment_proof.url}
-                      alt="Chứng từ thanh toán"
-                      className="max-h-60 w-auto object-contain rounded-xl shadow-sm"
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={configForm.water.quota_per_person}
+                      onChange={(e) =>
+                        setConfigForm((f) => ({
+                          ...f,
+                          water: {
+                            ...f.water,
+                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
-                  <div className="text-right">
-                    <a
-                      href={viewingInvoice.payment_proof.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
-                    >
-                      <Eye size={12} /> Xem ảnh kích thước đầy đủ
-                    </a>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                      Đơn giá (đ/m³) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={configForm.water.unit_price}
+                      onChange={(e) =>
+                        setConfigForm((f) => ({
+                          ...f,
+                          water: {
+                            ...f.water,
+                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                          },
+                        }))
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                    />
                   </div>
                 </div>
-              ) : (
-                <div className="p-6 border border-dashed border-slate-200 rounded-xl text-center text-[#64748B] bg-slate-500/5">
-                  <FileText size={28} className="mx-auto mb-1 opacity-30" />
-                  <p className="text-xs font-medium">Chưa có ảnh chứng từ thanh toán cho hóa đơn này</p>
-                </div>
-              )}
-            </div>
+              </div>
 
-            {/* Cập nhật lại ảnh nếu up sai */}
-            <div className="border-t border-slate-200/60 pt-3 space-y-3">
-              <label className="block text-xs font-semibold text-[#1E293B]">
-                Cập nhật ảnh mới (nếu tải lên sai)
-              </label>
-
-              <input
-                ref={updateProofInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-                onChange={handleUpdateProofFileChange}
-                className="hidden"
-                id="update-proof-upload"
-              />
-
-              {!updateProofFile ? (
-                <label
-                  htmlFor="update-proof-upload"
-                  className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
-                >
-                  <Upload size={22} className="text-[#1A73E8] mb-1" />
-                  <span className="text-xs font-medium text-[#1E293B]">
-                    Bấm để chọn ảnh mới thay thế
-                  </span>
-                  <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+              {/* Thời hạn thu tự động */}
+              <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
+                <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                  <CalendarIcon size={14} className="text-[#64748B]" />
+                  Số ngày thu tự động (ngày) <span className="text-red-500">*</span>
                 </label>
-              ) : (
-                <div className="space-y-2 p-3 bg-blue-50/50 rounded-xl border border-blue-500/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUpdateProofFile(null);
-                        setUpdateProofPreview(null);
-                      }}
-                      className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
-                    >
-                      <X size={13} /> Hủy chọn
-                    </button>
-                  </div>
-                  {updateProofPreview && (
-                    <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
-                      <img
-                        src={updateProofPreview}
-                        alt="Ảnh mới"
-                        className="max-h-48 w-auto object-contain rounded-md"
-                      />
-                    </div>
-                  )}
-                  <div className="text-[11px] text-[#64748B] truncate">
-                    {updateProofFile.name} ({(updateProofFile.size / 1024).toFixed(1)} KB)
-                  </div>
-                </div>
-              )}
-
-              {/* Ghi chú */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
-                <textarea
-                  rows={2}
-                  value={updateProofNotes}
-                  onChange={(e) => setUpdateProofNotes(e.target.value)}
-                  placeholder="Ghi chú thêm về chứng từ..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={configForm.configured_collection_days}
+                  onChange={(e) =>
+                    setConfigForm((f) => ({
+                      ...f,
+                      configured_collection_days: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    }))
+                  }
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                 />
+                <p className="text-[11px] text-[#64748B]">
+                  Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
+                </p>
               </div>
-            </div>
 
-            {/* Buttons */}
-            <div className="flex gap-2.5 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                disabled={updateProofSubmitting}
-                onClick={() => setProofModalOpen(false)}
-                className="flex-1 px-4 py-2.5 bg-slate-100 text-[#1E293B] rounded-xl text-sm font-medium hover:bg-slate-200 transition-all duration-150 hover:scale-[1.01] cursor-pointer disabled:opacity-50"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={updateProofSubmitting || (!updateProofFile && updateProofNotes === (viewingInvoice.notes || ''))}
-                onClick={handleSaveUpdatedProof}
-                className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
-              >
-                {updateProofSubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL CẤU HÌNH DÙNG CHUNG (Định mức, đơn giá, số ngày thu tự động - AC-01) */}
-      {/* ========================================================================= */}
-      {configModalOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
-          onClick={() => !configSubmitting && setConfigModalOpen(false)}
-        >
-          <div
-            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-lg shadow-xl space-y-5 my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
-                <SlidersHorizontal size={20} />
-                <h2>Cấu hình định mức & đơn giá điện - nước</h2>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={configSubmitting}
+                  onClick={() => setConfigModalOpen(false)}
+                  className="flex-1 rounded-xl"
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={configSubmitting}
+                  className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
+                >
+                  {configSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
+                </Button>
               </div>
-              <button
-                onClick={() => setConfigModalOpen(false)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {configLoading ? (
-              <div className="py-8 text-center text-sm text-[#64748B]">Đang tải cấu hình...</div>
-            ) : (
-              <form onSubmit={handleSaveConfig} className="space-y-4">
-                {/* Thông số điện */}
-                <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
-                    <Zap size={16} className="text-amber-600" />
-                    Thông số Điện
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                        Định mức/người (kWh) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={configForm.electricity.quota_per_person}
-                        onChange={(e) =>
-                          setConfigForm((f) => ({
-                            ...f,
-                            electricity: {
-                              ...f.electricity,
-                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                        Đơn giá (đ/kWh) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={configForm.electricity.unit_price}
-                        onChange={(e) =>
-                          setConfigForm((f) => ({
-                            ...f,
-                            electricity: {
-                              ...f.electricity,
-                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thông số nước */}
-                <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
-                    <Droplets size={16} className="text-sky-600" />
-                    Thông số Nước
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                        Định mức/người (m³) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={configForm.water.quota_per_person}
-                        onChange={(e) =>
-                          setConfigForm((f) => ({
-                            ...f,
-                            water: {
-                              ...f.water,
-                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                        Đơn giá (đ/m³) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        required
-                        value={configForm.water.unit_price}
-                        onChange={(e) =>
-                          setConfigForm((f) => ({
-                            ...f,
-                            water: {
-                              ...f.water,
-                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thời hạn thu tự động */}
-                <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
-                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
-                    <CalendarIcon size={14} className="text-[#64748B]" />
-                    Số ngày thu tự động (ngày) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={configForm.configured_collection_days}
-                    onChange={(e) =>
-                      setConfigForm((f) => ({
-                        ...f,
-                        configured_collection_days: Math.max(1, parseInt(e.target.value, 10) || 1),
-                      }))
-                    }
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                  />
-                  <p className="text-[11px] text-[#64748B]">
-                    Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    disabled={configSubmitting}
-                    onClick={() => setConfigModalOpen(false)}
-                    className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01] cursor-pointer"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={configSubmitting}
-                    className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
-                  >
-                    {configSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

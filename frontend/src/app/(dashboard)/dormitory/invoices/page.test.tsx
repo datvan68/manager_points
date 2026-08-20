@@ -145,7 +145,7 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101').length).toBe(2);
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
     });
 
     // Verify title header is removed
@@ -219,24 +219,21 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Đóng ngay/i })).toBeDefined();
-      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeDefined();
+      expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
-
-    // Verify 1 "Đóng ngay" button and 1 "Kiểm tra" button
-    expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBe(1);
-    expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBe(1);
 
     // Verify "Thu tiền" and edit buttons in row are gone
     expect(screen.queryByRole('button', { name: /^Thu tiền$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Chỉnh sửa thông số/i })).toBeNull();
 
-    const payBtn = screen.getByRole('button', { name: /Đóng ngay/i });
+    const payBtn = screen.getAllByRole('button', { name: /Đóng ngay/i })[0];
     fireEvent.click(payBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Xác nhận thu tiền')).toBeDefined();
+      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
       expect(screen.getByText('Phương thức thanh toán')).toBeDefined();
+      expect(screen.getByText('Quét mã để thanh toán')).toBeDefined();
     });
   });
 
@@ -256,10 +253,10 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeDefined();
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const checkBtn = screen.getByRole('button', { name: /Kiểm tra/i });
+    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[0];
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
@@ -291,31 +288,15 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('renders CustomPagination with total items and allows switching to Card View', async () => {
+  it('renders CustomPagination with total items', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101').length).toBe(2);
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
     });
 
     // Check pagination summary
     expect(screen.getByText(/Hiển thị 1-2 trên tổng số 2 hóa đơn/i)).toBeDefined();
-
-    // Toggle to Card View
-    const cardViewBtn = screen.getByRole('button', { name: /Xem dạng thẻ/i });
-    fireEvent.click(cardViewBtn);
-
-    // In card view, room name and invoices are still displayed
-    await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101').length).toBe(2);
-      expect(screen.getAllByText('Tiền điện').length).toBe(2);
-      expect(screen.getAllByText('Tiền nước').length).toBe(2);
-    });
-
-    // Toggle back to Table View
-    const tableViewBtn = screen.getByRole('button', { name: /Xem dạng bảng/i });
-    fireEvent.click(tableViewBtn);
-
     expect(screen.getByText('Phòng')).toBeDefined();
     expect(screen.getByText('Tổng tiền')).toBeDefined();
   });
