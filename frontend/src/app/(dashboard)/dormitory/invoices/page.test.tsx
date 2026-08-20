@@ -241,4 +241,51 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getByText('Đã thanh toán đúng hạn')).toBeDefined();
     });
   });
+
+  it('renders CustomPagination with total items and allows switching to Card View', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101 (Tòa A)').length).toBe(2);
+    });
+
+    // Check pagination summary
+    expect(screen.getByText(/Hiển thị 1-2 trên tổng số 2 hóa đơn/i)).toBeDefined();
+
+    // Toggle to Card View
+    const cardViewBtn = screen.getByRole('button', { name: /Xem dạng thẻ/i });
+    fireEvent.click(cardViewBtn);
+
+    // In card view, room name and invoices are still displayed
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101 (Tòa A)').length).toBe(2);
+      expect(screen.getAllByText('Tiền điện').length).toBe(2);
+      expect(screen.getAllByText('Tiền nước').length).toBe(2);
+    });
+
+    // Toggle back to Table View
+    const tableViewBtn = screen.getByRole('button', { name: /Xem dạng bảng/i });
+    fireEvent.click(tableViewBtn);
+
+    expect(screen.getByText('Phòng')).toBeDefined();
+    expect(screen.getByText('Tổng tiền')).toBeDefined();
+  });
+
+  it('opens CustomCalendar popover when clicking the calendar filter button', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Lọc theo kỳ thu/i })).toBeDefined();
+    });
+
+    const calendarBtn = screen.getByRole('button', { name: /Lọc theo kỳ thu/i });
+    fireEvent.click(calendarBtn);
+
+    // Calendar weekdays or month header should be visible
+    await waitFor(() => {
+      expect(screen.getByText('T2')).toBeDefined();
+      expect(screen.getByText('CN')).toBeDefined();
+    });
+  });
 });
+
