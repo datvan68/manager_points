@@ -8,13 +8,23 @@ import {
   UseGuards,
   Request,
   Query,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { randomUUID } from 'crypto';
 import { InvoicesService } from '../services/invoices.service';
 import {
   CreateInvoiceDto,
   PayInvoiceDto,
   BulkCreateInvoiceDto,
+  CreateMonthlyInvoiceDto,
+  UpdateMonthlyInvoiceDto,
 } from '../dto/create-invoice.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -24,6 +34,82 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @Controller('dormitory/invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
+
+  @Post('monthly')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Tạo hóa đơn điện - nước hàng tháng cho phòng' })
+  createMonthly(@Body() dto: CreateMonthlyInvoiceDto, @Request() req: any) {
+    return this.invoicesService.createMonthly(dto, req.user);
+  }
+
+  @Patch(':id/monthly')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Cập nhật thông số hóa đơn điện - nước hàng tháng' })
+  updateMonthly(
+    @Param('id') id: string,
+    @Body() dto: UpdateMonthlyInvoiceDto,
+    @Request() req: any,
+  ) {
+    return this.invoicesService.updateMonthly(id, dto, req.user);
+  }
+
+  @Get('room-info/:roomId')
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
+  @ApiOperation({ summary: 'Lấy thông tin phòng, số người ở và chỉ số cũ' })
+  getRoomInfo(
+    @Param('roomId') roomId: string,
+    @Query('billing_month') billingMonth?: string,
+  ) {
+    return this.invoicesService.getRoomInfo(roomId, billingMonth);
+  }
+
+  @Post('upload-proof')
+  @UseGuards(checkPermission('DORM_INVOICE_CONFIRM'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads';
+          if (!existsSync(uploadPath)) {
+            mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
+        filename: (req, file, cb) => {
+          const uniqueSuffix = randomUUID();
+          const ext = extname(file.originalname).toLowerCase();
+          cb(null, `invoice-proof-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'Chỉ chấp nhận file ảnh hợp lệ (PNG, JPEG, WebP)',
+            ),
+            false,
+          );
+        }
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload chứng từ thanh toán hóa đơn' })
+  uploadProof(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file ảnh chứng từ hợp lệ');
+    }
+    return {
+      url: `/uploads/${file.filename}`,
+      file_name: file.filename,
+      mime_type: file.mimetype,
+      size: file.size,
+    };
+  }
 
   @Post()
   @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
@@ -40,6 +126,8 @@ export class InvoicesController {
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(
+    @Query('room_id') room_id?: string,
+    @Query('billing_month') billing_month?: string,
     @Query('student_id') student_id?: string,
     @Query('contract_id') contract_id?: string,
     @Query('status') status?: string,
@@ -49,6 +137,8 @@ export class InvoicesController {
     @Query('limit') limit?: string,
   ) {
     return this.invoicesService.findAll({
+      room_id,
+      billing_month,
       student_id,
       contract_id,
       status,

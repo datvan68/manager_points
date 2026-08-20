@@ -7,12 +7,158 @@ import {
   IsDateString,
   IsEnum,
   IsArray,
+  IsBoolean,
   ValidateNested,
   Min,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class InvoiceItemDto {
+export class UtilityInputDto {
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  previous_reading: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  current_reading: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  quota_per_person: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  unit_price: number;
+}
+
+export class CreateMonthlyInvoiceDto {
+  @IsNotEmpty()
+  @IsMongoId()
+  room_id: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'billing_month phải có định dạng YYYY-MM (ví dụ: 2026-03)',
+  })
+  billing_month: string;
+
+  @IsNotEmpty()
+  @IsDateString()
+  reading_date: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  occupant_count?: number;
+
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => UtilityInputDto)
+  electricity: UtilityInputDto;
+
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => UtilityInputDto)
+  water: UtilityInputDto;
+
+  @IsOptional()
+  @IsBoolean()
+  is_exempt?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  payment_start_date?: string;
+
+  @IsNotEmpty()
+  @IsDateString()
+  due_date: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateMonthlyInvoiceDto {
+  @IsOptional()
+  @IsDateString()
+  reading_date?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  occupant_count?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UtilityInputDto)
+  electricity?: UtilityInputDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UtilityInputDto)
+  water?: UtilityInputDto;
+
+  @IsOptional()
+  @IsBoolean()
+  is_exempt?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  payment_start_date?: string;
+
+  @IsOptional()
+  @IsDateString()
+  due_date?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class PaymentProofDto {
+  @IsNotEmpty()
+  @IsString()
+  url: string;
+
+  @IsOptional()
+  @IsString()
+  file_name?: string;
+
+  @IsOptional()
+  @IsString()
+  mime_type?: string;
+
+  @IsOptional()
+  @IsNumber()
+  size?: number;
+}
+
+export class PayInvoiceDto {
+  @IsNotEmpty()
+  @IsEnum(['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'])
+  payment_method: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PaymentProofDto)
+  payment_proof?: PaymentProofDto;
+
+  @IsOptional()
+  @IsString()
+  proof_url?: string;
+}
+
+export class InvoiceItemDto {
   @IsNotEmpty()
   @IsEnum(['Phí phòng', 'Điện', 'Nước', 'Dịch vụ', 'Phạt vi phạm'])
   type: string;
@@ -48,16 +194,6 @@ export class CreateInvoiceDto {
   @IsNotEmpty()
   @IsDateString()
   due_date: string;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
-}
-
-export class PayInvoiceDto {
-  @IsNotEmpty()
-  @IsEnum(['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'])
-  payment_method: string;
 
   @IsOptional()
   @IsString()

@@ -122,21 +122,28 @@ export class DormitoryReportsService {
   /**
    * FR14: Revenue and debt report
    */
-  async getRevenueReport(query?: { billing_period?: string }) {
+  async getRevenueReport(query?: { billing_period?: string; billing_month?: string }) {
     const filter: any = {};
-    if (query?.billing_period) filter.billing_period = query.billing_period;
+    if (query?.billing_month) {
+      filter.billing_month = query.billing_month;
+    } else if (query?.billing_period) {
+      filter.$or = [
+        { billing_period: query.billing_period },
+        { billing_month: query.billing_period },
+      ];
+    }
 
     const invoices = await this.invoiceModel.find(filter).exec();
 
-    const paid = invoices.filter((i) => i.status === 'Đã thanh toán');
-    const unpaid = invoices.filter((i) => i.status === 'Chưa thanh toán');
+    const paid = invoices.filter((i) => i.status === 'Đã thanh toán' || i.status === 'Đã thu');
+    const unpaid = invoices.filter((i) => i.status === 'Chưa thanh toán' || i.status === 'Chưa thu');
     const overdue = invoices.filter((i) => i.status === 'Quá hạn');
 
     return {
       total_invoices: invoices.length,
-      total_revenue: paid.reduce((sum, i) => sum + i.total_amount, 0),
-      total_unpaid: unpaid.reduce((sum, i) => sum + i.total_amount, 0),
-      total_overdue: overdue.reduce((sum, i) => sum + i.total_amount, 0),
+      total_revenue: paid.reduce((sum, i) => sum + (i.total_amount || 0), 0),
+      total_unpaid: unpaid.reduce((sum, i) => sum + (i.total_amount || 0), 0),
+      total_overdue: overdue.reduce((sum, i) => sum + (i.total_amount || 0), 0),
       paid_count: paid.length,
       unpaid_count: unpaid.length,
       overdue_count: overdue.length,
@@ -367,16 +374,21 @@ export class DormitoryReportsService {
     let anomalyAmount = 0;
 
     for (const invoice of invoiceList) {
-      if (invoice.status !== 'Chưa thanh toán' && invoice.status !== 'Quá hạn') continue;
+      const isUnpaid = invoice.status === 'Chưa thanh toán' || invoice.status === 'Chưa thu';
+      const isOverdue = invoice.status === 'Quá hạn';
+      if (!isUnpaid && !isOverdue) continue;
       outstandingInvoiceCount++;
-      if (invoice.status === 'Chưa thanh toán') unpaidInvoiceCount++;
+      if (isUnpaid) unpaidInvoiceCount++;
       else overdueInvoiceCount++;
       const invoiceAmount = numberOf(invoice.total_amount);
       outstandingAmount += invoiceAmount;
 
-      const contract = contractById.get(idOf(invoice.contract_id));
-      const roomId = idOf(contract?.room_id);
-      if (!contract || !roomId || !roomById.has(roomId)) {
+      let roomId = idOf(invoice.room_id);
+      if (!roomId && invoice.contract_id) {
+        const contract = contractById.get(idOf(invoice.contract_id));
+        roomId = idOf(contract?.room_id);
+      }
+      if (!roomId || !roomById.has(roomId)) {
         invoiceAnomalyCount++;
         anomalyAmount += invoiceAmount;
         continue;
@@ -400,7 +412,13 @@ export class DormitoryReportsService {
       };
       const studentId = idOf(invoice.student_id);
       if (studentId) row.debtor_ids.add(studentId);
-      if (invoice.status === 'Chưa thanh toán') row.unpaid_count++;
+      if (Array.isArray(invoice.roster_entry_ids)) {
+        for (const reId of invoice.roster_entry_ids) {
+          const rId = idOf(reId);
+          if (rId) row.debtor_ids.add(rId);
+        }
+      }
+      if (isUnpaid) row.unpaid_count++;
       else row.overdue_count++;
       row.total_outstanding_amount += invoiceAmount;
       invoiceRows.set(roomId, row);
@@ -467,17 +485,30 @@ export class DormitoryReportsService {
       if (bucket) bucket.move_ins++;
     }
     for (const invoice of invoiceList) {
-      const paid = invoice.status === 'Đã thanh toán';
-      for (const item of invoice.items || []) {
-        const group = category(item.type);
-        if (!group) continue;
-        feeSummary[group][paid ? 'paid' : 'unpaid']++;
-        const raw = /^T(\d{2})\/(\d{4})$/.exec(String(invoice.billing_period || ''));
-        const bucket = raw
-          ? monthly.find((row) => row.month === `${raw[2]}-${raw[1]}`)
-          : undefined;
-        if (bucket) {
-          bucket[`${group === 'fee' ? 'dormitory_fee' : 'utility'}_${paid ? 'paid' : 'unpaid'}`]++;
+      const paid = invoice.status === 'Đã thanh toán' || invoice.status === 'Đã thu';
+      if (invoice.items && invoice.items.length > 0) {
+        for (const item of invoice.items) {
+          const group = category(item.type);
+          if (!group) continue;
+          feeSummary[group][paid ? 'paid' : 'unpaid']++;
+          const raw = /^T(\d{2})\/(\d{4})$/.exec(String(invoice.billing_period || ''));
+          const bucket = raw
+            ? monthly.find((row) => row.month === `${raw[2]}-${raw[1]}`)
+            : undefined;
+          if (bucket) {
+            bucket[`${group === 'fee' ? 'dormitory_fee' : 'utility'}_${paid ? 'paid' : 'unpaid'}`]++;
+          }
+        }
+      } else if (invoice.electricity || invoice.water) {
+        if ((invoice.electricity?.amount || 0) > 0 || (invoice.water?.amount || 0) > 0 || (invoice.total_amount || 0) > 0) {
+          feeSummary.utility[paid ? 'paid' : 'unpaid']++;
+        }
+        const monthStr = invoice.billing_month || (/^T(\d{2})\/(\d{4})$/.exec(String(invoice.billing_period || '')) ? `${RegExp.$2}-${RegExp.$1}` : '');
+        if (monthStr) {
+          const bucket = monthly.find((row) => row.month === monthStr);
+          if (bucket) {
+            bucket[`utility_${paid ? 'paid' : 'unpaid'}`]++;
+          }
         }
       }
     }

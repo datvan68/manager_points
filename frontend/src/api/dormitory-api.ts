@@ -133,20 +133,75 @@ export interface DormContract {
   createdAt?: string;
 }
 
+export interface UtilityDetail {
+  previous_reading: number;
+  current_reading: number;
+  consumption: number;
+  quota_per_person: number;
+  quota_total: number;
+  excess_consumption: number;
+  unit_price: number;
+  amount: number;
+}
+
+export interface PaymentProof {
+  url: string;
+  file_name?: string;
+  mime_type?: string;
+  size?: number;
+  uploaded_at?: string;
+}
+
+export interface CreateMonthlyInvoiceInput {
+  room_id: string;
+  billing_month: string;
+  reading_date: string;
+  occupant_count?: number;
+  electricity: {
+    previous_reading: number;
+    current_reading: number;
+    quota_per_person: number;
+    unit_price: number;
+  };
+  water: {
+    previous_reading: number;
+    current_reading: number;
+    quota_per_person: number;
+    unit_price: number;
+  };
+  is_exempt?: boolean;
+  payment_start_date?: string;
+  due_date: string;
+  notes?: string;
+}
+
+export type UpdateMonthlyInvoiceInput = Partial<CreateMonthlyInvoiceInput>;
+
 export interface DormInvoice {
   _id: string;
   invoice_code: string;
-  contract_id: any;
-  student_id: any;
-  billing_period: string;
-  items: { type: string; description?: string; amount: number }[];
-  total_amount: number;
-  status: 'Chưa thanh toán' | 'Đã thanh toán' | 'Quá hạn';
+  room_id?: Room | any;
+  billing_month?: string; // Canonical 'YYYY-MM'
+  reading_date?: string;
+  occupant_count?: number;
+  roster_entry_ids?: any[];
+  electricity?: UtilityDetail;
+  water?: UtilityDetail;
+  is_exempt?: boolean;
+  payment_start_date?: string;
   due_date: string;
+  total_amount: number;
+  status: 'Chưa thu' | 'Đã thu' | 'Chưa thanh toán' | 'Đã thanh toán' | 'Quá hạn';
   paid_at?: string;
   payment_method?: string;
+  payment_proof?: PaymentProof;
   confirmed_by_id?: any;
   notes?: string;
+  // Legacy fields
+  contract_id?: any;
+  student_id?: any;
+  billing_period?: string;
+  items?: { type: string; description?: string; amount: number }[];
   createdAt?: string;
 }
 
@@ -509,6 +564,63 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}`);
       return handleResponse(res);
     },
+    async createMonthly(dto: CreateMonthlyInvoiceInput): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/monthly`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async updateMonthly(id: string, dto: UpdateMonthlyInvoiceInput): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/monthly`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async getRoomInfo(roomId: string, billingMonth?: string): Promise<{
+      room: Room;
+      occupant_count: number;
+      occupants: any[];
+      last_readings: { electricity: number; water: number };
+    }> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/invoices/room-info/${roomId}${buildQuery({ billing_month: billingMonth })}`,
+      );
+      return handleResponse(res);
+    },
+    async uploadProof(file: File): Promise<{
+      url: string;
+      file_name: string;
+      mime_type: string;
+      size: number;
+    }> {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/upload-proof`, {
+        method: 'POST',
+        body: formData,
+      });
+      return handleResponse(res);
+    },
+    async pay(
+      id: string,
+      dto: {
+        payment_method: string;
+        notes?: string;
+        payment_proof?: PaymentProof;
+        proof_url?: string;
+      },
+    ): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/pay`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
     async create(dto: any): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices`, {
         method: 'POST',
@@ -520,14 +632,6 @@ export const dormitoryApi = {
     async bulkCreate(dto: { billing_period: string; due_date: string }): Promise<{ created: number; skipped: number }> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/bulk-create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
-      });
-      return handleResponse(res);
-    },
-    async pay(id: string, dto: { payment_method: string; notes?: string }): Promise<DormInvoice> {
-      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/pay`, {
-        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto),
       });

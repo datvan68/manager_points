@@ -10,7 +10,7 @@ export const DORMITORY_ENUMS = {
   bedStatus: ['Trống', 'Đang sử dụng', 'Bảo trì', 'Đã nghỉ'] as const,
   registrationStatus: ['Chờ duyệt', 'Đã duyệt', 'Từ chối'] as const,
   contractStatus: ['Hiệu lực', 'Hết hạn', 'Đã hủy'] as const,
-  invoiceStatus: ['Chưa thanh toán', 'Đã thanh toán', 'Quá hạn'] as const,
+  invoiceStatus: ['Chưa thu', 'Đã thu', 'Chưa thanh toán', 'Đã thanh toán', 'Quá hạn'] as const,
   violationStatus: ['Mới', 'Đã xử lý', 'Đang xét'] as const,
   maintenanceStatus: ['Mới', 'Đang xử lý', 'Hoàn tất', 'Từ chối'] as const,
   roomType: ['Thường', 'Máy lạnh'] as const,
