@@ -719,6 +719,22 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
+    async updateProof(
+      id: string,
+      dto: {
+        payment_method?: string;
+        notes?: string;
+        payment_proof?: PaymentProof;
+        proof_url?: string;
+      },
+    ): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
     async create(dto: any): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices`, {
         method: 'POST',

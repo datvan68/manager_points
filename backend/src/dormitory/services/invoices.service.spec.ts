@@ -455,6 +455,40 @@ describe('InvoicesService', () => {
     });
   });
 
+  describe('updatePaymentProof', () => {
+    it('updates payment proof metadata and notes for an invoice', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Đã thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/old-proof.png' },
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this;
+        }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      const result = await service.updatePaymentProof(
+        'inv-1',
+        {
+          payment_proof: {
+            url: '/uploads/new-proof.png',
+            file_name: 'new-proof.png',
+            mime_type: 'image/png',
+            size: 204800,
+          },
+          notes: 'Đã cập nhật lại ảnh chuyển khoản đúng',
+        },
+        { userId: 'admin-2' },
+      );
+
+      expect(result.payment_proof?.url).toBe('/uploads/new-proof.png');
+      expect(result.notes).toBe('Đã cập nhật lại ảnh chuyển khoản đúng');
+      expect(result.confirmed_by_id).toBe('admin-2');
+    });
+  });
+
   describe('getRoomInfo', () => {
     it('returns room details, occupant count from roster, and last invoice readings', async () => {
       const { service, invoiceModel } = setup();

@@ -23,6 +23,7 @@ vi.mock('@/api/dormitory-api', () => ({
       getRoomInfo: vi.fn(),
       uploadProof: vi.fn(),
       pay: vi.fn(),
+      updateProof: vi.fn(),
       getConfig: vi.fn(),
       updateConfig: vi.fn(),
       getMeterReadings: vi.fn(),
@@ -214,15 +215,17 @@ describe('Dormitory Invoices Page', () => {
     expect(mockPush).toHaveBeenCalledWith('/dormitory/invoices/meter-readings');
   });
 
-  it('shows "Đóng ngay" button for unpaid invoice, hides for paid invoice, and opens Pay Modal on click', async () => {
+  it('shows "Đóng ngay" for unpaid invoice and "Kiểm tra" for paid invoice in action column', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Đóng ngay/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeDefined();
     });
 
-    // Only 1 "Đóng ngay" button for the unpaid invoice
+    // Verify 1 "Đóng ngay" button and 1 "Kiểm tra" button
     expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBe(1);
+    expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBe(1);
 
     // Verify "Thu tiền" and edit buttons in row are gone
     expect(screen.queryByRole('button', { name: /^Thu tiền$/i })).toBeNull();
@@ -237,19 +240,54 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('opens Proof Modal on clicking Đã thu badge', async () => {
+  it('opens Proof Modal on clicking "Kiểm tra" button and allows updating proof photo', async () => {
+    (dormitoryApi.invoices.uploadProof as any).mockResolvedValue({
+      url: '/uploads/new-proof.png',
+      file_name: 'new-proof.png',
+      mime_type: 'image/png',
+      size: 204800,
+    });
+    (dormitoryApi.invoices.updateProof as any).mockResolvedValue({
+      ...mockInvoices[1],
+      payment_proof: { url: '/uploads/new-proof.png' },
+      notes: 'Đã sửa ảnh',
+    });
+
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Đã thu/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeDefined();
     });
 
-    const paidBadge = screen.getByRole('button', { name: /Đã thu/i });
-    fireEvent.click(paidBadge);
+    const checkBtn = screen.getByRole('button', { name: /Kiểm tra/i });
+    fireEvent.click(checkBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Chi tiết chứng từ thanh toán')).toBeDefined();
-      expect(screen.getByText('Đã thanh toán đúng hạn')).toBeDefined();
+      expect(screen.getByText('Kiểm tra chứng từ thanh toán')).toBeDefined();
+      expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
+      expect(screen.getByText('Cập nhật ảnh mới (nếu tải lên sai)')).toBeDefined();
+    });
+
+    // Upload a new photo
+    const file = new File(['fake-image'], 'new-proof.png', { type: 'image/png' });
+    const fileInput = document.getElementById('update-proof-upload') as HTMLInputElement;
+    expect(fileInput).toBeDefined();
+
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+    });
+
+    // Click "Lưu cập nhật"
+    const saveBtn = screen.getByRole('button', { name: /Lưu cập nhật/i });
+    expect(saveBtn).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.uploadProof).toHaveBeenCalled();
+      expect(dormitoryApi.invoices.updateProof).toHaveBeenCalledWith('inv-paid', expect.any(Object));
     });
   });
 

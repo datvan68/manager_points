@@ -23,6 +23,7 @@ import { InvoicesService } from '../services/invoices.service';
 import {
   CreateInvoiceDto,
   PayInvoiceDto,
+  UpdatePaymentProofDto,
   BulkCreateInvoiceDto,
   CreateMonthlyInvoiceDto,
   UpdateMonthlyInvoiceDto,
@@ -206,5 +207,16 @@ export class InvoicesController {
     @Request() req: any,
   ) {
     return this.invoicesService.pay(id, dto, req.user);
+  }
+
+  @Patch(':id/proof')
+  @UseGuards(checkPermission('DORM_INVOICE_CONFIRM'))
+  @ApiOperation({ summary: 'Cập nhật lại chứng từ thanh toán cho hóa đơn' })
+  updateProof(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentProofDto,
+    @Request() req: any,
+  ) {
+    return this.invoicesService.updatePaymentProof(id, dto, req.user);
   }
 }

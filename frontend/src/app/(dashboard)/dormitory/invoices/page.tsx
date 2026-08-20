@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Search,
@@ -37,6 +37,13 @@ import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Research } from '@/components/ui/Research';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Helper format tiền tệ
 function formatMoney(amount?: number): string {
@@ -228,9 +235,15 @@ export default function InvoicesPage() {
   const [payProofPreview, setPayProofPreview] = useState<string | null>(null);
   const [paySubmitting, setPaySubmitting] = useState(false);
 
-  // Modal Xem chứng từ thanh toán
+  // Modal Xem & Cập nhật chứng từ thanh toán (Kiểm tra)
   const [proofModalOpen, setProofModalOpen] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<DormInvoice | null>(null);
+  const [updateProofFile, setUpdateProofFile] = useState<File | null>(null);
+  const [updateProofPreview, setUpdateProofPreview] = useState<string | null>(null);
+  const [updateProofNotes, setUpdateProofNotes] = useState('');
+  const [updateProofMethod, setUpdateProofMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Cổng thanh toán'>('Chuyển khoản');
+  const [updateProofSubmitting, setUpdateProofSubmitting] = useState(false);
+  const updateProofInputRef = useRef<HTMLInputElement>(null);
 
   // Load danh sách phòng
   useEffect(() => {
@@ -485,7 +498,10 @@ export default function InvoicesPage() {
       return;
     }
     setPayProofFile(file);
-    const url = URL.createObjectURL(file);
+    const url =
+      typeof window !== 'undefined' && window.URL && typeof window.URL.createObjectURL === 'function'
+        ? window.URL.createObjectURL(file)
+        : 'blob:preview';
     setPayProofPreview(url);
   }
 
@@ -514,10 +530,54 @@ export default function InvoicesPage() {
     }
   }
 
-  // Mở modal xem chứng từ
+  // Mở modal kiểm tra / xem chứng từ
   function openProofModal(inv: DormInvoice) {
     setViewingInvoice(inv);
+    setUpdateProofFile(null);
+    setUpdateProofPreview(null);
+    setUpdateProofNotes(inv.notes || '');
+    setUpdateProofMethod((inv.payment_method as any) || 'Chuyển khoản');
     setProofModalOpen(true);
+  }
+
+  function handleUpdateProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) {
+      toast.error('File ảnh không được vượt quá 5MB');
+      return;
+    }
+    setUpdateProofFile(f);
+    const url =
+      typeof window !== 'undefined' && window.URL && typeof window.URL.createObjectURL === 'function'
+        ? window.URL.createObjectURL(f)
+        : 'blob:preview';
+    setUpdateProofPreview(url);
+  }
+
+  async function handleSaveUpdatedProof() {
+    if (!viewingInvoice) return;
+    try {
+      setUpdateProofSubmitting(true);
+      let proofMeta = viewingInvoice.payment_proof;
+      if (updateProofFile) {
+        proofMeta = await dormitoryApi.invoices.uploadProof(updateProofFile);
+      }
+      const updated = await dormitoryApi.invoices.updateProof(viewingInvoice._id, {
+        payment_method: updateProofMethod,
+        notes: updateProofNotes || undefined,
+        payment_proof: proofMeta,
+      });
+      toast.success('Cập nhật chứng từ thanh toán thành công');
+      setViewingInvoice(updated);
+      setUpdateProofFile(null);
+      setUpdateProofPreview(null);
+      load();
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi cập nhật chứng từ');
+    } finally {
+      setUpdateProofSubmitting(false);
+    }
   }
 
   return (
@@ -587,19 +647,28 @@ export default function InvoicesPage() {
           </PopoverContent>
         </Popover>
 
-        {/* Lọc trạng thái (Chỉ Chưa thu / Đã thu) */}
-        <select
-          value={filterStatus}
-          onChange={(e) => {
-            setFilterStatus(e.target.value as any);
-            setPage(1);
-          }}
-          className="h-9 px-3 rounded-xl border border-white/80 bg-white/50 text-xs font-semibold text-slate-700 hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 cursor-pointer shrink-0"
-        >
-          <option value="Tất cả">Tất cả trạng thái</option>
-          <option value="Chưa thu">Chưa thu</option>
-          <option value="Đã thu">Đã thu</option>
-        </select>
+        {/* Lọc trạng thái (Sử dụng component Select) */}
+        <div className="w-[160px] shrink-0">
+          <Select
+            value={filterStatus}
+            onValueChange={(val: any) => {
+              setFilterStatus(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger
+              aria-label="Lọc theo trạng thái"
+              className="h-9 rounded-xl border border-white/80 bg-white/50 text-xs font-semibold text-slate-700 hover:bg-white/80"
+            >
+              <SelectValue placeholder="Tất cả trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Tất cả">Tất cả trạng thái</SelectItem>
+              <SelectItem value="Chưa thu">Chưa thu</SelectItem>
+              <SelectItem value="Đã thu">Đã thu</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Toggle Chế độ xem Table / Cards */}
         <div className="flex items-center h-9 p-0.5 rounded-xl border border-white/80 bg-white/50 shadow-2xs shrink-0">
@@ -779,8 +848,8 @@ export default function InvoicesPage() {
                     </div>
 
                     {/* Card Footer Actions */}
-                    {displayStatus === 'Chưa thu' && (
-                      <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-white/60">
+                    <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-white/60">
+                      {displayStatus === 'Chưa thu' ? (
                         <button
                           onClick={() => openPayModal(inv)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
@@ -788,8 +857,16 @@ export default function InvoicesPage() {
                         >
                           <CheckCircle size={14} /> Đóng ngay
                         </button>
-                      </div>
-                    )}
+                      ) : (
+                        <button
+                          onClick={() => openProofModal(inv)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                          title="Kiểm tra chứng từ thanh toán"
+                        >
+                          <Eye size={14} /> Kiểm tra
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -893,14 +970,10 @@ export default function InvoicesPage() {
                         {/* 6. Trạng thái (giãn cách với cột Tổng tiền nhờ px-8 và min-w-[140px]) */}
                         <td className="p-3 text-center px-8 min-w-[140px] whitespace-nowrap">
                           {displayStatus === 'Đã thu' ? (
-                            <button
-                              onClick={() => openProofModal(inv)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-150 cursor-pointer shadow-2xs"
-                              title="Bấm để xem ảnh chứng từ chuyển khoản"
-                            >
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
                               <CheckCircle size={13} />
                               Đã thu
-                            </button>
+                            </span>
                           ) : (
                             <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
                               Chưa thu
@@ -919,7 +992,15 @@ export default function InvoicesPage() {
                               >
                                 <CheckCircle size={14} /> Đóng ngay
                               </button>
-                            ) : null}
+                            ) : (
+                              <button
+                                onClick={() => openProofModal(inv)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                                title="Kiểm tra chứng từ thanh toán"
+                              >
+                                <Eye size={14} /> Kiểm tra
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -960,13 +1041,13 @@ export default function InvoicesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-              <div className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
-                <SlidersHorizontal size={20} />
-                <h2>
-                  {editingInvoice
-                    ? 'Chỉnh sửa thông số hóa đơn (Nâng cao)'
-                    : 'Lập đợt thu điện - nước (Nâng cao)'}
+              <div>
+                <h2 className="text-lg font-bold text-[#1E293B]">
+                  {editingInvoice ? 'Chỉnh sửa thông số hóa đơn' : 'Lập đợt thu tiền phòng'}
                 </h2>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Tùy chỉnh định mức, số người, đơn giá và tính toán số tiền theo phòng
+                </p>
               </div>
               <button
                 onClick={() => setAdvancedModalOpen(false)}
@@ -977,18 +1058,17 @@ export default function InvoicesPage() {
             </div>
 
             <form onSubmit={handleSaveAdvanced} className="space-y-4">
-              {/* Phòng và Kỳ thu */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+              {/* Chọn phòng & kỳ thu */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-[#1E293B]">
                     Phòng <span className="text-red-500">*</span>
                   </label>
                   <select
-                    disabled={Boolean(editingInvoice) || roomLoading}
+                    disabled={!!editingInvoice}
                     value={advancedForm.room_id}
                     onChange={(e) => handleSelectRoom(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none disabled:bg-slate-100/80 transition-all duration-150 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
                   >
                     <option value="">-- Chọn phòng --</option>
                     {rooms.map((r) => (
@@ -999,57 +1079,34 @@ export default function InvoicesPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-[#1E293B]">
                     Kỳ thu (Tháng/Năm) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="month"
-                    disabled={Boolean(editingInvoice)}
+                    disabled={!!editingInvoice}
                     value={advancedForm.billing_month}
                     onChange={(e) => setAdvancedForm((f) => ({ ...f, billing_month: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none disabled:bg-slate-100/80 transition-all duration-150"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 disabled:opacity-60"
                   />
                 </div>
               </div>
 
-              {/* Số người ở & Ngày chốt chỉ số (Sử dụng CustomCalendar) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10">
-                <div>
-                  <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center gap-1">
-                    <Users size={14} className="text-[#64748B]" />
-                    Số người ở tại lúc chốt
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={advancedForm.occupant_count}
-                    onChange={(e) =>
-                      setAdvancedForm((f) => ({
-                        ...f,
-                        occupant_count: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      }))
-                    }
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                  />
-                  <span className="text-[11px] text-[#64748B]">
-                    Lấy tự động từ Danh sách KTX (có thể điều chỉnh)
-                  </span>
-                </div>
-
+              {/* Ngày ghi số & Số người ở */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
                     <CalendarIcon size={14} className="text-[#64748B]" />
-                    Ngày chốt chỉ số <span className="text-red-500">*</span>
+                    Ngày ghi chỉ số <span className="text-red-500">*</span>
                   </label>
                   <Popover open={readingDateCalendarOpen} onOpenChange={setReadingDateCalendarOpen}>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
-                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150 cursor-pointer"
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 cursor-pointer"
                       >
-                        <span>{advancedForm.reading_date ? formatDate(advancedForm.reading_date) : 'Chọn ngày chốt'}</span>
+                        <span>{advancedForm.reading_date ? formatDate(advancedForm.reading_date) : 'Chọn ngày ghi'}</span>
                         <CalendarIcon size={14} className="text-[#64748B]" />
                       </button>
                     </PopoverTrigger>
@@ -1068,23 +1125,37 @@ export default function InvoicesPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+                    <Users size={14} className="text-[#64748B]" />
+                    Số người ở thực tế (để tính định mức) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={advancedForm.occupant_count}
+                    onChange={(e) => setAdvancedForm((f) => ({ ...f, occupant_count: parseInt(e.target.value, 10) || 0 }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                  />
+                </div>
               </div>
 
-              {/* Cụm thông số Điện */}
+              {/* Thông số điện */}
               <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
-                    <Zap size={16} className="text-amber-600" />
-                    Thông số Điện
-                  </div>
-                  <div className="text-xs font-semibold text-amber-700">
-                    Thành tiền: {formatMoney(previewCalc.electricity.amount)}
-                  </div>
+                  <span className="font-bold text-amber-800 text-xs flex items-center gap-1">
+                    <Zap size={14} className="text-amber-600" /> Chỉ số điện (kWh)
+                  </span>
+                  <span className="text-[11px] font-semibold text-amber-700">
+                    Tiêu thụ: {previewCalc.electricity.consumption} kWh | Vượt:{' '}
+                    {previewCalc.electricity.excess} kWh | Thành tiền:{' '}
+                    {formatMoney(previewCalc.electricity.amount)}
+                  </span>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số cũ</label>
+                    <label className="text-[#64748B] block mb-1">Chỉ số cũ</label>
                     <input
                       type="number"
                       min="0"
@@ -1092,18 +1163,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          electricity: {
-                            ...f.electricity,
-                            previous_reading: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          electricity: { ...f.electricity, previous_reading: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số mới</label>
+                    <label className="text-[#64748B] block mb-1">Chỉ số mới</label>
                     <input
                       type="number"
                       min="0"
@@ -1111,20 +1178,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          electricity: {
-                            ...f.electricity,
-                            current_reading: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          electricity: { ...f.electricity, current_reading: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 focus:outline-none transition-all duration-150 ${
-                        previewCalc.electricity.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
-                      }`}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Định mức/người (kWh)</label>
+                    <label className="text-[#64748B] block mb-1">Định mức/người</label>
                     <input
                       type="number"
                       min="0"
@@ -1132,18 +1193,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          electricity: {
-                            ...f.electricity,
-                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          electricity: { ...f.electricity, quota_per_person: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Đơn giá (đ/kWh)</label>
+                    <label className="text-[#64748B] block mb-1">Đơn giá (đ/kWh)</label>
                     <input
                       type="number"
                       min="0"
@@ -1151,45 +1208,30 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          electricity: {
-                            ...f.electricity,
-                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          electricity: { ...f.electricity, unit_price: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
                 </div>
-
-                {previewCalc.electricity.invalid && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle size={13} /> Chỉ số mới không được nhỏ hơn chỉ số cũ
-                  </p>
-                )}
-
-                <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-4 gap-y-1 bg-white/80 p-2 rounded-xl border border-amber-500/15">
-                  <span>Tiêu thụ: <b>{previewCalc.electricity.consumption} kWh</b></span>
-                  <span>Định mức phòng: <b>{previewCalc.electricity.quota_total} kWh</b></span>
-                  <span>Vượt định mức: <b>{previewCalc.electricity.excess} kWh</b></span>
-                </div>
               </div>
 
-              {/* Cụm thông số Nước */}
+              {/* Thông số nước */}
               <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
-                    <Droplets size={16} className="text-sky-600" />
-                    Thông số Nước
-                  </div>
-                  <div className="text-xs font-semibold text-sky-700">
-                    Thành tiền: {formatMoney(previewCalc.water.amount)}
-                  </div>
+                  <span className="font-bold text-sky-800 text-xs flex items-center gap-1">
+                    <Droplets size={14} className="text-sky-600" /> Chỉ số nước (m³)
+                  </span>
+                  <span className="text-[11px] font-semibold text-sky-700">
+                    Tiêu thụ: {previewCalc.water.consumption} m³ | Vượt:{' '}
+                    {previewCalc.water.excess} m³ | Thành tiền:{' '}
+                    {formatMoney(previewCalc.water.amount)}
+                  </span>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số cũ</label>
+                    <label className="text-[#64748B] block mb-1">Chỉ số cũ</label>
                     <input
                       type="number"
                       min="0"
@@ -1197,18 +1239,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          water: {
-                            ...f.water,
-                            previous_reading: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          water: { ...f.water, previous_reading: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số mới</label>
+                    <label className="text-[#64748B] block mb-1">Chỉ số mới</label>
                     <input
                       type="number"
                       min="0"
@@ -1216,20 +1254,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          water: {
-                            ...f.water,
-                            current_reading: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          water: { ...f.water, current_reading: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 focus:outline-none transition-all duration-150 ${
-                        previewCalc.water.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
-                      }`}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Định mức/người (m³)</label>
+                    <label className="text-[#64748B] block mb-1">Định mức/người</label>
                     <input
                       type="number"
                       min="0"
@@ -1237,18 +1269,14 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          water: {
-                            ...f.water,
-                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          water: { ...f.water, quota_per_person: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Đơn giá (đ/m³)</label>
+                    <label className="text-[#64748B] block mb-1">Đơn giá (đ/m³)</label>
                     <input
                       type="number"
                       min="0"
@@ -1256,36 +1284,21 @@ export default function InvoicesPage() {
                       onChange={(e) =>
                         setAdvancedForm((f) => ({
                           ...f,
-                          water: {
-                            ...f.water,
-                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
+                          water: { ...f.water, unit_price: parseFloat(e.target.value) || 0 },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[#1E293B] font-medium"
                     />
                   </div>
                 </div>
-
-                {previewCalc.water.invalid && (
-                  <p className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle size={13} /> Chỉ số mới không được nhỏ hơn chỉ số cũ
-                  </p>
-                )}
-
-                <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-4 gap-y-1 bg-white/80 p-2 rounded-xl border border-sky-500/15">
-                  <span>Tiêu thụ: <b>{previewCalc.water.consumption} m³</b></span>
-                  <span>Định mức phòng: <b>{previewCalc.water.quota_total} m³</b></span>
-                  <span>Vượt định mức: <b>{previewCalc.water.excess} m³</b></span>
-                </div>
               </div>
 
-              {/* Hạn thu & Cờ Không thu (Sử dụng CustomCalendar) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Ngày bắt đầu thu & Hạn nộp */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1">
                     <CalendarIcon size={14} className="text-[#64748B]" />
-                    Bắt đầu thu
+                    Ngày bắt đầu thu
                   </label>
                   <Popover open={startDateCalendarOpen} onOpenChange={setStartDateCalendarOpen}>
                     <PopoverTrigger asChild>
@@ -1448,68 +1461,99 @@ export default function InvoicesPage() {
             </div>
 
             <form onSubmit={handleConfirmPay} className="space-y-4">
+              {/* Phương thức */}
               <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1.5">
                   Phương thức thanh toán <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={payMethod}
-                  onChange={(e) => setPayMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150 cursor-pointer"
-                >
-                  <option value="Chuyển khoản">Chuyển khoản</option>
-                  <option value="Tiền mặt">Tiền mặt</option>
-                  <option value="Cổng thanh toán">Cổng thanh toán</option>
-                </select>
-              </div>
-
-              {/* Upload ảnh chứng từ */}
-              <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                  Ảnh chứng từ thanh toán (tuỳ chọn)
-                </label>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 text-center hover:border-[#1A73E8]/50 transition-all duration-150 bg-slate-500/5">
-                  <input
-                    type="file"
-                    id="proof_upload"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleProofFileChange}
-                    className="hidden"
-                  />
-                  <label htmlFor="proof_upload" className="cursor-pointer block">
-                    {payProofPreview ? (
-                      <div className="space-y-2">
-                        <img
-                          src={payProofPreview}
-                          alt="Chứng từ"
-                          className="max-h-36 mx-auto rounded-xl shadow-sm object-contain"
-                        />
-                        <span className="text-xs text-[#1A73E8] font-medium hover:underline block">
-                          Chọn ảnh khác
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="space-y-1 py-2">
-                        <Upload size={24} className="mx-auto text-[#64748B]" />
-                        <div className="text-xs text-[#1E293B] font-medium">Bấm để tải ảnh chứng từ</div>
-                        <div className="text-[10px] text-[#64748B]">PNG, JPG, WebP tối đa 5MB</div>
-                      </div>
-                    )}
-                  </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Chuyển khoản', 'Tiền mặt'] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPayMethod(method)}
+                      className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer ${
+                        payMethod === method
+                          ? 'border-[#1A73E8] bg-blue-50/80 text-[#1A73E8] shadow-xs'
+                          : 'border-slate-200/80 bg-white/70 text-[#1E293B] hover:bg-white'
+                      }`}
+                    >
+                      {method === 'Chuyển khoản' ? <DollarSign size={14} /> : <CheckCircle size={14} />}
+                      {method}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {/* Upload ảnh chứng từ (Khuyến khích/bắt buộc khi Chuyển khoản) */}
               <div>
-                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú thanh toán</label>
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1.5 flex items-center justify-between">
+                  <span>Ảnh chứng từ thanh toán</span>
+                  {payMethod === 'Chuyển khoản' && (
+                    <span className="text-[11px] text-[#1A73E8] font-normal">Khuyến nghị đính kèm bill</span>
+                  )}
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={handleProofFileChange}
+                    className="hidden"
+                    id="pay-proof-upload"
+                  />
+                  {!payProofFile ? (
+                    <label
+                      htmlFor="pay-proof-upload"
+                      className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                    >
+                      <Upload size={22} className="text-[#1A73E8] mb-1" />
+                      <span className="text-xs font-medium text-[#1E293B]">Bấm để chọn file ảnh bill/chứng từ</span>
+                      <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                    </label>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+                      <div className="flex items-center gap-2 truncate">
+                        <CheckCircle size={16} className="text-emerald-700 shrink-0" />
+                        <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayProofFile(null);
+                          setPayProofPreview(null);
+                        }}
+                        className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  )}
+
+                  {payProofPreview && (
+                    <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
+                      <img
+                        src={payProofPreview}
+                        alt="Xem trước chứng từ"
+                        className="max-h-40 w-auto object-contain rounded-lg shadow-2xs"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ghi chú */}
+              <div>
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú xác nhận</label>
                 <textarea
                   rows={2}
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
-                  placeholder="Mã giao dịch, thông tin người nộp..."
+                  placeholder="Ghi chú người nộp, số tài khoản, mã giao dịch..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                 />
               </div>
 
+              {/* Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -1533,13 +1577,13 @@ export default function InvoicesPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL XEM CHỨNG TỪ (Khi click Đã thu hoặc nút Xem chứng từ) */}
+      {/* MODAL KIỂM TRA & CẬP NHẬT CHỨNG TỪ (Khi click Đã thu hoặc nút Kiểm tra) */}
       {/* ========================================================================= */}
       {proofModalOpen && viewingInvoice && (
         <div
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
-          onClick={() => setProofModalOpen(false)}
-          onKeyDown={(e) => e.key === 'Escape' && setProofModalOpen(false)}
+          onClick={() => !updateProofSubmitting && setProofModalOpen(false)}
+          onKeyDown={(e) => e.key === 'Escape' && !updateProofSubmitting && setProofModalOpen(false)}
           tabIndex={-1}
         >
           <div
@@ -1548,12 +1592,13 @@ export default function InvoicesPage() {
           >
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
               <div>
-                <h2 className="text-lg font-bold text-[#1E293B]">Chi tiết chứng từ thanh toán</h2>
+                <h2 className="text-lg font-bold text-[#1E293B]">Kiểm tra chứng từ thanh toán</h2>
                 <span className="text-xs text-emerald-700 font-medium">Trạng thái: Đã thu</span>
               </div>
               <button
                 onClick={() => setProofModalOpen(false)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer"
+                disabled={updateProofSubmitting}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150 cursor-pointer disabled:opacity-50"
                 aria-label="Đóng"
               >
                 <X size={20} />
@@ -1602,18 +1647,12 @@ export default function InvoicesPage() {
                     'Quản lý KTX'}
                 </span>
               </div>
-              {viewingInvoice.notes && (
-                <div className="col-span-2 pt-1 border-t border-slate-200/60">
-                  <span className="text-[#64748B] block">Ghi chú:</span>
-                  <span className="text-[#1E293B]">{viewingInvoice.notes}</span>
-                </div>
-              )}
             </div>
 
-            {/* Ảnh chứng từ */}
-            <div>
-              <label className="block text-xs font-semibold text-[#1E293B] mb-2">
-                Ảnh chứng từ đính kèm
+            {/* Ảnh chứng từ hiện tại */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[#1E293B]">
+                Ảnh chứng từ hiện tại
               </label>
               {viewingInvoice.payment_proof?.url ? (
                 <div className="space-y-2">
@@ -1621,7 +1660,7 @@ export default function InvoicesPage() {
                     <img
                       src={viewingInvoice.payment_proof.url}
                       alt="Chứng từ thanh toán"
-                      className="max-h-72 w-auto object-contain rounded-xl shadow-sm"
+                      className="max-h-60 w-auto object-contain rounded-xl shadow-sm"
                     />
                   </div>
                   <div className="text-right">
@@ -1643,12 +1682,92 @@ export default function InvoicesPage() {
               )}
             </div>
 
-            <div className="pt-2">
+            {/* Cập nhật lại ảnh nếu up sai */}
+            <div className="border-t border-slate-200/60 pt-3 space-y-3">
+              <label className="block text-xs font-semibold text-[#1E293B]">
+                Cập nhật ảnh mới (nếu tải lên sai)
+              </label>
+
+              <input
+                ref={updateProofInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                onChange={handleUpdateProofFileChange}
+                className="hidden"
+                id="update-proof-upload"
+              />
+
+              {!updateProofFile ? (
+                <label
+                  htmlFor="update-proof-upload"
+                  className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                >
+                  <Upload size={22} className="text-[#1A73E8] mb-1" />
+                  <span className="text-xs font-medium text-[#1E293B]">
+                    Bấm để chọn ảnh mới thay thế
+                  </span>
+                  <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                </label>
+              ) : (
+                <div className="space-y-2 p-3 bg-blue-50/50 rounded-xl border border-blue-500/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpdateProofFile(null);
+                        setUpdateProofPreview(null);
+                      }}
+                      className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
+                    >
+                      <X size={13} /> Hủy chọn
+                    </button>
+                  </div>
+                  {updateProofPreview && (
+                    <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
+                      <img
+                        src={updateProofPreview}
+                        alt="Ảnh mới"
+                        className="max-h-48 w-auto object-contain rounded-md"
+                      />
+                    </div>
+                  )}
+                  <div className="text-[11px] text-[#64748B] truncate">
+                    {updateProofFile.name} ({(updateProofFile.size / 1024).toFixed(1)} KB)
+                  </div>
+                </div>
+              )}
+
+              {/* Ghi chú */}
+              <div>
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
+                <textarea
+                  rows={2}
+                  value={updateProofNotes}
+                  onChange={(e) => setUpdateProofNotes(e.target.value)}
+                  placeholder="Ghi chú thêm về chứng từ..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
+                />
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-2.5 pt-2 border-t border-slate-100">
               <button
+                type="button"
+                disabled={updateProofSubmitting}
                 onClick={() => setProofModalOpen(false)}
-                className="w-full px-4 py-2.5 bg-slate-100 text-[#1E293B] rounded-xl text-sm font-medium hover:bg-slate-200 transition-all duration-150 hover:scale-[1.01] cursor-pointer"
+                className="flex-1 px-4 py-2.5 bg-slate-100 text-[#1E293B] rounded-xl text-sm font-medium hover:bg-slate-200 transition-all duration-150 hover:scale-[1.01] cursor-pointer disabled:opacity-50"
               >
                 Đóng
+              </button>
+              <button
+                type="button"
+                disabled={updateProofSubmitting || (!updateProofFile && updateProofNotes === (viewingInvoice.notes || ''))}
+                onClick={handleSaveUpdatedProof}
+                className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
+              >
+                {updateProofSubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
               </button>
             </div>
           </div>

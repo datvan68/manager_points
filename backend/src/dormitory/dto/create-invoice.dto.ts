@@ -158,6 +158,25 @@ export class PayInvoiceDto {
   proof_url?: string;
 }
 
+export class UpdatePaymentProofDto {
+  @IsOptional()
+  @IsEnum(['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'])
+  payment_method?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PaymentProofDto)
+  payment_proof?: PaymentProofDto;
+
+  @IsOptional()
+  @IsString()
+  proof_url?: string;
+}
+
 export class InvoiceItemDto {
   @IsNotEmpty()
   @IsEnum(['Phí phòng', 'Điện', 'Nước', 'Dịch vụ', 'Phạt vi phạm'])

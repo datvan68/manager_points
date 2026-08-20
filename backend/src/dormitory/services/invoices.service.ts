@@ -20,6 +20,7 @@ import {
 import {
   CreateInvoiceDto,
   PayInvoiceDto,
+  UpdatePaymentProofDto,
   BulkCreateInvoiceDto,
   CreateMonthlyInvoiceDto,
   UpdateMonthlyInvoiceDto,
@@ -541,6 +542,44 @@ export class InvoicesService {
       };
     }
 
+    return invoice.save();
+  }
+
+  /**
+   * Cập nhật chứng từ thanh toán cho hóa đơn
+   */
+  async updatePaymentProof(
+    id: string,
+    dto: UpdatePaymentProofDto,
+    user: any,
+  ): Promise<Invoice> {
+    const invoice = await this.invoiceModel.findById(id).exec();
+    if (!invoice) {
+      throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
+    }
+    if (dto.payment_method) {
+      invoice.payment_method = dto.payment_method;
+    }
+    if (dto.notes !== undefined) {
+      invoice.notes = dto.notes;
+    }
+    if (dto.payment_proof) {
+      invoice.payment_proof = {
+        url: dto.payment_proof.url,
+        file_name: dto.payment_proof.file_name,
+        mime_type: dto.payment_proof.mime_type,
+        size: dto.payment_proof.size,
+        uploaded_at: new Date(),
+      };
+    } else if (dto.proof_url) {
+      invoice.payment_proof = {
+        url: dto.proof_url,
+        uploaded_at: new Date(),
+      };
+    }
+    if (user?._id || user?.userId) {
+      invoice.confirmed_by_id = user._id || user.userId;
+    }
     return invoice.save();
   }
 

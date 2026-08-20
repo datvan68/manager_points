@@ -124,4 +124,14 @@ describe('InvoicesController', () => {
     expect(service.pay).toHaveBeenCalledWith('inv-1', dto, req.user);
     expect(result.status).toBe('Đã thu');
   });
+
+  it('updateProof delegates to service.updatePaymentProof', async () => {
+    service.updatePaymentProof = jest.fn().mockResolvedValue({ _id: 'inv-1', status: 'Đã thu' });
+    const dto: any = { notes: 'Updated notes' };
+    const req = { user: { userId: 'u-1' } };
+
+    const result = await controller.updateProof('inv-1', dto, req);
+    expect(service.updatePaymentProof).toHaveBeenCalledWith('inv-1', dto, req.user);
+    expect(result.status).toBe('Đã thu');
+  });
 });
