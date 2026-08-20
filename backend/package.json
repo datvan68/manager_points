@@ -45,6 +45,8 @@
     ,"verify:pdf-templates": "ts-node scripts/verify-dormitory-pdf-template.ts"
     ,"migration:dormitory-meter-readings:dry-run": "ts-node scripts/migrate-dormitory-meter-readings.ts"
     ,"inspect:dormitory-meter-invoice-indexes": "ts-node scripts/inspect-dormitory-meter-invoice-indexes.ts"
+    ,"repair:dormitory-invoice-code-index:dry-run": "ts-node scripts/repair-dormitory-invoice-code-index.ts"
+    ,"repair:dormitory-invoice-code-index:execute": "ts-node scripts/repair-dormitory-invoice-code-index.ts --execute"
   },
   "dependencies": {
     "@nestjs-redis/client": "1.4.0",
