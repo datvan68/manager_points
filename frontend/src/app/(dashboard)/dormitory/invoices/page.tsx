@@ -166,6 +166,7 @@ export default function InvoicesPage() {
 
   // Modal Cấu hình dùng chung (Định mức, đơn giá, số ngày thu)
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [configDeadlineCalendarOpen, setConfigDeadlineCalendarOpen] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSubmitting, setConfigSubmitting] = useState(false);
   const [configQrFile, setConfigQrFile] = useState<File | null>(null);
@@ -189,6 +190,7 @@ export default function InvoicesPage() {
   async function openConfigModal() {
     try {
       setConfigLoading(true);
+      setConfigDeadlineCalendarOpen(false);
       setConfigModalOpen(true);
       const cfg = await dormitoryApi.invoices.getConfig();
       if (cfg) {
@@ -1853,20 +1855,24 @@ export default function InvoicesPage() {
                   <CalendarIcon size={14} className="text-[#64748B]" />
                   Hạn thanh toán <span className="text-red-500">*</span>
                 </label>
-                <Popover>
+                <Popover open={configDeadlineCalendarOpen} onOpenChange={setConfigDeadlineCalendarOpen}>
                   <PopoverTrigger asChild>
                     <button type="button" aria-label="Chọn ngày thanh toán" className="flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-left text-sm text-[#1E293B]">
                       <span>{configForm.payment_deadline ? formatDate(configForm.payment_deadline) : 'Chọn ngày'}</span><CalendarIcon size={14} />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
                     <CustomCalendar
                       startDate={configForm.payment_deadline ? new Date(`${configForm.payment_deadline}T00:00:00`) : null}
                       endDate={null}
                       minDate={new Date()}
                       onRangeSelect={(start) => setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }))}
-                      onCancel={() => undefined}
-                      onConfirm={() => undefined}
+                      onRangeConfirm={(start) => {
+                        setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }));
+                        setConfigDeadlineCalendarOpen(false);
+                      }}
+                      onCancel={() => setConfigDeadlineCalendarOpen(false)}
+                      onConfirm={() => setConfigDeadlineCalendarOpen(false)}
                     />
                   </PopoverContent>
                 </Popover>
