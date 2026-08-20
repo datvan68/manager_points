@@ -73,6 +73,21 @@ const mockRoomsData = [
     },
     total_amount: 85000,
   },
+  {
+    room_id: 'room-3',
+    room: {
+      _id: 'room-3',
+      room_code: 'P103',
+      room_name: 'Phòng 103',
+      building_id: { _id: 'b-1', name: 'Tòa A', building_code: 'A' },
+    },
+    occupant_count: 0,
+    status: 'unrecorded',
+    previous_readings: {
+      electricity: 0,
+      water: 0,
+    },
+  },
 ];
 
 describe('Dormitory Meter Readings Page', () => {
@@ -99,12 +114,13 @@ describe('Dormitory Meter Readings Page', () => {
     });
   });
 
-  it('renders all occupied rooms as vertical cards, not modal or table (AC-02)', async () => {
+  it('renders all rooms (including empty rooms) as vertical cards, not modal or table (AC-01, AC-02)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/Phòng 101/i)).toBeDefined();
       expect(screen.getByText(/Phòng 102/i)).toBeDefined();
+      expect(screen.getByText(/Phòng 103/i)).toBeDefined();
     });
 
     // Check that there is no <table> in the room cards area
@@ -113,6 +129,28 @@ describe('Dormitory Meter Readings Page', () => {
     // Check presence of room cards by test id
     expect(screen.getByTestId('room-card-room-1')).toBeDefined();
     expect(screen.getByTestId('room-card-room-2')).toBeDefined();
+    expect(screen.getByTestId('room-card-room-3')).toBeDefined();
+
+    // Check empty room displays 0 occupants
+    const card3 = screen.getByTestId('room-card-room-3');
+    expect(card3.textContent).toContain('0 người ở');
+  });
+
+  it('does not render search input, filter select, or "Cấu hình áp dụng" block (AC-04, AC-05)', async () => {
+    render(<MeterReadingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('room-card-room-1')).toBeDefined();
+    });
+
+    // Verify search input is not in the DOM
+    expect(screen.queryByPlaceholderText(/Tìm theo tên phòng/i)).toBeNull();
+
+    // Verify filter select is not in the DOM
+    expect(screen.queryByRole('combobox')).toBeNull();
+
+    // Verify "Cấu hình áp dụng" block is not rendered
+    expect(screen.queryByText(/Cấu hình áp dụng:/i)).toBeNull();
   });
 
   it('displays room info, previous readings, status and exactly two input fields per card (AC-02a)', async () => {
@@ -158,7 +196,18 @@ describe('Dormitory Meter Readings Page', () => {
     });
   });
 
-  it('allows saving an individual card and updates card status (AC-04, AC-05)', async () => {
+  it('calculates progress accurately based on all rooms (AC-06)', async () => {
+    render(<MeterReadingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('room-card-room-1')).toBeDefined();
+    });
+
+    // 1 recorded out of 3 total rooms = 33%
+    expect(screen.getByText(/1 \/ 3 phòng \(33%\)/i)).toBeDefined();
+  });
+
+  it('allows saving an individual card and updates card status (AC-04, AC-05, AC-06)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {

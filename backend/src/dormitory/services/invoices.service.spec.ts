@@ -500,29 +500,56 @@ describe('InvoicesService', () => {
     });
   });
 
-  describe('getMeterReadings (AC-02, AC-03)', () => {
-    it('returns occupied rooms from roster with previous readings and status', async () => {
-      const { service, rosterModel, invoiceModel } = setup();
+  describe('getMeterReadings (AC-01, AC-02, AC-03)', () => {
+    it('returns all rooms from roomModel including occupied and empty rooms with previous readings and status (AC-01, AC-02)', async () => {
+      const { service, roomModel, rosterModel, invoiceModel } = setup();
+      const emptyRoom = {
+        _id: '507f1f77bcf86cd799439022',
+        room_code: 'P102',
+        room_name: 'Phòng 102',
+        room_price: 500000,
+      };
+
+      roomModel.find.mockReturnValue(
+        query([emptyRoom, room]),
+      );
+
+      // Roster only contains occupants for room 1 (P101)
       rosterModel.find.mockReturnValue(
         query([
-          { _id: 'r-1', room_id: room },
-          { _id: 'r-2', room_id: room },
+          { _id: 'r-1', room_id: room._id },
+          { _id: 'r-2', room_id: room._id },
         ]),
       );
-      invoiceModel.findOne.mockReturnValue(
-        query({
-          electricity: { current_reading: 150 },
-          water: { current_reading: 25 },
-        }),
-      );
+
+      // Mock invoices: room 1 has previous readings, room 2 has no previous
+      invoiceModel.findOne.mockImplementation(({ room_id, billing_month }: any) => {
+        if (room_id === roomId) {
+          return query({
+            electricity: { current_reading: 150 },
+            water: { current_reading: 25 },
+          });
+        }
+        return query(null);
+      });
 
       const result = await service.getMeterReadings('2026-03');
 
       expect(result.billing_month).toBe('2026-03');
-      expect(result.rooms.length).toBe(1);
+      expect(result.rooms.length).toBe(2);
+
+      // Verify sorting: P101 before P102
+      expect(result.rooms[0].room_id).toBe(roomId);
       expect(result.rooms[0].occupant_count).toBe(2);
       expect(result.rooms[0].previous_readings.electricity).toBe(150);
       expect(result.rooms[0].previous_readings.water).toBe(25);
+
+      // Empty room
+      expect(result.rooms[1].room_id).toBe('507f1f77bcf86cd799439022');
+      expect(result.rooms[1].occupant_count).toBe(0);
+      expect(result.rooms[1].previous_readings.electricity).toBe(0);
+      expect(result.rooms[1].previous_readings.water).toBe(0);
+      expect(result.rooms[1].status).toBe('unrecorded');
     });
 
     it('rejects invalid billing_month format', async () => {
@@ -565,6 +592,49 @@ describe('InvoicesService', () => {
       expect(result.results[0].invoice?.total_amount).toBe(70000);
       expect(result.results[0].invoice?.payment_start_date).toBeDefined();
       expect(result.results[0].invoice?.due_date).toBeDefined();
+      expect(saved).toHaveBeenCalled();
+    });
+
+    it('saves readings for empty room with 0 occupants and charges full consumption (AC-07)', async () => {
+      const { service, saved, invoiceModel, rosterModel, roomModel } = setup();
+      const emptyRoomId = '507f1f77bcf86cd799439022';
+      const emptyRoom = {
+        _id: emptyRoomId,
+        room_code: 'P102',
+        room_name: 'Phòng 102',
+      };
+      roomModel.findById.mockReturnValue(query(emptyRoom));
+      rosterModel.find.mockReturnValue(query([])); // 0 occupants
+
+      // No existing invoice in this month
+      invoiceModel.findOne.mockReturnValueOnce(query(null));
+      // Previous invoice
+      invoiceModel.findOne.mockReturnValueOnce(
+        query({
+          electricity: { current_reading: 100 },
+          water: { current_reading: 10 },
+        }),
+      );
+
+      const result = await service.saveBulkMeterReadings(
+        {
+          billing_month: '2026-03',
+          readings: [
+            {
+              room_id: emptyRoomId,
+              electricity_reading: 120, // 20 kWh - 0 quota = 20 excess * 2500 = 50,000
+              water_reading: 15, // 5 m3 - 0 quota = 5 excess * 10000 = 50,000
+            },
+          ],
+        },
+        { userId: 'admin-1' },
+      );
+
+      expect(result.results.length).toBe(1);
+      expect(result.results[0].success).toBe(true);
+      expect(result.results[0].invoice?.occupant_count).toBe(0);
+      expect(result.results[0].invoice?.roster_entry_ids).toEqual([]);
+      expect(result.results[0].invoice?.total_amount).toBe(100000);
       expect(saved).toHaveBeenCalled();
     });
 

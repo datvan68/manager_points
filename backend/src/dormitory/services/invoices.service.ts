@@ -618,7 +618,7 @@ export class InvoicesService {
   }
 
   /**
-   * Lấy danh sách phòng có người ở từ Roster cho kỳ thu kèm chỉ số cũ
+   * Lấy danh sách toàn bộ phòng cho kỳ thu kèm chỉ số cũ
    */
   async getMeterReadings(billingMonth: string) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(billingMonth)) {
@@ -629,38 +629,46 @@ export class InvoicesService {
 
     const config = await this.getUtilityConfig();
 
-    // Lấy danh sách roster entries có gắn phòng
+    // Lấy toàn bộ danh sách phòng trong hệ thống kèm thông tin tòa nhà
+    const allRooms = await this.roomModel
+      .find()
+      .populate({ path: 'building_id', select: 'building_code name' })
+      .exec();
+
+    // Lấy danh sách roster entries có gắn phòng để tính số người ở
     const rosterEntries = await this.rosterModel
       .find({ room_id: { $ne: null } })
-      .populate({
-        path: 'room_id',
-        populate: { path: 'building_id', select: 'building_code name' },
-      })
       .exec();
 
     // Nhóm roster entries theo room_id
-    const roomMap = new Map<
+    const rosterMap = new Map<
       string,
-      { room: any; occupantCount: number; rosterEntryIds: Types.ObjectId[] }
+      { occupantCount: number; rosterEntryIds: Types.ObjectId[] }
     >();
     for (const entry of rosterEntries) {
-      const roomObj = entry.room_id as any;
-      if (!roomObj) continue;
-      const roomIdStr = String(roomObj._id || roomObj);
-      if (!roomMap.has(roomIdStr)) {
-        roomMap.set(roomIdStr, {
-          room: roomObj,
+      if (!entry.room_id) continue;
+      const roomIdStr = String(
+        (entry.room_id as any)?._id || entry.room_id,
+      );
+      if (!rosterMap.has(roomIdStr)) {
+        rosterMap.set(roomIdStr, {
           occupantCount: 0,
           rosterEntryIds: [],
         });
       }
-      const group = roomMap.get(roomIdStr)!;
+      const group = rosterMap.get(roomIdStr)!;
       group.occupantCount += 1;
       group.rosterEntryIds.push(entry._id);
     }
 
     const roomsData: any[] = [];
-    for (const [roomIdStr, group] of roomMap.entries()) {
+    for (const room of allRooms) {
+      const roomIdStr = String(room._id);
+      const rosterInfo = rosterMap.get(roomIdStr) || {
+        occupantCount: 0,
+        rosterEntryIds: [],
+      };
+
       // Hóa đơn hiện tại trong kỳ này
       const currentInvoice = await this.invoiceModel
         .findOne({
@@ -695,8 +703,8 @@ export class InvoicesService {
 
       roomsData.push({
         room_id: roomIdStr,
-        room: group.room,
-        occupant_count: group.occupantCount,
+        room: room,
+        occupant_count: rosterInfo.occupantCount,
         status: currentInvoice ? 'recorded' : 'unrecorded',
         invoice_id: currentInvoice?._id,
         invoice_status: currentInvoice?.status,

@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Search,
   CheckCircle,
   AlertCircle,
   Zap,
@@ -14,7 +13,6 @@ import {
   RefreshCw,
   Building as BuildingIcon,
   Check,
-  Clock,
 } from 'lucide-react';
 import {
   dormitoryApi,
@@ -47,8 +45,6 @@ export default function MeterReadingsPage() {
   }, []);
 
   const [billingMonth, setBillingMonth] = useState(defaultMonth);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'Tất cả' | 'Chưa ghi' | 'Đã ghi'>('Tất cả');
   const [loading, setLoading] = useState(true);
   const [savingAll, setSavingAll] = useState(false);
 
@@ -409,26 +405,6 @@ export default function MeterReadingsPage() {
     }
   }
 
-  // Lọc danh sách phòng theo search & status
-  const filteredRooms = useMemo(() => {
-    return rooms.filter((r) => {
-      if (filterStatus === 'Chưa ghi' && r.status === 'recorded') return false;
-      if (filterStatus === 'Đã ghi' && r.status !== 'recorded') return false;
-
-      if (search.trim()) {
-        const query = search.trim().toLowerCase();
-        const roomName = (r.room?.room_name || '').toLowerCase();
-        const roomCode = (r.room?.room_code || '').toLowerCase();
-        const bName = typeof r.room?.building_id === 'object' ? (r.room?.building_id?.name || '').toLowerCase() : '';
-        const bCode = typeof r.room?.building_id === 'object' ? (r.room?.building_id?.building_code || '').toLowerCase() : '';
-        if (!roomName.includes(query) && !roomCode.includes(query) && !bName.includes(query) && !bCode.includes(query)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [rooms, filterStatus, search]);
-
   const recordedCount = useMemo(() => {
     return rooms.filter((r) => r.status === 'recorded').length;
   }, [rooms]);
@@ -454,7 +430,7 @@ export default function MeterReadingsPage() {
               Ghi chỉ số điện - nước KTX
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Ghi chỉ số công-tơ cho toàn bộ phòng có người ở trong kỳ, hệ thống tự động tính tiền và hạn thu
+              Ghi chỉ số công-tơ cho các phòng trong kỳ, hệ thống tự động tính tiền và hạn thu
             </p>
           </div>
         </div>
@@ -493,68 +469,21 @@ export default function MeterReadingsPage() {
         </div>
       </div>
 
-      {/* Tiến độ và Cấu hình áp dụng */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card Tiến độ */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2 md:col-span-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-gray-700">
-              Tiến độ ghi chỉ số kỳ {billingMonth}
-            </span>
-            <span className="font-bold text-blue-700">
-              {recordedCount} / {totalCount} phòng ({progressPercent}%)
-            </span>
-          </div>
-          <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-            <div
-              className="bg-blue-600 h-full rounded-full transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+      {/* Tiến độ ghi chỉ số */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-gray-700">
+            Tiến độ ghi chỉ số kỳ {billingMonth}
+          </span>
+          <span className="font-bold text-blue-700">
+            {recordedCount} / {totalCount} phòng ({progressPercent}%)
+          </span>
         </div>
-
-        {/* Card Tóm tắt cấu hình */}
-        <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 flex items-center justify-between text-xs text-blue-900">
-          <div>
-            <div className="font-semibold">Cấu hình áp dụng:</div>
-            <div className="text-[11px] text-blue-700 mt-0.5">
-              Điện: {config?.electricity?.quota_per_person ?? 15} kWh/người ({formatMoney(config?.electricity?.unit_price ?? 2500)}/kWh)
-            </div>
-            <div className="text-[11px] text-blue-700">
-              Nước: {config?.water?.quota_per_person ?? 4} m³/người ({formatMoney(config?.water?.unit_price ?? 10000)}/m³)
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-blue-100 px-2 py-0.5 rounded text-blue-800">
-              <Clock size={12} /> Hạn thu: +{config?.configured_collection_days ?? 10} ngày
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Bộ lọc và Tìm kiếm */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Tìm theo tên phòng, mã phòng, tòa nhà..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+          <div
+            className="bg-blue-600 h-full rounded-full transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
           />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="Tất cả">Tất cả trạng thái ({rooms.length})</option>
-            <option value="Chưa ghi">Chưa ghi ({rooms.filter((r) => r.status !== 'recorded').length})</option>
-            <option value="Đã ghi">Đã ghi ({rooms.filter((r) => r.status === 'recorded').length})</option>
-          </select>
         </div>
       </div>
 
@@ -570,13 +499,13 @@ export default function MeterReadingsPage() {
               </div>
             </div>
           ))
-        ) : filteredRooms.length === 0 ? (
+        ) : rooms.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100 shadow-sm">
             <BuildingIcon size={40} className="mx-auto mb-2 opacity-30" />
-            <p className="text-sm font-medium">Không tìm thấy phòng nào có người ở phù hợp</p>
+            <p className="text-sm font-medium">Không tìm thấy phòng nào trong hệ thống</p>
           </div>
         ) : (
-          filteredRooms.map((room) => {
+          rooms.map((room) => {
             const cardState = cardsState[room.room_id] || {
               electricity_reading: '',
               water_reading: '',
