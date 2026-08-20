@@ -140,12 +140,16 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('renders the 7 standard table columns (AC-08)', async () => {
+  it('renders the 7 standard table columns without title header and shows room name only (AC-08)', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101 (Tòa A)').length).toBe(2);
+      expect(screen.getAllByText('Phòng 101').length).toBe(2);
     });
+
+    // Verify title header is removed
+    expect(screen.queryByText('Hóa đơn điện - nước KTX')).toBeNull();
+    expect(screen.queryByText(/Quản lý đợt thu tiền điện - nước theo phòng/i)).toBeNull();
 
     // Check table headers
     expect(screen.getByText('Phòng')).toBeDefined();
@@ -210,14 +214,21 @@ describe('Dormitory Invoices Page', () => {
     expect(mockPush).toHaveBeenCalledWith('/dormitory/invoices/meter-readings');
   });
 
-  it('opens Pay Modal on clicking Thu tiền', async () => {
+  it('shows "Đóng ngay" button for unpaid invoice, hides for paid invoice, and opens Pay Modal on click', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Thu tiền/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Đóng ngay/i })).toBeDefined();
     });
 
-    const payBtn = screen.getByRole('button', { name: /Thu tiền/i });
+    // Only 1 "Đóng ngay" button for the unpaid invoice
+    expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBe(1);
+
+    // Verify "Thu tiền" and edit buttons in row are gone
+    expect(screen.queryByRole('button', { name: /^Thu tiền$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Chỉnh sửa thông số/i })).toBeNull();
+
+    const payBtn = screen.getByRole('button', { name: /Đóng ngay/i });
     fireEvent.click(payBtn);
 
     await waitFor(() => {
@@ -246,7 +257,7 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101 (Tòa A)').length).toBe(2);
+      expect(screen.getAllByText('Phòng 101').length).toBe(2);
     });
 
     // Check pagination summary
@@ -258,7 +269,7 @@ describe('Dormitory Invoices Page', () => {
 
     // In card view, room name and invoices are still displayed
     await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101 (Tòa A)').length).toBe(2);
+      expect(screen.getAllByText('Phòng 101').length).toBe(2);
       expect(screen.getAllByText('Tiền điện').length).toBe(2);
       expect(screen.getAllByText('Tiền nước').length).toBe(2);
     });
