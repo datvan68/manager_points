@@ -579,14 +579,30 @@ export class InvoicesService {
         uploaded_at: new Date(),
       };
     }
-    if (dto.payment_proof || dto.proof_url) invoice.payment_review = { status: 'pending', submitted_at: new Date() };
+    if (dto.payment_proof || dto.proof_url) {
+      invoice.payment_review = { status: 'pending', submitted_at: new Date() };
+      if (invoice.status === 'Đã thu' || invoice.status === 'Đã thanh toán') {
+        invoice.status = 'Chưa thu';
+        invoice.paid_at = undefined;
+        invoice.confirmed_by_id = undefined;
+      }
+    }
     return invoice.save();
   }
 
-  async reviewPaymentProof(id: string, decision: 'approved' | 'rejected', user: any): Promise<Invoice> {
+  async reviewPaymentProof(id: string, decision: 'approved' | 'rejected' | 'revoked', user: any): Promise<Invoice> {
     const invoice = await this.invoiceModel.findById(id).exec();
     if (!invoice) throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
     if (invoice.payment_method !== 'Chuyển khoản' || !invoice.payment_proof) throw new BadRequestException('Hóa đơn chưa có chứng từ chuyển khoản');
+    if (decision === 'revoked') {
+      if (invoice.payment_review?.status !== 'approved' || invoice.status !== 'Đã thu') throw new BadRequestException('Chứng từ không ở trạng thái đã duyệt');
+      const now = new Date();
+      invoice.payment_review = { ...invoice.payment_review, status: 'rejected', revoked_by_id: user._id || user.userId, revoked_at: now };
+      invoice.status = 'Chưa thu';
+      invoice.paid_at = undefined;
+      invoice.confirmed_by_id = undefined;
+      return invoice.save();
+    }
     if (invoice.payment_review?.status !== 'pending') throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
     const now = new Date();
     invoice.payment_review = { ...invoice.payment_review, status: decision, reviewed_by_id: user._id || user.userId, reviewed_at: now };

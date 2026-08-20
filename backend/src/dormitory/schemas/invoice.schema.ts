@@ -57,6 +57,8 @@ export class PaymentReview {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' }) reviewed_by_id?: Types.ObjectId;
   @Prop() reviewed_at?: Date;
   @Prop() submitted_at?: Date;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' }) revoked_by_id?: Types.ObjectId;
+  @Prop() revoked_at?: Date;
 }
 
 export const PaymentProofSchema = SchemaFactory.createForClass(PaymentProof);

@@ -151,6 +151,7 @@ export default function InvoicesPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -277,8 +278,6 @@ export default function InvoicesPage() {
   // Modal Thu tiền (Xác nhận thanh toán kèm upload chứng từ)
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payingInvoice, setPayingInvoice] = useState<DormInvoice | null>(null);
-  const [payMethod, setPayMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Cổng thanh toán'>('Chuyển khoản');
-  const [payNotes, setPayNotes] = useState('');
   const [payProofFile, setPayProofFile] = useState<File | null>(null);
   const [payProofPreview, setPayProofPreview] = useState<string | null>(null);
   const [paySubmitting, setPaySubmitting] = useState(false);
@@ -579,8 +578,6 @@ export default function InvoicesPage() {
   // Mở modal Thu tiền
   function openPayModal(inv: DormInvoice) {
     setPayingInvoice(inv);
-    setPayMethod('Chuyển khoản');
-    setPayNotes('');
     setPayProofFile(null);
     setPayProofPreview(null);
     setPayModalOpen(true);
@@ -610,6 +607,10 @@ export default function InvoicesPage() {
   async function handleConfirmPay(e: React.FormEvent) {
     e.preventDefault();
     if (!payingInvoice) return;
+    if (!payProofFile) {
+      toast.error('Vui lòng tải ảnh chứng từ thanh toán');
+      return;
+    }
     try {
       setPaySubmitting(true);
       let proofMeta: any = undefined;
@@ -617,11 +618,10 @@ export default function InvoicesPage() {
         proofMeta = await dormitoryApi.invoices.uploadProof(payProofFile);
       }
       await dormitoryApi.invoices.pay(payingInvoice._id, {
-        payment_method: payMethod,
-        notes: payNotes || undefined,
+        payment_method: 'Chuyển khoản',
         payment_proof: proofMeta,
       });
-      toast.success(payMethod === 'Chuyển khoản' && proofMeta ? 'Đã gửi chứng từ, chờ duyệt' : 'Xác nhận thu tiền thành công');
+      toast.success('Đã gửi chứng từ, chờ duyệt');
       setPayModalOpen(false);
       load();
     } catch (err: any) {
@@ -680,17 +680,24 @@ export default function InvoicesPage() {
     }
   }
 
-  async function handleReviewProof(decision: 'approved' | 'rejected') {
+  async function submitReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
     if (!viewingInvoice || reviewSubmitting) return;
-    if (decision === 'rejected' && typeof window !== 'undefined' && !window.confirm('Bạn chắc chắn muốn không duyệt chứng từ này?')) return;
     try {
       setReviewSubmitting(true);
       const updated = await dormitoryApi.invoices.reviewProof(viewingInvoice._id, decision);
       setViewingInvoice(updated);
       await load();
-      toast.success(decision === 'approved' ? 'Đã duyệt chứng từ' : 'Đã từ chối chứng từ');
+      toast.success(decision === 'approved' ? 'Đã duyệt chứng từ' : decision === 'revoked' ? 'Đã bỏ duyệt chứng từ' : 'Đã từ chối chứng từ');
     } catch (err: any) { toast.error(err?.message || 'Không thể cập nhật duyệt chứng từ'); }
     finally { setReviewSubmitting(false); }
+  }
+
+  async function handleReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
+    if (decision === 'revoked') {
+      setRevokeConfirmOpen(true);
+      return;
+    }
+    await submitReviewProof(decision);
   }
 
   // Xóa hàng loạt hóa đơn đã chọn
@@ -814,11 +821,11 @@ export default function InvoicesPage() {
         key: 'actions',
         header: 'Thao tác',
         priority: 'action',
-        className: 'text-right',
+        className: 'text-center min-w-[150px]',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="flex items-center justify-center gap-1.5">
               {displayStatus === 'Chưa thu' ? (
                 <button
                   onClick={() => openPayModal(inv)}
@@ -1048,6 +1055,18 @@ export default function InvoicesPage() {
         message={`Bạn có chắc chắn muốn xóa ${selected.length} hóa đơn đã chọn? Các hóa đơn đã thanh toán sẽ không bị xóa.`}
         confirmLabel="Xóa hóa đơn"
         variant="danger"
+      />
+      <ConfirmModal
+        isOpen={revokeConfirmOpen}
+        onClose={() => !reviewSubmitting && setRevokeConfirmOpen(false)}
+        onConfirm={async () => {
+          await submitReviewProof('revoked');
+          setRevokeConfirmOpen(false);
+        }}
+        title="Bỏ duyệt chứng từ"
+        message="Hóa đơn sẽ trở về trạng thái Chưa thu và thành viên có thể đăng tải lại chứng từ. Bạn có chắc chắn muốn tiếp tục?"
+        confirmLabel="Bỏ duyệt"
+        variant="warning"
       />
 
       {/* ========================================================================= */}
@@ -1509,36 +1528,11 @@ export default function InvoicesPage() {
 
                   {/* Form xác nhận đóng tiền */}
                   <form onSubmit={handleConfirmPay} className="space-y-3 pt-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1.5">
-                        Phương thức thanh toán <span className="text-red-500">*</span>
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(['Chuyển khoản', 'Tiền mặt'] as const).map((method) => (
-                          <button
-                            key={method}
-                            type="button"
-                            onClick={() => setPayMethod(method)}
-                            className={`p-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-150 cursor-pointer ${
-                              payMethod === method
-                                ? 'border-[#1A73E8] bg-blue-50/80 text-[#1A73E8] shadow-xs'
-                                : 'border-slate-200/80 bg-white/70 text-[#1E293B] hover:bg-white'
-                            }`}
-                          >
-                            {method === 'Chuyển khoản' ? <DollarSign size={14} /> : <CheckCircle size={14} />}
-                            {method}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Upload ảnh chứng từ */}
                     <div>
                       <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
                         <span>Ảnh chứng từ thanh toán</span>
-                        {payMethod === 'Chuyển khoản' && (
-                          <span className="text-[11px] text-[#1A73E8] font-normal">Khuyến nghị đính kèm bill</span>
-                        )}
+                        <span className="text-[11px] text-[#1A73E8] font-normal">Bắt buộc để gửi duyệt</span>
                       </label>
                       <div className="space-y-2">
                         <input
@@ -1586,18 +1580,6 @@ export default function InvoicesPage() {
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* Ghi chú */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú xác nhận</label>
-                      <textarea
-                        rows={2}
-                        value={payNotes}
-                        onChange={(e) => setPayNotes(e.target.value)}
-                        placeholder="Ghi chú người nộp, số tài khoản, mã giao dịch..."
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/70 text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
-                      />
                     </div>
 
                     {/* Submit Actions */}
@@ -1837,6 +1819,11 @@ export default function InvoicesPage() {
                         <Button type="button" variant="outline" disabled={reviewSubmitting} onClick={() => handleReviewProof('rejected')} className="rounded-xl border-rose-200 text-rose-600">Không duyệt</Button>
                         <Button type="button" disabled={reviewSubmitting} onClick={() => handleReviewProof('approved')} className="rounded-xl bg-emerald-600 hover:bg-emerald-700">{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</Button>
                       </>
+                    )}
+                    {viewingInvoice.payment_review?.status === 'approved' && viewingInvoice.status === 'Đã thu' && (
+                      <Button type="button" variant="outline" disabled={reviewSubmitting} onClick={() => handleReviewProof('revoked')} className="rounded-xl border-amber-200 text-amber-700">
+                        {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
+                      </Button>
                     )}
                     <Button
                       type="button"

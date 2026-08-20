@@ -180,8 +180,8 @@ export class UpdatePaymentProofDto {
 
 export class ReviewPaymentProofDto {
   @IsNotEmpty()
-  @IsEnum(['approved', 'rejected'])
-  decision: 'approved' | 'rejected';
+  @IsEnum(['approved', 'rejected', 'revoked'])
+  decision: 'approved' | 'rejected' | 'revoked';
 }
 
 export class InvoiceItemDto {

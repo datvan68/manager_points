@@ -249,7 +249,7 @@ export default function ResponsiveDataView<T>({
               {columns.map(col => (
                 <th 
                   key={col.key} 
-                  className={`px-5 py-4 text-left text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider select-none ${col.className || ''}`}
+                  className={`px-5 py-4 text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider select-none ${col.className || 'text-left'}`}
                 >
                   {col.header}
                 </th>

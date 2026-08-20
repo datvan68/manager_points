@@ -229,6 +229,8 @@ export interface PaymentReview {
   reviewed_by_id?: any;
   reviewed_at?: string;
   submitted_at?: string;
+  revoked_by_id?: any;
+  revoked_at?: string;
 }
 
 export interface CreateMonthlyInvoiceInput {
@@ -750,7 +752,7 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async reviewProof(id: string, decision: 'approved' | 'rejected'): Promise<DormInvoice> {
+    async reviewProof(id: string, decision: 'approved' | 'rejected' | 'revoked'): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof/review`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
       });
