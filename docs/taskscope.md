@@ -1,130 +1,117 @@
-# Taskscope: Bulk delete invoices and align Dormitory invoice UI
+# Taskscope: Simplify invoice payment and support approval revocation
 
-## Task Identity and Pipeline
+## Metadata
 
-- Task: `dormitory-invoice-bulk-delete-and-ui-alignment`
-- Pipeline: `feature_development`
-- Profile: Full; rules 3.2.0.
-- Repository: `D:\PROJECT\manager_points`; current branch `main`.
-- Authority: Planning only; this taskscope does not authorize implementation, migration, deletion, or production data changes.
-
-## Risk Level
-
-- Risk: high because the task introduces destructive invoice deletion and changes a payment confirmation modal.
-- Blast radius: Dormitory invoice API/permissions, invoice table selection, payment modal, and meter-reading page layout.
-- No database schema migration is expected. Any migration, backfill, production deletion, or deploy requires a Human Gate.
+- Task: `dormitory-invoice-payment-ui-and-revoke-approval`
+- Pipeline: planning-only / Full
+- Risk: high
+- Status: ready for implementation approval; this taskscope does not authorize implementation
 
 ## Objective
 
-1. Add row checkboxes to the `Hóa đơn` table/card view. Selecting invoices opens the shared `FloatingActionBar` with bulk delete protected by the shared `ConfirmModal`.
-2. Restyle the invoice payment modal to match Figma node `540:5` in file `manage-point`.
-3. Fix the visual alignment between `TỔNG TIỀN` and `TRẠNG THÁI` headers and their row values shown in the supplied screenshot.
-4. Add consistent outer spacing on all sides of the `Ghi chỉ số điện - nước KTX` page.
+Simplify the Dormitory invoice payment modal, balance the invoice table layout, and allow an authorized reviewer to revoke an approved transfer proof so the member can upload a replacement proof for review.
 
-## Current Evidence
+## Verified baseline
 
-- `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx` uses `ResponsiveDataView` without `selection`, `FloatingActionBar`, or `ConfirmModal`.
-- `frontend/src/components/ui/ResponsiveDataView.tsx` already supports desktop/mobile row selection and select-all; reuse it instead of adding another checkbox system.
-- Dormitory roster/building pages already demonstrate the repository pattern for `FloatingActionBar` plus danger `ConfirmModal`.
-- The frontend API, invoice controller, and invoice service currently expose no invoice delete/bulk-delete operation.
-- The permission registry has `DORM_INVOICE_READ`, `DORM_INVOICE_CREATE`, and `DORM_INVOICE_CONFIRM`, but no dedicated delete permission.
-- Total uses right alignment and status uses center alignment. The supplied 447×127 screenshot shows inconsistent header/value axes; verify header and cell alignment together at the same viewport.
-- `meter-readings/page.tsx` starts with `space-y-6 pb-16` but has no left/right/top outer padding, so content touches the layout edges.
-- Figma node `https://www.figma.com/design/ziRilpb4uf42X4NJx73Hfa/manage-point?node-id=540-5&m=dev` is reachable but returns `Password required`; exact design tokens could not be inspected during planning.
+- `Hóa đơn thanh toán` currently exposes both `Phương thức thanh toán` and `Ghi chú xác nhận`, and sends `payment_method` plus optional `notes` in the payment request.
+- The transfer-proof flow already supports `pending`, `approved`, and `rejected`; approval changes the invoice to `Đã thu`.
+- The backend review operation currently accepts only invoices in `pending`, so an `approved` proof cannot be revoked.
+- Updating or replacing a proof sets its review state back to `pending`.
+- Invoice amount cells use right alignment, status uses center alignment, and actions use right alignment. The supplied screenshot shows that the visual centers of headers and row values are inconsistent across the amount, status, and action columns.
+- Relevant frontend/backend files already contain uncommitted work. Implementation must preserve those changes and avoid rewriting unrelated behavior.
 
-## Scope Boundaries
+## Functional scope
 
-### Backend and authorization
+### 1. Simplify `Hóa đơn thanh toán`
 
-- Add a dedicated bulk-delete invoice endpoint and service operation.
-- Add and enforce `DORM_INVOICE_DELETE`; update only the repository-native permission bootstrap/default role assignment required for intended Dormitory administrators.
-- Accept an explicit non-empty array of invoice IDs, normalize duplicates, validate IDs, and return deterministic requested/deleted/not-found/rejected details.
-- Use one bounded bulk database operation where possible; never accept table filters as deletion criteria.
-- Define and test the paid-invoice rule before implementation. Default safety assumption: `Đã thu`/`Đã thanh toán` invoices are rejected unless the product owner explicitly authorizes deletion.
-- Do not delete uploaded proof files from disk unless separately authorized.
+- Remove the visible `Phương thức thanh toán` selector.
+- Remove `Ghi chú xác nhận` and stop sending notes from this modal.
+- Treat this member-facing upload flow as transfer-proof submission; send the repository's canonical `Chuyển khoản` value internally without exposing a redundant selector.
+- Require a valid proof image before submission. A successful submission sets review state to `pending` and keeps the invoice at `Chưa thu` until approved.
+- Update labels and submit feedback to describe submitting proof for review, not immediately collecting payment.
+- Preserve existing file constraints and preview/error/loading behavior.
+- Do not remove stored payment-method or historical-note fields from the schema because other flows and historical records may still use them.
 
-### Invoice table and bulk action
+### 2. Balance the invoice table
 
-- Add selected invoice state and wire `ResponsiveDataView.selection` for desktop table and mobile cards.
-- Select-all applies only to loaded rows on the current page. Page, filter, search, or successful reload changes clear stale selection.
-- Show `FloatingActionBar` only with selection. Include selected count, clear action, and permission-gated danger `Xóa` action.
-- `Xóa` opens shared danger `ConfirmModal`; cancel makes no API call. Confirm prevents double submission, calls bulk delete once, reports partial failures, refreshes list/meta, and clears successfully deleted IDs.
-- Preserve filters, pagination, payment/proof actions, responsive cards, and row actions outside selection handling.
+- Define explicit, stable width/alignment rules for the invoice columns instead of relying only on content width.
+- Keep `Phòng` and `Kỳ thu` left aligned.
+- Use one consistent alignment for each amount column (`Tiền điện`, `Tiền nước`, `Tổng tiền`) in both header and body; values must share the same visual axis.
+- Center `Trạng thái` and `Thao tác` in both header and body so the badge/button sits directly beneath its label.
+- Account for the selection-checkbox column without shifting the remaining headers away from their body cells.
+- Keep reasonable minimum widths for status/action controls and allow horizontal scrolling at narrow desktop widths instead of compressing or overlapping content.
+- Preserve the existing responsive card/mobile behavior outside the affected desktop table layout.
 
-### Payment modal and alignment
+### 3. Revoke an approved proof
 
-- Treat Figma node `540:5` as source of truth after access is available. Capture modal dimensions, regions, content order, padding/gaps, typography, colors, radius, shadows, controls, actions, proof/QR areas, and responsive behavior before coding.
-- Map current data/actions into that design without changing payment validation, upload limits/types, methods, payload, status transition, toast, or proof behavior.
-- Preserve accessible dialog title, focus trap, safe close/Escape behavior, labels, loading/disabled states, and viewport-safe scrolling.
-- Fix total/status alignment at the column definition/render boundary so each header and value share the same axis and stable width. Include rows with the `Miễn thu` badge; do not apply a screenshot-specific offset.
+- Show `Bỏ duyệt` in `Kiểm tra chứng từ thanh toán` only when the proof is `approved` and the user has invoice-confirm permission.
+- Require the shared confirmation modal before revocation; do not use a browser-native confirmation dialog.
+- Add a guarded backend/API operation for the transition `approved -> rejected` (revoked):
+  - change the invoice from `Đã thu` to `Chưa thu`;
+  - clear the active collection markers that no longer apply (`paid_at` and `confirmed_by_id`);
+  - record who revoked the approval and when;
+  - retain the existing proof as review evidence until it is replaced;
+  - allow the member to upload a replacement, which starts a new `pending` review.
+- Do not treat revocation as deleting the proof or invoice.
+- Reject revocation when the invoice is not transfer-based, has no proof, is not currently approved/collected, or the actor lacks permission.
+- Make repeated revocation safe: a second request must fail without additional mutation.
+- Return the updated invoice so the modal and table immediately show `Chưa thu`/rejected state and the replacement-upload action.
+- Preserve auditability. If overwriting the existing reviewer fields would erase the original approval evidence, add focused revocation metadata (revoker and revoked time) rather than losing that evidence.
 
-### Meter-reading page spacing
-
-- Add responsive outer page padding equivalent to the invoice page (`p-4 sm:p-6`, adapted only if the parent already supplies a side).
-- Preserve internal card gaps and bottom clearance; avoid double padding/horizontal overflow across header, cards, skeleton, empty state, popover, and mobile viewport.
-
-## Target Files
+## Expected write boundary
 
 - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx`
 - `frontend/src/app/(dashboard)/dormitory/invoices/page.test.tsx`
-- `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.tsx` and its focused test (create beside the page only if absent)
+- `frontend/src/components/ui/ResponsiveDataView.tsx` only if the alignment cannot be fixed through invoice column configuration without changing other consumers
 - `frontend/src/api/dormitory-api.ts`
+- `backend/src/dormitory/schemas/invoice.schema.ts`
+- focused invoice DTO files under `backend/src/dormitory/dto/`
 - `backend/src/dormitory/controllers/invoices.controller.ts`
 - `backend/src/dormitory/controllers/invoices.controller.spec.ts`
 - `backend/src/dormitory/services/invoices.service.ts`
 - `backend/src/dormitory/services/invoices.service.spec.ts`
-- `backend/src/auth/permissions.registry.ts` and only verified native bootstrap/default-role files required for `DORM_INVOICE_DELETE`
 
-## Out of Scope
+## Out of scope
 
-- Invoice calculation, meter-reading persistence, billing dates, statuses, reports, or payment-proof storage changes.
-- Single-row delete UI or selecting/deleting all records across every pagination page/filter query.
-- Physical proof-file deletion, migrations, historical backfill, deployment, or production cleanup.
-- Shared component changes unless a reproducible shared-component defect makes them unavoidable and the boundary is re-approved.
+- Removing payment-method or notes data from historical invoices or database schemas.
+- Changing electricity/water calculations, billing periods, due dates, meter readings, invoice deletion, or room selection.
+- Allowing members to approve, reject, or revoke their own proof unless they already hold the confirmation permission.
+- Deleting old proof files, changing upload storage, backfilling historical invoices, deployment, or production data mutation.
+- Redesigning `ResponsiveDataView` for unrelated pages.
 
-## Implementation Steps
+## Implementation steps
 
-1. Obtain read access/password for Figma node `540:5`; inspect desktop and intended responsive state and record measurable modal tokens.
-2. Add backend tests for missing/paid/mixed invoices, duplicate/invalid IDs, permission guard, and deterministic bulk-delete response.
-3. Implement `DORM_INVOICE_DELETE`, guarded bulk-delete route, and bounded service deletion with the approved paid rule.
-4. Add typed frontend bulk-delete API and partial-result contract.
-5. Wire current-page selection; add permission-gated `FloatingActionBar`, danger `ConfirmModal`, pending state, partial failure handling, refresh, and reset rules.
-6. Refactor only payment modal markup/styles needed to reproduce Figma node `540:5`, retaining payment/upload/QR behavior.
-7. Normalize total/status header and cell alignment and test their shared alignment contract.
-8. Add responsive outer padding to the meter-reading page and verify all page states for overflow/double padding.
-9. Run focused tests, builds/typechecks, visual comparison at desktop/mobile viewports, and final diff/status review.
+1. Preserve the current dirty worktree and add focused tests for the payment modal, table alignment contract, and approved-proof revocation.
+2. Simplify the payment modal to proof upload/submission with an internal transfer method and no notes payload.
+3. Apply explicit invoice-column alignment and width rules; change the shared table only if a local column contract cannot express the required layout.
+4. Add the authorized, validated revoke operation and audit metadata, then expose it through the frontend API.
+5. Add the `Bỏ duyệt` confirmation flow and refresh the modal/table from the returned invoice.
+6. Run focused frontend/backend tests, static checks, visual inspection, and final diff/status review.
 
-## Acceptance Criteria
+## Acceptance criteria
 
-- AC-01: Every loaded invoice row/card has an accessible checkbox; select-all affects exactly the current page and reflects state correctly.
-- AC-02: Selection shows `FloatingActionBar` with correct count and permission-gated `Xóa`; clearing or changing page/filter/search removes stale selection.
-- AC-03: Delete opens shared danger `ConfirmModal` with exact count. Cancel does not mutate; confirm sends one request and cannot double-submit.
-- AC-04: Bulk deletion requires `DORM_INVOICE_DELETE`, rejects empty/invalid input, deduplicates IDs, never deletes outside submitted IDs, and returns tested partial-result details.
-- AC-05: Paid behavior is approved and tested. Until approved otherwise, paid invoices remain and are reported rejected; valid unpaid invoices may be deleted.
-- AC-06: After success/partial success, rows and totals refresh, successful IDs clear, rejected IDs remain observable, and a clear Vietnamese result appears.
-- AC-07: Payment modal matches accessible Figma node `540:5` in structure, size, spacing, typography, colors, controls, proof/QR areas, actions, and responsive stacking, with visual evidence.
-- AC-08: Payment submission, proof upload/preview, constraints, method, notes, status update, loading/errors, and accessibility retain existing behavior.
-- AC-09: `TỔNG TIỀN` and `TRẠNG THÁI` headers align with corresponding cells on desktop; normal, paid/unpaid, and exempt rows keep stable axes.
-- AC-10: Meter-reading page has consistent top/bottom/left/right spacing at mobile and desktop, without clipping, double padding, or regressions.
+- AC-01: `Hóa đơn thanh toán` contains neither a payment-method selector nor `Ghi chú xác nhận`.
+- AC-02: The payment request from this modal uses `Chuyển khoản`, contains no notes from the removed field, and cannot submit without a valid proof image.
+- AC-03: Successful proof submission leaves the invoice `Chưa thu` with review state `pending` and gives clear success feedback.
+- AC-04: Every desktop table header aligns with its corresponding values; amount values share a consistent axis, and status/action controls are centered under their labels as shown necessary by the supplied screenshot.
+- AC-05: Checkbox selection and narrow widths do not offset, overlap, or truncate the status/action columns incorrectly.
+- AC-06: An authorized reviewer sees `Bỏ duyệt` only for an approved transfer proof and must confirm through the shared confirmation modal.
+- AC-07: Confirmed revocation changes the invoice to `Chưa thu`, records revocation audit data, clears active paid/confirmed markers, and retains the old proof until replacement.
+- AC-08: After revocation, a member can upload a new proof; successful replacement changes review state to `pending` and does not mark the invoice collected.
+- AC-09: Invalid, unauthorized, and repeated revocation requests fail without partial mutation.
+- AC-10: Historical invoices and non-transfer payment behavior remain compatible outside this member-facing proof flow.
 
 ## Verification
 
-- Backend :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts` => delete contract, permission, validation, paid rule, and partial results pass.
-- Backend :: `D:\PROJECT\manager_points\backend` :: `npm run build` => Nest compiles.
-- Frontend :: `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` plus focused meter-reading test => selection, confirmation, deletion states, modal regression, alignment, and spacing pass.
-- Frontend :: `D:\PROJECT\manager_points\frontend` :: repository-native typecheck/build command => compile succeeds.
-- Visual :: compare payment modal with Figma node `540:5` at reference and mobile viewports; inspect supplied table misalignment case and meter page loading/empty/populated states.
-- Final :: repository root :: `git diff --check`, scoped diff review, `git status --short` => no unintended changes; preserve user-owned changes.
+- Frontend :: `D:\PROJECT\manager_points\frontend` :: run the focused invoice page tests => removed controls/payload, mandatory proof, table classes, revoke confirmation, and resubmission behavior pass.
+- Backend :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts` => authorized transition, audit fields, cleared paid markers, invalid transitions, and idempotency pass.
+- Static :: run repository-native frontend and backend type/lint checks for affected packages => no introduced errors.
+- Visual :: inspect the invoice table with and without selected rows at desktop and narrow widths => headers and cells remain balanced; status/action controls are centered and do not overlap.
+- Final :: `D:\PROJECT\manager_points` :: `git diff --check -- docs/taskscope.md` and `git status --short` => taskscope has no whitespace errors and no implementation file was changed by this planning step.
 
-## Safety Gates and Open Decisions
+## Gates and assumptions
 
-- Gate: Figma node `540:5` is password-protected. Do not claim visual parity or finalize modal CSS until read access or a dimensioned export is provided.
-- Gate: Confirm whether paid invoices may ever be deleted. Default is rejection to preserve financial audit history.
-- Human Gate: migration, persistent permission/data backfill, physical proof deletion, deployment, or production mutation.
-- Stop if deletion must cascade to reports, receipts, transactions, or other records not evidenced in the invoice service.
-
-## Artifacts and Budgets
-
-- Planning artifact: `docs/taskscope.md`.
-- Step deadline 600 seconds; build maximum 1,800 seconds; retry 2; engineering loop 3; review remediation 2.
-- One writer per path; serialize backend delete contract before frontend integration.
+- Assumption: removing `Phương thức thanh toán` means the member-facing modal is transfer-only, because its required outcome is uploading a transfer proof for review.
+- Assumption: `Bỏ duyệt` is a controlled reversal of collection, represented to the member as rejected/not collected while preserving approval and revocation audit evidence.
+- Use the existing invoice-confirm permission for `Bỏ duyệt`; introducing or assigning a new permission requires a product authorization decision.
+- Human Gate: schema migration/backfill, deletion of stored proof files, permission assignment changes, deployment, or production data mutation.

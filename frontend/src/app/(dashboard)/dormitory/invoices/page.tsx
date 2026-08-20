@@ -124,7 +124,8 @@ export function toDateValue(date: Date | null | string): string {
 }
 
 // Chuẩn hóa trạng thái hiển thị (chỉ có Chưa thu hoặc Đã thu)
-export function getDisplayStatus(status?: string): 'Chưa thu' | 'Đã thu' {
+export function getDisplayStatus(status?: string, reviewStatus?: string): 'Chưa thu' | 'Đã thu' | 'Chờ duyệt' {
+  if (reviewStatus === 'pending') return 'Chờ duyệt';
   if (status === 'Đã thu' || status === 'Đã thanh toán') return 'Đã thu';
   return 'Chưa thu';
 }
@@ -290,7 +291,11 @@ export default function InvoicesPage() {
   const [updateProofNotes, setUpdateProofNotes] = useState('');
   const [updateProofMethod, setUpdateProofMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Cổng thanh toán'>('Chuyển khoản');
   const [updateProofSubmitting, setUpdateProofSubmitting] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [proofImageFailed, setProofImageFailed] = useState(false);
   const updateProofInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setProofImageFailed(false); }, [viewingInvoice?._id, viewingInvoice?.payment_proof?.url]);
 
   // QR Code Data URL cho modal thanh toán/kiểm tra
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -616,7 +621,7 @@ export default function InvoicesPage() {
         notes: payNotes || undefined,
         payment_proof: proofMeta,
       });
-      toast.success('Xác nhận thu tiền thành công');
+      toast.success(payMethod === 'Chuyển khoản' && proofMeta ? 'Đã gửi chứng từ, chờ duyệt' : 'Xác nhận thu tiền thành công');
       setPayModalOpen(false);
       load();
     } catch (err: any) {
@@ -661,7 +666,6 @@ export default function InvoicesPage() {
       }
       const updated = await dormitoryApi.invoices.updateProof(viewingInvoice._id, {
         payment_method: updateProofMethod,
-        notes: updateProofNotes || undefined,
         payment_proof: proofMeta,
       });
       toast.success('Cập nhật chứng từ thanh toán thành công');
@@ -674,6 +678,19 @@ export default function InvoicesPage() {
     } finally {
       setUpdateProofSubmitting(false);
     }
+  }
+
+  async function handleReviewProof(decision: 'approved' | 'rejected') {
+    if (!viewingInvoice || reviewSubmitting) return;
+    if (decision === 'rejected' && typeof window !== 'undefined' && !window.confirm('Bạn chắc chắn muốn không duyệt chứng từ này?')) return;
+    try {
+      setReviewSubmitting(true);
+      const updated = await dormitoryApi.invoices.reviewProof(viewingInvoice._id, decision);
+      setViewingInvoice(updated);
+      await load();
+      toast.success(decision === 'approved' ? 'Đã duyệt chứng từ' : 'Đã từ chối chứng từ');
+    } catch (err: any) { toast.error(err?.message || 'Không thể cập nhật duyệt chứng từ'); }
+    finally { setReviewSubmitting(false); }
   }
 
   // Xóa hàng loạt hóa đơn đã chọn
@@ -774,7 +791,7 @@ export default function InvoicesPage() {
         header: 'Trạng thái',
         className: 'text-center',
         render: (_, inv) => {
-          const displayStatus = getDisplayStatus(inv.status);
+          const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
             <div className="flex items-center justify-center">
               {displayStatus === 'Đã thu' ? (
@@ -782,6 +799,8 @@ export default function InvoicesPage() {
                   <CheckCircle size={13} />
                   Đã thu
                 </span>
+              ) : displayStatus === 'Chờ duyệt' ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-700 border border-blue-500/20 shadow-2xs">Chờ duyệt</span>
               ) : (
                 <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
                   Chưa thu
@@ -797,7 +816,7 @@ export default function InvoicesPage() {
         priority: 'action',
         className: 'text-right',
         render: (_, inv) => {
-          const displayStatus = getDisplayStatus(inv.status);
+          const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
             <div className="flex items-center justify-end gap-1.5">
               {displayStatus === 'Chưa thu' ? (
@@ -812,9 +831,9 @@ export default function InvoicesPage() {
                 <button
                   onClick={() => openProofModal(inv)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
-                  title="Kiểm tra chứng từ thanh toán"
+                  title={displayStatus === 'Chờ duyệt' ? 'Duyệt chứng từ thanh toán' : 'Kiểm tra chứng từ thanh toán'}
                 >
-                  <Eye size={14} /> Kiểm tra
+                  <Eye size={14} /> {displayStatus === 'Chờ duyệt' ? 'Duyệt' : 'Kiểm tra'}
                 </button>
               )}
             </div>
@@ -869,15 +888,11 @@ export default function InvoicesPage() {
           </PopoverTrigger>
           <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
             <CustomCalendar
+              monthOnly
+              monthValue={filterMonth || defaultMonth}
               startDate={filterMonth ? new Date(`${filterMonth}-01T00:00:00`) : null}
               endDate={null}
-              onRangeSelect={(start) => {
-                const y = start.getFullYear();
-                const m = String(start.getMonth() + 1).padStart(2, '0');
-                setFilterMonth(`${y}-${m}`);
-                setPage(1);
-                setSelected([]);
-              }}
+              onRangeSelect={() => {}}
               onRangeConfirm={(start) => {
                 const y = start.getFullYear();
                 const m = String(start.getMonth() + 1).padStart(2, '0');
@@ -887,9 +902,6 @@ export default function InvoicesPage() {
                 setCalendarFilterOpen(false);
               }}
               onCancel={() => {
-                setFilterMonth('');
-                setPage(1);
-                setSelected([]);
                 setCalendarFilterOpen(false);
               }}
               onConfirm={() => setCalendarFilterOpen(false)}
@@ -1739,15 +1751,11 @@ export default function InvoicesPage() {
                     {viewingInvoice.payment_proof?.url ? (
                       <div className="space-y-2">
                         <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
-                          <img
-                            src={viewingInvoice.payment_proof.url}
-                            alt="Chứng từ thanh toán"
-                            className="max-h-52 w-auto object-contain rounded-lg shadow-sm"
-                          />
+                          {proofImageFailed ? <div className="p-6 text-center text-xs text-slate-500">Không thể hiển thị ảnh chứng từ.<br /><a className="text-blue-600 hover:underline" href={getImageUrl(viewingInvoice.payment_proof.url)} target="_blank" rel="noreferrer">Mở ảnh gốc</a></div> : <img src={getImageUrl(viewingInvoice.payment_proof.url)} alt="Chứng từ thanh toán" onError={() => setProofImageFailed(true)} className="max-h-52 w-auto object-contain rounded-lg shadow-sm" />}
                         </div>
                         <div className="text-right">
                           <a
-                            href={viewingInvoice.payment_proof.url}
+                            href={getImageUrl(viewingInvoice.payment_proof.url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
@@ -1820,21 +1828,16 @@ export default function InvoicesPage() {
                       </div>
                     )}
 
-                    {/* Ghi chú */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
-                      <textarea
-                        rows={2}
-                        value={updateProofNotes}
-                        onChange={(e) => setUpdateProofNotes(e.target.value)}
-                        placeholder="Ghi chú thêm về chứng từ..."
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/70 text-xs text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
-                      />
-                    </div>
                   </div>
 
                   {/* Buttons */}
                   <div className="flex gap-2.5 pt-2 border-t border-slate-100">
+                    {viewingInvoice.payment_review?.status === 'pending' && (
+                      <>
+                        <Button type="button" variant="outline" disabled={reviewSubmitting} onClick={() => handleReviewProof('rejected')} className="rounded-xl border-rose-200 text-rose-600">Không duyệt</Button>
+                        <Button type="button" disabled={reviewSubmitting} onClick={() => handleReviewProof('approved')} className="rounded-xl bg-emerald-600 hover:bg-emerald-700">{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</Button>
+                      </>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
@@ -1848,7 +1851,7 @@ export default function InvoicesPage() {
                       type="button"
                       disabled={
                         updateProofSubmitting ||
-                        (!updateProofFile && updateProofNotes === (viewingInvoice.notes || ''))
+                        !updateProofFile
                       }
                       onClick={handleSaveUpdatedProof}
                       className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"

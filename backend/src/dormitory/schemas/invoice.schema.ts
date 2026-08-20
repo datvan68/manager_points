@@ -51,6 +51,14 @@ export class PaymentProof {
   uploaded_at?: Date;
 }
 
+@Schema({ _id: false })
+export class PaymentReview {
+  @Prop({ enum: ['pending', 'approved', 'rejected'] }) status?: string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' }) reviewed_by_id?: Types.ObjectId;
+  @Prop() reviewed_at?: Date;
+  @Prop() submitted_at?: Date;
+}
+
 export const PaymentProofSchema = SchemaFactory.createForClass(PaymentProof);
 
 @Schema({ _id: false })
@@ -127,6 +135,8 @@ export class Invoice {
 
   @Prop({ type: PaymentProofSchema })
   payment_proof?: PaymentProof;
+  @Prop({ type: PaymentReview })
+  payment_review?: PaymentReview;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   confirmed_by_id?: Types.ObjectId;

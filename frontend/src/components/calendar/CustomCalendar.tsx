@@ -11,9 +11,12 @@ interface CustomCalendarProps {
   onCancel: () => void;
   onConfirm: () => void;
   minDate?: Date;
+  monthOnly?: boolean;
+  monthValue?: string;
+  onMonthSelect?: (month: string) => void;
 }
 
-export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfirm, onCancel, onConfirm, minDate }: CustomCalendarProps) {
+export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfirm, onCancel, onConfirm, minDate, monthOnly = false, monthValue, onMonthSelect }: CustomCalendarProps) {
   const [currentDate, setCurrentDate] = React.useState(startDate || new Date()); // Default to current real-time date
   const [tempStart, setTempStart] = React.useState<Date | null>(startDate);
   const [tempEnd, setTempEnd] = React.useState<Date | null>(endDate);
@@ -23,6 +26,14 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
 
   // Sync date when startDate prop changes
   React.useEffect(() => {
+    if (monthOnly && monthValue) {
+      const parsed = new Date(`${monthValue}-01T00:00:00`);
+      setCurrentDate(parsed);
+      setTempStart(parsed);
+      setTempEnd(null);
+      setYearGridStart(parsed.getFullYear() - 4);
+      return;
+    }
     if (startDate) {
       setCurrentDate(startDate);
       setTempStart(startDate);
@@ -31,7 +42,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
     if (endDate) {
       setTempEnd(endDate);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, monthOnly, monthValue]);
 
   const daysOfWeek = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
@@ -99,6 +110,14 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
     }
   };
 
+  const handleMonthClick = (month: number) => {
+    const selected = new Date(currentYear, month, 1);
+    setCurrentDate(selected);
+    setTempStart(selected);
+    setTempEnd(null);
+    onMonthSelect?.(`${currentYear}-${String(month + 1).padStart(2, '0')}`);
+  };
+
   const formatDate = (d: Date | null) => d ? `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}` : '';
 
   const normalizeDate = (year: number, month: number, day: number) => {
@@ -157,7 +176,11 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
     <div className="flex max-h-[calc(100dvh-16px)] min-h-0 w-[320px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[20px] border border-slate-100 bg-white font-sans shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:rounded-[16px] sm:bg-[#f8fafb]">
       {/* Header */}
       <div className="flex justify-between items-center p-4 pb-2 border-b border-slate-100/60 bg-white">
-        {view === 'days' ? (
+        {monthOnly ? (
+          <div className="flex items-center gap-1">
+            <button onClick={() => setYearGridStart(currentYear - 4)} className="text-[14px] font-bold text-slate-900 px-2 py-0.5 rounded-lg">{currentYear}</button>
+          </div>
+        ) : view === 'days' ? (
           <div className="flex items-center gap-1">
             <button
               onClick={() => setView('months')}
@@ -184,7 +207,9 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
         )}
 
         <div className="flex gap-1 text-slate-600">
-          {view === 'days' ? (
+          {monthOnly ? (
+            <><button onClick={() => setCurrentDate(new Date(currentYear - 1, currentMonth, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button><button onClick={() => setCurrentDate(new Date(currentYear + 1, currentMonth, 1))} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button></>
+          ) : view === 'days' ? (
             <>
               <button onClick={handlePrevMonth} className="p-1.5 hover:bg-slate-100 rounded-lg transition focus:outline-none">
                 <ChevronLeft className="w-4 h-4" />
@@ -221,7 +246,11 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
 
       {/* Grid */}
       <div className="relative min-h-0 max-h-[calc(100dvh-128px)] overflow-y-auto p-3 pt-2">
-        {view === 'days' ? (
+        {monthOnly ? (
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {Array.from({ length: 12 }).map((_, idx) => <button key={idx} onClick={() => handleMonthClick(idx)} className={`py-2.5 text-[11px] font-semibold rounded-lg ${currentMonth === idx ? 'bg-[#1a56db] text-white' : 'text-slate-700 hover:bg-slate-100 bg-white border border-slate-100'}`}>Tháng {idx + 1}</button>)}
+          </div>
+        ) : view === 'days' ? (
           <>
             <div className="grid grid-cols-7 text-center mb-1">
               {daysOfWeek.map(d => (
@@ -339,7 +368,7 @@ export function CustomCalendar({ startDate, endDate, onRangeSelect, onRangeConfi
       {/* Footer */}
       <div className="z-10 flex shrink-0 items-center justify-between border-t border-slate-200 bg-[#f8fafb] p-4">
         <span className="text-[13px] font-medium text-slate-500">
-          {tempStart ? formatDate(tempStart) : ''} {tempEnd && tempEnd.getTime() !== tempStart?.getTime() ? `- ${formatDate(tempEnd)}` : ''}
+          {monthOnly ? `${String(currentMonth + 1).padStart(2, '0')}/${currentYear}` : `${tempStart ? formatDate(tempStart) : ''} ${tempEnd && tempEnd.getTime() !== tempStart?.getTime() ? `- ${formatDate(tempEnd)}` : ''}`}
         </span>
         <div className="flex gap-3 text-[13px] font-bold">
           <button onClick={onCancel} className="text-rose-500 hover:text-rose-600 transition focus:outline-none">Huỷ</button>

@@ -521,10 +521,11 @@ export class InvoicesService {
       throw new BadRequestException('Hóa đơn đã được thanh toán');
     }
 
-    invoice.status = 'Đã thu';
+    const hasTransferProof = dto.payment_method === 'Chuyển khoản' && !!(dto.payment_proof || dto.proof_url);
+    invoice.status = hasTransferProof ? 'Chưa thu' : 'Đã thu';
     invoice.payment_method = dto.payment_method;
-    invoice.paid_at = new Date();
-    invoice.confirmed_by_id = user._id || user.userId;
+    invoice.paid_at = hasTransferProof ? undefined : new Date();
+    invoice.confirmed_by_id = hasTransferProof ? undefined : (user._id || user.userId);
     invoice.notes = dto.notes || invoice.notes;
 
     if (dto.payment_proof) {
@@ -541,6 +542,7 @@ export class InvoicesService {
         uploaded_at: new Date(),
       };
     }
+    if (hasTransferProof) invoice.payment_review = { status: 'pending', submitted_at: new Date() };
 
     return invoice.save();
   }
@@ -577,9 +579,19 @@ export class InvoicesService {
         uploaded_at: new Date(),
       };
     }
-    if (user?._id || user?.userId) {
-      invoice.confirmed_by_id = user._id || user.userId;
-    }
+    if (dto.payment_proof || dto.proof_url) invoice.payment_review = { status: 'pending', submitted_at: new Date() };
+    return invoice.save();
+  }
+
+  async reviewPaymentProof(id: string, decision: 'approved' | 'rejected', user: any): Promise<Invoice> {
+    const invoice = await this.invoiceModel.findById(id).exec();
+    if (!invoice) throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
+    if (invoice.payment_method !== 'Chuyển khoản' || !invoice.payment_proof) throw new BadRequestException('Hóa đơn chưa có chứng từ chuyển khoản');
+    if (invoice.payment_review?.status !== 'pending') throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
+    const now = new Date();
+    invoice.payment_review = { ...invoice.payment_review, status: decision, reviewed_by_id: user._id || user.userId, reviewed_at: now };
+    if (decision === 'approved') { invoice.status = 'Đã thu'; invoice.paid_at = now; invoice.confirmed_by_id = user._id || user.userId; }
+    else { invoice.status = 'Chưa thu'; invoice.paid_at = undefined; invoice.confirmed_by_id = undefined; }
     return invoice.save();
   }
 
@@ -1036,4 +1048,3 @@ export class InvoicesService {
     };
   }
 }
-

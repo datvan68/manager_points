@@ -31,6 +31,7 @@ import {
 } from '../dto/create-invoice.dto';
 import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
 import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
+import { ReviewPaymentProofDto } from '../dto/create-invoice.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
@@ -226,5 +227,11 @@ export class InvoicesController {
     @Request() req: any,
   ) {
     return this.invoicesService.updatePaymentProof(id, dto, req.user);
+  }
+
+  @Patch(':id/proof/review')
+  @UseGuards(checkPermission('DORM_INVOICE_CONFIRM'))
+  reviewProof(@Param('id') id: string, @Body() dto: ReviewPaymentProofDto, @Request() req: any) {
+    return this.invoicesService.reviewPaymentProof(id, dto.decision, req.user);
   }
 }

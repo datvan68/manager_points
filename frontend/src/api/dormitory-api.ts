@@ -224,6 +224,13 @@ export interface PaymentProof {
   uploaded_at?: string;
 }
 
+export interface PaymentReview {
+  status?: 'pending' | 'approved' | 'rejected';
+  reviewed_by_id?: any;
+  reviewed_at?: string;
+  submitted_at?: string;
+}
+
 export interface CreateMonthlyInvoiceInput {
   room_id: string;
   billing_month: string;
@@ -267,6 +274,7 @@ export interface DormInvoice {
   paid_at?: string;
   payment_method?: string;
   payment_proof?: PaymentProof;
+  payment_review?: PaymentReview;
   confirmed_by_id?: any;
   notes?: string;
   // Legacy fields
@@ -739,6 +747,12 @@ export const dormitoryApi = {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async reviewProof(id: string, decision: 'approved' | 'rejected'): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof/review`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
       });
       return handleResponse(res);
     },

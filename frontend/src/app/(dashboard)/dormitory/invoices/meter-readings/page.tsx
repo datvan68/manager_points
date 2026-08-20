@@ -398,13 +398,11 @@ export default function MeterReadingsPage() {
                 </PopoverTrigger>
                 <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
                   <CustomCalendar
+                    monthOnly
+                    monthValue={billingMonth}
                     startDate={billingMonth ? new Date(`${billingMonth}-01T00:00:00`) : null}
                     endDate={null}
-                    onRangeSelect={(start) => {
-                      const y = start.getFullYear();
-                      const m = String(start.getMonth() + 1).padStart(2, '0');
-                      setBillingMonth(`${y}-${m}`);
-                    }}
+                    onRangeSelect={() => {}}
                     onRangeConfirm={(start) => {
                       const y = start.getFullYear();
                       const m = String(start.getMonth() + 1).padStart(2, '0');

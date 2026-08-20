@@ -178,6 +178,12 @@ export class UpdatePaymentProofDto {
   proof_url?: string;
 }
 
+export class ReviewPaymentProofDto {
+  @IsNotEmpty()
+  @IsEnum(['approved', 'rejected'])
+  decision: 'approved' | 'rejected';
+}
+
 export class InvoiceItemDto {
   @IsNotEmpty()
   @IsEnum(['Phí phòng', 'Điện', 'Nước', 'Dịch vụ', 'Phạt vi phạm'])
@@ -236,4 +242,3 @@ export class BulkDeleteInvoicesDto {
   @IsString({ each: true })
   ids: string[];
 }
-
