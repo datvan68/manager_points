@@ -700,6 +700,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép xác nhận thanh toán hóa đơn phí KTX.',
   },
   {
+    code: 'DORM_INVOICE_DELETE',
+    name: 'Xóa hóa đơn KTX',
+    module: DORMITORY_MANAGER_GROUP.name,
+    description: 'Cho phép xóa hóa đơn phí KTX.',
+  },
+  {
     code: 'DORM_VIOLATION_READ',
     name: 'Xem vi phạm KTX',
     module: DORMITORY_MANAGER_GROUP.name,

@@ -10,6 +10,23 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('framer-motion', () => ({
+  motion: new Proxy({}, {
+    get: (_, prop) => (props: any) => {
+      const Tag = typeof prop === 'string' ? prop : 'div';
+      return <Tag {...props} />;
+    },
+  }),
+  AnimatePresence: ({ children }: any) => <>{children}</>,
+}));
+
+vi.mock('@/providers/auth-provider', () => ({
+  useAuth: () => ({
+    user: { id: 'u1', role: 'admin' },
+    hasPermission: vi.fn().mockReturnValue(true),
+  }),
+}));
+
 vi.mock('@/api/dormitory-api', () => ({
   dormitoryApi: {
     rooms: {
@@ -28,6 +45,7 @@ vi.mock('@/api/dormitory-api', () => ({
       updateConfig: vi.fn(),
       getMeterReadings: vi.fn(),
       saveBulkMeterReadings: vi.fn(),
+      bulkDelete: vi.fn(),
     },
   },
 }));
@@ -317,5 +335,151 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getByText('CN')).toBeDefined();
     });
   });
+
+  it('selects row checkboxes and shows FloatingActionBar with selected count (AC-01, AC-02)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    expect(rowCheckboxes.length).toBeGreaterThanOrEqual(2);
+
+    // Select first row
+    await act(async () => {
+      fireEvent.click(rowCheckboxes[0]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
+    });
+
+    // Clear selection
+    const clearBtn = screen.getByRole('button', { name: /Hủy chọn/i });
+    await act(async () => {
+      fireEvent.click(clearBtn);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeNull();
+    });
+  });
+
+  it('select-all checkbox selects all loaded rows on current page (AC-01, AC-02)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const selectAllCheckbox = document.querySelector('th input[type="checkbox"]') as HTMLInputElement;
+    expect(selectAllCheckbox).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(selectAllCheckbox);
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
+    });
+  });
+
+  it('executes bulk delete via ConfirmModal and handles success (AC-03, AC-04, AC-06)', async () => {
+    (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
+      requested: 1,
+      deleted: ['inv-unpaid'],
+      not_found: [],
+      rejected: [],
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    const rowCheckbox = document.querySelector('tbody input[type="checkbox"]') as HTMLInputElement;
+    expect(rowCheckbox).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(rowCheckbox); // select unpaid invoice
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
+    });
+
+    // Click delete button on FloatingActionBar
+    const deleteBtn = screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i });
+    await act(async () => {
+      fireEvent.click(deleteBtn);
+    });
+
+    // ConfirmModal should open
+    await waitFor(() => {
+      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
+      expect(screen.getByText(/Bạn có chắc chắn muốn xóa 1 hóa đơn đã chọn/i)).toBeDefined();
+    });
+
+    // Click confirm in ConfirmModal
+    const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid']);
+    });
+  });
+
+  it('handles partial deletion where paid invoices are rejected (AC-05, AC-06)', async () => {
+    (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
+      requested: 2,
+      deleted: ['inv-unpaid'],
+      not_found: [],
+      rejected: [{ id: 'inv-paid', reason: 'Không thể xóa hóa đơn đã thanh toán' }],
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
+    });
+
+    // Select all via select-all checkbox
+    const selectAllCheckbox = document.querySelector('th input[type="checkbox"]') as HTMLInputElement;
+    expect(selectAllCheckbox).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(selectAllCheckbox);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
+    });
+
+    // Click delete button
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i }));
+    });
+
+    // Click confirm
+    await waitFor(() => {
+      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid', 'inv-paid']);
+      // Rejected invoice should remain selected
+      expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });
+
 

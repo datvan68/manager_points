@@ -957,4 +957,83 @@ export class InvoicesService {
 
     return { results };
   }
+
+  /**
+   * Xóa nhiều hóa đơn theo danh sách ID
+   */
+  async bulkDelete(ids: string[], user: any) {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('Danh sách ID hóa đơn không được rỗng');
+    }
+
+    // Normalize and deduplicate IDs
+    const uniqueIds = Array.from(
+      new Set(ids.map((id) => (id ? String(id).trim() : '')).filter(Boolean)),
+    );
+
+    if (uniqueIds.length === 0) {
+      throw new BadRequestException('Danh sách ID hóa đơn không hợp lệ');
+    }
+
+    const validObjectIds: Types.ObjectId[] = [];
+    const rejected: Array<{ id: string; invoice_code?: string; reason: string }> = [];
+    const not_found: string[] = [];
+
+    for (const idStr of uniqueIds) {
+      if (Types.ObjectId.isValid(idStr)) {
+        validObjectIds.push(new Types.ObjectId(idStr));
+      } else {
+        rejected.push({
+          id: idStr,
+          reason: 'Mã hóa đơn không hợp lệ',
+        });
+      }
+    }
+
+    const deletableIds: Types.ObjectId[] = [];
+    const deletedIdStrings: string[] = [];
+
+    if (validObjectIds.length > 0) {
+      const existingInvoices = await this.invoiceModel
+        .find({ _id: { $in: validObjectIds } })
+        .exec();
+
+      const existingMap = new Map<string, any>();
+      for (const inv of existingInvoices) {
+        existingMap.set(String(inv._id), inv);
+      }
+
+      for (const objId of validObjectIds) {
+        const idStr = String(objId);
+        const inv = existingMap.get(idStr);
+
+        if (!inv) {
+          not_found.push(idStr);
+        } else if (inv.status === 'Đã thu' || inv.status === 'Đã thanh toán') {
+          rejected.push({
+            id: idStr,
+            invoice_code: inv.invoice_code,
+            reason: 'Không thể xóa hóa đơn đã thanh toán',
+          });
+        } else {
+          deletableIds.push(objId);
+          deletedIdStrings.push(idStr);
+        }
+      }
+
+      if (deletableIds.length > 0) {
+        await this.invoiceModel
+          .deleteMany({ _id: { $in: deletableIds } })
+          .exec();
+      }
+    }
+
+    return {
+      requested: uniqueIds.length,
+      deleted: deletedIdStrings,
+      not_found,
+      rejected,
+    };
+  }
 }
+

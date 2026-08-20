@@ -7,6 +7,7 @@ import {
   IsDateString,
   IsEnum,
   IsArray,
+  ArrayNotEmpty,
   IsBoolean,
   ValidateNested,
   Min,
@@ -228,3 +229,11 @@ export class BulkCreateInvoiceDto {
   @IsDateString()
   due_date: string;
 }
+
+export class BulkDeleteInvoicesDto {
+  @IsArray()
+  @ArrayNotEmpty({ message: 'Danh sách ID hóa đơn không được rỗng' })
+  @IsString({ each: true })
+  ids: string[];
+}
+

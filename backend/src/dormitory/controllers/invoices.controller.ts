@@ -25,6 +25,7 @@ import {
   PayInvoiceDto,
   UpdatePaymentProofDto,
   BulkCreateInvoiceDto,
+  BulkDeleteInvoicesDto,
   CreateMonthlyInvoiceDto,
   UpdateMonthlyInvoiceDto,
 } from '../dto/create-invoice.dto';
@@ -159,6 +160,13 @@ export class InvoicesController {
   @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
   bulkCreate(@Body() dto: BulkCreateInvoiceDto, @Request() req: any) {
     return this.invoicesService.bulkCreate(dto, req.user);
+  }
+
+  @Post('bulk-delete')
+  @UseGuards(checkPermission('DORM_INVOICE_DELETE'))
+  @ApiOperation({ summary: 'Xóa nhiều hóa đơn' })
+  bulkDelete(@Body() dto: BulkDeleteInvoicesDto, @Request() req: any) {
+    return this.invoicesService.bulkDelete(dto.ids, req.user);
   }
 
   @Get()

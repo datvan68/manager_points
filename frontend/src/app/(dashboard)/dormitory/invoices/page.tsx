@@ -16,6 +16,7 @@ import {
   DollarSign,
   Download,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import {
@@ -28,6 +29,9 @@ import {
 } from '@/api/dormitory-api';
 import { API_ORIGIN } from '@/api/config';
 import { toast } from 'sonner';
+import { useAuth } from '@/providers/auth-provider';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import { CustomPagination } from '@/components/ui/pagination';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -127,6 +131,12 @@ export function getDisplayStatus(status?: string): 'Chưa thu' | 'Đã thu' {
 
 export default function InvoicesPage() {
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canDeleteInvoice =
+    hasPermission('DORM_INVOICE_DELETE') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
+
   const [invoices, setInvoices] = useState<DormInvoice[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +145,11 @@ export default function InvoicesPage() {
   const [filterMonth, setFilterMonth] = useState('');
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
+
+  // Selection & Bulk delete state
+  const [selected, setSelected] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -661,6 +676,39 @@ export default function InvoicesPage() {
     }
   }
 
+  // Xóa hàng loạt hóa đơn đã chọn
+  async function handleBulkDelete() {
+    if (bulkDeleting || selected.length === 0) return;
+    try {
+      setBulkDeleting(true);
+      const res = await dormitoryApi.invoices.bulkDelete(selected);
+      if (res.deleted.length > 0) {
+        await load(true);
+      }
+      if (res.rejected.length > 0 && res.deleted.length > 0) {
+        toast.warning(
+          `Đã xóa ${res.deleted.length} hóa đơn, ${res.rejected.length} hóa đơn đã thu không thể xóa.`,
+        );
+        setSelected(res.rejected.map((r) => r.id));
+      } else if (res.rejected.length > 0 && res.deleted.length === 0) {
+        toast.error(
+          `Không thể xóa ${res.rejected.length} hóa đơn đã chọn (đã thanh toán hoặc không hợp lệ).`,
+        );
+        setSelected(res.rejected.map((r) => r.id));
+      } else if (res.deleted.length > 0) {
+        toast.success(`Đã xóa ${res.deleted.length} hóa đơn thành công.`);
+        setSelected([]);
+      } else {
+        toast.error('Không có hóa đơn nào được xóa.');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi khi xóa hóa đơn.');
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
+    }
+  }
+
   // Khai báo các cột cho ResponsiveDataView (đồng bộ theo phong cách trang Phòng)
   const columns: ResponsiveColumn<DormInvoice>[] = useMemo(
     () => [
@@ -711,12 +759,12 @@ export default function InvoicesPage() {
         header: 'Tổng tiền',
         className: 'text-right',
         render: (_, inv) => (
-          <div className="text-right">
-            <div className="font-bold text-[#1A73E8]">{formatMoney(inv.total_amount)}</div>
+          <div className="text-right flex flex-col items-end justify-center">
+            <span className="font-bold text-[#1A73E8] block">{formatMoney(inv.total_amount)}</span>
             {inv.is_exempt && (
-              <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg inline-block mt-0.5 border border-amber-500/20">
+              <span className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg inline-block mt-0.5 border border-amber-500/20">
                 Miễn thu
-              </div>
+              </span>
             )}
           </div>
         ),
@@ -727,15 +775,19 @@ export default function InvoicesPage() {
         className: 'text-center',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status);
-          return displayStatus === 'Đã thu' ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
-              <CheckCircle size={13} />
-              Đã thu
-            </span>
-          ) : (
-            <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
-              Chưa thu
-            </span>
+          return (
+            <div className="flex items-center justify-center">
+              {displayStatus === 'Đã thu' ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
+                  <CheckCircle size={13} />
+                  Đã thu
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
+                  Chưa thu
+                </span>
+              )}
+            </div>
           );
         },
       },
@@ -785,6 +837,7 @@ export default function InvoicesPage() {
           onChange={(e) => {
             setSearch(e.target.value);
             setPage(1);
+            setSelected([]);
           }}
           containerClassName="hidden sm:flex w-[240px] shrink-0"
         />
@@ -808,6 +861,7 @@ export default function InvoicesPage() {
                     e.stopPropagation();
                     setFilterMonth('');
                     setPage(1);
+                    setSelected([]);
                   }}
                 />
               )}
@@ -822,17 +876,20 @@ export default function InvoicesPage() {
                 const m = String(start.getMonth() + 1).padStart(2, '0');
                 setFilterMonth(`${y}-${m}`);
                 setPage(1);
+                setSelected([]);
               }}
               onRangeConfirm={(start) => {
                 const y = start.getFullYear();
                 const m = String(start.getMonth() + 1).padStart(2, '0');
                 setFilterMonth(`${y}-${m}`);
                 setPage(1);
+                setSelected([]);
                 setCalendarFilterOpen(false);
               }}
               onCancel={() => {
                 setFilterMonth('');
                 setPage(1);
+                setSelected([]);
                 setCalendarFilterOpen(false);
               }}
               onConfirm={() => setCalendarFilterOpen(false)}
@@ -847,6 +904,7 @@ export default function InvoicesPage() {
             onValueChange={(val: any) => {
               setFilterStatus(val);
               setPage(1);
+              setSelected([]);
             }}
           >
             <SelectTrigger
@@ -901,6 +959,27 @@ export default function InvoicesPage() {
         </div>
       </div>
 
+      {/* Floating Action Bar cho thao tác xóa hàng loạt */}
+      {canDeleteInvoice && (
+        <FloatingActionBar
+          selectedCount={selected.length}
+          onClear={() => setSelected([])}
+          itemLabel="hóa đơn"
+          actions={
+            <button
+              type="button"
+              aria-label="Xóa hóa đơn đã chọn"
+              disabled={bulkDeleting}
+              onClick={() => setBulkDeleteOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50 cursor-pointer"
+            >
+              <Trash2 size={14} />
+              Xóa
+            </button>
+          }
+        />
+      )}
+
       {/* Responsive Data View kiểu Table của Phòng */}
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
         <ResponsiveDataView
@@ -908,6 +987,18 @@ export default function InvoicesPage() {
           columns={columns}
           isLoading={loading}
           keyExtractor={(inv) => inv._id}
+          selection={{
+            selectedKeys: selected,
+            onSelectRow: (key, checked) =>
+              setSelected((ids) =>
+                checked ? [...ids, key] : ids.filter((id) => id !== key),
+              ),
+            onSelectAll: (checked) =>
+              setSelected(checked ? invoices.map((inv) => inv._id) : []),
+            allSelected:
+              invoices.length > 0 &&
+              invoices.every((inv) => selected.includes(inv._id)),
+          }}
           emptyState={
             <div className="p-8 text-center text-sm text-slate-500">
               <FileText size={36} className="mx-auto mb-2 opacity-40" />
@@ -919,10 +1010,14 @@ export default function InvoicesPage() {
               totalItems={meta?.total ?? invoices.length}
               pageSize={pageSize}
               currentPage={page}
-              onPageChange={setPage}
+              onPageChange={(next) => {
+                setPage(next);
+                setSelected([]);
+              }}
               onPageSizeChange={(size) => {
                 setPage(1);
                 setPageSize(size);
+                setSelected([]);
               }}
               pageSizeOptions={[10, 20, 50, 100]}
               isLoading={loading}
@@ -931,6 +1026,17 @@ export default function InvoicesPage() {
           }
         />
       </div>
+
+      {/* Modal xác nhận xóa hàng loạt */}
+      <ConfirmModal
+        isOpen={bulkDeleteOpen}
+        onClose={() => !bulkDeleting && setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        title="Xóa hóa đơn đã chọn"
+        message={`Bạn có chắc chắn muốn xóa ${selected.length} hóa đơn đã chọn? Các hóa đơn đã thanh toán sẽ không bị xóa.`}
+        confirmLabel="Xóa hóa đơn"
+        variant="danger"
+      />
 
       {/* ========================================================================= */}
       {/* MODAL NÂNG CAO (Lập đợt thu / Chỉnh sửa thông số) */}
@@ -1309,7 +1415,7 @@ export default function InvoicesPage() {
       {/* MODAL THU TIỀN (Theo kiểu UI Mockup 2 cột kèm QR và Timeline) */}
       {/* ========================================================================= */}
       <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
-        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-3xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
           {payingInvoice && (
             <div className="space-y-4">
               {/* Header */}
@@ -1319,7 +1425,7 @@ export default function InvoicesPage() {
                     <DialogTitle className="text-xl font-bold text-[#1E293B]">
                       Hóa đơn thanh toán
                     </DialogTitle>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <CheckCircle size={13} className="shrink-0" />
                       Sẵn sàng
                     </span>
@@ -1544,7 +1650,7 @@ export default function InvoicesPage() {
       {/* MODAL KIỂM TRA & CẬP NHẬT CHỨNG TỪ (Theo kiểu UI Mockup 2 cột) */}
       {/* ========================================================================= */}
       <Dialog open={proofModalOpen} onOpenChange={setProofModalOpen}>
-        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-3xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
           {viewingInvoice && (
             <div className="space-y-4">
               {/* Header */}
@@ -1554,7 +1660,7 @@ export default function InvoicesPage() {
                     <DialogTitle className="text-xl font-bold text-[#1E293B]">
                       Kiểm tra chứng từ thanh toán
                     </DialogTitle>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                       <CheckCircle size={13} className="shrink-0" />
                       Đã thu
                     </span>

@@ -1453,6 +1453,7 @@ export class AuthService implements OnModuleInit {
           createdPerms['DORM_INVOICE_READ'],
           createdPerms['DORM_INVOICE_CREATE'],
           createdPerms['DORM_INVOICE_CONFIRM'],
+          createdPerms['DORM_INVOICE_DELETE'],
           createdPerms['DORM_VIOLATION_READ'],
           createdPerms['DORM_VIOLATION_CREATE'],
           createdPerms['DORM_VIOLATION_HANDLE'],

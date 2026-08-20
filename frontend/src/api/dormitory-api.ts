@@ -277,6 +277,13 @@ export interface DormInvoice {
   createdAt?: string;
 }
 
+export interface BulkDeleteInvoicesResponse {
+  requested: number;
+  deleted: string[];
+  not_found: string[];
+  rejected: Array<{ id: string; invoice_code?: string; reason: string }>;
+}
+
 export interface DormViolation {
   _id: string;
   violation_code: string;
@@ -753,6 +760,14 @@ export const dormitoryApi = {
     },
     async getOverdueSummary(): Promise<any> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/overdue-summary`);
+      return handleResponse(res);
+    },
+    async bulkDelete(ids: string[]): Promise<BulkDeleteInvoicesResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
       return handleResponse(res);
     },
   },

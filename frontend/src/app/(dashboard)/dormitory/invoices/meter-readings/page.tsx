@@ -360,7 +360,7 @@ export default function MeterReadingsPage() {
   const progressPercent = totalCount > 0 ? Math.round((recordedCount / totalCount) * 100) : 0;
 
   return (
-    <div className="space-y-6 pb-16">
+    <main className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6 pb-16">
       {/* Header tinh gọn & Toolbar & Tiến độ */}
       <div className="rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md p-4 sm:p-5 shadow-sm shadow-slate-300/30 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -653,6 +653,6 @@ export default function MeterReadingsPage() {
           })
         )}
       </div>
-    </div>
+    </main>
   );
 }

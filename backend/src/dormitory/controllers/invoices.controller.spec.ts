@@ -32,6 +32,12 @@ describe('InvoicesController', () => {
       findOne: jest.fn().mockResolvedValue({ _id: 'inv-1' }),
       pay: jest.fn().mockResolvedValue({ _id: 'inv-1', status: 'Đã thu' }),
       getOverdueSummary: jest.fn().mockResolvedValue({ total_overdue: 0, total_amount: 0 }),
+      bulkDelete: jest.fn().mockResolvedValue({
+        requested: 2,
+        deleted: ['inv-1'],
+        not_found: [],
+        rejected: [{ id: 'inv-2', reason: 'Không thể xóa hóa đơn đã thanh toán' }],
+      }),
     };
 
     controller = new InvoicesController(service);
@@ -134,4 +140,16 @@ describe('InvoicesController', () => {
     expect(service.updatePaymentProof).toHaveBeenCalledWith('inv-1', dto, req.user);
     expect(result.status).toBe('Đã thu');
   });
+
+  it('bulkDelete delegates to service.bulkDelete (AC-04)', async () => {
+    const dto = { ids: ['inv-1', 'inv-2'] };
+    const req = { user: { userId: 'admin-1' } };
+
+    const result = await controller.bulkDelete(dto, req);
+    expect(service.bulkDelete).toHaveBeenCalledWith(dto.ids, req.user);
+    expect(result.requested).toBe(2);
+    expect(result.deleted).toEqual(['inv-1']);
+    expect(result.rejected.length).toBe(1);
+  });
 });
+
