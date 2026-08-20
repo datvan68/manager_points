@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { InvoicesController } from './invoices.controller';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
+import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
+import { ReviewPaymentProofDto } from '../dto/create-invoice.dto';
 
 describe('InvoicesController', () => {
   let controller: InvoicesController;
@@ -62,6 +66,17 @@ describe('InvoicesController', () => {
     expect(result.configured_collection_days).toBe(15);
   });
 
+  it('rejects QR metadata that did not come from the dedicated image upload convention', async () => {
+    const dto = plainToInstance(UpdateUtilityConfigDto, {
+      electricity: { quota_per_person: 20, unit_price: 3000 },
+      water: { quota_per_person: 5, unit_price: 12000 },
+      configured_collection_days: 15,
+      transfer_qr_image: { url: 'https://evil.example/qr.svg', mime_type: 'image/svg+xml', size: 6 * 1024 * 1024 },
+    });
+    const errors = await validate(dto);
+    expect(errors.some((error) => error.property === 'transfer_qr_image')).toBe(true);
+  });
+
   it('getMeterReadings delegates to service.getMeterReadings (AC-02)', async () => {
     const result = await controller.getMeterReadings('2026-03');
     expect(service.getMeterReadings).toHaveBeenCalledWith('2026-03');
@@ -122,6 +137,15 @@ describe('InvoicesController', () => {
     expect(() => controller.uploadProof(undefined as any)).toThrow(BadRequestException);
   });
 
+  it('uploadTransferQr returns persistent image metadata', () => {
+    const result = controller.uploadTransferQr({ filename: 'invoice-transfer-qr-1.webp', mimetype: 'image/webp', size: 2048 } as any);
+    expect(result).toEqual({ url: '/uploads/invoice-transfer-qr-1.webp', file_name: 'invoice-transfer-qr-1.webp', mime_type: 'image/webp', size: 2048 });
+  });
+
+  it('uploadTransferQr rejects a missing file', () => {
+    expect(() => controller.uploadTransferQr(undefined as any)).toThrow(BadRequestException);
+  });
+
   it('pay delegates to service.pay (AC-07, AC-08)', async () => {
     const dto: any = { payment_method: 'Chuyển khoản' };
     const req = { user: { userId: 'u-1' } };
@@ -143,12 +167,19 @@ describe('InvoicesController', () => {
 
   it('reviewProof delegates to service.reviewPaymentProof', async () => {
     service.reviewPaymentProof = jest.fn().mockResolvedValue({ _id: 'inv-1', status: 'Đã thu' });
-    const dto: any = { decision: 'approved' };
+    const dto: any = { decision: 'approved', request_id: 'review-1' };
     const req = { user: { userId: 'u-1' } };
 
     const result = await controller.reviewProof('inv-1', dto, req);
-    expect(service.reviewPaymentProof).toHaveBeenCalledWith('inv-1', 'approved', req.user);
+    expect(service.reviewPaymentProof).toHaveBeenCalledWith('inv-1', 'approved', req.user, 'review-1');
     expect(result.status).toBe('Đã thu');
+  });
+
+  it('requires a bounded UUID review request id', async () => {
+    const invalid = plainToInstance(ReviewPaymentProofDto, { decision: 'rejected', request_id: 'retry-key-without-bounds' });
+    const valid = plainToInstance(ReviewPaymentProofDto, { decision: 'rejected', request_id: '4b594a18-5144-4cb8-b40f-5dff436b698c' });
+    expect((await validate(invalid)).some((error) => error.property === 'request_id')).toBe(true);
+    expect(await validate(valid)).toEqual([]);
   });
 
   it('bulkDelete delegates to service.bulkDelete (AC-04)', async () => {
@@ -162,4 +193,3 @@ describe('InvoicesController', () => {
     expect(result.rejected.length).toBe(1);
   });
 });
-

@@ -59,6 +59,21 @@ export class PaymentReview {
   @Prop() submitted_at?: Date;
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' }) revoked_by_id?: Types.ObjectId;
   @Prop() revoked_at?: Date;
+  @Prop({
+    type: [{
+      decision: { type: String, enum: ['rejected'], required: true },
+      reviewed_by_id: { type: MongooseSchema.Types.ObjectId, ref: 'User', required: true },
+      reviewed_at: { type: Date, required: true },
+      request_id: { type: String, required: true },
+    }],
+    default: [],
+  })
+  attempts?: Array<{
+    decision: 'rejected';
+    reviewed_by_id: Types.ObjectId;
+    reviewed_at: Date;
+    request_id: string;
+  }>;
 }
 
 export const PaymentProofSchema = SchemaFactory.createForClass(PaymentProof);

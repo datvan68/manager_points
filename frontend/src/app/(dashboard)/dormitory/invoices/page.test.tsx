@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import InvoicesPage from './page';
 import { dormitoryApi } from '@/api/dormitory-api';
+import { toast } from 'sonner';
 
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -40,6 +41,7 @@ vi.mock('@/api/dormitory-api', () => ({
       updateMonthly: vi.fn(),
       getRoomInfo: vi.fn(),
       uploadProof: vi.fn(),
+      uploadTransferQr: vi.fn(),
       pay: vi.fn(),
       updateProof: vi.fn(),
       reviewProof: vi.fn(),
@@ -193,6 +195,7 @@ describe('Dormitory Invoices Page', () => {
       water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
       configured_collection_days: 10,
     });
+    (dormitoryApi.invoices.updateConfig as any).mockImplementation(async (config: any) => config);
   });
 
   it('renders the 7 standard table columns without title header and shows room name only (AC-04, AC-05)', async () => {
@@ -252,6 +255,65 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getByText('Cấu hình định mức & đơn giá điện - nước')).toBeDefined();
       expect(screen.getByText(/Số ngày thu tự động/i)).toBeDefined();
     });
+  });
+
+  it('uploads and persists the default transfer QR from invoice configuration (AC-17)', async () => {
+    (dormitoryApi.invoices.uploadTransferQr as any).mockResolvedValue({
+      url: '/uploads/transfer-qr.webp', file_name: 'transfer-qr.webp', mime_type: 'image/webp', size: 1024,
+    });
+    render(<InvoicesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Cấu hình định mức & đơn giá/i }));
+    await screen.findByText('Mã QR chuyển khoản mặc định');
+    const input = document.getElementById('config-transfer-qr-upload') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['qr'], 'qr.webp', { type: 'image/webp' })] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+    await waitFor(() => expect(dormitoryApi.invoices.updateConfig).toHaveBeenCalledWith(expect.objectContaining({
+      transfer_qr_image: expect.objectContaining({ url: '/uploads/transfer-qr.webp' }),
+    })));
+  });
+
+  it('shows and downloads the configured transfer QR without generated banking details (AC-18, AC-19)', async () => {
+    (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
+      electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+      water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+      configured_collection_days: 10,
+      transfer_qr_image: { url: '/uploads/default-transfer-qr.png', file_name: 'default-transfer-qr.png' },
+    });
+    render(<InvoicesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Đóng ngay/i }))[0]);
+    const qr = await screen.findByAltText('Mã QR chuyển khoản');
+    expect(qr.getAttribute('src')).toContain('/uploads/default-transfer-qr.png');
+    expect(screen.queryByText(/1234567890|MBBank/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeDefined();
+  });
+
+  it('downloads the configured QR as a blob, revokes its object URL, and handles fetch failure', async () => {
+    (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
+      electricity: { quota_per_person: 15, unit_price: 2500 }, water: { quota_per_person: 4, unit_price: 10000 }, configured_collection_days: 10,
+      transfer_qr_image: { url: '/uploads/qr.png', file_name: 'qr.png' },
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, blob: vi.fn().mockResolvedValue(new Blob(['qr'], { type: 'image/png' })) }).mockResolvedValueOnce({ ok: false });
+    vi.stubGlobal('fetch', fetchMock);
+    const createObjectUrl = vi.fn().mockReturnValue('blob:download-qr');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: revokeObjectUrl },
+    });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<InvoicesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Đóng ngay/i }))[0]);
+    const download = await screen.findByRole('button', { name: /Tải mã QR chuyển khoản/i });
+    fireEvent.click(download);
+    await waitFor(() => expect(createObjectUrl).toHaveBeenCalled());
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download-qr');
+    fireEvent.click(download);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không thể tải mã QR chuyển khoản'));
+    expect(screen.getByText('Không thể tải mã QR chuyển khoản')).toBeDefined();
+    vi.unstubAllGlobals();
+    anchorClick.mockRestore();
+    delete (URL as any).createObjectURL;
+    delete (URL as any).revokeObjectURL;
   });
 
   it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước"', async () => {
@@ -363,7 +425,7 @@ describe('Dormitory Invoices Page', () => {
     });
 
     await waitFor(() => {
-      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-pending', 'approved');
+      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-pending', 'approved', expect.any(String));
     });
   });
 
@@ -384,6 +446,22 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.queryByRole('button', { name: /Không duyệt/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /^Duyệt$/i })).toBeNull();
     });
+  });
+
+  it('reuses the review request id when retrying the same rejected action', async () => {
+    (dormitoryApi.invoices.reviewProof as any)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({ ...mockInvoices[1], payment_review: { status: 'pending' } });
+    render(<InvoicesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Duyệt/i }))[0]);
+    const reject = await screen.findByRole('button', { name: /Không duyệt/i });
+    fireEvent.click(reject);
+    await waitFor(() => expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(reject.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(reject);
+    await waitFor(() => expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledTimes(2));
+    const firstId = (dormitoryApi.invoices.reviewProof as any).mock.calls[0][2];
+    expect((dormitoryApi.invoices.reviewProof as any).mock.calls[1][2]).toBe(firstId);
   });
 
   it('clicking "Kiểm tra" on approved invoice allows revoking proof with confirmation modal (AC-10, AC-11)', async () => {
@@ -424,7 +502,7 @@ describe('Dormitory Invoices Page', () => {
     });
 
     await waitFor(() => {
-      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-paid', 'revoked');
+      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-paid', 'revoked', expect.any(String));
     });
   });
 
@@ -560,5 +638,3 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 });
-
-

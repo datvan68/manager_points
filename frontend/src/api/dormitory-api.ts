@@ -155,6 +155,7 @@ export interface UtilityConfig {
   electricity: UtilityTariff;
   water: UtilityTariff;
   configured_collection_days: number;
+  transfer_qr_image?: PaymentProof;
   updated_by_id?: any;
   updatedAt?: string;
 }
@@ -163,6 +164,7 @@ export interface UpdateUtilityConfigInput {
   electricity: UtilityTariff;
   water: UtilityTariff;
   configured_collection_days: number;
+  transfer_qr_image?: PaymentProof;
 }
 
 export interface RoomMeterReadingItem {
@@ -720,6 +722,15 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
+    async uploadTransferQr(file: File): Promise<PaymentProof> {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/config/upload-transfer-qr`, {
+        method: 'POST',
+        body: formData,
+      });
+      return handleResponse(res);
+    },
     async pay(
       id: string,
       dto: {
@@ -752,9 +763,9 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
-    async reviewProof(id: string, decision: 'approved' | 'rejected' | 'revoked'): Promise<DormInvoice> {
+    async reviewProof(id: string, decision: 'approved' | 'rejected' | 'revoked', requestId: string): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof/review`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, request_id: requestId }),
       });
       return handleResponse(res);
     },

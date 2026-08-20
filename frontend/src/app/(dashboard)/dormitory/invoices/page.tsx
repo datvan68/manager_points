@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
-import QRCode from 'qrcode';
 import {
   dormitoryApi,
   DormInvoice,
@@ -176,6 +175,10 @@ export default function InvoicesPage() {
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSubmitting, setConfigSubmitting] = useState(false);
+  const [configQrFile, setConfigQrFile] = useState<File | null>(null);
+  const [configQrPreview, setConfigQrPreview] = useState<string | null>(null);
+  const [transferQrImage, setTransferQrImage] = useState<UpdateUtilityConfigInput['transfer_qr_image']>();
+  const [transferQrImageFailed, setTransferQrImageFailed] = useState(false);
   const [configForm, setConfigForm] = useState<UpdateUtilityConfigInput>({
     electricity: {
       quota_per_person: 15,
@@ -208,7 +211,11 @@ export default function InvoicesPage() {
             unit: cfg.water?.unit || 'm³',
           },
           configured_collection_days: cfg.configured_collection_days ?? 10,
+          transfer_qr_image: cfg.transfer_qr_image,
         });
+        setTransferQrImage(cfg.transfer_qr_image);
+        setConfigQrFile(null);
+        setConfigQrPreview(null);
       }
     } catch (err: any) {
       toast.error(err?.message || 'Lỗi tải cấu hình');
@@ -225,7 +232,14 @@ export default function InvoicesPage() {
     }
     try {
       setConfigSubmitting(true);
-      await dormitoryApi.invoices.updateConfig(configForm);
+      let nextConfig = configForm;
+      if (configQrFile) {
+        const uploadedQr = await dormitoryApi.invoices.uploadTransferQr(configQrFile);
+        nextConfig = { ...configForm, transfer_qr_image: uploadedQr };
+      }
+      const saved = await dormitoryApi.invoices.updateConfig(nextConfig);
+      setTransferQrImage(saved.transfer_qr_image);
+      setTransferQrImageFailed(false);
       toast.success('Cập nhật cấu hình định mức & đơn giá thành công');
       setConfigModalOpen(false);
     } catch (err: any) {
@@ -288,13 +302,11 @@ export default function InvoicesPage() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [proofImageFailed, setProofImageFailed] = useState(false);
   const updateProofInputRef = useRef<HTMLInputElement>(null);
+  const reviewRequestIdsRef = useRef<Partial<Record<'approved' | 'rejected' | 'revoked', string>>>({});
 
   useEffect(() => {
     setProofImageFailed(false);
   }, [payingInvoice?._id, payingInvoice?.payment_proof?.url]);
-
-  // QR Code Data URL cho modal thanh toán/kiểm tra
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
   // Load danh sách phòng
   useEffect(() => {
@@ -333,46 +345,34 @@ export default function InvoicesPage() {
     load();
   }, [load]);
 
-  // Tạo QR Code cho modal active
-  useEffect(() => {
-    if (!payingInvoice) {
-      setQrCodeDataUrl('');
-      return;
+  const handleDownloadQr = async (invoice: DormInvoice) => {
+    if (!transferQrImage?.url) return;
+    try {
+      const response = await fetch(getImageUrl(transferQrImage.url), { credentials: 'include' });
+      if (!response.ok) throw new Error('QR download failed');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const roomName =
+          typeof invoice.room_id === 'object' && invoice.room_id
+            ? invoice.room_id.room_name || invoice.room_id.room_code
+            : 'KTX';
+        const safeRoom = String(roomName).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_');
+        const month = formatBillingMonth(invoice.billing_month, invoice.billing_period).replace('/', '-');
+        const sourceExtension = transferQrImage.file_name?.split('.').pop()?.toLowerCase();
+        const extension = sourceExtension && ['png', 'jpg', 'jpeg', 'webp'].includes(sourceExtension) ? sourceExtension : 'png';
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = `Ma_QR_chuyen_khoan_${safeRoom}_${month}.${extension}`;
+        a.click();
+        toast.success('Đã tải mã QR chuyển khoản');
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch {
+      setTransferQrImageFailed(true);
+      toast.error('Không thể tải mã QR chuyển khoản');
     }
-    const roomName =
-      typeof payingInvoice.room_id === 'object' && payingInvoice.room_id
-        ? payingInvoice.room_id.room_name || payingInvoice.room_id.room_code
-        : 'KTX';
-    const amount = payingInvoice.total_amount || 0;
-    const month = formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period);
-    const invoiceCode = payingInvoice.invoice_code || payingInvoice._id;
-
-    const qrPayload = `STK: 1234567890 | Ngan hang: MBBank | ND: KTX ${roomName} T${month.replace('/', '')} ${invoiceCode} | So tien: ${amount}`;
-    QRCode.toDataURL(qrPayload, {
-      width: 280,
-      margin: 1,
-      errorCorrectionLevel: 'M',
-      color: {
-        dark: '#0f172a',
-        light: '#ffffff',
-      },
-    })
-      .then((url) => setQrCodeDataUrl(url))
-      .catch((err) => console.error('QR render error:', err));
-  }, [payingInvoice]);
-
-  const handleDownloadQr = (invoice: DormInvoice) => {
-    if (!qrCodeDataUrl) return;
-    const roomName =
-      typeof invoice.room_id === 'object' && invoice.room_id
-        ? invoice.room_id.room_name || invoice.room_id.room_code
-        : 'KTX';
-    const month = formatBillingMonth(invoice.billing_month, invoice.billing_period).replace('/', '-');
-    const a = document.createElement('a');
-    a.href = qrCodeDataUrl;
-    a.download = `Hoa_don_${roomName}_${month}.png`;
-    a.click();
-    toast.success('Đã tải mã QR hóa đơn');
   };
 
   // Tính toán xem trước ở client cho Modal Nâng cao
@@ -572,12 +572,39 @@ export default function InvoicesPage() {
   }
 
   // Mở modal Hóa đơn thanh toán / Xem & duyệt chứng từ
-  function openPayModal(inv: DormInvoice) {
+  async function openPayModal(inv: DormInvoice) {
     setPayingInvoice(inv);
     setPayProofFile(null);
     setPayProofPreview(null);
     setProofImageFailed(false);
+    reviewRequestIdsRef.current = {};
     setPayModalOpen(true);
+    try {
+      const cfg = await dormitoryApi.invoices.getConfig();
+      setTransferQrImage(cfg.transfer_qr_image);
+      setTransferQrImageFailed(false);
+    } catch {
+      setTransferQrImage(undefined);
+    }
+  }
+
+  function handleConfigQrChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      toast.error('Chỉ chấp nhận file ảnh JPEG, PNG hoặc WebP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Dung lượng file tối đa là 5MB');
+      return;
+    }
+    setConfigQrFile(file);
+    setConfigQrPreview(
+      typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
+        ? URL.createObjectURL(file)
+        : 'blob:preview',
+    );
   }
 
   // Handle chọn file ảnh chứng từ (dùng chung cho tạo mới và thay thế)
@@ -654,7 +681,10 @@ export default function InvoicesPage() {
     if (!payingInvoice || reviewSubmitting) return;
     try {
       setReviewSubmitting(true);
-      const updated = await dormitoryApi.invoices.reviewProof(payingInvoice._id, decision);
+      const requestId = reviewRequestIdsRef.current[decision] || crypto.randomUUID();
+      reviewRequestIdsRef.current[decision] = requestId;
+      const updated = await dormitoryApi.invoices.reviewProof(payingInvoice._id, decision, requestId);
+      delete reviewRequestIdsRef.current[decision];
       setPayingInvoice(updated);
       await load();
       toast.success(
@@ -719,6 +749,7 @@ export default function InvoicesPage() {
         key: 'room_id',
         header: 'Phòng',
         priority: 'primary',
+        className: 'w-[150px] min-w-[150px] text-left',
         render: (_, inv) => {
           const roomName =
             typeof inv.room_id === 'object' && inv.room_id
@@ -731,6 +762,7 @@ export default function InvoicesPage() {
         key: 'billing_month',
         header: 'Kỳ thu',
         priority: 'secondary',
+        className: 'w-[125px] min-w-[125px] text-left',
         render: (_, inv) => (
           <span className="text-[#1E293B] font-medium">
             {formatBillingMonth(inv.billing_month, inv.billing_period)}
@@ -740,7 +772,7 @@ export default function InvoicesPage() {
       {
         key: 'electricity',
         header: 'Tiền điện',
-        className: 'text-right',
+        className: 'w-[150px] min-w-[150px] text-right',
         render: (_, inv) => (
           <span className="text-right text-[#1E293B] font-medium block">
             {formatMoney(inv.electricity?.amount)}
@@ -750,7 +782,7 @@ export default function InvoicesPage() {
       {
         key: 'water',
         header: 'Tiền nước',
-        className: 'text-right',
+        className: 'w-[150px] min-w-[150px] text-right',
         render: (_, inv) => (
           <span className="text-right text-[#1E293B] font-medium block">
             {formatMoney(inv.water?.amount)}
@@ -760,7 +792,7 @@ export default function InvoicesPage() {
       {
         key: 'total_amount',
         header: 'Tổng tiền',
-        className: 'text-right',
+        className: 'w-[165px] min-w-[165px] text-right',
         render: (_, inv) => (
           <div className="text-right flex flex-col items-end justify-center">
             <span className="font-bold text-[#1A73E8] block">{formatMoney(inv.total_amount)}</span>
@@ -775,7 +807,7 @@ export default function InvoicesPage() {
       {
         key: 'status',
         header: 'Trạng thái',
-        className: 'text-center',
+        className: 'w-[140px] min-w-[140px] text-center',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
@@ -800,7 +832,7 @@ export default function InvoicesPage() {
         key: 'actions',
         header: 'Thao tác',
         priority: 'action',
-        className: 'text-right whitespace-nowrap',
+        className: 'w-[140px] min-w-[140px] pr-5 text-right whitespace-nowrap',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
@@ -1709,97 +1741,25 @@ export default function InvoicesPage() {
                       </div>
                     )}
 
-                    {/* Actions Footer */}
-                    <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-slate-200/60">
-                      {/* Nút duyệt / từ chối cho người có quyền khi ở trạng thái pending */}
-                      {hasExistingProof && !isApproved && canConfirmInvoice && (
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={reviewSubmitting || paySubmitting}
-                            onClick={() => handleReviewProof('rejected')}
-                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                          >
-                            Không duyệt
-                          </Button>
-                          <Button
-                            type="button"
-                            disabled={reviewSubmitting || paySubmitting}
-                            onClick={() => handleReviewProof('approved')}
-                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-                          >
-                            {reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}
-                          </Button>
-                        </>
-                      )}
-
-                      {/* Nút bỏ duyệt cho người có quyền khi đã duyệt */}
-                      {isApproved && canConfirmInvoice && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={reviewSubmitting || paySubmitting}
-                          onClick={() => handleReviewProof('revoked')}
-                          className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
-                        >
-                          {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
-                        </Button>
-                      )}
-
-                      {/* Nút lưu ảnh thay thế */}
-                      {hasExistingProof && payProofFile && (
-                        <Button
-                          type="button"
-                          disabled={paySubmitting || reviewSubmitting}
-                          onClick={handleSaveUpdatedProof}
-                          className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white"
-                        >
-                          {paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
-                        </Button>
-                      )}
-
-                      {/* Nút gửi duyệt lần đầu */}
-                      {!hasExistingProof && (
-                        <Button
-                          type="button"
-                          disabled={paySubmitting || !payProofFile}
-                          onClick={handleConfirmPay}
-                          className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          {paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
-                        </Button>
-                      )}
-
-                      {/* Nút Đóng */}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={paySubmitting || reviewSubmitting}
-                        onClick={() => setPayModalOpen(false)}
-                        className="rounded-xl"
-                      >
-                        Đóng
-                      </Button>
-                    </div>
                   </div>
 
                   {/* Cột phải: Thẻ Quét mã QR thanh toán & Tải hóa đơn */}
-                  <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
+                  <div className="md:col-span-5 md:sticky md:top-0 md:self-start flex flex-col items-center rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
                     <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                       Quét mã để thanh toán
                     </p>
 
-                    <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
-                      {qrCodeDataUrl ? (
+                    <div className="w-full h-44 max-w-[220px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
+                      {transferQrImage?.url && !transferQrImageFailed ? (
                         <img
-                          src={qrCodeDataUrl}
-                          alt="Mã QR thanh toán"
+                          src={getImageUrl(transferQrImage.url)}
+                          alt="Mã QR chuyển khoản"
+                          onError={() => setTransferQrImageFailed(true)}
                           className="w-full h-full object-contain rounded-lg"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
-                          Đang tạo mã QR...
+                        <div className="w-full h-full flex items-center justify-center px-4 text-xs text-slate-500">
+                          {transferQrImageFailed ? 'Không thể tải mã QR chuyển khoản' : 'Chưa cấu hình mã QR chuyển khoản'}
                         </div>
                       )}
                     </div>
@@ -1808,11 +1768,30 @@ export default function InvoicesPage() {
                       type="button"
                       variant="outline"
                       onClick={() => handleDownloadQr(payingInvoice)}
+                      disabled={!transferQrImage?.url || transferQrImageFailed}
                       className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
                     >
                       <Download size={14} className="text-[#1A73E8]" />
-                      <span>Tải hóa đơn</span>
+                      <span>Tải mã QR chuyển khoản</span>
                     </Button>
+                    <div className="grid w-full grid-cols-2 gap-2 border-t border-slate-200/60 pt-3">
+                      {isPendingReview && canConfirmInvoice && (
+                        <>
+                          <Button type="button" variant="outline" disabled={reviewSubmitting || paySubmitting} onClick={() => handleReviewProof('rejected')} className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50">Không duyệt</Button>
+                          <Button type="button" disabled={reviewSubmitting || paySubmitting} onClick={() => handleReviewProof('approved')} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</Button>
+                        </>
+                      )}
+                      {isApproved && canConfirmInvoice && (
+                        <Button type="button" variant="outline" disabled={reviewSubmitting || paySubmitting} onClick={() => handleReviewProof('revoked')} className="col-span-2 rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50">{reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}</Button>
+                      )}
+                      {hasExistingProof && payProofFile && (
+                        <Button type="button" disabled={paySubmitting || reviewSubmitting} onClick={handleSaveUpdatedProof} className="col-span-2 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white">{paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}</Button>
+                      )}
+                      {!hasExistingProof && (
+                        <Button type="button" disabled={paySubmitting || reviewSubmitting || !payProofFile} onClick={handleConfirmPay} className="col-span-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">{paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}</Button>
+                      )}
+                      <Button type="button" variant="outline" disabled={paySubmitting || reviewSubmitting} onClick={() => setPayModalOpen(false)} className="col-span-2 rounded-xl">Đóng</Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1963,6 +1942,24 @@ export default function InvoicesPage() {
                 <p className="text-[11px] text-[#64748B]">
                   Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
                 </p>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#1E293B]">Mã QR chuyển khoản mặc định</label>
+                  <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG hoặc WebP, tối đa 5MB.</p>
+                </div>
+                <input id="config-transfer-qr-upload" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={handleConfigQrChange} className="hidden" />
+                <div className="flex items-center gap-3">
+                  {(configQrPreview || configForm.transfer_qr_image?.url) ? (
+                    <img src={configQrPreview || getImageUrl(configForm.transfer_qr_image?.url)} alt="Xem trước mã QR chuyển khoản" className="h-24 w-24 rounded-lg border border-slate-200 bg-white object-contain p-1" />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 px-2 text-center text-[11px] text-slate-500">Chưa có mã QR</div>
+                  )}
+                  <label htmlFor="config-transfer-qr-upload" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    <Upload size={14} /> {configForm.transfer_qr_image?.url || configQrFile ? 'Thay ảnh QR' : 'Chọn ảnh QR'}
+                  </label>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-2">

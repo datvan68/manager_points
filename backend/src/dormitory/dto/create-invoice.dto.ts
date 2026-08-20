@@ -1,6 +1,7 @@
 import {
   IsNotEmpty,
   IsString,
+  IsUUID,
   IsOptional,
   IsNumber,
   IsMongoId,
@@ -182,6 +183,11 @@ export class ReviewPaymentProofDto {
   @IsNotEmpty()
   @IsEnum(['approved', 'rejected', 'revoked'])
   decision: 'approved' | 'rejected' | 'revoked';
+
+  @IsNotEmpty()
+  @IsString()
+  @IsUUID()
+  request_id: string;
 }
 
 export class InvoiceItemDto {

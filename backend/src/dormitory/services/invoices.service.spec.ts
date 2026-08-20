@@ -59,6 +59,7 @@ describe('InvoicesService', () => {
     invoiceModel.findById = jest.fn(() => query(null));
     invoiceModel.countDocuments = jest.fn(() => query(0));
     invoiceModel.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 1 });
+    invoiceModel.updateOne = jest.fn(() => query({ modifiedCount: 1 }));
     invoiceModel.deleteMany = jest.fn(() => query({ deletedCount: 1 }));
 
     const contractModel: any = {
@@ -517,6 +518,15 @@ describe('InvoicesService', () => {
       expect(result.status).toBe('Chưa thu');
       expect(result.confirmed_by_id).toBeUndefined();
     });
+
+    it('does not overwrite a proof when its review state changes concurrently', async () => {
+      const { service, invoiceModel } = setup();
+      const existing: any = { status: 'Chưa thu', payment_method: 'Chuyển khoản', payment_review: { status: 'pending', attempts: [] } };
+      invoiceModel.findById.mockReturnValue(query(existing));
+      invoiceModel.updateOne.mockReturnValue(query({ modifiedCount: 0 }));
+      await expect(service.updatePaymentProof('inv-1', { payment_proof: { url: '/uploads/new.png' } }, { userId: 'u-1' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 
   describe('reviewPaymentProof', () => {
@@ -543,7 +553,7 @@ describe('InvoicesService', () => {
       expect(result.paid_at).toBeDefined();
     });
 
-    it('rejects pending proof and keeps invoice as Chưa thu', async () => {
+    it('records a rejected review attempt and returns the proof to pending', async () => {
       const { service, invoiceModel } = setup();
       const existing = {
         _id: 'inv-1',
@@ -559,10 +569,25 @@ describe('InvoicesService', () => {
 
       const result = await service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' });
       expect(result.status).toBe('Chưa thu');
-      expect(result.payment_review?.status).toBe('rejected');
-      expect(result.payment_review?.reviewed_by_id).toBe('admin-1');
+      expect(result.payment_review?.status).toBe('pending');
+      expect(result.payment_review?.attempts).toHaveLength(1);
+      expect(result.payment_review?.attempts?.[0].reviewed_by_id).toBe('admin-1');
+      expect(result.payment_review?.attempts?.[0].reviewed_at).toBeDefined();
       expect(result.confirmed_by_id).toBeUndefined();
       expect(result.paid_at).toBeUndefined();
+    });
+
+    it('appends one audit entry for each completed unsuccessful review', async () => {
+      const { service, invoiceModel } = setup();
+      const existing: any = {
+        status: 'Chưa thu', payment_method: 'Chuyển khoản', payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'pending', attempts: [{ decision: 'rejected', reviewed_by_id: 'admin-0', reviewed_at: new Date() }] },
+        save: jest.fn().mockImplementation(async function (this: any) { return this; }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+      const result = await service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' });
+      expect(result.payment_review.attempts).toHaveLength(2);
+      expect(result.payment_review.status).toBe('pending');
     });
 
     it('revokes approved proof, changes invoice to Chưa thu and records revoker info', async () => {
@@ -623,6 +648,36 @@ describe('InvoicesService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('fails without local mutation when a concurrent reviewer wins the transition', async () => {
+      const { service, invoiceModel } = setup();
+      const existing: any = {
+        status: 'Chưa thu', payment_method: 'Chuyển khoản', payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'pending', attempts: [] },
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+      invoiceModel.updateOne.mockReturnValue(query({ modifiedCount: 0 }));
+      await expect(service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' }))
+        .rejects.toBeInstanceOf(BadRequestException);
+      expect(existing.payment_review.attempts).toEqual([]);
+      expect(existing.payment_review.status).toBe('pending');
+    });
+
+    it('atomically deduplicates simultaneous reject attempts with the same request id', async () => {
+      const { service, invoiceModel } = setup();
+      const makeInvoice = () => ({ status: 'Chưa thu', payment_method: 'Chuyển khoản', payment_proof: { url: '/uploads/proof.png' }, payment_review: { status: 'pending', attempts: [] } });
+      invoiceModel.findById.mockImplementation(() => query(makeInvoice()));
+      invoiceModel.updateOne
+        .mockReturnValueOnce(query({ modifiedCount: 1 }))
+        .mockReturnValueOnce(query({ modifiedCount: 0 }));
+      const results = await Promise.allSettled([
+        service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' }, 'same-request'),
+        service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' }, 'same-request'),
+      ]);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(invoiceModel.updateOne.mock.calls[0][0]['payment_review.attempts.request_id']).toEqual({ $ne: 'same-request' });
+    });
+
     it('rejects review when invoice has no proof or is not transfer', async () => {
       const { service, invoiceModel } = setup();
       const existing = {
@@ -672,6 +727,7 @@ describe('InvoicesService', () => {
           electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
           water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
           configured_collection_days: 15,
+          transfer_qr_image: { url: '/uploads/transfer-qr.png', file_name: 'transfer-qr.png', mime_type: 'image/png', size: 1024 },
         },
         { userId: 'admin-1' },
       );
@@ -679,6 +735,8 @@ describe('InvoicesService', () => {
       expect(updated.electricity.unit_price).toBe(3000);
       expect(updated.water.unit_price).toBe(12000);
       expect(updated.configured_collection_days).toBe(15);
+      expect(updated.transfer_qr_image.url).toBe('/uploads/transfer-qr.png');
+      expect(updated.transfer_qr_image.uploaded_at).toBeDefined();
       expect(updated.updated_by_id).toBe('admin-1');
     });
   });
@@ -977,4 +1035,3 @@ describe('InvoicesService', () => {
     });
   });
 });
-

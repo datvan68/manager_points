@@ -17,6 +17,19 @@ export class UtilityTariff {
 
 export const UtilityTariffSchema = SchemaFactory.createForClass(UtilityTariff);
 
+@Schema({ _id: false })
+export class TransferQrImage {
+  @Prop({ required: true })
+  url: string;
+
+  @Prop() file_name?: string;
+  @Prop() mime_type?: string;
+  @Prop() size?: number;
+  @Prop({ default: () => new Date() }) uploaded_at?: Date;
+}
+
+export const TransferQrImageSchema = SchemaFactory.createForClass(TransferQrImage);
+
 @Schema({ timestamps: true })
 export class UtilityConfig {
   @Prop({
@@ -33,6 +46,9 @@ export class UtilityConfig {
 
   @Prop({ default: 10, required: true })
   configured_collection_days: number;
+
+  @Prop({ type: TransferQrImageSchema })
+  transfer_qr_image?: TransferQrImage;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   updated_by_id?: Types.ObjectId;

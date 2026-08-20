@@ -559,12 +559,11 @@ export class InvoicesService {
     if (!invoice) {
       throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
     }
-    if (dto.payment_method) {
-      invoice.payment_method = dto.payment_method;
-    }
-    if (dto.notes !== undefined) {
-      invoice.notes = dto.notes;
-    }
+    const originalStatus = invoice.status;
+    const originalReviewStatus = invoice.payment_review?.status;
+    const update: any = { $set: {}, $unset: {} };
+    if (dto.payment_method) { update.$set.payment_method = dto.payment_method; invoice.payment_method = dto.payment_method; }
+    if (dto.notes !== undefined) { update.$set.notes = dto.notes; invoice.notes = dto.notes; }
     if (dto.payment_proof) {
       invoice.payment_proof = {
         url: dto.payment_proof.url,
@@ -573,42 +572,89 @@ export class InvoicesService {
         size: dto.payment_proof.size,
         uploaded_at: new Date(),
       };
+      update.$set.payment_proof = invoice.payment_proof;
     } else if (dto.proof_url) {
       invoice.payment_proof = {
         url: dto.proof_url,
         uploaded_at: new Date(),
       };
+      update.$set.payment_proof = invoice.payment_proof;
     }
     if (dto.payment_proof || dto.proof_url) {
-      invoice.payment_review = { status: 'pending', submitted_at: new Date() };
+      const submittedAt = new Date();
+      invoice.payment_review = { ...invoice.payment_review, status: 'pending', submitted_at: submittedAt };
+      update.$set['payment_review.status'] = 'pending';
+      update.$set['payment_review.submitted_at'] = submittedAt;
+      update.$unset['payment_review.reviewed_by_id'] = 1;
+      update.$unset['payment_review.reviewed_at'] = 1;
+      update.$unset['payment_review.revoked_by_id'] = 1;
+      update.$unset['payment_review.revoked_at'] = 1;
       if (invoice.status === 'Đã thu' || invoice.status === 'Đã thanh toán') {
         invoice.status = 'Chưa thu';
         invoice.paid_at = undefined;
         invoice.confirmed_by_id = undefined;
+        update.$set.status = 'Chưa thu';
+        update.$unset.paid_at = 1;
+        update.$unset.confirmed_by_id = 1;
       }
     }
-    return invoice.save();
+    if (!Object.keys(update.$unset).length) delete update.$unset;
+    const updateResult = await this.invoiceModel.updateOne(
+      { _id: id, status: originalStatus, 'payment_review.status': originalReviewStatus },
+      update,
+    ).exec();
+    if (updateResult.modifiedCount !== 1) throw new BadRequestException('Hóa đơn đã thay đổi, vui lòng tải lại trước khi cập nhật chứng từ');
+    return invoice;
   }
 
-  async reviewPaymentProof(id: string, decision: 'approved' | 'rejected' | 'revoked', user: any): Promise<Invoice> {
+  async reviewPaymentProof(id: string, decision: 'approved' | 'rejected' | 'revoked', user: any, requestId = `${decision}-${id}-${Date.now()}`): Promise<Invoice> {
     const invoice = await this.invoiceModel.findById(id).exec();
     if (!invoice) throw new NotFoundException(`Không tìm thấy hóa đơn: ${id}`);
     if (invoice.payment_method !== 'Chuyển khoản' || !invoice.payment_proof) throw new BadRequestException('Hóa đơn chưa có chứng từ chuyển khoản');
     if (decision === 'revoked') {
       if (invoice.payment_review?.status !== 'approved' || invoice.status !== 'Đã thu') throw new BadRequestException('Chứng từ không ở trạng thái đã duyệt');
       const now = new Date();
-      invoice.payment_review = { ...invoice.payment_review, status: 'rejected', revoked_by_id: user._id || user.userId, revoked_at: now };
+      const revokerId = user._id || user.userId;
+      const updateResult = await this.invoiceModel.updateOne(
+        { _id: id, payment_method: 'Chuyển khoản', 'payment_review.status': 'approved', status: 'Đã thu', payment_proof: { $exists: true } },
+        { $set: { 'payment_review.status': 'rejected', 'payment_review.revoked_by_id': revokerId, 'payment_review.revoked_at': now, status: 'Chưa thu' }, $unset: { paid_at: 1, confirmed_by_id: 1 } },
+      ).exec();
+      if (updateResult.modifiedCount !== 1) throw new BadRequestException('Chứng từ không ở trạng thái đã duyệt');
+      invoice.payment_review = { ...invoice.payment_review, status: 'rejected', revoked_by_id: revokerId, revoked_at: now };
       invoice.status = 'Chưa thu';
       invoice.paid_at = undefined;
       invoice.confirmed_by_id = undefined;
-      return invoice.save();
+      return invoice;
     }
     if (invoice.payment_review?.status !== 'pending') throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
     const now = new Date();
-    invoice.payment_review = { ...invoice.payment_review, status: decision, reviewed_by_id: user._id || user.userId, reviewed_at: now };
-    if (decision === 'approved') { invoice.status = 'Đã thu'; invoice.paid_at = now; invoice.confirmed_by_id = user._id || user.userId; }
-    else { invoice.status = 'Chưa thu'; invoice.paid_at = undefined; invoice.confirmed_by_id = undefined; }
-    return invoice.save();
+    const reviewerId = user._id || user.userId;
+    if (decision === 'approved') {
+      const updateResult = await this.invoiceModel.updateOne(
+        { _id: id, payment_method: 'Chuyển khoản', 'payment_review.status': 'pending', status: { $in: ['Chưa thu', 'Chưa thanh toán'] }, payment_proof: { $exists: true } },
+        { $set: { 'payment_review.status': 'approved', 'payment_review.reviewed_by_id': reviewerId, 'payment_review.reviewed_at': now, status: 'Đã thu', paid_at: now, confirmed_by_id: reviewerId } },
+      ).exec();
+      if (updateResult.modifiedCount !== 1) throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
+      invoice.payment_review = { ...invoice.payment_review, status: 'approved', reviewed_by_id: reviewerId, reviewed_at: now };
+      invoice.status = 'Đã thu'; invoice.paid_at = now; invoice.confirmed_by_id = reviewerId;
+    } else {
+      const attempt = { decision: 'rejected' as const, reviewed_by_id: reviewerId, reviewed_at: now, request_id: requestId };
+      const updateResult = await this.invoiceModel.updateOne(
+        { _id: id, payment_method: 'Chuyển khoản', 'payment_review.status': 'pending', 'payment_review.attempts.request_id': { $ne: requestId }, status: { $in: ['Chưa thu', 'Chưa thanh toán'] }, payment_proof: { $exists: true } },
+        { $push: { 'payment_review.attempts': attempt }, $set: { status: 'Chưa thu' }, $unset: { paid_at: 1, confirmed_by_id: 1 } },
+      ).exec();
+      if (updateResult.modifiedCount !== 1) throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
+      invoice.payment_review = {
+        ...invoice.payment_review,
+        status: 'pending',
+        attempts: [
+          ...(invoice.payment_review?.attempts || []),
+          attempt,
+        ],
+      };
+      invoice.status = 'Chưa thu'; invoice.paid_at = undefined; invoice.confirmed_by_id = undefined;
+    }
+    return invoice;
   }
 
   /**
@@ -678,6 +724,15 @@ export class InvoicesService {
       unit: dto.water.unit || 'm³',
     };
     config.configured_collection_days = Number(dto.configured_collection_days);
+    if (dto.transfer_qr_image) {
+      config.transfer_qr_image = {
+        url: dto.transfer_qr_image.url,
+        file_name: dto.transfer_qr_image.file_name,
+        mime_type: dto.transfer_qr_image.mime_type,
+        size: dto.transfer_qr_image.size,
+        uploaded_at: new Date(),
+      };
+    }
     if (user?._id || user?.userId) {
       config.updated_by_id = user._id || user.userId;
     }

@@ -151,6 +151,30 @@ export class InvoicesController {
     };
   }
 
+  @Post('config/upload-transfer-qr')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads';
+          if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
+          cb(null, uploadPath);
+        },
+        filename: (req, file, cb) => cb(null, `invoice-transfer-qr-${randomUUID()}${extname(file.originalname).toLowerCase()}`),
+      }),
+      fileFilter: (req, file, cb) => file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)
+        ? cb(null, true)
+        : cb(new BadRequestException('Chỉ chấp nhận file ảnh hợp lệ (PNG, JPEG, WebP)'), false),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload mã QR chuyển khoản mặc định' })
+  uploadTransferQr(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Vui lòng chọn file ảnh QR hợp lệ');
+    return { url: `/uploads/${file.filename}`, file_name: file.filename, mime_type: file.mimetype, size: file.size };
+  }
+
   @Post()
   @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
   create(@Body() dto: CreateInvoiceDto, @Request() req: any) {
@@ -232,6 +256,6 @@ export class InvoicesController {
   @Patch(':id/proof/review')
   @UseGuards(checkPermission('DORM_INVOICE_CONFIRM'))
   reviewProof(@Param('id') id: string, @Body() dto: ReviewPaymentProofDto, @Request() req: any) {
-    return this.invoicesService.reviewPaymentProof(id, dto.decision, req.user);
+    return this.invoicesService.reviewPaymentProof(id, dto.decision, req.user, dto.request_id);
   }
 }
