@@ -302,9 +302,7 @@ export class DormitoryRosterService {
     return this.toResponse(entry);
   }
 
-  async generateApplicationPdf(id: string) {
-    const entry: any = await this.rosterModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).populate('room_id').populate('bed_id').exec();
-    if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+  private async renderSingleEntryPdfBuffer(entry: any): Promise<Buffer> {
     const value = this.toResponse(entry);
     const linkedStudent = this.plain(entry.student_id);
     const resolvedValues = resolveDormitoryRosterPdfValues(value, linkedStudent);
@@ -312,12 +310,12 @@ export class DormitoryRosterService {
       ? await this.sharedPdfTemplateService.renderCurrentFromContext(DORMITORY_ROSTER_APPLICATION, { roster: value, student: linkedStudent })
       : null;
     if (rendered) {
-      return { buffer: rendered.buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+      return rendered.buffer;
     }
     if (this.sharedPdfTemplateService) {
       const bundledPath = join(__dirname, '../templates/dormitory-roster-application.pdf');
       const fallback = await this.sharedPdfTemplateService.renderFallback(DORMITORY_ROSTER_APPLICATION, await readFile(bundledPath), createDefaultDormitoryLayout([{ pageIndex: 0, width: 595.32, height: 842.04, rotation: 0 }]), resolvedValues);
-      return { buffer: fallback.buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+      return fallback.buffer;
     }
     // Compatibility-only path for isolated legacy unit setups without the shared module.
     const pdfValues = this.applicationPdfValues(value, this.plain(entry.student_id));
@@ -334,12 +332,67 @@ export class DormitoryRosterService {
       const [overlayPage] = await template.embedPages([overlayDocument.getPages()[0]]);
       template.getPages()[0].drawPage(overlayPage, { x: 0, y: 0, width: 595.32, height: 842.04 });
       const buffer = await template.save({ useObjectStreams: false });
-      return { buffer: Buffer.from(buffer), filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+      return Buffer.from(buffer);
     } catch {
       throw new ServiceUnavailableException('Không thể tạo PDF mục Danh sách lúc này.');
     } finally {
       if (browser) await browser.close().catch(() => undefined);
     }
+  }
+
+  async generateApplicationPdf(id: string) {
+    const entry: any = await this.rosterModel.findById(id).populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } }).populate('room_id').populate('bed_id').exec();
+    if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    const value = this.toResponse(entry);
+    const buffer = await this.renderSingleEntryPdfBuffer(entry);
+    return { buffer, filename: `don-xin-vao-ktx-${this.safeFilename(value.roster_entry_code)}.pdf` };
+  }
+
+  async generateBulkApplicationPdf(ids: string[]) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('Danh sách ID không được để trống.');
+    }
+    if (ids.length > 100) {
+      throw new BadRequestException('Tối đa 100 mục Danh sách mỗi lần xuất PDF.');
+    }
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length !== ids.length) {
+      throw new BadRequestException('Danh sách ID không được chứa phần tử trùng lặp.');
+    }
+    for (const id of ids) {
+      if (!Types.ObjectId.isValid(id)) {
+        throw new BadRequestException('Mã mục Danh sách không hợp lệ.');
+      }
+    }
+
+    const entries: any[] = await this.rosterModel
+      .find({ _id: { $in: ids } })
+      .populate({ path: 'student_id', populate: { path: 'class_id', populate: { path: 'dept_id' } } })
+      .populate('room_id')
+      .populate('bed_id')
+      .exec();
+
+    const entryMap = new Map(entries.map((entry) => [this.id(entry), entry]));
+    for (const id of ids) {
+      if (!entryMap.has(id)) {
+        throw new NotFoundException(`Không tìm thấy mục Danh sách KTX: ${id}`);
+      }
+    }
+
+    const mergedPdf = await PDFDocument.create();
+    for (const id of ids) {
+      const entry = entryMap.get(id);
+      const buffer = await this.renderSingleEntryPdfBuffer(entry);
+      const doc = await PDFDocument.load(buffer);
+      const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+      copiedPages.forEach((page) => mergedPdf.addPage(page));
+    }
+
+    const finalBuffer = Buffer.from(await mergedPdf.save({ useObjectStreams: false }));
+    return {
+      buffer: finalBuffer,
+      filename: 'don-xin-vao-ktx-danh-sach.pdf',
+    };
   }
 
   private safeFilename(value: unknown) {

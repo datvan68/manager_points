@@ -42,7 +42,7 @@ describe('DormitoryLayout', () => {
     expect(screen.getAllByRole('button')[0]).toHaveTextContent('Tổng quan');
     expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Phòng' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hợp đồng' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hợp đồng' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hóa đơn' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'PDF' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Vi phạm' })).not.toBeInTheDocument();
@@ -53,9 +53,10 @@ describe('DormitoryLayout', () => {
     expect(push).toHaveBeenCalledWith('/dormitory/invoices');
   });
 
-  it('verifies Violations, Maintenance, and Reports tabs are absent for any permission set (AC-08)', () => {
+  it('verifies Contracts, Violations, Maintenance, and Reports tabs are absent for any permission set (AC-01, AC-08)', () => {
     mockHasPermission = vi.fn(() => true);
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
+    expect(screen.queryByRole('button', { name: 'Hợp đồng' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Vi phạm' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Bảo trì' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Báo cáo' })).not.toBeInTheDocument();
@@ -95,7 +96,12 @@ describe('DormitoryLayout', () => {
     expect(wrapper).toContainElement(screen.getByTestId('c3'));
   });
 
-  it('renders direct child routes even when removed from navigation tabs (AC-09)', () => {
+  it('renders direct child routes even when removed from navigation tabs (AC-02, AC-09)', () => {
+    pathname = '/dormitory/contracts';
+    const { unmount: unmountContracts } = render(<DormitoryLayout><div data-testid="direct-contracts">Contracts Page</div></DormitoryLayout>);
+    expect(screen.getByTestId('direct-contracts')).toBeInTheDocument();
+    unmountContracts();
+
     pathname = '/dormitory/reports';
     const { unmount: unmountReports } = render(<DormitoryLayout><div data-testid="direct-reports">Reports Page</div></DormitoryLayout>);
     expect(screen.getByTestId('direct-reports')).toBeInTheDocument();

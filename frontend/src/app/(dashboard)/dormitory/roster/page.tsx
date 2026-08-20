@@ -89,6 +89,11 @@ export const selectedPdfRosterEntry = (rows: DormitoryRosterEntry[], selectedIds
   return rows.find(row => row._id === selectedIds[0]);
 };
 
+export const selectedPdfRosterEntries = (rows: DormitoryRosterEntry[], selectedIds: string[]) => {
+  const selectedSet = new Set(selectedIds);
+  return rows.filter(row => selectedSet.has(row._id));
+};
+
 type RoomAssignmentPopoverProps = {
   row: DormitoryRosterEntry;
   onAssigned: (assignment: RoomAssignment) => void;
@@ -267,20 +272,38 @@ export default function DormitoryRosterPage() {
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
   const [editRow, setEditRow] = useState<DormitoryRosterEntry | null>(null);
   const [deleteRow, setDeleteRow] = useState<DormitoryRosterEntry | null>(null); const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false); const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [pdfRow, setPdfRow] = useState<DormitoryRosterEntry | null>(null); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
+  const [pdfRows, setPdfRows] = useState<DormitoryRosterEntry[]>([]); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
 
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
-  const loadPdfPreview = async (row: DormitoryRosterEntry) => {
+  const loadPdfPreview = async (targets: DormitoryRosterEntry[]) => {
+    if (pdfLoading || !targets.length) return;
     if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
-    setPdfRow(row); setPdfLoading(true); setPdfError('');
-    try { setPdfUrl(URL.createObjectURL(await dormitoryApi.roster.getApplicationPdf(row._id, 'inline'))); }
-    catch (err: any) { setPdfError(err?.message || 'Không thể tạo bản xem trước đơn KTX.'); }
-    finally { setPdfLoading(false); }
-  };
-  const downloadPdf = async (row: DormitoryRosterEntry) => {
+    setPdfRows(targets); setPdfLoading(true); setPdfError('');
     try {
-      const url = URL.createObjectURL(await dormitoryApi.roster.getApplicationPdf(row._id, 'attachment'));
-      const link = document.createElement('a'); link.href = url; link.download = `danh-sach-ktx-${String(row.roster_entry_code || row._id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+      const blob = targets.length === 1
+        ? await dormitoryApi.roster.getApplicationPdf(targets[0]._id, 'inline')
+        : await dormitoryApi.roster.getApplicationPdfBulk(targets.map(item => item._id), 'inline');
+      setPdfUrl(URL.createObjectURL(blob));
+    } catch (err: any) {
+      setPdfError(err?.message || 'Không thể tạo bản xem trước đơn KTX.');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+  const downloadPdf = async (targets: DormitoryRosterEntry[]) => {
+    if (pdfLoading || !targets.length) return;
+    try {
+      let blob: Blob;
+      let filename: string;
+      if (targets.length === 1) {
+        blob = await dormitoryApi.roster.getApplicationPdf(targets[0]._id, 'attachment');
+        filename = `danh-sach-ktx-${String(targets[0].roster_entry_code || targets[0]._id).replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      } else {
+        blob = await dormitoryApi.roster.getApplicationPdfBulk(targets.map(item => item._id), 'attachment');
+        filename = `danh-sach-ktx-tong-hop-${targets.length}-sinh-vien.pdf`;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     } catch (err: any) { toast.error(err?.message || 'Không thể xuất PDF đơn KTX.'); }
   };
 
@@ -376,12 +399,16 @@ export default function DormitoryRosterPage() {
     setBulkDeleting(false);
   };
   const openSelectedPdfPreview = () => {
-    const row = selectedPdfRosterEntry(registrations, selected);
-    if (!row) {
-      toast.error(selected.length ? 'Vui lòng chỉ chọn một đơn để xuất PDF.' : 'Vui lòng chọn một đơn để xuất PDF.');
+    const targets = selectedPdfRosterEntries(registrations, selected);
+    if (!targets.length) {
+      toast.error('Vui lòng chọn ít nhất một đơn để xuất PDF.');
       return;
     }
-    void loadPdfPreview(row);
+    if (targets.length > 100) {
+      toast.error('Tối đa 100 đơn mỗi lần xuất PDF.');
+      return;
+    }
+    void loadPdfPreview(targets);
   };
   const columns: ResponsiveColumn<DormitoryRosterEntry>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
@@ -408,9 +435,9 @@ export default function DormitoryRosterPage() {
     )}
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có mục Danh sách KTX nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="mục Danh sách KTX" />} /></div>
-    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Xuất PDF</button>}</>} />
-    <Dialog open={Boolean(pdfRow)} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRow(null); setPdfError(''); } }}>
-      <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>Xem trước đơn KTX</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRow && void loadPdfPreview(pdfRow)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => setPdfRow(null)}>Đóng</Button>{pdfRow && <Button onClick={() => void downloadPdf(pdfRow)}>Xuất PDF</Button>}</DialogFooter></DialogContent>
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" disabled={pdfLoading} onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Xuất PDF</button>}</>} />
+    <Dialog open={pdfRows.length > 0} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); } }}>
+      <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>{pdfRows.length > 1 ? `Xem trước đơn KTX (${pdfRows.length} sinh viên)` : 'Xem trước đơn KTX'}</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRows.length > 0 && void loadPdfPreview(pdfRows)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); }}>Đóng</Button>{pdfRows.length > 0 && <Button disabled={pdfLoading || Boolean(pdfError)} onClick={() => void downloadPdf(pdfRows)}>Xuất PDF</Button>}</DialogFooter></DialogContent>
     </Dialog>
     <Dialog open={qrOpen} onOpenChange={setQrOpen}>
       <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 font-sans shadow-2xl">

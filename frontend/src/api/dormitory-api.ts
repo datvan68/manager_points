@@ -601,6 +601,15 @@ export const dormitoryApi = {
       if (!res.ok) return handleResponse(res);
       return res.blob();
     },
+    async getApplicationPdfBulk(ids: string[], disposition: 'inline' | 'attachment' = 'inline'): Promise<Blob> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/application-pdf/bulk${buildQuery({ disposition })}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) return handleResponse(res);
+      return res.blob();
+    },
   },
 
   // ── Contracts ──

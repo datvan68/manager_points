@@ -25,4 +25,20 @@ describe('dormitory roster API', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ roster_entry_id: 'entry-1', room_id: 'room-1', bed_id: 'bed-1' });
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ roster_entry_id: 'entry-1' });
   });
+
+  it('calls single and bulk application PDF endpoints with correct method and payloads', async () => {
+    const mockBlob = new Blob(['pdf-content'], { type: 'application/pdf' });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(mockBlob),
+    });
+
+    await dormitoryApi.roster.getApplicationPdf('entry-1', 'attachment');
+    expect(fetchMock.mock.calls[0][0]).toContain('/dormitory/roster/entry-1/application-pdf?disposition=attachment');
+
+    await dormitoryApi.roster.getApplicationPdfBulk(['entry-1', 'entry-2'], 'inline');
+    expect(fetchMock.mock.calls[1][0]).toContain('/dormitory/roster/application-pdf/bulk?disposition=inline');
+    expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ ids: ['entry-1', 'entry-2'] });
+  });
 });

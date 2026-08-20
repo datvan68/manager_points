@@ -1,5 +1,5 @@
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
 import { DormitoryRosterService } from './dormitory-roster.service';
 
@@ -103,4 +103,73 @@ describe('DormitoryRosterService', () => {
     expect(html).not.toContain('undefined');
     expect(html).not.toContain('null');
   });
+
+  it('rejects bulk PDF request if ids is empty, >100, contains invalid mongo ID, or contains duplicate IDs', async () => {
+    const { service } = setup();
+    await expect(service.generateBulkApplicationPdf([])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.generateBulkApplicationPdf(
+        Array.from({ length: 101 }, (_, i) => `507f1f77bcf86cd7994390${i < 10 ? '0' + i : i}`),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.generateBulkApplicationPdf(['invalid-mongo-id'])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.generateBulkApplicationPdf(['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439011']),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects bulk PDF request without partial document if any entry is missing', async () => {
+    const { service, rosterModel } = setup();
+    const entry1: any = {
+      _id: '507f1f77bcf86cd799439011',
+      roster_entry_code: 'DK-01',
+      full_name: 'Nguyễn Văn A',
+      identity_state: 'UNLINKED',
+    };
+    rosterModel.find.mockReturnValue(query([entry1]));
+
+    await expect(
+      service.generateBulkApplicationPdf(['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012']),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('merges multiple application PDFs in input order and returns a stable bulk filename', async () => {
+    const { service, rosterModel } = setup();
+    const student1 = { ...student, _id: '507f1f77bcf86cd799439011', full_name: 'Sinh viên 1' };
+    const student2 = { ...student, _id: '507f1f77bcf86cd799439012', full_name: 'Sinh viên 2' };
+
+    const entry1: any = {
+      _id: '507f1f77bcf86cd799439011',
+      roster_entry_code: 'DK-01',
+      student_id: student1,
+      full_name: 'Sinh viên 1',
+      date_of_birth: new Date('2004-01-01'),
+      gender: 'Male',
+      phone_number: '0912345671',
+      identity_state: 'LINKED',
+      applicant_profile: {},
+    };
+    const entry2: any = {
+      _id: '507f1f77bcf86cd799439012',
+      roster_entry_code: 'DK-02',
+      student_id: student2,
+      full_name: 'Sinh viên 2',
+      date_of_birth: new Date('2004-02-02'),
+      gender: 'Female',
+      phone_number: '0912345672',
+      identity_state: 'LINKED',
+      applicant_profile: {},
+    };
+
+    rosterModel.find.mockReturnValue(query([entry1, entry2]));
+
+    // Request in reverse order [entry2, entry1]
+    const result = await service.generateBulkApplicationPdf(['507f1f77bcf86cd799439012', '507f1f77bcf86cd799439011']);
+    expect(result.filename).toBe('don-xin-vao-ktx-danh-sach.pdf');
+
+    const mergedDoc = await PDFDocument.load(result.buffer);
+    expect(mergedDoc.getPageCount()).toBe(2);
+    expect(mergedDoc.getPage(0).getWidth()).toBeCloseTo(595.32, 1);
+    expect(mergedDoc.getPage(1).getWidth()).toBeCloseTo(595.32, 1);
+  }, 30000);
 });
