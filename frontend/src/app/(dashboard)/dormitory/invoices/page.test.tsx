@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import InvoicesPage from './page';
 import { dormitoryApi } from '@/api/dormitory-api';
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 vi.mock('@/api/dormitory-api', () => ({
   dormitoryApi: {
     rooms: {
@@ -16,6 +23,10 @@ vi.mock('@/api/dormitory-api', () => ({
       getRoomInfo: vi.fn(),
       uploadProof: vi.fn(),
       pay: vi.fn(),
+      getConfig: vi.fn(),
+      updateConfig: vi.fn(),
+      getMeterReadings: vi.fn(),
+      saveBulkMeterReadings: vi.fn(),
     },
   },
 }));
@@ -24,6 +35,8 @@ vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -120,9 +133,14 @@ describe('Dormitory Invoices Page', () => {
       occupants: [],
       last_readings: { electricity: 150, water: 20 },
     });
+    (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
+      electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+      water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+      configured_collection_days: 10,
+    });
   });
 
-  it('renders the 7 standard table columns (AC-02)', async () => {
+  it('renders the 7 standard table columns (AC-08)', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -139,7 +157,7 @@ describe('Dormitory Invoices Page', () => {
     expect(screen.getByText('Thao tác')).toBeDefined();
   });
 
-  it('displays exactly two business statuses: Chưa thu and Đã thu (AC-06)', async () => {
+  it('displays exactly two business statuses: Chưa thu and Đã thu', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -148,24 +166,51 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('opens Advanced Modal and allows creating monthly invoice (AC-03)', async () => {
+  it('does not have text button "Lập đợt thu", has Advanced icon button and "Ghi điện nước" button (AC-01, AC-02)', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Lập đợt thu/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
     });
 
-    const createBtn = screen.getByRole('button', { name: /Lập đợt thu/i });
-    fireEvent.click(createBtn);
+    // Verify text button "Lập đợt thu" is gone
+    expect(screen.queryByRole('button', { name: /^Lập đợt thu$/i })).toBeNull();
+
+    // Verify Advanced icon button exists with accessible name
+    const configBtn = screen.getByRole('button', { name: /Cấu hình định mức & đơn giá/i });
+    expect(configBtn).toBeDefined();
+  });
+
+  it('opens Utility Config modal on clicking Advanced icon button (AC-01)', async () => {
+    render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Lập đợt thu điện - nước (Nâng cao)')).toBeDefined();
-      expect(screen.getByText('Thông số Điện')).toBeDefined();
-      expect(screen.getByText('Thông số Nước')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Cấu hình định mức & đơn giá/i })).toBeDefined();
+    });
+
+    const configBtn = screen.getByRole('button', { name: /Cấu hình định mức & đơn giá/i });
+    fireEvent.click(configBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cấu hình định mức & đơn giá điện - nước')).toBeDefined();
+      expect(screen.getByText(/Số ngày thu tự động/i)).toBeDefined();
     });
   });
 
-  it('opens Pay Modal on clicking Thu tiền (AC-07)', async () => {
+  it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước" (AC-02)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
+    });
+
+    const meterReadingsBtn = screen.getByRole('button', { name: /Ghi điện nước/i });
+    fireEvent.click(meterReadingsBtn);
+
+    expect(mockPush).toHaveBeenCalledWith('/dormitory/invoices/meter-readings');
+  });
+
+  it('opens Pay Modal on clicking Thu tiền', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -181,7 +226,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('opens Proof Modal on clicking Đã thu badge (AC-08)', async () => {
+  it('opens Proof Modal on clicking Đã thu badge', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {

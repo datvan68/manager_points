@@ -14,6 +14,10 @@ import {
   DormitoryRosterEntryDocument,
 } from '../schemas/dormitory-roster-entry.schema';
 import {
+  UtilityConfig,
+  UtilityConfigDocument,
+} from '../schemas/utility-config.schema';
+import {
   CreateInvoiceDto,
   PayInvoiceDto,
   BulkCreateInvoiceDto,
@@ -21,6 +25,8 @@ import {
   UpdateMonthlyInvoiceDto,
   UtilityInputDto,
 } from '../dto/create-invoice.dto';
+import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
+import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -32,6 +38,8 @@ export class InvoicesService {
     @InjectModel(Room.name) private roomModel: Model<RoomDocument>,
     @InjectModel(DormitoryRosterEntry.name)
     private rosterModel: Model<DormitoryRosterEntryDocument>,
+    @InjectModel(UtilityConfig.name)
+    private utilityConfigModel: Model<UtilityConfigDocument>,
   ) {}
 
   /**
@@ -555,5 +563,351 @@ export class InvoicesService {
       total_amount: overdue.reduce((sum, inv) => sum + inv.total_amount, 0),
       invoices: overdue,
     };
+  }
+
+  /**
+   * Lấy cấu hình dùng chung điện - nước và hạn thu tự động
+   */
+  async getUtilityConfig(): Promise<UtilityConfigDocument> {
+    let config = await this.utilityConfigModel.findOne().exec();
+    if (!config) {
+      config = new this.utilityConfigModel({
+        electricity: {
+          quota_per_person: 15,
+          unit_price: 2500,
+          unit: 'kWh',
+        },
+        water: {
+          quota_per_person: 4,
+          unit_price: 10000,
+          unit: 'm³',
+        },
+        configured_collection_days: 10,
+      });
+      await config.save();
+    }
+    return config;
+  }
+
+  /**
+   * Cập nhật cấu hình dùng chung điện - nước và hạn thu tự động
+   */
+  async updateUtilityConfig(
+    dto: UpdateUtilityConfigDto,
+    user: any,
+  ): Promise<UtilityConfigDocument> {
+    let config = await this.utilityConfigModel.findOne().exec();
+    if (!config) {
+      config = new this.utilityConfigModel();
+    }
+    config.electricity = {
+      quota_per_person: Number(dto.electricity.quota_per_person),
+      unit_price: Number(dto.electricity.unit_price),
+      unit: dto.electricity.unit || 'kWh',
+    };
+    config.water = {
+      quota_per_person: Number(dto.water.quota_per_person),
+      unit_price: Number(dto.water.unit_price),
+      unit: dto.water.unit || 'm³',
+    };
+    config.configured_collection_days = Number(dto.configured_collection_days);
+    if (user?._id || user?.userId) {
+      config.updated_by_id = user._id || user.userId;
+    }
+    return config.save();
+  }
+
+  /**
+   * Lấy danh sách phòng có người ở từ Roster cho kỳ thu kèm chỉ số cũ
+   */
+  async getMeterReadings(billingMonth: string) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(billingMonth)) {
+      throw new BadRequestException(
+        'Kỳ thu phải có định dạng YYYY-MM (ví dụ: 2026-03)',
+      );
+    }
+
+    const config = await this.getUtilityConfig();
+
+    // Lấy danh sách roster entries có gắn phòng
+    const rosterEntries = await this.rosterModel
+      .find({ room_id: { $ne: null } })
+      .populate({
+        path: 'room_id',
+        populate: { path: 'building_id', select: 'building_code name' },
+      })
+      .exec();
+
+    // Nhóm roster entries theo room_id
+    const roomMap = new Map<
+      string,
+      { room: any; occupantCount: number; rosterEntryIds: Types.ObjectId[] }
+    >();
+    for (const entry of rosterEntries) {
+      const roomObj = entry.room_id as any;
+      if (!roomObj) continue;
+      const roomIdStr = String(roomObj._id || roomObj);
+      if (!roomMap.has(roomIdStr)) {
+        roomMap.set(roomIdStr, {
+          room: roomObj,
+          occupantCount: 0,
+          rosterEntryIds: [],
+        });
+      }
+      const group = roomMap.get(roomIdStr)!;
+      group.occupantCount += 1;
+      group.rosterEntryIds.push(entry._id);
+    }
+
+    const roomsData: any[] = [];
+    for (const [roomIdStr, group] of roomMap.entries()) {
+      // Hóa đơn hiện tại trong kỳ này
+      const currentInvoice = await this.invoiceModel
+        .findOne({
+          room_id: roomIdStr,
+          billing_month: billingMonth,
+        })
+        .exec();
+
+      // Hóa đơn gần nhất trước kỳ này
+      const lastInvoice = await this.invoiceModel
+        .findOne({
+          room_id: roomIdStr,
+          billing_month: { $ne: billingMonth },
+        })
+        .sort({ billing_month: -1, reading_date: -1, createdAt: -1 })
+        .exec();
+
+      let previousElectricity = 0;
+      let previousWater = 0;
+
+      if (currentInvoice?.electricity?.previous_reading !== undefined) {
+        previousElectricity = currentInvoice.electricity.previous_reading;
+      } else if (lastInvoice?.electricity?.current_reading !== undefined) {
+        previousElectricity = lastInvoice.electricity.current_reading;
+      }
+
+      if (currentInvoice?.water?.previous_reading !== undefined) {
+        previousWater = currentInvoice.water.previous_reading;
+      } else if (lastInvoice?.water?.current_reading !== undefined) {
+        previousWater = lastInvoice.water.current_reading;
+      }
+
+      roomsData.push({
+        room_id: roomIdStr,
+        room: group.room,
+        occupant_count: group.occupantCount,
+        status: currentInvoice ? 'recorded' : 'unrecorded',
+        invoice_id: currentInvoice?._id,
+        invoice_status: currentInvoice?.status,
+        invoice_code: currentInvoice?.invoice_code,
+        previous_readings: {
+          electricity: previousElectricity,
+          water: previousWater,
+        },
+        current_readings: currentInvoice
+          ? {
+              electricity: currentInvoice.electricity?.current_reading,
+              water: currentInvoice.water?.current_reading,
+            }
+          : undefined,
+        total_amount: currentInvoice?.total_amount,
+        is_exempt: currentInvoice?.is_exempt,
+        notes: currentInvoice?.notes,
+        payment_start_date: currentInvoice?.payment_start_date,
+        due_date: currentInvoice?.due_date,
+      });
+    }
+
+    // Sắp xếp phòng theo tên / mã phòng
+    roomsData.sort((a, b) => {
+      const nameA = a.room?.room_name || a.room?.room_code || '';
+      const nameB = b.room?.room_name || b.room?.room_code || '';
+      return nameA.localeCompare(nameB, 'vi', { numeric: true });
+    });
+
+    return {
+      config,
+      billing_month: billingMonth,
+      rooms: roomsData,
+    };
+  }
+
+  /**
+   * Lưu chỉ số điện - nước hàng loạt theo phòng (Idempotent per room)
+   */
+  async saveBulkMeterReadings(dto: BulkMeterReadingsDto, user: any) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(dto.billing_month)) {
+      throw new BadRequestException(
+        'Kỳ thu phải có định dạng YYYY-MM (ví dụ: 2026-03)',
+      );
+    }
+
+    const config = await this.getUtilityConfig();
+    const results: Array<{
+      room_id: string;
+      success: boolean;
+      invoice?: any;
+      error?: string;
+    }> = [];
+
+    const now = new Date();
+    const collectionDays = config.configured_collection_days || 10;
+    const dueDate = new Date(
+      now.getTime() + collectionDays * 24 * 60 * 60 * 1000,
+    );
+
+    for (const item of dto.readings || []) {
+      try {
+        if (!Types.ObjectId.isValid(item.room_id)) {
+          throw new BadRequestException('Mã phòng không hợp lệ');
+        }
+
+        const room = await this.roomModel.findById(item.room_id).exec();
+        if (!room) {
+          throw new NotFoundException(`Không tìm thấy phòng: ${item.room_id}`);
+        }
+
+        const rosterEntries = await this.rosterModel
+          .find({ room_id: item.room_id })
+          .exec();
+        const rosterEntryIds = rosterEntries.map((r) => r._id);
+        const occupantCount = rosterEntries.length;
+
+        // Tìm hóa đơn hiện tại trong kỳ nếu có
+        const existingInvoice = await this.invoiceModel
+          .findOne({
+            room_id: item.room_id,
+            billing_month: dto.billing_month,
+          })
+          .exec();
+
+        let prevElec = 0;
+        let prevWater = 0;
+
+        if (existingInvoice) {
+          if (
+            existingInvoice.status === 'Đã thu' ||
+            existingInvoice.status === 'Đã thanh toán'
+          ) {
+            throw new BadRequestException(
+              'Không thể chỉnh sửa hóa đơn đã thu',
+            );
+          }
+          prevElec = existingInvoice.electricity?.previous_reading ?? 0;
+          prevWater = existingInvoice.water?.previous_reading ?? 0;
+        } else {
+          const lastInvoice = await this.invoiceModel
+            .findOne({
+              room_id: item.room_id,
+              billing_month: { $ne: dto.billing_month },
+            })
+            .sort({ billing_month: -1, reading_date: -1, createdAt: -1 })
+            .exec();
+
+          prevElec = lastInvoice?.electricity?.current_reading ?? 0;
+          prevWater = lastInvoice?.water?.current_reading ?? 0;
+        }
+
+        const currElec = Number(item.electricity_reading);
+        const currWater = Number(item.water_reading);
+
+        if (isNaN(currElec) || isNaN(currWater)) {
+          throw new BadRequestException(
+            'Chỉ số điện và nước phải là số hợp lệ',
+          );
+        }
+        if (currElec < 0 || currWater < 0) {
+          throw new BadRequestException('Chỉ số không được là số âm');
+        }
+        if (currElec < prevElec) {
+          throw new BadRequestException(
+            'Chỉ số điện mới không được nhỏ hơn chỉ số cũ',
+          );
+        }
+        if (currWater < prevWater) {
+          throw new BadRequestException(
+            'Chỉ số nước mới không được nhỏ hơn chỉ số cũ',
+          );
+        }
+
+        const isExempt = Boolean(item.is_exempt);
+        const electricity = this.calculateUtility(
+          occupantCount,
+          {
+            previous_reading: prevElec,
+            current_reading: currElec,
+            quota_per_person: config.electricity.quota_per_person,
+            unit_price: config.electricity.unit_price,
+          },
+          isExempt,
+        );
+
+        const water = this.calculateUtility(
+          occupantCount,
+          {
+            previous_reading: prevWater,
+            current_reading: currWater,
+            quota_per_person: config.water.quota_per_person,
+            unit_price: config.water.unit_price,
+          },
+          isExempt,
+        );
+
+        const total_amount = isExempt ? 0 : electricity.amount + water.amount;
+
+        if (existingInvoice) {
+          existingInvoice.reading_date = now;
+          existingInvoice.payment_start_date = now;
+          existingInvoice.due_date = dueDate;
+          existingInvoice.occupant_count = occupantCount;
+          existingInvoice.roster_entry_ids = rosterEntryIds;
+          existingInvoice.electricity = electricity;
+          existingInvoice.water = water;
+          existingInvoice.total_amount = total_amount;
+          existingInvoice.is_exempt = isExempt;
+          if (item.notes !== undefined) {
+            existingInvoice.notes = item.notes;
+          }
+          const saved = await existingInvoice.save();
+          results.push({
+            room_id: item.room_id,
+            success: true,
+            invoice: saved,
+          });
+        } else {
+          const invoice = new this.invoiceModel({
+            invoice_code: `INV-${randomUUID().substring(0, 8).toUpperCase()}`,
+            room_id: item.room_id,
+            billing_month: dto.billing_month,
+            reading_date: now,
+            occupant_count: occupantCount,
+            roster_entry_ids: rosterEntryIds,
+            electricity,
+            water,
+            is_exempt: isExempt,
+            payment_start_date: now,
+            due_date: dueDate,
+            total_amount,
+            status: 'Chưa thu',
+            notes: item.notes,
+          });
+          const saved = await invoice.save();
+          results.push({
+            room_id: item.room_id,
+            success: true,
+            invoice: saved,
+          });
+        }
+      } catch (err: any) {
+        results.push({
+          room_id: item.room_id,
+          success: false,
+          error: err?.message || 'Lỗi khi lưu chỉ số phòng',
+        });
+      }
+    }
+
+    return { results };
   }
 }

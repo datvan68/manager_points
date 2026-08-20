@@ -74,11 +74,30 @@ describe('InvoicesService', () => {
       find: jest.fn(() => query(rosterEntries)),
     };
 
+    const configDoc: any = {
+      electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+      water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+      configured_collection_days: 10,
+      save: jest.fn().mockImplementation(async function (this: any) {
+        return this;
+      }),
+    };
+
+    const utilityConfigModel: any = jest.fn().mockImplementation((value: any) => ({
+      ...configDoc,
+      ...value,
+      save: jest.fn().mockImplementation(async function (this: any) {
+        return { ...this, _id: 'config-1' };
+      }),
+    }));
+    utilityConfigModel.findOne = jest.fn(() => query(configDoc));
+
     const service = new InvoicesService(
       invoiceModel,
       contractModel,
       roomModel,
       rosterModel,
+      utilityConfigModel,
     );
 
     return {
@@ -88,6 +107,8 @@ describe('InvoicesService', () => {
       roomModel,
       rosterModel,
       contractModel,
+      utilityConfigModel,
+      configDoc,
     };
   }
 
@@ -450,6 +471,175 @@ describe('InvoicesService', () => {
       expect(info.occupant_count).toBe(2);
       expect(info.last_readings.electricity).toBe(250);
       expect(info.last_readings.water).toBe(45);
+    });
+  });
+
+  describe('UtilityConfig (AC-01)', () => {
+    it('getUtilityConfig returns existing config or creates default', async () => {
+      const { service, configDoc } = setup();
+      const config = await service.getUtilityConfig();
+      expect(config.electricity.unit_price).toBe(2500);
+      expect(config.configured_collection_days).toBe(10);
+    });
+
+    it('updateUtilityConfig updates config with validated parameters', async () => {
+      const { service, configDoc } = setup();
+      const updated = await service.updateUtilityConfig(
+        {
+          electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
+          water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
+          configured_collection_days: 15,
+        },
+        { userId: 'admin-1' },
+      );
+
+      expect(updated.electricity.unit_price).toBe(3000);
+      expect(updated.water.unit_price).toBe(12000);
+      expect(updated.configured_collection_days).toBe(15);
+      expect(updated.updated_by_id).toBe('admin-1');
+    });
+  });
+
+  describe('getMeterReadings (AC-02, AC-03)', () => {
+    it('returns occupied rooms from roster with previous readings and status', async () => {
+      const { service, rosterModel, invoiceModel } = setup();
+      rosterModel.find.mockReturnValue(
+        query([
+          { _id: 'r-1', room_id: room },
+          { _id: 'r-2', room_id: room },
+        ]),
+      );
+      invoiceModel.findOne.mockReturnValue(
+        query({
+          electricity: { current_reading: 150 },
+          water: { current_reading: 25 },
+        }),
+      );
+
+      const result = await service.getMeterReadings('2026-03');
+
+      expect(result.billing_month).toBe('2026-03');
+      expect(result.rooms.length).toBe(1);
+      expect(result.rooms[0].occupant_count).toBe(2);
+      expect(result.rooms[0].previous_readings.electricity).toBe(150);
+      expect(result.rooms[0].previous_readings.water).toBe(25);
+    });
+
+    it('rejects invalid billing_month format', async () => {
+      const { service } = setup();
+      await expect(service.getMeterReadings('invalid-month')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('saveBulkMeterReadings (AC-03, AC-04, AC-05, AC-06, AC-07)', () => {
+    it('saves valid readings, snapshots config & roster, and calculates server dates (AC-04, AC-05)', async () => {
+      const { service, saved, invoiceModel } = setup();
+      // No existing invoice in this month
+      invoiceModel.findOne.mockReturnValueOnce(query(null));
+      // Previous invoice
+      invoiceModel.findOne.mockReturnValueOnce(
+        query({
+          electricity: { current_reading: 100 },
+          water: { current_reading: 10 },
+        }),
+      );
+
+      const result = await service.saveBulkMeterReadings(
+        {
+          billing_month: '2026-03',
+          readings: [
+            {
+              room_id: roomId,
+              electricity_reading: 150, // 50 kWh - (2 * 15) = 20 excess * 2500 = 50,000
+              water_reading: 20, // 10 m3 - (2 * 4) = 2 excess * 10000 = 20,000
+            },
+          ],
+        },
+        { userId: 'admin-1' },
+      );
+
+      expect(result.results.length).toBe(1);
+      expect(result.results[0].success).toBe(true);
+      expect(result.results[0].invoice?.total_amount).toBe(70000);
+      expect(result.results[0].invoice?.payment_start_date).toBeDefined();
+      expect(result.results[0].invoice?.due_date).toBeDefined();
+      expect(saved).toHaveBeenCalled();
+    });
+
+    it('handles partial failures without failing other valid rooms (AC-06)', async () => {
+      const { service, invoiceModel } = setup();
+      // First room: no invoice, previous 100
+      invoiceModel.findOne.mockReturnValueOnce(query(null));
+      invoiceModel.findOne.mockReturnValueOnce(
+        query({
+          electricity: { current_reading: 100 },
+          water: { current_reading: 10 },
+        }),
+      );
+      // Second room: invalid reading (decreasing)
+      invoiceModel.findOne.mockReturnValueOnce(query(null));
+      invoiceModel.findOne.mockReturnValueOnce(
+        query({
+          electricity: { current_reading: 200 },
+          water: { current_reading: 30 },
+        }),
+      );
+
+      const result = await service.saveBulkMeterReadings(
+        {
+          billing_month: '2026-03',
+          readings: [
+            {
+              room_id: roomId,
+              electricity_reading: 150,
+              water_reading: 20,
+            },
+            {
+              room_id: roomId,
+              electricity_reading: 180, // less than 200!
+              water_reading: 40,
+            },
+          ],
+        },
+        {},
+      );
+
+      expect(result.results.length).toBe(2);
+      expect(result.results[0].success).toBe(true);
+      expect(result.results[1].success).toBe(false);
+      expect(result.results[1].error).toContain('Chỉ số điện mới không được nhỏ hơn chỉ số cũ');
+    });
+
+    it('rejects modifying paid invoices (AC-07)', async () => {
+      const { service, invoiceModel } = setup();
+      invoiceModel.findOne.mockReturnValue(
+        query({
+          _id: 'paid-inv',
+          status: 'Đã thu',
+          electricity: { previous_reading: 100 },
+          water: { previous_reading: 10 },
+        }),
+      );
+
+      const result = await service.saveBulkMeterReadings(
+        {
+          billing_month: '2026-03',
+          readings: [
+            {
+              room_id: roomId,
+              electricity_reading: 150,
+              water_reading: 20,
+            },
+          ],
+        },
+        {},
+      );
+
+      expect(result.results.length).toBe(1);
+      expect(result.results[0].success).toBe(false);
+      expect(result.results[0].error).toContain('Không thể chỉnh sửa hóa đơn đã thu');
     });
   });
 });

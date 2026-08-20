@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -26,6 +27,8 @@ import {
   CreateMonthlyInvoiceDto,
   UpdateMonthlyInvoiceDto,
 } from '../dto/create-invoice.dto';
+import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
+import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
@@ -34,6 +37,40 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @Controller('dormitory/invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
+
+  @Get('config')
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
+  @ApiOperation({ summary: 'Lấy cấu hình dùng chung điện - nước và hạn thu' })
+  getUtilityConfig() {
+    return this.invoicesService.getUtilityConfig();
+  }
+
+  @Put('config')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Cập nhật cấu hình dùng chung điện - nước và hạn thu' })
+  updateUtilityConfig(
+    @Body() dto: UpdateUtilityConfigDto,
+    @Request() req: any,
+  ) {
+    return this.invoicesService.updateUtilityConfig(dto, req.user);
+  }
+
+  @Get('meter-readings')
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
+  @ApiOperation({ summary: 'Lấy danh sách phòng ghi chỉ số điện - nước theo kỳ' })
+  getMeterReadings(@Query('billing_month') billingMonth: string) {
+    return this.invoicesService.getMeterReadings(billingMonth);
+  }
+
+  @Post('meter-readings/bulk')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Lưu chỉ số điện - nước hàng loạt theo phòng' })
+  saveBulkMeterReadings(
+    @Body() dto: BulkMeterReadingsDto,
+    @Request() req: any,
+  ) {
+    return this.invoicesService.saveBulkMeterReadings(dto, req.user);
+  }
 
   @Post('monthly')
   @UseGuards(checkPermission('DORM_INVOICE_CREATE'))

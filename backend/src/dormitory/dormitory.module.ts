@@ -13,6 +13,10 @@ import {
   MaintenanceRequest,
   MaintenanceRequestSchema,
 } from './schemas/maintenance-request.schema';
+import {
+  UtilityConfig,
+  UtilityConfigSchema,
+} from './schemas/utility-config.schema';
 
 // Services
 import { BuildingsService } from './services/buildings.service';
@@ -68,6 +72,7 @@ import {
       { name: DormitoryRosterEntry.name, schema: DormitoryRosterEntrySchema },
       { name: Contract.name, schema: ContractSchema },
       { name: Invoice.name, schema: InvoiceSchema },
+      { name: UtilityConfig.name, schema: UtilityConfigSchema },
       { name: Violation.name, schema: ViolationSchema },
       { name: MaintenanceRequest.name, schema: MaintenanceRequestSchema },
       { name: Student.name, schema: StudentSchema },

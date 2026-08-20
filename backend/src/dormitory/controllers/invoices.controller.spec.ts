@@ -7,6 +7,24 @@ describe('InvoicesController', () => {
 
   beforeEach(() => {
     service = {
+      getUtilityConfig: jest.fn().mockResolvedValue({
+        electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+        water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+        configured_collection_days: 10,
+      }),
+      updateUtilityConfig: jest.fn().mockResolvedValue({
+        electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
+        water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
+        configured_collection_days: 15,
+      }),
+      getMeterReadings: jest.fn().mockResolvedValue({
+        config: {},
+        billing_month: '2026-03',
+        rooms: [],
+      }),
+      saveBulkMeterReadings: jest.fn().mockResolvedValue({
+        results: [{ room_id: 'r-1', success: true }],
+      }),
       createMonthly: jest.fn().mockResolvedValue({ _id: 'inv-1', invoice_code: 'INV-1' }),
       updateMonthly: jest.fn().mockResolvedValue({ _id: 'inv-1', invoice_code: 'INV-1' }),
       getRoomInfo: jest.fn().mockResolvedValue({ occupant_count: 2, last_readings: { electricity: 100, water: 20 } }),
@@ -17,6 +35,43 @@ describe('InvoicesController', () => {
     };
 
     controller = new InvoicesController(service);
+  });
+
+  it('getUtilityConfig delegates to service.getUtilityConfig (AC-01)', async () => {
+    const result = await controller.getUtilityConfig();
+    expect(service.getUtilityConfig).toHaveBeenCalled();
+    expect(result.electricity.unit_price).toBe(2500);
+  });
+
+  it('updateUtilityConfig delegates to service.updateUtilityConfig (AC-01)', async () => {
+    const dto: any = {
+      electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
+      water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
+      configured_collection_days: 15,
+    };
+    const req = { user: { userId: 'admin-1' } };
+
+    const result = await controller.updateUtilityConfig(dto, req);
+    expect(service.updateUtilityConfig).toHaveBeenCalledWith(dto, req.user);
+    expect(result.configured_collection_days).toBe(15);
+  });
+
+  it('getMeterReadings delegates to service.getMeterReadings (AC-02)', async () => {
+    const result = await controller.getMeterReadings('2026-03');
+    expect(service.getMeterReadings).toHaveBeenCalledWith('2026-03');
+    expect(result.billing_month).toBe('2026-03');
+  });
+
+  it('saveBulkMeterReadings delegates to service.saveBulkMeterReadings (AC-04, AC-06)', async () => {
+    const dto: any = {
+      billing_month: '2026-03',
+      readings: [{ room_id: 'r-1', electricity_reading: 100, water_reading: 20 }],
+    };
+    const req = { user: { userId: 'admin-1' } };
+
+    const result = await controller.saveBulkMeterReadings(dto, req);
+    expect(service.saveBulkMeterReadings).toHaveBeenCalledWith(dto, req.user);
+    expect(result.results.length).toBe(1);
   });
 
   it('createMonthly delegates to service.createMonthly', async () => {

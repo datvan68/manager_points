@@ -1,107 +1,90 @@
-# Taskscope: Hóa đơn điện - nước KTX theo phòng
+# Taskscope: Cấu hình và ghi chỉ số điện - nước KTX hàng loạt
 
 ## Task Identity and Pipeline
 
-- Task: `dormitory-monthly-utility-invoices`
+- Task: `dormitory-bulk-utility-meter-readings`
 - Pipeline: `feature_development`
-- Profile: Full
-- Rules: 3.2.0
-- Repository: `D:\PROJECT\manager_points`
-- Branch/base: `main` at `375b5e8382142a6e10ee56f6c78743487a90aa09`
-- Authority: Planning only. Taskscope này không cho phép triển khai, migration hay sửa dữ liệu.
+- Profile: Full; rules 3.2.0.
+- Repository: `D:\PROJECT\manager_points`; current branch `main`.
+- Authority: Planning only; chưa cho phép sửa chức năng, schema, migration hoặc dữ liệu.
 
 ## Risk Level
 
-- Risk: high vì thay đổi schema/API hóa đơn, nguồn đối tượng thu, phép tính tiền và upload chứng từ thanh toán.
-- Environment: development.
-- Reversibility: code/test có thể revert; dữ liệu hóa đơn cũ cần chiến lược tương thích trước khi triển khai.
-- Blast radius: phân hệ hóa đơn, báo cáo công nợ KTX và giao diện `/dormitory/invoices`.
+- Risk: high vì thay đổi cấu hình dùng chung, dữ liệu hóa đơn, phép tính tiền và thao tác hàng loạt.
+- Environment: development. Code/test có thể revert; schema và dữ liệu đã lưu cần migration/backfill có kiểm soát.
+- Blast radius: backend Dormitory Invoice, API và trang `/dormitory/invoices`.
 
 ## Objective
 
-Quản lý một đợt thu điện - nước cho mỗi phòng theo từng tháng, lấy phòng và người ở từ tab `Danh sách KTX`, cho phép cập nhật thông số trong modal Nâng cao, tự tính tiền, theo dõi hạn thu và xem chứng từ của hóa đơn đã thu.
+Tách cấu hình điện/nước khỏi thao tác lập đợt thu và cung cấp một màn hình ghi chỉ số mới cho tất cả phòng trong kỳ; khi một phòng được ghi đủ chỉ số hợp lệ, hệ thống tự mở thời gian thu của phòng đó và tính hạn kết thúc từ cấu hình.
 
 ## Scope Boundaries
 
-- Approved boundaries:
-  - `backend/src/dormitory/**`
-  - vùng upload/chứng từ hiện hành của `backend/src/**` nếu được xác minh phù hợp
-  - `frontend/src/api/dormitory-api.ts`
-  - `frontend/src/app/(dashboard)/dormitory/invoices/**`
-  - component dùng riêng cho hóa đơn dưới `frontend/src/components/dormitory/**`
-- Expected write targets:
-  - `backend/src/dormitory/schemas/invoice.schema.ts`
-  - `backend/src/dormitory/dto/create-invoice.dto.ts`
-  - `backend/src/dormitory/controllers/invoices.controller.ts`
-  - `backend/src/dormitory/services/invoices.service.ts`
-  - test focused mới hoặc hiện hữu cạnh invoice backend
-  - `frontend/src/api/dormitory-api.ts`
-  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx`
-  - test focused mới hoặc hiện hữu cạnh trang invoice
-- Giữ nguyên permission `DORM_INVOICE_READ`, `DORM_INVOICE_CREATE`, `DORM_INVOICE_CONFIRM` trừ khi kiểm tra chứng minh cần ánh xạ lại; không mở endpoint công khai.
+- Approved/write boundaries:
+  - `backend/src/dormitory/**` và focused tests tương ứng.
+  - `frontend/src/api/dormitory-api.ts`.
+  - `frontend/src/app/(dashboard)/dormitory/invoices/**` và component riêng dưới `frontend/src/components/dormitory/**`.
+- Known targets: invoice schema/DTO/controller/service; invoice page/API/tests; trang mới `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.tsx` và focused test; schema/config mới thuộc module Dormitory nếu cần.
+- Giữ nguyên các permission invoice hiện hành; không mở endpoint công khai.
 
 ## Out of Scope
 
-- Dùng hợp đồng làm danh sách chính hoặc bắt buộc hóa đơn phải có `contract_id`.
-- Thu tiền phòng, dịch vụ, tiền phạt; chia tiền điện - nước cho từng sinh viên; cổng thanh toán tự động.
-- Sửa Danh sách KTX, phân phòng, giá phòng, hợp đồng hoặc dữ liệu nguồn của PDF tháng 3/2026.
-- Import Excel/PDF, gửi thông báo tự động, triển khai production hoặc migration dữ liệu production.
+- Đổi nguồn danh sách phòng khỏi tab `Danh sách KTX`, thu tiền phòng, import PDF/Excel, thông báo tự động, cổng thanh toán, deploy hoặc migration production.
+- Sửa luồng xem chứng từ và các cột table đã chốt, ngoài việc nối lại thao tác với luồng ghi chỉ số mới.
+- Tự động tạo hóa đơn cho phòng không có người ở, trừ khi yêu cầu nghiệp vụ được bổ sung sau.
 
 ## Context and Dependencies
 
-- `DormitoryRosterEntry` đã có `student_id`, `semester_id`, `room_id`, `bed_id`; đây là nguồn xác định người đang ở và phòng, không phải hợp đồng.
-- Invoice hiện bắt buộc `contract_id` và `student_id`; item chỉ có `type`, `description`, `amount`, chưa lưu thông số công-tơ/định mức.
-- `due_date` đã tồn tại và được dùng làm hạn kết thúc thu; trạng thái hiện tại là `Chưa thanh toán`, `Đã thanh toán`, `Quá hạn` nhưng UI mới yêu cầu `Chưa thu`, `Đã thu`.
-- Chứng từ upload phải tái sử dụng cơ chế lưu file/URL và quy tắc MIME, kích thước, quyền truy cập của repository sau khi xác minh; không lưu dữ liệu ảnh base64 trực tiếp trong invoice.
-- Một kỳ thu dùng định dạng canonical `YYYY-MM`, hiển thị `MM/YYYY`. Ngày chốt chỉ số được lưu riêng.
-- Snapshot `roster_entry_ids` và `occupant_count` tại lúc chốt để hóa đơn lịch sử không đổi khi Danh sách/phòng thay đổi.
+- Trang hiện có nút `Lập đợt thu`, modal Nâng cao chứa cả phòng/kỳ, chỉ số, định mức, đơn giá và ngày thu; backend có `POST /dormitory/invoices/monthly`, `PATCH /:id/monthly`, `GET /room-info/:roomId`.
+- Invoice đã lưu `electricity`, `water`, `reading_date`, `payment_start_date`, `due_date`, snapshot người ở và unique phòng/kỳ.
+- Cần cấu hình dùng chung gồm hai nhóm `Thông số điện` và `Thông số nước`: định mức/người, đơn giá, đơn vị; cùng số ngày thu để tự tính hạn kết thúc. Cấu hình áp dụng cho kỳ mới và được snapshot vào từng hóa đơn, không hồi tố hóa đơn đã lập.
+- Diễn giải yêu cầu: một phòng chỉ được coi là “ghi xong” khi cả `Số điện mới` và `Số nước mới` hợp lệ và được lưu thành công. Khi đó, `payment_start_date = saved_at`; `due_date = payment_start_date + configured_collection_days` theo múi giờ ứng dụng. Nếu nghiệp vụ muốn mở thu ngay khi chỉ có số điện, phải xác nhận lại trước triển khai vì chưa thể tính đủ tổng tiền.
+- Chỉ số cũ lấy từ chỉ số mới gần nhất của phòng; không cho client thay đổi trong màn hình ghi hàng loạt. Danh sách phòng lấy từ roster hiện hành, khử trùng theo `room_id`.
 
 ## Steps
 
-1. Baseline: bổ sung test cho schema/service/controller hiện tại; xác minh cơ chế upload ảnh và các consumer báo cáo đang đọc invoice.
-2. Backend model/DTO: chuyển invoice điện - nước sang cấp phòng với `room_id`, `billing_month`, `reading_date`, snapshot Danh sách, chi tiết điện/nước, `payment_start_date`, `due_date`, trạng thái thu, cờ không thu, ghi chú và metadata chứng từ; thiết lập unique index `room_id + billing_month`.
-3. Backend calculation: lấy `occupant_count` từ Danh sách có `room_id`; tính định mức tổng, tiêu thụ, vượt định mức, tiền điện, tiền nước và tổng tiền ở server; không tin các giá trị dẫn xuất từ client.
-4. Backend lifecycle/API: tạo/cập nhật đợt thu tháng, đọc danh sách/chi tiết, xác nhận đã thu kèm chứng từ; kiểm tra chỉ số giảm, số âm, trùng kỳ, hạn thu và trường hợp `Không thu`; giữ tương thích đọc dữ liệu cũ hoặc lập migration riêng trước khi bỏ field cũ.
-5. Frontend table: chỉ hiển thị `Phòng`, `Kỳ thu`, `Tiền điện`, `Tiền nước`, `Tổng tiền`, `Trạng thái`, `Thao tác`; trạng thái nhìn thấy là `Chưa thu`/`Đã thu`.
-6. Modal Nâng cao: nhập/cập nhật số người, ngày chốt, chỉ số cũ/mới, định mức/người, đơn giá điện/nước, thời gian bắt đầu và hạn kết thúc thu, có thu/không thu, ghi chú; hiển thị công thức và kết quả xem trước trước khi lưu.
-7. Modal thanh toán: bấm trạng thái `Đã thu` mở modal xem ảnh chứng từ, ngày/phương thức thanh toán, người xác nhận và ghi chú; có empty/error/loading state và ảnh xem được bằng bàn phím.
-8. Tests/review: kiểm tra công thức, snapshot, uniqueness, validation, quyền upload/xem chứng từ, table/modal/accessibility, consumer báo cáo, build/typecheck và diff cuối.
+1. Baseline: khóa hành vi hiện tại bằng focused tests; kiểm tra consumer báo cáo và index phòng/kỳ.
+2. Backend config: tạo model/API đọc-cập nhật cấu hình điện, nước và `configured_collection_days`; validate số không âm, đơn giá/định mức và số ngày thu hợp lệ; lưu người/thời điểm cập nhật.
+3. Backend bulk-read API: trả danh sách phòng roster theo kỳ cùng số người, chỉ số cũ, trạng thái đã/chưa ghi; nhận các dòng `{room_id, electricity.current_reading, water.current_reading}` và xử lý mỗi phòng idempotent theo `room_id + billing_month`.
+4. Khi lưu một dòng hợp lệ, server snapshot roster và cấu hình, tính consumption/quota/amount/total, đặt `reading_date` và `payment_start_date` theo thời điểm server, tự tính `due_date`; từ chối chỉ số giảm, thiếu, trùng không nhất quán hoặc sửa hóa đơn đã thu.
+5. Frontend toolbar: thay nút chữ `Lập đợt thu` bằng icon Nâng cao có accessible name/tooltip; icon mở modal cấu hình chỉ gồm nhóm Thông số điện, Thông số nước và thời hạn thu tự động.
+6. Thêm nút `Ghi điện nước` điều hướng sang trang riêng `/dormitory/invoices/meter-readings`; không mở modal. Trang có chọn kỳ, tìm/lọc phòng, tiến độ đã ghi/tổng phòng và danh sách tất cả phòng có người ở.
+7. Mỗi phòng hiển thị thành một thẻ đứng (một card trên một hàng) gồm thông tin phòng, số người, trạng thái đã/chưa ghi, chỉ số điện/nước cũ, hai field `Số điện mới` và `Số nước mới`, lỗi tại card và thao tác lưu. Bố cục responsive nhưng không chuyển thành bảng ngang.
+8. Cho phép lưu từng card hoặc lưu các card hợp lệ; sau khi lưu, đồng bộ card và table hóa đơn. Retry không tạo hóa đơn trùng, lỗi một phòng không làm mất dữ liệu hợp lệ của phòng khác; cảnh báo khi rời trang nếu còn thay đổi chưa lưu.
+9. Tests/review: kiểm tra điều hướng, card layout, config snapshot, thời gian server, hạn thu, timezone, idempotency/partial failure, quyền, accessibility, báo cáo và diff cuối.
 
 ## Acceptance Criteria
 
-- AC-01: Danh sách hóa đơn được nhóm theo phòng từ tab Danh sách KTX; không cần hợp đồng và mỗi `room_id + billing_month` chỉ có một bản ghi.
-- AC-02: Table chỉ có bảy nhóm thông tin đã chốt: Phòng, Kỳ thu, Tiền điện, Tiền nước, Tổng tiền, Trạng thái và Thao tác.
-- AC-03: Modal Nâng cao lưu đủ thông số điện/nước và server tính đúng: `quota_total = occupant_count * quota_per_person`, `actual = current - previous`, `excess = max(actual - quota_total, 0)`, `amount = excess * unit_price`, `total = electricity.amount + water.amount`.
-- AC-04: Chỉ số mới nhỏ hơn chỉ số cũ, số âm, kỳ sai định dạng, hạn kết thúc trước ngày bắt đầu và hóa đơn trùng phòng/kỳ bị từ chối rõ ràng; `Không thu` cho kết quả phải thu bằng 0 nhưng vẫn giữ số liệu chốt.
-- AC-05: Hóa đơn lưu snapshot Danh sách/số người; thay đổi hoặc chuyển phòng sau đó không làm đổi hóa đơn đã chốt.
-- AC-06: `due_date` là hạn kết thúc thu; trạng thái nghiệp vụ hiển thị đúng `Chưa thu`/`Đã thu`; quy tắc quá hạn nội bộ không làm xuất hiện trạng thái thứ ba trên table.
-- AC-07: Xác nhận đã thu có thể tải ảnh chứng từ hợp lệ; metadata/URL được lưu an toàn, file sai loại/quá dung lượng bị từ chối và quyền hiện hành được thực thi.
-- AC-08: Bấm `Đã thu` mở modal đúng hóa đơn và hiển thị chứng từ cùng thông tin thanh toán; không có ảnh thì hiển thị empty state, không render link hỏng.
-- AC-09: Báo cáo công nợ/doanh thu KTX tiếp tục tính đúng với cấu trúc/status mới hoặc có lớp tương thích được test; dữ liệu hóa đơn cũ không bị ghi đè ngoài ý muốn.
+- AC-01: Không còn nút chữ `Lập đợt thu`; có icon Nâng cao với tooltip/accessible name và modal tách riêng cấu hình điện, nước, số ngày thu.
+- AC-02: Nút `Ghi điện nước` điều hướng tới `/dormitory/invoices/meter-readings`; trang hiển thị toàn bộ phòng có người ở từ tab Danh sách cho kỳ chọn dưới dạng các thẻ đứng, không phải modal hoặc table.
+- AC-02a: Mỗi thẻ phòng hiển thị thông tin cơ bản, chỉ số cũ, trạng thái và đúng hai field nhập `Số điện mới`, `Số nước mới`; lỗi/lưu được phản hồi ngay trên đúng thẻ.
+- AC-03: Chỉ số cũ tự lấy từ kỳ gần nhất; số mới thiếu, âm hoặc nhỏ hơn số cũ bị từ chối rõ tại đúng dòng.
+- AC-04: Lưu đủ hai chỉ số của phòng tạo/cập nhật duy nhất một invoice cho `room_id + billing_month`, snapshot người ở và cấu hình rồi tính tiền ở server.
+- AC-05: `payment_start_date` bằng thời điểm server ghi thành công phòng; `due_date` tự bằng thời điểm bắt đầu cộng số ngày cấu hình, không nhập tay trong luồng ghi chỉ số.
+- AC-06: Lưu hàng loạt trả kết quả theo từng phòng; dòng thành công được giữ, dòng lỗi sửa và gửi lại được, retry không nhân bản hóa đơn.
+- AC-07: Hóa đơn đã thu không bị sửa chỉ số; permission hiện hành áp dụng cho đọc/sửa cấu hình và ghi chỉ số theo ánh xạ được kiểm thử.
+- AC-08: Table, trạng thái thu, modal chứng từ và báo cáo hiện hữu tiếp tục hoạt động với hóa đơn từ luồng mới.
 
 ## Verification
 
-- AC-01, AC-03 đến AC-07, AC-09 :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/invoices.service.spec.ts` => focused invoice service tests pass (tạo file test nếu chưa có).
-- AC-07, AC-08 :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts` => upload/controller permission and validation tests pass (tạo file test nếu chưa có).
-- AC-02, AC-03, AC-06, AC-08 :: `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` => table và modal tests pass (tạo file test nếu chưa có).
-- AC-01 đến AC-09 :: `D:\PROJECT\manager_points\backend` :: `npm run build` => backend compiles.
-- AC-02, AC-03, AC-06, AC-08 :: `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => frontend types compile.
-- AC-01 đến AC-09 :: `D:\PROJECT\manager_points` :: `git diff --check`, scoped diff review, `git status --short` => không có thay đổi ngoài phạm vi; giữ nguyên thay đổi người dùng tại `frontend/next-env.d.ts`.
+- AC-03 đến AC-08 :: `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/invoices.service.spec.ts` => calculation, dates, idempotency and partial-result tests pass.
+- AC-01, AC-02 :: `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` => toolbar and navigation behaviors pass.
+- AC-02, AC-02a, AC-05, AC-06, AC-08 :: `D:\PROJECT\manager_points\frontend` :: `npm test -- "src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx"` => vertical room cards, input, save and partial-error behaviors pass.
+- AC-01 đến AC-08 :: backend :: `npm run build`; frontend :: `npm run typecheck` => compile successfully.
+- Final :: repository root :: `git diff --check`, scoped diff review, `git status --short` => no unintended change; preserve user-owned changes.
 
 ## Safety Gates
 
-- Human Gate bắt buộc trước migration/schema mutation trên database có dữ liệu hoặc triển khai production.
-- Trước gate phải có: schema/index cuối, dry-run thống kê hóa đơn cũ, chiến lược backfill/rollback, ảnh hưởng báo cáo và kết quả test/build.
-- Resume point: sau khi người dùng duyệt migration/production plan; taskscope hiện tại chỉ cho phép triển khai code development nếu được yêu cầu riêng.
-- Dừng nếu cần thay đổi permission, công khai chứng từ, lưu ảnh ngoài cơ chế được duyệt hoặc thay đổi dữ liệu Danh sách KTX.
+- Human Gate trước schema/index migration hoặc mutation database có dữ liệu và trước deploy production.
+- Gate artifact: schema/config cuối, dry-run thống kê invoice/config cần backfill, rollback, ảnh hưởng báo cáo, test/build result.
+- Resume: sau khi duyệt migration/production plan. Dừng nếu cần đổi permission, hồi tố giá hóa đơn cũ hoặc thay nguồn roster.
 
 ## Artifacts and Checkpoints
 
 - Planning artifact: `docs/taskscope.md`.
-- Khi thực thi Full: ghi base/current commit và hash cho migration/dry-run artifact tại điểm trước Human Gate; không tạo checkpoint cho bước đọc đơn giản.
+- Khi thực thi Full: ghi base/current commit và hash migration/dry-run trước Human Gate; không checkpoint bước đọc đơn giản.
 
 ## Execution Budgets
 
-- Step deadline: 600 giây; tối đa 1.800 giây cho build/migration dry-run.
-- Concurrency: tối đa 4 agent, một writer trên mỗi path; serialize schema/API trước frontend contract.
-- Retry tối đa 2; engineering loop tối đa 3; review remediation tối đa 2.
+- Step deadline 600 giây, tối đa 1.800 giây cho build/dry-run; retry 2; engineering loop 3; review remediation 2.
+- Tối đa 4 agents, một writer/path; serialize backend contract trước frontend integration.

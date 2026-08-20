@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   CheckCircle,
@@ -16,6 +17,7 @@ import {
   Calendar,
   Users,
   DollarSign,
+  Settings,
 } from 'lucide-react';
 import {
   dormitoryApi,
@@ -23,6 +25,8 @@ import {
   Room,
   CreateMonthlyInvoiceInput,
   UpdateMonthlyInvoiceInput,
+  UtilityConfig,
+  UpdateUtilityConfigInput,
 } from '@/api/dormitory-api';
 import { toast } from 'sonner';
 
@@ -65,6 +69,7 @@ function getDisplayStatus(status?: string): 'Chưa thu' | 'Đã thu' {
 }
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [invoices, setInvoices] = useState<DormInvoice[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,69 @@ export default function InvoicesPage() {
   const [filterMonth, setFilterMonth] = useState('');
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
+
+  // Modal Cấu hình dùng chung (Định mức, đơn giá, số ngày thu)
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSubmitting, setConfigSubmitting] = useState(false);
+  const [configForm, setConfigForm] = useState<UpdateUtilityConfigInput>({
+    electricity: {
+      quota_per_person: 15,
+      unit_price: 2500,
+      unit: 'kWh',
+    },
+    water: {
+      quota_per_person: 4,
+      unit_price: 10000,
+      unit: 'm³',
+    },
+    configured_collection_days: 10,
+  });
+
+  async function openConfigModal() {
+    try {
+      setConfigLoading(true);
+      setConfigModalOpen(true);
+      const cfg = await dormitoryApi.invoices.getConfig();
+      if (cfg) {
+        setConfigForm({
+          electricity: {
+            quota_per_person: cfg.electricity?.quota_per_person ?? 15,
+            unit_price: cfg.electricity?.unit_price ?? 2500,
+            unit: cfg.electricity?.unit || 'kWh',
+          },
+          water: {
+            quota_per_person: cfg.water?.quota_per_person ?? 4,
+            unit_price: cfg.water?.unit_price ?? 10000,
+            unit: cfg.water?.unit || 'm³',
+          },
+          configured_collection_days: cfg.configured_collection_days ?? 10,
+        });
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi tải cấu hình');
+    } finally {
+      setConfigLoading(false);
+    }
+  }
+
+  async function handleSaveConfig(e: React.FormEvent) {
+    e.preventDefault();
+    if (configForm.configured_collection_days < 1) {
+      toast.error('Số ngày thu tự động phải lớn hơn hoặc bằng 1');
+      return;
+    }
+    try {
+      setConfigSubmitting(true);
+      await dormitoryApi.invoices.updateConfig(configForm);
+      toast.success('Cập nhật cấu hình định mức & đơn giá thành công');
+      setConfigModalOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi lưu cấu hình');
+    } finally {
+      setConfigSubmitting(false);
+    }
+  }
 
   // Modal Nâng cao (Tạo / Sửa đợt thu phòng)
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
@@ -460,12 +528,23 @@ export default function InvoicesPage() {
             <option value="Đã thu">Đã thu</option>
           </select>
 
-          {/* Nút Lập đợt thu mới */}
+          {/* Nút Cấu hình định mức & đơn giá (Icon Nâng cao - AC-01) */}
           <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-sm"
+            onClick={openConfigModal}
+            className="p-2 border border-gray-200 text-gray-700 bg-white rounded-lg hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+            title="Cấu hình định mức & đơn giá"
+            aria-label="Cấu hình định mức & đơn giá"
           >
-            <Plus size={16} /> Lập đợt thu
+            <SlidersHorizontal size={18} />
+          </button>
+
+          {/* Nút Ghi điện nước (Điều hướng sang trang ghi chỉ số - AC-02) */}
+          <button
+            onClick={() => router.push('/dormitory/invoices/meter-readings')}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-sm"
+            title="Ghi chỉ số điện - nước"
+          >
+            <Zap size={16} /> Ghi điện nước
           </button>
         </div>
       </div>
@@ -1272,6 +1351,186 @@ export default function InvoicesPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL CẤU HÌNH DÙNG CHUNG (Định mức, đơn giá, số ngày thu tự động - AC-01) */}
+      {/* ========================================================================= */}
+      {configModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          onClick={() => !configSubmitting && setConfigModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+              <div className="flex items-center gap-2 text-blue-700 font-bold text-lg">
+                <SlidersHorizontal size={20} />
+                <h2>Cấu hình định mức & đơn giá điện - nước</h2>
+              </div>
+              <button
+                onClick={() => setConfigModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {configLoading ? (
+              <div className="py-8 text-center text-sm text-gray-500">Đang tải cấu hình...</div>
+            ) : (
+              <form onSubmit={handleSaveConfig} className="space-y-4">
+                {/* Thông số điện */}
+                <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900 text-sm">
+                    <Zap size={16} className="text-amber-600" />
+                    Thông số Điện
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Định mức/người (kWh) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.electricity.quota_per_person}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            electricity: {
+                              ...f.electricity,
+                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Đơn giá (đ/kWh) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.electricity.unit_price}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            electricity: {
+                              ...f.electricity,
+                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thông số nước */}
+                <div className="border border-sky-200 bg-sky-50/40 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-900 text-sm">
+                    <Droplets size={16} className="text-sky-600" />
+                    Thông số Nước
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Định mức/người (m³) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.water.quota_per_person}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            water: {
+                              ...f.water,
+                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Đơn giá (đ/m³) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.water.unit_price}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            water: {
+                              ...f.water,
+                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thời hạn thu tự động */}
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                  <label className="block text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Calendar size={14} className="text-slate-500" />
+                    Số ngày thu tự động (ngày) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={configForm.configured_collection_days}
+                    onChange={(e) =>
+                      setConfigForm((f) => ({
+                        ...f,
+                        configured_collection_days: Math.max(1, parseInt(e.target.value, 10) || 1),
+                      }))
+                    }
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-gray-500">
+                    Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={configSubmitting}
+                    onClick={() => setConfigModalOpen(false)}
+                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={configSubmitting}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition shadow-sm disabled:opacity-50"
+                  >
+                    {configSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

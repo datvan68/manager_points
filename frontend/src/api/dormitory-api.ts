@@ -144,6 +144,78 @@ export interface UtilityDetail {
   amount: number;
 }
 
+export interface UtilityTariff {
+  quota_per_person: number;
+  unit_price: number;
+  unit?: string;
+}
+
+export interface UtilityConfig {
+  _id?: string;
+  electricity: UtilityTariff;
+  water: UtilityTariff;
+  configured_collection_days: number;
+  updated_by_id?: any;
+  updatedAt?: string;
+}
+
+export interface UpdateUtilityConfigInput {
+  electricity: UtilityTariff;
+  water: UtilityTariff;
+  configured_collection_days: number;
+}
+
+export interface RoomMeterReadingItem {
+  room_id: string;
+  room?: Room;
+  occupant_count: number;
+  status: 'recorded' | 'unrecorded';
+  invoice_id?: string;
+  invoice_status?: string;
+  invoice_code?: string;
+  previous_readings: {
+    electricity: number;
+    water: number;
+  };
+  current_readings?: {
+    electricity?: number;
+    water?: number;
+  };
+  total_amount?: number;
+  is_exempt?: boolean;
+  notes?: string;
+  payment_start_date?: string;
+  due_date?: string;
+}
+
+export interface MeterReadingsResponse {
+  config: UtilityConfig;
+  billing_month: string;
+  rooms: RoomMeterReadingItem[];
+}
+
+export interface BulkMeterReadingInput {
+  billing_month: string;
+  readings: Array<{
+    room_id: string;
+    electricity_reading: number;
+    water_reading: number;
+    is_exempt?: boolean;
+    notes?: string;
+  }>;
+}
+
+export interface BulkMeterReadingResultItem {
+  room_id: string;
+  success: boolean;
+  invoice?: DormInvoice;
+  error?: string;
+}
+
+export interface BulkMeterReadingResponse {
+  results: BulkMeterReadingResultItem[];
+}
+
 export interface PaymentProof {
   url: string;
   file_name?: string;
@@ -556,6 +628,32 @@ export const dormitoryApi = {
 
   // ── Invoices ──
   invoices: {
+    async getConfig(): Promise<UtilityConfig> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/config`);
+      return handleResponse(res);
+    },
+    async updateConfig(dto: UpdateUtilityConfigInput): Promise<UtilityConfig> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async getMeterReadings(billingMonth: string): Promise<MeterReadingsResponse> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/invoices/meter-readings${buildQuery({ billing_month: billingMonth })}`,
+      );
+      return handleResponse(res);
+    },
+    async saveBulkMeterReadings(dto: BulkMeterReadingInput): Promise<BulkMeterReadingResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/meter-readings/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
     async getAll(params?: QueryParams): Promise<PaginatedResponse<DormInvoice>> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices${buildQuery(params)}`);
       return handleResponse(res);
