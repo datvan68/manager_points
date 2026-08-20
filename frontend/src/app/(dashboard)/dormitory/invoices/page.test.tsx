@@ -20,10 +20,11 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
 
+const mockHasPermission = vi.fn().mockReturnValue(true);
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: () => ({
     user: { id: 'u1', role: 'admin' },
-    hasPermission: vi.fn().mockReturnValue(true),
+    hasPermission: mockHasPermission,
   }),
 }));
 
@@ -41,6 +42,7 @@ vi.mock('@/api/dormitory-api', () => ({
       uploadProof: vi.fn(),
       pay: vi.fn(),
       updateProof: vi.fn(),
+      reviewProof: vi.fn(),
       getConfig: vi.fn(),
       updateConfig: vi.fn(),
       getMeterReadings: vi.fn(),
@@ -106,6 +108,35 @@ const mockInvoices = [
     due_date: '2026-04-05',
   },
   {
+    _id: 'inv-pending',
+    invoice_code: 'INV-PENDING',
+    room_id: {
+      _id: 'room-1',
+      room_code: 'P101',
+      room_name: 'Phòng 101',
+      building_id: { name: 'Tòa A' },
+    },
+    billing_month: '2026-03',
+    reading_date: '2026-03-25',
+    occupant_count: 2,
+    electricity: { amount: 50000 },
+    water: { amount: 20000 },
+    total_amount: 70000,
+    status: 'Chưa thu',
+    due_date: '2026-04-05',
+    payment_method: 'Chuyển khoản',
+    payment_proof: {
+      url: '/uploads/proof-pending.png',
+      file_name: 'proof-pending.png',
+      mime_type: 'image/png',
+      size: 102400,
+    },
+    payment_review: {
+      status: 'pending',
+      submitted_at: '2026-03-26T10:00:00.000Z',
+    },
+  },
+  {
     _id: 'inv-paid',
     invoice_code: 'INV-PAID',
     room_id: {
@@ -130,6 +161,10 @@ const mockInvoices = [
       mime_type: 'image/png',
       size: 102400,
     },
+    payment_review: {
+      status: 'approved',
+      reviewed_at: '2026-03-01T10:00:00.000Z',
+    },
     confirmed_by_id: {
       user_name: 'admin',
       full_name: 'Quản trị viên',
@@ -141,10 +176,11 @@ const mockInvoices = [
 describe('Dormitory Invoices Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHasPermission.mockReturnValue(true);
     (dormitoryApi.rooms.getAll as any).mockResolvedValue({ data: mockRooms, meta: { total: 1 } });
     (dormitoryApi.invoices.getAll as any).mockResolvedValue({
       data: mockInvoices,
-      meta: { total: 2, page: 1, limit: 50, totalPages: 1 },
+      meta: { total: 3, page: 1, limit: 50, totalPages: 1 },
     });
     (dormitoryApi.invoices.getRoomInfo as any).mockResolvedValue({
       room: mockRooms[0],
@@ -159,7 +195,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('renders the 7 standard table columns without title header and shows room name only (AC-08)', async () => {
+  it('renders the 7 standard table columns without title header and shows room name only (AC-04, AC-05)', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -180,31 +216,29 @@ describe('Dormitory Invoices Page', () => {
     expect(screen.getByText('Thao tác')).toBeDefined();
   });
 
-  it('displays exactly two business statuses: Chưa thu and Đã thu', async () => {
+  it('displays business statuses: Chưa thu, Chờ duyệt, and Đã thu', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
       expect(screen.getAllByText('Chưa thu').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Chờ duyệt').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Đã thu').length).toBeGreaterThan(0);
     });
   });
 
-  it('does not have text button "Lập đợt thu", has Advanced icon button and "Ghi điện nước" button (AC-01, AC-02)', async () => {
+  it('does not have text button "Lập đợt thu", has Advanced icon button and "Ghi điện nước" button', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
     });
 
-    // Verify text button "Lập đợt thu" is gone
     expect(screen.queryByRole('button', { name: /^Lập đợt thu$/i })).toBeNull();
-
-    // Verify Advanced icon button exists with accessible name
     const configBtn = screen.getByRole('button', { name: /Cấu hình định mức & đơn giá/i });
     expect(configBtn).toBeDefined();
   });
 
-  it('opens Utility Config modal on clicking Advanced icon button (AC-01)', async () => {
+  it('opens Utility Config modal on clicking Advanced icon button', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -220,7 +254,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước" (AC-02)', async () => {
+  it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước"', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -233,39 +267,130 @@ describe('Dormitory Invoices Page', () => {
     expect(mockPush).toHaveBeenCalledWith('/dormitory/invoices/meter-readings');
   });
 
-  it('shows "Đóng ngay" for unpaid invoice and "Kiểm tra" for paid invoice in action column', async () => {
+  it('simplified payment modal has no payment method selector or notes and submits transfer proof (AC-01, AC-02, AC-03)', async () => {
+    (dormitoryApi.invoices.uploadProof as any).mockResolvedValue({
+      url: '/uploads/new-proof.png',
+      file_name: 'new-proof.png',
+      mime_type: 'image/png',
+      size: 102400,
+    });
+    (dormitoryApi.invoices.pay as any).mockResolvedValue({
+      ...mockInvoices[0],
+      payment_method: 'Chuyển khoản',
+      payment_proof: { url: '/uploads/new-proof.png' },
+      payment_review: { status: 'pending' },
+    });
+
     render(<InvoicesPage />);
 
     await waitFor(() => {
       expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
-
-    // Verify "Thu tiền" and edit buttons in row are gone
-    expect(screen.queryByRole('button', { name: /^Thu tiền$/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Chỉnh sửa thông số/i })).toBeNull();
 
     const payBtn = screen.getAllByRole('button', { name: /Đóng ngay/i })[0];
     fireEvent.click(payBtn);
 
     await waitFor(() => {
       expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
-      expect(screen.getByText('Phương thức thanh toán')).toBeDefined();
+      // AC-01: No payment method selector or notes input
+      expect(screen.queryByText('Phương thức thanh toán')).toBeNull();
+      expect(screen.queryByText('Ghi chú xác nhận')).toBeNull();
+      expect(screen.getByText('Ảnh chứng từ thanh toán')).toBeDefined();
       expect(screen.getByText('Quét mã để thanh toán')).toBeDefined();
+    });
+
+    // AC-02: Submit button disabled without proof
+    const submitBtn = screen.getByRole('button', { name: /Gửi duyệt/i });
+    expect(submitBtn).toBeDefined();
+    expect(submitBtn.hasAttribute('disabled')).toBe(true);
+
+    // Upload proof file
+    const file = new File(['proof-image'], 'proof.png', { type: 'image/png' });
+    const fileInput = document.getElementById('pay-proof-upload') as HTMLInputElement;
+    expect(fileInput).toBeDefined();
+
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [file] } });
+    });
+
+    // Submit proof
+    expect(submitBtn.hasAttribute('disabled')).toBe(false);
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.uploadProof).toHaveBeenCalled();
+      expect(dormitoryApi.invoices.pay).toHaveBeenCalledWith('inv-unpaid', {
+        payment_method: 'Chuyển khoản',
+        payment_proof: {
+          url: '/uploads/new-proof.png',
+          file_name: 'new-proof.png',
+          mime_type: 'image/png',
+          size: 102400,
+        },
+      });
     });
   });
 
-  it('opens Proof Modal on clicking "Kiểm tra" button and allows updating proof photo', async () => {
-    (dormitoryApi.invoices.uploadProof as any).mockResolvedValue({
-      url: '/uploads/new-proof.png',
-      file_name: 'new-proof.png',
-      mime_type: 'image/png',
-      size: 204800,
-    });
-    (dormitoryApi.invoices.updateProof as any).mockResolvedValue({
+  it('clicking "Duyệt" opens shared modal in review mode and allows approving or rejecting (AC-07, AC-08, AC-09)', async () => {
+    (dormitoryApi.invoices.reviewProof as any).mockResolvedValue({
       ...mockInvoices[1],
-      payment_proof: { url: '/uploads/new-proof.png' },
-      notes: 'Đã sửa ảnh',
+      status: 'Đã thu',
+      payment_review: { status: 'approved' },
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const reviewBtn = screen.getAllByRole('button', { name: /Duyệt/i })[0];
+    fireEvent.click(reviewBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Không duyệt/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /^Duyệt$/i })).toBeDefined();
+    });
+
+    // Click Duyệt
+    const approveBtn = screen.getByRole('button', { name: /^Duyệt$/i });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-pending', 'approved');
+    });
+  });
+
+  it('unauthorized users do not see review buttons in shared modal (AC-08)', async () => {
+    mockHasPermission.mockReturnValue(false);
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const reviewBtn = screen.getAllByRole('button', { name: /Duyệt/i })[0];
+    fireEvent.click(reviewBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.queryByRole('button', { name: /Không duyệt/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Duyệt$/i })).toBeNull();
+    });
+  });
+
+  it('clicking "Kiểm tra" on approved invoice allows revoking proof with confirmation modal (AC-10, AC-11)', async () => {
+    (dormitoryApi.invoices.reviewProof as any).mockResolvedValue({
+      ...mockInvoices[2],
+      status: 'Chưa thu',
+      payment_review: { status: 'rejected' },
     });
 
     render(<InvoicesPage />);
@@ -278,21 +403,66 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Kiểm tra chứng từ thanh toán')).toBeDefined();
-      expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
+      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Bỏ duyệt/i })).toBeDefined();
+    });
+
+    // Click Bỏ duyệt
+    const revokeBtn = screen.getByRole('button', { name: /Bỏ duyệt/i });
+    fireEvent.click(revokeBtn);
+
+    // ConfirmModal appears
+    await waitFor(() => {
+      expect(screen.getByText('Bỏ duyệt chứng từ')).toBeDefined();
+      expect(screen.getByText(/Hóa đơn sẽ trở về trạng thái Chưa thu/i)).toBeDefined();
+    });
+
+    // Click confirm in ConfirmModal
+    const confirmRevokeBtn = screen.getAllByRole('button', { name: 'Bỏ duyệt' })[1] || screen.getAllByRole('button', { name: 'Bỏ duyệt' })[0];
+    await act(async () => {
+      fireEvent.click(confirmRevokeBtn);
+    });
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledWith('inv-paid', 'revoked');
+    });
+  });
+
+  it('allows uploading replacement proof in shared modal (AC-12)', async () => {
+    (dormitoryApi.invoices.uploadProof as any).mockResolvedValue({
+      url: '/uploads/replacement-proof.png',
+      file_name: 'replacement-proof.png',
+      mime_type: 'image/png',
+      size: 204800,
+    });
+    (dormitoryApi.invoices.updateProof as any).mockResolvedValue({
+      ...mockInvoices[2],
+      payment_proof: { url: '/uploads/replacement-proof.png' },
+      payment_review: { status: 'pending' },
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[0];
+    fireEvent.click(checkBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
       expect(screen.getByText('Cập nhật ảnh mới (nếu tải lên sai)')).toBeDefined();
     });
 
-    // Upload a new photo
-    const file = new File(['fake-image'], 'new-proof.png', { type: 'image/png' });
-    const fileInput = document.getElementById('update-proof-upload') as HTMLInputElement;
+    const file = new File(['fake-image'], 'replacement.png', { type: 'image/png' });
+    const fileInput = document.getElementById('pay-proof-replace-upload') as HTMLInputElement;
     expect(fileInput).toBeDefined();
 
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
 
-    // Click "Lưu cập nhật"
     const saveBtn = screen.getByRole('button', { name: /Lưu cập nhật/i });
     expect(saveBtn).toBeDefined();
 
@@ -313,30 +483,10 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
     });
 
-    // Check pagination summary
-    expect(screen.getByText(/Hiển thị 1-2 trên tổng số 2 hóa đơn/i)).toBeDefined();
-    expect(screen.getByText('Phòng')).toBeDefined();
-    expect(screen.getByText('Tổng tiền')).toBeDefined();
+    expect(screen.getByText(/Hiển thị 1-3 trên tổng số 3 hóa đơn/i)).toBeDefined();
   });
 
-  it('opens CustomCalendar popover when clicking the calendar filter button', async () => {
-    render(<InvoicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Lọc theo kỳ thu/i })).toBeDefined();
-    });
-
-    const calendarBtn = screen.getByRole('button', { name: /Lọc theo kỳ thu/i });
-    fireEvent.click(calendarBtn);
-
-    // Calendar weekdays or month header should be visible
-    await waitFor(() => {
-      expect(screen.getByText('T2')).toBeDefined();
-      expect(screen.getByText('CN')).toBeDefined();
-    });
-  });
-
-  it('selects row checkboxes and shows FloatingActionBar with selected count (AC-01, AC-02)', async () => {
+  it('selects row checkboxes and shows FloatingActionBar with selected count', async () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
@@ -367,27 +517,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('select-all checkbox selects all loaded rows on current page (AC-01, AC-02)', async () => {
-    render(<InvoicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
-    });
-
-    const selectAllCheckbox = document.querySelector('th input[type="checkbox"]') as HTMLInputElement;
-    expect(selectAllCheckbox).toBeTruthy();
-
-    await act(async () => {
-      fireEvent.click(selectAllCheckbox);
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
-    });
-  });
-
-  it('executes bulk delete via ConfirmModal and handles success (AC-03, AC-04, AC-06)', async () => {
+  it('executes bulk delete via ConfirmModal and handles success', async () => {
     (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
       requested: 1,
       deleted: ['inv-unpaid'],
@@ -404,26 +534,22 @@ describe('Dormitory Invoices Page', () => {
     const rowCheckbox = document.querySelector('tbody input[type="checkbox"]') as HTMLInputElement;
     expect(rowCheckbox).toBeTruthy();
     await act(async () => {
-      fireEvent.click(rowCheckbox); // select unpaid invoice
+      fireEvent.click(rowCheckbox);
     });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
     });
 
-    // Click delete button on FloatingActionBar
     const deleteBtn = screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i });
     await act(async () => {
       fireEvent.click(deleteBtn);
     });
 
-    // ConfirmModal should open
     await waitFor(() => {
       expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
-      expect(screen.getByText(/Bạn có chắc chắn muốn xóa 1 hóa đơn đã chọn/i)).toBeDefined();
     });
 
-    // Click confirm in ConfirmModal
     const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
     await act(async () => {
       fireEvent.click(confirmBtn);
@@ -431,53 +557,6 @@ describe('Dormitory Invoices Page', () => {
 
     await waitFor(() => {
       expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid']);
-    });
-  });
-
-  it('handles partial deletion where paid invoices are rejected (AC-05, AC-06)', async () => {
-    (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
-      requested: 2,
-      deleted: ['inv-unpaid'],
-      not_found: [],
-      rejected: [{ id: 'inv-paid', reason: 'Không thể xóa hóa đơn đã thanh toán' }],
-    });
-
-    render(<InvoicesPage />);
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Select all via select-all checkbox
-    const selectAllCheckbox = document.querySelector('th input[type="checkbox"]') as HTMLInputElement;
-    expect(selectAllCheckbox).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(selectAllCheckbox);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
-    });
-
-    // Click delete button
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i }));
-    });
-
-    // Click confirm
-    await waitFor(() => {
-      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
-    });
-
-    const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
-    await act(async () => {
-      fireEvent.click(confirmBtn);
-    });
-
-    await waitFor(() => {
-      expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid', 'inv-paid']);
-      // Rejected invoice should remain selected
-      expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 });

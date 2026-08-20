@@ -141,6 +141,16 @@ describe('InvoicesController', () => {
     expect(result.status).toBe('Đã thu');
   });
 
+  it('reviewProof delegates to service.reviewPaymentProof', async () => {
+    service.reviewPaymentProof = jest.fn().mockResolvedValue({ _id: 'inv-1', status: 'Đã thu' });
+    const dto: any = { decision: 'approved' };
+    const req = { user: { userId: 'u-1' } };
+
+    const result = await controller.reviewProof('inv-1', dto, req);
+    expect(service.reviewPaymentProof).toHaveBeenCalledWith('inv-1', 'approved', req.user);
+    expect(result.status).toBe('Đã thu');
+  });
+
   it('bulkDelete delegates to service.bulkDelete (AC-04)', async () => {
     const dto = { ids: ['inv-1', 'inv-2'] };
     const req = { user: { userId: 'admin-1' } };

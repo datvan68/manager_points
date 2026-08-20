@@ -438,10 +438,37 @@ describe('InvoicesService', () => {
         { userId: 'user-admin' },
       );
 
-      expect(result.status).toBe('Đã thu');
+      expect(result.status).toBe('Chưa thu');
+      expect(result.payment_review?.status).toBe('pending');
       expect(result.payment_method).toBe('Chuyển khoản');
       expect(result.payment_proof?.url).toBe('/uploads/proof-1.png');
+      expect(result.confirmed_by_id).toBeUndefined();
+    });
+
+    it('confirms cash payment immediately as Đã thu without review', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Chưa thu',
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this;
+        }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      const result = await service.pay(
+        'inv-1',
+        {
+          payment_method: 'Tiền mặt',
+          notes: 'Thu tiền mặt tại văn phòng',
+        },
+        { userId: 'user-admin' },
+      );
+
+      expect(result.status).toBe('Đã thu');
+      expect(result.payment_method).toBe('Tiền mặt');
       expect(result.confirmed_by_id).toBe('user-admin');
+      expect(result.paid_at).toBeDefined();
     });
 
     it('rejects paying an already paid invoice', async () => {
@@ -457,7 +484,7 @@ describe('InvoicesService', () => {
   });
 
   describe('updatePaymentProof', () => {
-    it('updates payment proof metadata and notes for an invoice', async () => {
+    it('updates payment proof metadata and sets review to pending', async () => {
       const { service, invoiceModel } = setup();
       const existing = {
         _id: 'inv-1',
@@ -486,7 +513,128 @@ describe('InvoicesService', () => {
 
       expect(result.payment_proof?.url).toBe('/uploads/new-proof.png');
       expect(result.notes).toBe('Đã cập nhật lại ảnh chuyển khoản đúng');
-      expect(result.confirmed_by_id).toBe('admin-2');
+      expect(result.payment_review?.status).toBe('pending');
+      expect(result.status).toBe('Chưa thu');
+      expect(result.confirmed_by_id).toBeUndefined();
+    });
+  });
+
+  describe('reviewPaymentProof', () => {
+    it('approves pending proof and marks invoice as Đã thu', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Chưa thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'pending' },
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this;
+        }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      const result = await service.reviewPaymentProof('inv-1', 'approved', { userId: 'admin-1' });
+      expect(result.status).toBe('Đã thu');
+      expect(result.payment_review?.status).toBe('approved');
+      expect(result.payment_review?.reviewed_by_id).toBe('admin-1');
+      expect(result.payment_review?.reviewed_at).toBeDefined();
+      expect(result.confirmed_by_id).toBe('admin-1');
+      expect(result.paid_at).toBeDefined();
+    });
+
+    it('rejects pending proof and keeps invoice as Chưa thu', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Chưa thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'pending' },
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this;
+        }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      const result = await service.reviewPaymentProof('inv-1', 'rejected', { userId: 'admin-1' });
+      expect(result.status).toBe('Chưa thu');
+      expect(result.payment_review?.status).toBe('rejected');
+      expect(result.payment_review?.reviewed_by_id).toBe('admin-1');
+      expect(result.confirmed_by_id).toBeUndefined();
+      expect(result.paid_at).toBeUndefined();
+    });
+
+    it('revokes approved proof, changes invoice to Chưa thu and records revoker info', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Đã thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'approved', reviewed_by_id: 'admin-1', reviewed_at: new Date() },
+        confirmed_by_id: 'admin-1',
+        paid_at: new Date(),
+        save: jest.fn().mockImplementation(async function (this: any) {
+          return this;
+        }),
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      const result = await service.reviewPaymentProof('inv-1', 'revoked', { userId: 'admin-2' });
+      expect(result.status).toBe('Chưa thu');
+      expect(result.payment_review?.status).toBe('rejected');
+      expect(result.payment_review?.revoked_by_id).toBe('admin-2');
+      expect(result.payment_review?.revoked_at).toBeDefined();
+      expect(result.confirmed_by_id).toBeUndefined();
+      expect(result.paid_at).toBeUndefined();
+      expect(result.payment_proof?.url).toBe('/uploads/proof.png');
+    });
+
+    it('rejects revoking when invoice is not approved or not collected', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Chưa thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'pending' },
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      await expect(
+        service.reviewPaymentProof('inv-1', 'revoked', { userId: 'admin-1' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects review when proof is not pending', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Đã thu',
+        payment_method: 'Chuyển khoản',
+        payment_proof: { url: '/uploads/proof.png' },
+        payment_review: { status: 'approved' },
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      await expect(
+        service.reviewPaymentProof('inv-1', 'approved', { userId: 'admin-1' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects review when invoice has no proof or is not transfer', async () => {
+      const { service, invoiceModel } = setup();
+      const existing = {
+        _id: 'inv-1',
+        status: 'Chưa thu',
+        payment_method: 'Tiền mặt',
+      };
+      invoiceModel.findById.mockReturnValue(query(existing));
+
+      await expect(
+        service.reviewPaymentProof('inv-1', 'approved', { userId: 'admin-1' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

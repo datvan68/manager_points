@@ -137,6 +137,10 @@ export default function InvoicesPage() {
     hasPermission('DORM_INVOICE_DELETE') ||
     hasPermission('admin') ||
     hasPermission('ADMIN_FULL');
+  const canConfirmInvoice =
+    hasPermission('DORM_INVOICE_CONFIRM') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
 
   const [invoices, setInvoices] = useState<DormInvoice[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -275,26 +279,19 @@ export default function InvoicesPage() {
     notes: '',
   });
 
-  // Modal Thu tiền (Xác nhận thanh toán kèm upload chứng từ)
+  // Modal Hóa đơn thanh toán & Kiểm tra chứng từ (Dùng chung 1 modal)
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payingInvoice, setPayingInvoice] = useState<DormInvoice | null>(null);
   const [payProofFile, setPayProofFile] = useState<File | null>(null);
   const [payProofPreview, setPayProofPreview] = useState<string | null>(null);
   const [paySubmitting, setPaySubmitting] = useState(false);
-
-  // Modal Xem & Cập nhật chứng từ thanh toán (Kiểm tra)
-  const [proofModalOpen, setProofModalOpen] = useState(false);
-  const [viewingInvoice, setViewingInvoice] = useState<DormInvoice | null>(null);
-  const [updateProofFile, setUpdateProofFile] = useState<File | null>(null);
-  const [updateProofPreview, setUpdateProofPreview] = useState<string | null>(null);
-  const [updateProofNotes, setUpdateProofNotes] = useState('');
-  const [updateProofMethod, setUpdateProofMethod] = useState<'Tiền mặt' | 'Chuyển khoản' | 'Cổng thanh toán'>('Chuyển khoản');
-  const [updateProofSubmitting, setUpdateProofSubmitting] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [proofImageFailed, setProofImageFailed] = useState(false);
   const updateProofInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setProofImageFailed(false); }, [viewingInvoice?._id, viewingInvoice?.payment_proof?.url]);
+  useEffect(() => {
+    setProofImageFailed(false);
+  }, [payingInvoice?._id, payingInvoice?.payment_proof?.url]);
 
   // QR Code Data URL cho modal thanh toán/kiểm tra
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -338,18 +335,17 @@ export default function InvoicesPage() {
 
   // Tạo QR Code cho modal active
   useEffect(() => {
-    const activeInvoice = payingInvoice || viewingInvoice;
-    if (!activeInvoice) {
+    if (!payingInvoice) {
       setQrCodeDataUrl('');
       return;
     }
     const roomName =
-      typeof activeInvoice.room_id === 'object' && activeInvoice.room_id
-        ? activeInvoice.room_id.room_name || activeInvoice.room_id.room_code
+      typeof payingInvoice.room_id === 'object' && payingInvoice.room_id
+        ? payingInvoice.room_id.room_name || payingInvoice.room_id.room_code
         : 'KTX';
-    const amount = activeInvoice.total_amount || 0;
-    const month = formatBillingMonth(activeInvoice.billing_month, activeInvoice.billing_period);
-    const invoiceCode = activeInvoice.invoice_code || activeInvoice._id;
+    const amount = payingInvoice.total_amount || 0;
+    const month = formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period);
+    const invoiceCode = payingInvoice.invoice_code || payingInvoice._id;
 
     const qrPayload = `STK: 1234567890 | Ngan hang: MBBank | ND: KTX ${roomName} T${month.replace('/', '')} ${invoiceCode} | So tien: ${amount}`;
     QRCode.toDataURL(qrPayload, {
@@ -363,7 +359,7 @@ export default function InvoicesPage() {
     })
       .then((url) => setQrCodeDataUrl(url))
       .catch((err) => console.error('QR render error:', err));
-  }, [payingInvoice, viewingInvoice]);
+  }, [payingInvoice]);
 
   const handleDownloadQr = (invoice: DormInvoice) => {
     if (!qrCodeDataUrl) return;
@@ -575,15 +571,16 @@ export default function InvoicesPage() {
     }
   }
 
-  // Mở modal Thu tiền
+  // Mở modal Hóa đơn thanh toán / Xem & duyệt chứng từ
   function openPayModal(inv: DormInvoice) {
     setPayingInvoice(inv);
     setPayProofFile(null);
     setPayProofPreview(null);
+    setProofImageFailed(false);
     setPayModalOpen(true);
   }
 
-  // Handle chọn file ảnh chứng từ
+  // Handle chọn file ảnh chứng từ (dùng chung cho tạo mới và thay thế)
   function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -603,9 +600,9 @@ export default function InvoicesPage() {
     setPayProofPreview(url);
   }
 
-  // Xác nhận thu tiền
-  async function handleConfirmPay(e: React.FormEvent) {
-    e.preventDefault();
+  // Gửi chứng từ thanh toán lần đầu
+  async function handleConfirmPay(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     if (!payingInvoice) return;
     if (!payProofFile) {
       toast.error('Vui lòng tải ảnh chứng từ thanh toán');
@@ -613,83 +610,65 @@ export default function InvoicesPage() {
     }
     try {
       setPaySubmitting(true);
-      let proofMeta: any = undefined;
-      if (payProofFile) {
-        proofMeta = await dormitoryApi.invoices.uploadProof(payProofFile);
-      }
-      await dormitoryApi.invoices.pay(payingInvoice._id, {
+      const proofMeta = await dormitoryApi.invoices.uploadProof(payProofFile);
+      const updated = await dormitoryApi.invoices.pay(payingInvoice._id, {
         payment_method: 'Chuyển khoản',
         payment_proof: proofMeta,
       });
       toast.success('Đã gửi chứng từ, chờ duyệt');
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
       setPayModalOpen(false);
       load();
     } catch (err: any) {
-      toast.error(err?.message || 'Lỗi xác nhận thu tiền');
+      toast.error(err?.message || 'Lỗi gửi chứng từ thanh toán');
     } finally {
       setPaySubmitting(false);
     }
   }
 
-  // Mở modal kiểm tra / xem chứng từ
-  function openProofModal(inv: DormInvoice) {
-    setViewingInvoice(inv);
-    setUpdateProofFile(null);
-    setUpdateProofPreview(null);
-    setUpdateProofNotes(inv.notes || '');
-    setUpdateProofMethod((inv.payment_method as any) || 'Chuyển khoản');
-    setProofModalOpen(true);
-  }
-
-  function handleUpdateProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error('File ảnh không được vượt quá 5MB');
-      return;
-    }
-    setUpdateProofFile(f);
-    const url =
-      typeof window !== 'undefined' && window.URL && typeof window.URL.createObjectURL === 'function'
-        ? window.URL.createObjectURL(f)
-        : 'blob:preview';
-    setUpdateProofPreview(url);
-  }
-
+  // Cập nhật / thay thế ảnh chứng từ mới
   async function handleSaveUpdatedProof() {
-    if (!viewingInvoice) return;
+    if (!payingInvoice || !payProofFile) return;
     try {
-      setUpdateProofSubmitting(true);
-      let proofMeta = viewingInvoice.payment_proof;
-      if (updateProofFile) {
-        proofMeta = await dormitoryApi.invoices.uploadProof(updateProofFile);
-      }
-      const updated = await dormitoryApi.invoices.updateProof(viewingInvoice._id, {
-        payment_method: updateProofMethod,
+      setPaySubmitting(true);
+      const proofMeta = await dormitoryApi.invoices.uploadProof(payProofFile);
+      const updated = await dormitoryApi.invoices.updateProof(payingInvoice._id, {
+        payment_method: 'Chuyển khoản',
         payment_proof: proofMeta,
       });
       toast.success('Cập nhật chứng từ thanh toán thành công');
-      setViewingInvoice(updated);
-      setUpdateProofFile(null);
-      setUpdateProofPreview(null);
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
       load();
     } catch (err: any) {
       toast.error(err?.message || 'Lỗi cập nhật chứng từ');
     } finally {
-      setUpdateProofSubmitting(false);
+      setPaySubmitting(false);
     }
   }
 
   async function submitReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
-    if (!viewingInvoice || reviewSubmitting) return;
+    if (!payingInvoice || reviewSubmitting) return;
     try {
       setReviewSubmitting(true);
-      const updated = await dormitoryApi.invoices.reviewProof(viewingInvoice._id, decision);
-      setViewingInvoice(updated);
+      const updated = await dormitoryApi.invoices.reviewProof(payingInvoice._id, decision);
+      setPayingInvoice(updated);
       await load();
-      toast.success(decision === 'approved' ? 'Đã duyệt chứng từ' : decision === 'revoked' ? 'Đã bỏ duyệt chứng từ' : 'Đã từ chối chứng từ');
-    } catch (err: any) { toast.error(err?.message || 'Không thể cập nhật duyệt chứng từ'); }
-    finally { setReviewSubmitting(false); }
+      toast.success(
+        decision === 'approved'
+          ? 'Đã duyệt chứng từ'
+          : decision === 'revoked'
+          ? 'Đã bỏ duyệt chứng từ'
+          : 'Đã từ chối chứng từ',
+      );
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể cập nhật duyệt chứng từ');
+    } finally {
+      setReviewSubmitting(false);
+    }
   }
 
   async function handleReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
@@ -821,12 +800,12 @@ export default function InvoicesPage() {
         key: 'actions',
         header: 'Thao tác',
         priority: 'action',
-        className: 'text-center min-w-[150px]',
+        className: 'text-right whitespace-nowrap',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
-            <div className="flex items-center justify-center gap-1.5">
-              {displayStatus === 'Chưa thu' ? (
+            <div className="flex items-center justify-end gap-1.5">
+              {displayStatus === 'Chưa thu' && !inv.payment_proof?.url ? (
                 <button
                   onClick={() => openPayModal(inv)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
@@ -836,7 +815,7 @@ export default function InvoicesPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => openProofModal(inv)}
+                  onClick={() => openPayModal(inv)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
                   title={displayStatus === 'Chờ duyệt' ? 'Duyệt chứng từ thanh toán' : 'Kiểm tra chứng từ thanh toán'}
                 >
@@ -1443,98 +1422,245 @@ export default function InvoicesPage() {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* MODAL THU TIỀN (Theo kiểu UI Mockup 2 cột kèm QR và Timeline) */}
+      {/* MODAL HÓA ĐƠN THANH TOÁN (Dùng chung cho Nộp chứng từ & Kiểm tra / Duyệt) */}
       {/* ========================================================================= */}
       <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
         <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
-          {payingInvoice && (
-            <div className="space-y-4">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <DialogTitle className="text-xl font-bold text-[#1E293B]">
-                      Hóa đơn thanh toán
-                    </DialogTitle>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <CheckCircle size={13} className="shrink-0" />
-                      Sẵn sàng
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    {typeof payingInvoice.room_id === 'object' && payingInvoice.room_id
-                      ? payingInvoice.room_id.room_name || payingInvoice.room_id.room_code
-                      : 'Phòng'}{' '}
-                    - Tháng {formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}
-                  </p>
-                </div>
-              </div>
+          {payingInvoice && (() => {
+            const isApproved =
+              payingInvoice.payment_review?.status === 'approved' &&
+              (payingInvoice.status === 'Đã thu' || payingInvoice.status === 'Đã thanh toán');
+            const isPendingReview = payingInvoice.payment_review?.status === 'pending';
+            const isRejected = payingInvoice.payment_review?.status === 'rejected';
+            const hasExistingProof = !!payingInvoice.payment_proof?.url;
 
-              {/* 2-Column Content */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
-                {/* Cột trái: Chi tiết chi phí, timeline & form xác nhận */}
-                <div className="md:col-span-7 space-y-4">
-                  {/* Bảng kê chi phí */}
-                  <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Tiền điện</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatMoney(payingInvoice.electricity?.amount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Tiền nước</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatMoney(payingInvoice.water?.amount)}
-                      </span>
-                    </div>
-                    <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
-                      <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
-                      <div className="text-right">
-                        <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
-                          {formatMoney(payingInvoice.total_amount)}
+            return (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <DialogTitle className="text-xl font-bold text-[#1E293B]">
+                        Hóa đơn thanh toán
+                      </DialogTitle>
+                      {isApproved ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle size={13} className="shrink-0" />
+                          Đã thu
                         </span>
-                        {payingInvoice.is_exempt && (
-                          <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block ml-2">
-                            Miễn thu
+                      ) : isPendingReview ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          <Eye size={13} className="shrink-0" />
+                          Chờ duyệt
+                        </span>
+                      ) : isRejected ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          <X size={13} className="shrink-0" />
+                          Từ chối / Bỏ duyệt
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle size={13} className="shrink-0" />
+                          Sẵn sàng
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      {typeof payingInvoice.room_id === 'object' && payingInvoice.room_id
+                        ? payingInvoice.room_id.room_name || payingInvoice.room_id.room_code
+                        : 'Phòng'}{' '}
+                      - Tháng {formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2-Column Content */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
+                  {/* Cột trái: Chi tiết chi phí, timeline / thông tin thu & upload chứng từ */}
+                  <div className="md:col-span-7 space-y-4">
+                    {/* Bảng kê chi phí */}
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Tiền điện</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatMoney(payingInvoice.electricity?.amount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Tiền nước</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatMoney(payingInvoice.water?.amount)}
+                        </span>
+                      </div>
+                      <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
+                        <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
+                        <div className="text-right">
+                          <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
+                            {formatMoney(payingInvoice.total_amount)}
+                          </span>
+                          {payingInvoice.is_exempt && (
+                            <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block ml-2">
+                              Miễn thu
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Thông tin thanh toán (khi đã thu hoặc có xác nhận) */}
+                    {(isApproved || payingInvoice.paid_at || payingInvoice.confirmed_by_id) && (
+                      <div className="grid grid-cols-2 gap-2.5 text-xs bg-white/60 p-3 rounded-xl border border-slate-200/70">
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Phương thức</span>
+                          <span className="font-semibold text-slate-800">
+                            {payingInvoice.payment_method || 'Chuyển khoản'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Ngày thu</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatDate(payingInvoice.paid_at)}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-slate-400 block text-[11px]">Người xác nhận</span>
+                          <span className="font-semibold text-slate-800">
+                            {payingInvoice.confirmed_by_id?.full_name ||
+                              payingInvoice.confirmed_by_id?.user_name ||
+                              'Quản lý KTX'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timeline Kỳ thu & Hạn thanh toán (khi chưa thu) */}
+                    {!isApproved && (
+                      <div className="relative pl-5 space-y-3 text-xs">
+                        <div className="absolute left-1.5 top-1.5 bottom-1.5 w-0.5 bg-slate-200" />
+
+                        <div className="relative flex items-start gap-2.5">
+                          <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-[#F8FAFC]" />
+                          <div>
+                            <p className="text-[11px] text-slate-400 font-medium">Kỳ thanh toán</p>
+                            <p className="font-semibold text-slate-700">
+                              {getMonthPeriodRange(payingInvoice.billing_month, payingInvoice.billing_period)}
+                            </p>
                           </div>
-                        )}
+                        </div>
+
+                        <div className="relative flex items-start gap-2.5">
+                          <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-[#F8FAFC]" />
+                          <div>
+                            <p className="text-[11px] text-slate-400 font-medium">Hạn thanh toán</p>
+                            <p className="font-bold text-amber-600">{formatDate(payingInvoice.due_date)}</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    )}
 
-                  {/* Timeline Kỳ thu & Hạn thanh toán */}
-                  <div className="relative pl-5 space-y-3 text-xs">
-                    <div className="absolute left-1.5 top-1.5 bottom-1.5 w-0.5 bg-slate-200" />
+                    {/* Phần ảnh chứng từ */}
+                    {hasExistingProof ? (
+                      <div className="space-y-3">
+                        {/* Ảnh chứng từ hiện tại */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-semibold text-[#1E293B]">
+                            Ảnh chứng từ hiện tại
+                          </label>
+                          <div className="space-y-2">
+                            <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
+                              {proofImageFailed ? (
+                                <a
+                                  className="inline-flex items-center justify-center p-6 text-xs text-blue-600 hover:underline font-medium"
+                                  href={getImageUrl(payingInvoice.payment_proof?.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Mở ảnh gốc
+                                </a>
+                              ) : (
+                                <img
+                                  src={getImageUrl(payingInvoice.payment_proof?.url)}
+                                  alt="Chứng từ thanh toán"
+                                  onError={() => setProofImageFailed(true)}
+                                  className="max-h-48 w-auto object-contain rounded-lg shadow-sm"
+                                />
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <a
+                                href={getImageUrl(payingInvoice.payment_proof?.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
+                              >
+                                <Eye size={12} /> Xem ảnh kích thước đầy đủ
+                              </a>
+                            </div>
+                          </div>
+                        </div>
 
-                    <div className="relative flex items-start gap-2.5">
-                      <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-[#F8FAFC]" />
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">Kỳ thanh toán</p>
-                        <p className="font-semibold text-slate-700">
-                          {getMonthPeriodRange(payingInvoice.billing_month, payingInvoice.billing_period)}
-                        </p>
+                        {/* Cập nhật ảnh mới thay thế */}
+                        <div className="border-t border-slate-200/60 pt-3 space-y-2">
+                          <label className="block text-xs font-semibold text-[#1E293B]">
+                            Cập nhật ảnh mới (nếu tải lên sai)
+                          </label>
+                          <input
+                            ref={updateProofInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            onChange={handleProofFileChange}
+                            className="hidden"
+                            id="pay-proof-replace-upload"
+                          />
+                          {!payProofFile ? (
+                            <label
+                              htmlFor="pay-proof-replace-upload"
+                              className="flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                            >
+                              <Upload size={18} className="text-[#1A73E8] mb-1" />
+                              <span className="text-xs font-medium text-[#1E293B]">
+                                Bấm để chọn ảnh mới thay thế
+                              </span>
+                              <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                            </label>
+                          ) : (
+                            <div className="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-500/20">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPayProofFile(null);
+                                    setPayProofPreview(null);
+                                  }}
+                                  className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
+                                >
+                                  <X size={13} /> Hủy chọn
+                                </button>
+                              </div>
+                              {payProofPreview && (
+                                <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
+                                  <img
+                                    src={payProofPreview}
+                                    alt="Ảnh mới"
+                                    className="max-h-40 w-auto object-contain rounded-md"
+                                  />
+                                </div>
+                              )}
+                              <div className="text-[11px] text-[#64748B] truncate">
+                                {payProofFile.name} ({(payProofFile.size / 1024).toFixed(1)} KB)
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="relative flex items-start gap-2.5">
-                      <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-[#F8FAFC]" />
-                      <div>
-                        <p className="text-[11px] text-slate-400 font-medium">Hạn thanh toán</p>
-                        <p className="font-bold text-amber-600">{formatDate(payingInvoice.due_date)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Form xác nhận đóng tiền */}
-                  <form onSubmit={handleConfirmPay} className="space-y-3 pt-2">
-                    {/* Upload ảnh chứng từ */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
-                        <span>Ảnh chứng từ thanh toán</span>
-                        <span className="text-[11px] text-[#1A73E8] font-normal">Bắt buộc để gửi duyệt</span>
-                      </label>
+                    ) : (
+                      /* Upload ảnh chứng từ lần đầu */
                       <div className="space-y-2">
+                        <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
+                          <span>Ảnh chứng từ thanh toán</span>
+                          <span className="text-[11px] text-[#1A73E8] font-normal">Bắt buộc để gửi duyệt</span>
+                        </label>
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -1552,335 +1678,146 @@ export default function InvoicesPage() {
                             <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
                           </label>
                         ) : (
-                          <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
-                            <div className="flex items-center gap-2 truncate">
-                              <CheckCircle size={15} className="text-emerald-700 shrink-0" />
-                              <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+                              <div className="flex items-center gap-2 truncate">
+                                <CheckCircle size={15} className="text-emerald-700 shrink-0" />
+                                <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPayProofFile(null);
+                                  setPayProofPreview(null);
+                                }}
+                                className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
+                              >
+                                Hủy
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPayProofFile(null);
-                                setPayProofPreview(null);
-                              }}
-                              className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
-                            >
-                              Hủy
-                            </button>
-                          </div>
-                        )}
-
-                        {payProofPreview && (
-                          <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
-                            <img
-                              src={payProofPreview}
-                              alt="Xem trước chứng từ"
-                              className="max-h-36 w-auto object-contain rounded-lg shadow-2xs"
-                            />
+                            {payProofPreview && (
+                              <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
+                                <img
+                                  src={payProofPreview}
+                                  alt="Xem trước chứng từ"
+                                  className="max-h-36 w-auto object-contain rounded-lg shadow-2xs"
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    </div>
+                    )}
 
-                    {/* Submit Actions */}
-                    <div className="flex gap-2.5 pt-2">
+                    {/* Actions Footer */}
+                    <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-slate-200/60">
+                      {/* Nút duyệt / từ chối cho người có quyền khi ở trạng thái pending */}
+                      {hasExistingProof && !isApproved && canConfirmInvoice && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={reviewSubmitting || paySubmitting}
+                            onClick={() => handleReviewProof('rejected')}
+                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          >
+                            Không duyệt
+                          </Button>
+                          <Button
+                            type="button"
+                            disabled={reviewSubmitting || paySubmitting}
+                            onClick={() => handleReviewProof('approved')}
+                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            {reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Nút bỏ duyệt cho người có quyền khi đã duyệt */}
+                      {isApproved && canConfirmInvoice && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={reviewSubmitting || paySubmitting}
+                          onClick={() => handleReviewProof('revoked')}
+                          className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                        >
+                          {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
+                        </Button>
+                      )}
+
+                      {/* Nút lưu ảnh thay thế */}
+                      {hasExistingProof && payProofFile && (
+                        <Button
+                          type="button"
+                          disabled={paySubmitting || reviewSubmitting}
+                          onClick={handleSaveUpdatedProof}
+                          className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white"
+                        >
+                          {paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
+                        </Button>
+                      )}
+
+                      {/* Nút gửi duyệt lần đầu */}
+                      {!hasExistingProof && (
+                        <Button
+                          type="button"
+                          disabled={paySubmitting || !payProofFile}
+                          onClick={handleConfirmPay}
+                          className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          {paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
+                        </Button>
+                      )}
+
+                      {/* Nút Đóng */}
                       <Button
                         type="button"
                         variant="outline"
-                        disabled={paySubmitting}
+                        disabled={paySubmitting || reviewSubmitting}
                         onClick={() => setPayModalOpen(false)}
-                        className="flex-1 rounded-xl"
+                        className="rounded-xl"
                       >
-                        Hủy
-                      </Button>
-                      <Button
-                        type="submit"
-                        disabled={paySubmitting}
-                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        {paySubmitting ? 'Đang xử lý...' : 'Xác nhận thu'}
+                        Đóng
                       </Button>
                     </div>
-                  </form>
-                </div>
-
-                {/* Cột phải: Thẻ Quét mã QR thanh toán & Tải hóa đơn */}
-                <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Quét mã để thanh toán
-                  </p>
-
-                  <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
-                    {qrCodeDataUrl ? (
-                      <img
-                        src={qrCodeDataUrl}
-                        alt="Mã QR thanh toán"
-                        className="w-full h-full object-contain rounded-lg"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
-                        Đang tạo mã QR...
-                      </div>
-                    )}
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleDownloadQr(payingInvoice)}
-                    className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
-                  >
-                    <Download size={14} className="text-[#1A73E8]" />
-                    <span>Tải hóa đơn</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                  {/* Cột phải: Thẻ Quét mã QR thanh toán & Tải hóa đơn */}
+                  <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
+                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Quét mã để thanh toán
+                    </p>
 
-      {/* ========================================================================= */}
-      {/* MODAL KIỂM TRA & CẬP NHẬT CHỨNG TỪ (Theo kiểu UI Mockup 2 cột) */}
-      {/* ========================================================================= */}
-      <Dialog open={proofModalOpen} onOpenChange={setProofModalOpen}>
-        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
-          {viewingInvoice && (
-            <div className="space-y-4">
-              {/* Header */}
-              <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <DialogTitle className="text-xl font-bold text-[#1E293B]">
-                      Kiểm tra chứng từ thanh toán
-                    </DialogTitle>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      <CheckCircle size={13} className="shrink-0" />
-                      Đã thu
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    {typeof viewingInvoice.room_id === 'object' && viewingInvoice.room_id
-                      ? viewingInvoice.room_id.room_name || viewingInvoice.room_id.room_code
-                      : 'Phòng'}{' '}
-                    - Tháng {formatBillingMonth(viewingInvoice.billing_month, viewingInvoice.billing_period)}
-                  </p>
-                </div>
-              </div>
-
-              {/* 2-Column Content */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
-                {/* Cột trái: Chi tiết chi phí, thông tin thu & ảnh chứng từ */}
-                <div className="md:col-span-7 space-y-4">
-                  {/* Bảng kê chi phí */}
-                  <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Tiền điện</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatMoney(viewingInvoice.electricity?.amount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Tiền nước</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatMoney(viewingInvoice.water?.amount)}
-                      </span>
-                    </div>
-                    <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
-                      <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
-                      <div className="text-right">
-                        <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
-                          {formatMoney(viewingInvoice.total_amount)}
-                        </span>
-                        {viewingInvoice.is_exempt && (
-                          <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg border border-amber-500/20 inline-block ml-2">
-                            Miễn thu
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Thông tin thanh toán */}
-                  <div className="grid grid-cols-2 gap-2.5 text-xs bg-white/60 p-3 rounded-xl border border-slate-200/70">
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Phương thức</span>
-                      <span className="font-semibold text-slate-800">
-                        {viewingInvoice.payment_method || 'Chuyển khoản'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">Ngày thu</span>
-                      <span className="font-semibold text-slate-800">
-                        {formatDate(viewingInvoice.paid_at)}
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-slate-400 block text-[11px]">Người xác nhận</span>
-                      <span className="font-semibold text-slate-800">
-                        {viewingInvoice.confirmed_by_id?.full_name ||
-                          viewingInvoice.confirmed_by_id?.user_name ||
-                          'Quản lý KTX'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Ảnh chứng từ hiện tại */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-[#1E293B]">
-                      Ảnh chứng từ hiện tại
-                    </label>
-                    {viewingInvoice.payment_proof?.url ? (
-                      <div className="space-y-2">
-                        <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
-                          {proofImageFailed ? <div className="p-6 text-center text-xs text-slate-500">Không thể hiển thị ảnh chứng từ.<br /><a className="text-blue-600 hover:underline" href={getImageUrl(viewingInvoice.payment_proof.url)} target="_blank" rel="noreferrer">Mở ảnh gốc</a></div> : <img src={getImageUrl(viewingInvoice.payment_proof.url)} alt="Chứng từ thanh toán" onError={() => setProofImageFailed(true)} className="max-h-52 w-auto object-contain rounded-lg shadow-sm" />}
+                    <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
+                      {qrCodeDataUrl ? (
+                        <img
+                          src={qrCodeDataUrl}
+                          alt="Mã QR thanh toán"
+                          className="w-full h-full object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
+                          Đang tạo mã QR...
                         </div>
-                        <div className="text-right">
-                          <a
-                            href={getImageUrl(viewingInvoice.payment_proof.url)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
-                          >
-                            <Eye size={12} /> Xem ảnh kích thước đầy đủ
-                          </a>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center text-[#64748B] bg-slate-500/5">
-                        <FileText size={24} className="mx-auto mb-1 opacity-30" />
-                        <p className="text-xs font-medium">Chưa có ảnh chứng từ thanh toán cho hóa đơn này</p>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
-                  {/* Cập nhật ảnh mới nếu up sai */}
-                  <div className="border-t border-slate-200/60 pt-3 space-y-3">
-                    <label className="block text-xs font-semibold text-[#1E293B]">
-                      Cập nhật ảnh mới (nếu tải lên sai)
-                    </label>
-
-                    <input
-                      ref={updateProofInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/jpg,image/webp"
-                      onChange={handleUpdateProofFileChange}
-                      className="hidden"
-                      id="update-proof-upload"
-                    />
-
-                    {!updateProofFile ? (
-                      <label
-                        htmlFor="update-proof-upload"
-                        className="flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
-                      >
-                        <Upload size={18} className="text-[#1A73E8] mb-1" />
-                        <span className="text-xs font-medium text-[#1E293B]">
-                          Bấm để chọn ảnh mới thay thế
-                        </span>
-                        <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
-                      </label>
-                    ) : (
-                      <div className="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setUpdateProofFile(null);
-                              setUpdateProofPreview(null);
-                            }}
-                            className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
-                          >
-                            <X size={13} /> Hủy chọn
-                          </button>
-                        </div>
-                        {updateProofPreview && (
-                          <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
-                            <img
-                              src={updateProofPreview}
-                              alt="Ảnh mới"
-                              className="max-h-40 w-auto object-contain rounded-md"
-                            />
-                          </div>
-                        )}
-                        <div className="text-[11px] text-[#64748B] truncate">
-                          {updateProofFile.name} ({(updateProofFile.size / 1024).toFixed(1)} KB)
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex gap-2.5 pt-2 border-t border-slate-100">
-                    {viewingInvoice.payment_review?.status === 'pending' && (
-                      <>
-                        <Button type="button" variant="outline" disabled={reviewSubmitting} onClick={() => handleReviewProof('rejected')} className="rounded-xl border-rose-200 text-rose-600">Không duyệt</Button>
-                        <Button type="button" disabled={reviewSubmitting} onClick={() => handleReviewProof('approved')} className="rounded-xl bg-emerald-600 hover:bg-emerald-700">{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</Button>
-                      </>
-                    )}
-                    {viewingInvoice.payment_review?.status === 'approved' && viewingInvoice.status === 'Đã thu' && (
-                      <Button type="button" variant="outline" disabled={reviewSubmitting} onClick={() => handleReviewProof('revoked')} className="rounded-xl border-amber-200 text-amber-700">
-                        {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
-                      </Button>
-                    )}
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={updateProofSubmitting}
-                      onClick={() => setProofModalOpen(false)}
-                      className="flex-1 rounded-xl"
+                      onClick={() => handleDownloadQr(payingInvoice)}
+                      className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
                     >
-                      Đóng
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={
-                        updateProofSubmitting ||
-                        !updateProofFile
-                      }
-                      onClick={handleSaveUpdatedProof}
-                      className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
-                    >
-                      {updateProofSubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
+                      <Download size={14} className="text-[#1A73E8]" />
+                      <span>Tải hóa đơn</span>
                     </Button>
                   </div>
-                </div>
-
-                {/* Cột phải: Thẻ Quét mã QR & Tải hóa đơn */}
-                <div className="md:col-span-5 flex flex-col items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Quét mã để thanh toán
-                  </p>
-
-                  <div className="w-full aspect-square max-w-[200px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
-                    {qrCodeDataUrl ? (
-                      <img
-                        src={qrCodeDataUrl}
-                        alt="Mã QR thanh toán"
-                        className="w-full h-full object-contain rounded-lg"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
-                        Đang tạo mã QR...
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleDownloadQr(viewingInvoice)}
-                    className="w-full h-9 rounded-xl border border-slate-200/80 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 gap-1.5 cursor-pointer"
-                  >
-                    <Download size={14} className="text-[#1A73E8]" />
-                    <span>Tải hóa đơn</span>
-                  </Button>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
