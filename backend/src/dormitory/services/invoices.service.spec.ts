@@ -961,84 +961,11 @@ describe('InvoicesService', () => {
     });
   });
 
-  describe('bulkDelete (AC-04, AC-05)', () => {
-    const invId1 = '507f1f77bcf86cd799439031';
-    const invId2 = '507f1f77bcf86cd799439032';
-    const paidInvId = '507f1f77bcf86cd799439033';
-
-    it('deletes valid unpaid invoices and returns deterministic results (AC-04)', async () => {
+  describe('bulkDelete hard-disable (AC-09)', () => {
+    it('never deletes invoices through the legacy endpoint', async () => {
       const { service, invoiceModel } = setup();
-      const unpaid1 = { _id: invId1, invoice_code: 'INV-1', status: 'Chưa thu' };
-      const unpaid2 = { _id: invId2, invoice_code: 'INV-2', status: 'Chưa thanh toán' };
-
-      invoiceModel.find.mockReturnValue(query([unpaid1, unpaid2]));
-
-      const result = await service.bulkDelete([invId1, invId2], { userId: 'admin-1' });
-
-      expect(invoiceModel.deleteMany).toHaveBeenCalled();
-      expect(result.requested).toBe(2);
-      expect(result.deleted).toEqual([invId1, invId2]);
-      expect(result.not_found).toEqual([]);
-      expect(result.rejected).toEqual([]);
-    });
-
-    it('rejects paid invoices and leaves them untouched (AC-05)', async () => {
-      const { service, invoiceModel } = setup();
-      const unpaid = { _id: invId1, invoice_code: 'INV-1', status: 'Chưa thu' };
-      const paid = { _id: paidInvId, invoice_code: 'INV-PAID', status: 'Đã thu' };
-
-      invoiceModel.find.mockReturnValue(query([unpaid, paid]));
-
-      const result = await service.bulkDelete([invId1, paidInvId], { userId: 'admin-1' });
-
-      expect(result.requested).toBe(2);
-      expect(result.deleted).toEqual([invId1]);
-      expect(result.rejected).toEqual([
-        {
-          id: paidInvId,
-          invoice_code: 'INV-PAID',
-          reason: 'Không thể xóa hóa đơn đã thanh toán',
-        },
-      ]);
-    });
-
-    it('reports not_found for IDs not in database and invalid format for malformed IDs', async () => {
-      const { service, invoiceModel } = setup();
-      const notFoundId = '507f1f77bcf86cd799439099';
-      const invalidId = 'invalid-not-an-objectid';
-
-      invoiceModel.find.mockReturnValue(query([]));
-
-      const result = await service.bulkDelete([notFoundId, invalidId], { userId: 'admin-1' });
-
-      expect(result.requested).toBe(2);
-      expect(result.deleted).toEqual([]);
-      expect(result.not_found).toEqual([notFoundId]);
-      expect(result.rejected).toEqual([
-        {
-          id: invalidId,
-          reason: 'Mã hóa đơn không hợp lệ',
-        },
-      ]);
-    });
-
-    it('deduplicates input IDs before processing', async () => {
-      const { service, invoiceModel } = setup();
-      const unpaid = { _id: invId1, invoice_code: 'INV-1', status: 'Chưa thu' };
-
-      invoiceModel.find.mockReturnValue(query([unpaid]));
-
-      const result = await service.bulkDelete([invId1, invId1, invId1], { userId: 'admin-1' });
-
-      expect(result.requested).toBe(1);
-      expect(result.deleted).toEqual([invId1]);
-    });
-
-    it('throws BadRequestException on empty array or non-array input', async () => {
-      const { service } = setup();
-
-      await expect(service.bulkDelete([], {})).rejects.toThrow(BadRequestException);
-      await expect(service.bulkDelete(null as any, {})).rejects.toThrow(BadRequestException);
+      await expect(service.bulkDelete(['507f1f77bcf86cd799439031'], { userId: 'admin-1' })).rejects.toThrow(BadRequestException);
+      expect(invoiceModel.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

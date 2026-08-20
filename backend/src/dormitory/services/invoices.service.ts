@@ -665,6 +665,21 @@ export class InvoicesService {
     return invoice;
   }
 
+  async bulkReviewPaymentProof(ids: string[], decision: 'approved' | 'rejected', user: any, requestId: string) {
+    const uniqueIds = [...new Set((ids || []).map(String).map((id) => id.trim()).filter(Boolean))];
+    if (!uniqueIds.length) throw new BadRequestException('Danh sách ID hóa đơn không được rỗng');
+    const results = await Promise.all(uniqueIds.map(async (id) => {
+      try {
+        const invoice = await this.reviewPaymentProof(id, decision, user, `${requestId}:${id}`);
+        return { id, outcome: 'approved' as const, invoice };
+      } catch (error: any) {
+        const outcome = error?.status === 404 ? 'skipped' as const : 'failed' as const;
+        return { id, outcome, error: error?.message || 'Không thể duyệt chứng từ' };
+      }
+    }));
+    return { requested: uniqueIds.length, results };
+  }
+
   /**
    * FR09: Get overdue summary
    */
@@ -1059,33 +1074,25 @@ export class InvoicesService {
       } catch (err: any) {
         if (err?.code === 11000 && this.isCanonicalDuplicate(err, 'meter')) {
           try {
-            if (!this.meterReadingModel || !meterPayload) throw err;
-            await this.meterReadingModel.findOneAndUpdate(
-              { room_id: item.room_id, billing_month: dto.billing_month },
-              { $set: meterPayload },
-              { upsert: true, new: true, setDefaultsOnInsert: true },
-            ).exec();
+            // Re-enter the idempotent unit after the canonical meter race. The
+            // second pass sees the existing invoice and recomputes its full
+            // snapshot instead of returning a meter-only success.
+            const retry = await this.saveBulkMeterReadings(
+              { billing_month: dto.billing_month, readings: [item] } as BulkMeterReadingsDto,
+              user,
+            );
+            results.push(retry.results[0]);
+            continue;
           } catch (retryError: any) {
             err = retryError;
           }
         } else if (err?.code === 11000 && this.isCanonicalDuplicate(err, 'invoice')) {
-          const concurrentInvoice = await this.invoiceModel.findOne({ room_id: item.room_id, billing_month: dto.billing_month }).exec();
-          if (concurrentInvoice && meterPayload) {
-            concurrentInvoice.reading_date = meterPayload.reading_date;
-            concurrentInvoice.occupant_count = meterPayload.occupant_count;
-            concurrentInvoice.roster_entry_ids = meterPayload.roster_entry_ids;
-            concurrentInvoice.electricity = {
-              ...(concurrentInvoice.electricity || {}),
-              current_reading: meterPayload.electricity_reading,
-            } as any;
-            concurrentInvoice.water = {
-              ...(concurrentInvoice.water || {}),
-              current_reading: meterPayload.water_reading,
-            } as any;
-            const saved = await concurrentInvoice.save();
-            results.push({ room_id: item.room_id, success: true, invoice: saved });
-            continue;
-          }
+          const retry = await this.saveBulkMeterReadings(
+            { billing_month: dto.billing_month, readings: [item] } as BulkMeterReadingsDto,
+            user,
+          );
+          results.push(retry.results[0]);
+          continue;
         }
         results.push({
           room_id: item.room_id,
@@ -1112,9 +1119,7 @@ export class InvoicesService {
    * Xóa nhiều hóa đơn theo danh sách ID
    */
   async bulkDelete(ids: string[], user: any) {
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      throw new BadRequestException('Danh sách ID hóa đơn không được rỗng');
-    }
+    throw new BadRequestException('Thao tác xóa hàng loạt hóa đơn đã bị vô hiệu hóa; hãy dùng duyệt chứng từ thanh toán');
 
     // Normalize and deduplicate IDs
     const uniqueIds = Array.from(

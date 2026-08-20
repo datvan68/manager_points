@@ -49,6 +49,7 @@ vi.mock('@/api/dormitory-api', () => ({
       updateConfig: vi.fn(),
       getMeterReadings: vi.fn(),
       saveBulkMeterReadings: vi.fn(),
+      bulkReviewProof: vi.fn(),
       bulkDelete: vi.fn(),
     },
   },
@@ -553,14 +554,14 @@ describe('Dormitory Invoices Page', () => {
     const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
     expect(rowCheckboxes.length).toBeGreaterThanOrEqual(2);
 
-    // Select first row
+    // Select eligible pending-proof row
     await act(async () => {
-      fireEvent.click(rowCheckboxes[0]);
+      fireEvent.click(rowCheckboxes[1]);
     });
 
     await waitFor(() => {
       expect(screen.getAllByText(/Đã chọn/i).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Duyệt chứng từ đã chọn' })).toBeDefined();
     });
 
     // Clear selection
@@ -570,16 +571,14 @@ describe('Dormitory Invoices Page', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Duyệt chứng từ đã chọn/i })).toBeNull();
     });
   });
 
-  it('executes bulk delete via ConfirmModal and handles success', async () => {
-    (dormitoryApi.invoices.bulkDelete as any).mockResolvedValue({
+  it('executes bulk approve without exposing deletion', async () => {
+    (dormitoryApi.invoices.bulkReviewProof as any).mockResolvedValue({
       requested: 1,
-      deleted: ['inv-unpaid'],
-      not_found: [],
-      rejected: [],
+      results: [{ id: 'inv-pending', outcome: 'approved' }],
     });
 
     render(<InvoicesPage />);
@@ -588,32 +587,18 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getAllByText('Phòng 101').length).toBeGreaterThanOrEqual(2);
     });
 
-    const rowCheckbox = document.querySelector('tbody input[type="checkbox"]') as HTMLInputElement;
-    expect(rowCheckbox).toBeTruthy();
+    const rowCheckbox = document.querySelectorAll('tbody input[type="checkbox"]')[1] as HTMLInputElement;
     await act(async () => {
       fireEvent.click(rowCheckbox);
     });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i })).toBeDefined();
-    });
-
-    const deleteBtn = screen.getByRole('button', { name: /Xóa hóa đơn đã chọn/i });
+    const approveBtn = await screen.findByRole('button', { name: 'Duyệt chứng từ đã chọn' });
     await act(async () => {
-      fireEvent.click(deleteBtn);
+      fireEvent.click(approveBtn);
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Xóa hóa đơn đã chọn')).toBeDefined();
-    });
-
-    const confirmBtn = screen.getByRole('button', { name: 'Xóa hóa đơn' });
-    await act(async () => {
-      fireEvent.click(confirmBtn);
-    });
-
-    await waitFor(() => {
-      expect(dormitoryApi.invoices.bulkDelete).toHaveBeenCalledWith(['inv-unpaid']);
+      expect(dormitoryApi.invoices.bulkReviewProof).toHaveBeenCalledWith(['inv-pending'], 'approved', expect.any(String));
+      expect(screen.queryByRole('button', { name: /Xóa hóa đơn/i })).toBeNull();
     });
   });
 });

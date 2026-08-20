@@ -182,14 +182,12 @@ describe('InvoicesController', () => {
     expect(await validate(valid)).toEqual([]);
   });
 
-  it('bulkDelete delegates to service.bulkDelete (AC-04)', async () => {
+  it('bulkDelete delegates to the hard-disabled legacy service path', async () => {
     const dto = { ids: ['inv-1', 'inv-2'] };
     const req = { user: { userId: 'admin-1' } };
 
-    const result = await controller.bulkDelete(dto, req);
+    service.bulkDelete = jest.fn().mockRejectedValue(new Error('disabled'));
+    await expect(controller.bulkDelete(dto, req)).rejects.toThrow('disabled');
     expect(service.bulkDelete).toHaveBeenCalledWith(dto.ids, req.user);
-    expect(result.requested).toBe(2);
-    expect(result.deleted).toEqual(['inv-1']);
-    expect(result.rejected.length).toBe(1);
   });
 });

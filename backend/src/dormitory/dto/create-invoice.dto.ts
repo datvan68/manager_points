@@ -248,3 +248,18 @@ export class BulkDeleteInvoicesDto {
   @IsString({ each: true })
   ids: string[];
 }
+
+export class BulkReviewPaymentProofDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  ids: string[];
+
+  @IsNotEmpty()
+  @IsEnum(['approved', 'rejected'])
+  decision: 'approved' | 'rejected';
+
+  @IsNotEmpty()
+  @IsUUID()
+  request_id: string;
+}

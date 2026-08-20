@@ -771,6 +771,13 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
+    async bulkReviewProof(ids: string[], decision: 'approved' | 'rejected', requestId: string): Promise<{ requested: number; results: Array<{ id: string; outcome: string; invoice?: DormInvoice; error?: string }> }> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/proof/review/bulk`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, decision, request_id: requestId }),
+      });
+      return handleResponse(res);
+    },
     async create(dto: any): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices`, {
         method: 'POST',
