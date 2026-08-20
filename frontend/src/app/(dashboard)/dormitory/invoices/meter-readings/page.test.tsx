@@ -114,7 +114,7 @@ describe('Dormitory Meter Readings Page', () => {
     });
   });
 
-  it('renders all rooms (including empty rooms) as vertical cards, not modal or table (AC-01, AC-02)', async () => {
+  it('renders all rooms as vertical cards without building name or occupant count badge (Requirement 1)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
@@ -131,9 +131,10 @@ describe('Dormitory Meter Readings Page', () => {
     expect(screen.getByTestId('room-card-room-2')).toBeDefined();
     expect(screen.getByTestId('room-card-room-3')).toBeDefined();
 
-    // Check empty room displays 0 occupants
-    const card3 = screen.getByTestId('room-card-room-3');
-    expect(card3.textContent).toContain('0 người ở');
+    // Requirement 1: no '(Tòa A)' or 'người ở' badge
+    const card1 = screen.getByTestId('room-card-room-1');
+    expect(card1.textContent).not.toContain('người ở');
+    expect(card1.textContent).not.toContain('(Tòa A)');
   });
 
   it('does not render search input, filter select, or "Cấu hình áp dụng" block (AC-04, AC-05)', async () => {
@@ -153,7 +154,7 @@ describe('Dormitory Meter Readings Page', () => {
     expect(screen.queryByText(/Cấu hình áp dụng:/i)).toBeNull();
   });
 
-  it('displays room info, previous readings, status and exactly two input fields per card (AC-02a)', async () => {
+  it('displays status as "Đã lưu" / "Chưa lưu" and does not display consumption/quota/excess boxes (Requirements 2, 4)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
@@ -161,17 +162,21 @@ describe('Dormitory Meter Readings Page', () => {
     });
 
     const card1 = screen.getByTestId('room-card-room-1');
+    const card2 = screen.getByTestId('room-card-room-2');
 
-    // Check occupant count
-    expect(card1.textContent).toContain('2 người ở');
+    // Requirement 2: 'Chưa lưu' / 'Đã lưu'
+    expect(card1.textContent).toContain('Chưa lưu');
+    expect(card2.textContent).toContain('Đã lưu');
+
+    // Requirement 4: Bỏ Tiêu thụ / Định mức / Vượt
+    expect(card1.textContent).not.toContain('Tiêu thụ:');
+    expect(card1.textContent).not.toContain('Định mức:');
+    expect(card1.textContent).not.toContain('Vượt:');
 
     // Check previous readings in disabled inputs
     const disabledInputs = card1.querySelectorAll('input[disabled]');
     expect((disabledInputs[0] as HTMLInputElement).value).toBe('100');
     expect((disabledInputs[1] as HTMLInputElement).value).toBe('20');
-
-    // Check status
-    expect(card1.textContent).toContain('Chưa ghi');
 
     // Check exactly 2 inputs for new readings
     const elecInput = screen.getByLabelText(/Số điện mới Phòng 101/i);
@@ -180,7 +185,7 @@ describe('Dormitory Meter Readings Page', () => {
     expect(waterInput).toBeDefined();
   });
 
-  it('shows inline error on card when new reading is smaller than previous reading (AC-03)', async () => {
+  it('shows inline error on card when new reading is smaller than previous reading', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
@@ -196,7 +201,7 @@ describe('Dormitory Meter Readings Page', () => {
     });
   });
 
-  it('calculates progress accurately based on all rooms (AC-06)', async () => {
+  it('calculates progress accurately based on all rooms', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
@@ -204,10 +209,10 @@ describe('Dormitory Meter Readings Page', () => {
     });
 
     // 1 recorded out of 3 total rooms = 33%
-    expect(screen.getByText(/1 \/ 3 phòng \(33%\)/i)).toBeDefined();
+    expect(screen.getByText(/Tiến độ: 1 \/ 3 phòng \(33%\)/i)).toBeDefined();
   });
 
-  it('allows saving an individual card and updates card status (AC-04, AC-05, AC-06)', async () => {
+  it('automatically saves card data on input blur when both readings are valid (Requirement 3)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
@@ -219,10 +224,7 @@ describe('Dormitory Meter Readings Page', () => {
 
     fireEvent.change(elecInput, { target: { value: '150' } });
     fireEvent.change(waterInput, { target: { value: '30' } });
-
-    const card1 = screen.getByTestId('room-card-room-1');
-    const saveBtn = card1.querySelector('button')!;
-    fireEvent.click(saveBtn);
+    fireEvent.blur(waterInput);
 
     await waitFor(() => {
       expect(dormitoryApi.invoices.saveBulkMeterReadings).toHaveBeenCalledWith({
@@ -238,41 +240,26 @@ describe('Dormitory Meter Readings Page', () => {
         ],
       });
     });
+
+    // Verify status updates
+    await waitFor(() => {
+      const card1 = screen.getByTestId('room-card-room-1');
+      expect(card1.textContent).toContain('Đã lưu');
+    });
   });
 
-  it('allows bulk save and handles partial failure per room (AC-06)', async () => {
-    (dormitoryApi.invoices.saveBulkMeterReadings as any).mockResolvedValue({
-      results: [
-        {
-          room_id: 'room-1',
-          success: true,
-          invoice: { _id: 'inv-1', invoice_code: 'INV-1', status: 'Chưa thu', total_amount: 50000 },
-        },
-        {
-          room_id: 'room-2',
-          success: false,
-          error: 'Không thể chỉnh sửa hóa đơn đã thu',
-        },
-      ],
-    });
-
+  it('does not render manual update button or "Lưu tất cả hợp lệ" button (Requirements 3, 5)', async () => {
     render(<MeterReadingsPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId('room-card-room-1')).toBeDefined();
     });
 
-    const elecInput1 = screen.getByLabelText(/Số điện mới Phòng 101/i);
-    const waterInput1 = screen.getByLabelText(/Số nước mới Phòng 101/i);
-    fireEvent.change(elecInput1, { target: { value: '150' } });
-    fireEvent.change(waterInput1, { target: { value: '30' } });
-
-    const saveAllBtns = screen.getAllByRole('button', { name: /Lưu tất cả hợp lệ/i });
-    fireEvent.click(saveAllBtns[0]);
-
-    await waitFor(() => {
-      expect(dormitoryApi.invoices.saveBulkMeterReadings).toHaveBeenCalled();
-    });
+    // No 'Lưu tất cả hợp lệ' button
+    expect(screen.queryByRole('button', { name: /Lưu tất cả hợp lệ/i })).toBeNull();
+    // No manual 'Cập nhật' or 'Lưu phòng này' button inside card
+    expect(screen.queryByRole('button', { name: /Cập nhật/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Lưu phòng này/i })).toBeNull();
   });
 
   it('navigates back to /dormitory/invoices on clicking back button', async () => {
@@ -286,5 +273,21 @@ describe('Dormitory Meter Readings Page', () => {
     fireEvent.click(backBtn);
 
     expect(mockPush).toHaveBeenCalledWith('/dormitory/invoices');
+  });
+
+  it('opens CustomCalendar popover on clicking the billing month calendar button', async () => {
+    render(<MeterReadingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Chọn kỳ thu/i })).toBeDefined();
+    });
+
+    const calendarBtn = screen.getByRole('button', { name: /Chọn kỳ thu/i });
+    fireEvent.click(calendarBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('T2')).toBeDefined();
+      expect(screen.getByText('CN')).toBeDefined();
+    });
   });
 });
