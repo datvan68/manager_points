@@ -489,8 +489,8 @@ export default function InvoicesPage() {
       {/* Header và Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Hóa đơn điện - nước KTX</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight">Hóa đơn điện - nước KTX</h1>
+          <p className="text-xs font-medium text-[#64748B] mt-0.5">
             Quản lý đợt thu tiền điện - nước theo phòng, tự động tính theo số người và định mức
           </p>
         </div>
@@ -498,13 +498,13 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-3 flex-wrap">
           {/* Search box */}
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
             <input
               type="text"
               placeholder="Tìm mã HĐ, tên phòng..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
+              className="pl-9 pr-3 py-1.5 rounded-xl bg-white/50 backdrop-blur-sm border border-white/70 text-sm text-[#1E293B] placeholder:text-[#64748B]/60 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 w-52"
             />
           </div>
 
@@ -513,7 +513,7 @@ export default function InvoicesPage() {
             type="month"
             value={filterMonth}
             onChange={(e) => setFilterMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 rounded-xl bg-white/50 backdrop-blur-sm border border-white/70 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 font-medium"
             title="Lọc theo kỳ thu"
           />
 
@@ -521,7 +521,7 @@ export default function InvoicesPage() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 rounded-xl bg-white/50 backdrop-blur-sm border border-white/70 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 font-medium"
           >
             <option value="Tất cả">Tất cả trạng thái</option>
             <option value="Chưa thu">Chưa thu</option>
@@ -531,7 +531,7 @@ export default function InvoicesPage() {
           {/* Nút Cấu hình định mức & đơn giá (Icon Nâng cao - AC-01) */}
           <button
             onClick={openConfigModal}
-            className="p-2 border border-gray-200 text-gray-700 bg-white rounded-lg hover:bg-gray-50 hover:text-blue-600 transition shadow-sm"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/50 backdrop-blur-sm border border-white/70 text-[#1E293B] hover:bg-white/80 hover:text-[#1A73E8] hover:scale-[1.02] transition-all duration-150 shadow-sm shadow-slate-300/30"
             title="Cấu hình định mức & đơn giá"
             aria-label="Cấu hình định mức & đơn giá"
           >
@@ -541,7 +541,7 @@ export default function InvoicesPage() {
           {/* Nút Ghi điện nước (Điều hướng sang trang ghi chỉ số - AC-02) */}
           <button
             onClick={() => router.push('/dormitory/invoices/meter-readings')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-blue-500/20"
             title="Ghi chỉ số điện - nước"
           >
             <Zap size={16} /> Ghi điện nước
@@ -550,34 +550,34 @@ export default function InvoicesPage() {
       </div>
 
       {/* Bảng hiển thị 7 cột chuẩn (AC-02) */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md shadow-sm shadow-slate-300/30 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-3 text-left font-semibold text-gray-700">Phòng</th>
-                <th className="p-3 text-left font-semibold text-gray-700">Kỳ thu</th>
-                <th className="p-3 text-right font-semibold text-gray-700">Tiền điện</th>
-                <th className="p-3 text-right font-semibold text-gray-700">Tiền nước</th>
-                <th className="p-3 text-right font-semibold text-gray-700">Tổng tiền</th>
-                <th className="p-3 text-left font-semibold text-gray-700">Trạng thái</th>
-                <th className="p-3 text-center font-semibold text-gray-700">Thao tác</th>
+              <tr className="bg-white/60 border-b border-white/80">
+                <th className="p-3 text-left font-semibold text-[#64748B] text-xs uppercase tracking-wider">Phòng</th>
+                <th className="p-3 text-left font-semibold text-[#64748B] text-xs uppercase tracking-wider">Kỳ thu</th>
+                <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider">Tiền điện</th>
+                <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider">Tiền nước</th>
+                <th className="p-3 text-right font-semibold text-[#64748B] text-xs uppercase tracking-wider">Tổng tiền</th>
+                <th className="p-3 text-left font-semibold text-[#64748B] text-xs uppercase tracking-wider">Trạng thái</th>
+                <th className="p-3 text-center font-semibold text-[#64748B] text-xs uppercase tracking-wider">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-white/40">
                     {Array.from({ length: 7 }).map((_, j) => (
                       <td key={j} className="p-3">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                        <div className="h-4 bg-slate-200/50 rounded-xl animate-pulse" />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center text-gray-400">
+                  <td colSpan={7} className="p-10 text-center text-[#64748B]">
                     <FileText size={36} className="mx-auto mb-2 opacity-40" />
                     Không có hóa đơn nào phù hợp
                   </td>
@@ -596,43 +596,45 @@ export default function InvoicesPage() {
                   const waterAmount = inv.water?.amount ?? 0;
 
                   return (
-                    <tr key={inv._id} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                    <tr key={inv._id} className="border-b border-white/40 hover:bg-white/50 transition-all duration-150">
                       {/* 1. Phòng */}
-                      <td className="p-3 font-medium text-gray-800">
+                      <td className="p-3 font-semibold text-[#1E293B]">
                         <div>{roomName}</div>
-                        <div className="text-[11px] text-gray-400 font-mono">{inv.invoice_code}</div>
+                        <div className="text-[11px] text-[#64748B] font-mono">{inv.invoice_code}</div>
                       </td>
 
                       {/* 2. Kỳ thu */}
-                      <td className="p-3 text-gray-600 font-medium">
+                      <td className="p-3 text-[#1E293B] font-medium">
                         {formatBillingMonth(inv.billing_month, inv.billing_period)}
                       </td>
 
                       {/* 3. Tiền điện */}
-                      <td className="p-3 text-right text-gray-700">
+                      <td className="p-3 text-right text-[#1E293B] font-medium">
                         {formatMoney(elecAmount)}
                         {inv.electricity?.consumption !== undefined && (
-                          <div className="text-[11px] text-gray-400">
+                          <div className="text-[11px] text-[#64748B]">
                             {inv.electricity.consumption} kWh
                           </div>
                         )}
                       </td>
 
                       {/* 4. Tiền nước */}
-                      <td className="p-3 text-right text-gray-700">
+                      <td className="p-3 text-right text-[#1E293B] font-medium">
                         {formatMoney(waterAmount)}
                         {inv.water?.consumption !== undefined && (
-                          <div className="text-[11px] text-gray-400">
+                          <div className="text-[11px] text-[#64748B]">
                             {inv.water.consumption} m³
                           </div>
                         )}
                       </td>
 
                       {/* 5. Tổng tiền */}
-                      <td className="p-3 text-right font-bold text-blue-700">
+                      <td className="p-3 text-right font-bold text-[#1A73E8]">
                         {formatMoney(inv.total_amount)}
                         {inv.is_exempt && (
-                          <div className="text-[10px] text-amber-600 font-normal">Miễn thu</div>
+                          <div className="text-[10px] text-amber-700 font-medium bg-amber-500/10 px-1.5 py-0.5 rounded-lg inline-block mt-0.5 border border-amber-500/20">
+                            Miễn thu
+                          </div>
                         )}
                       </td>
 
@@ -641,14 +643,14 @@ export default function InvoicesPage() {
                         {displayStatus === 'Đã thu' ? (
                           <button
                             onClick={() => openProofModal(inv)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all duration-150 cursor-pointer shadow-2xs"
                             title="Bấm để xem chứng từ thanh toán"
                           >
                             <CheckCircle size={13} />
                             Đã thu
                           </button>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                          <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
                             Chưa thu
                           </span>
                         )}
@@ -661,14 +663,14 @@ export default function InvoicesPage() {
                             <>
                               <button
                                 onClick={() => openEditModal(inv)}
-                                className="p-1.5 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition"
+                                className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/60 border border-white/70 text-[#64748B] hover:text-[#1A73E8] hover:bg-white/90 hover:scale-[1.02] transition-all duration-150 shadow-2xs"
                                 title="Chỉnh sửa thông số (Nâng cao)"
                               >
                                 <SlidersHorizontal size={16} />
                               </button>
                               <button
                                 onClick={() => openPayModal(inv)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition shadow-sm"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20"
                                 title="Thu tiền hóa đơn"
                               >
                                 <CheckCircle size={14} /> Thu tiền
@@ -677,7 +679,7 @@ export default function InvoicesPage() {
                           ) : (
                             <button
                               onClick={() => openProofModal(inv)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/60 border border-white/70 text-[#1E293B] rounded-xl text-xs font-medium hover:bg-white/90 hover:scale-[1.01] transition-all duration-150 shadow-2xs"
                               title="Xem chứng từ"
                             >
                               <Eye size={14} /> Xem chứng từ
@@ -693,7 +695,7 @@ export default function InvoicesPage() {
           </table>
         </div>
         {meta && (
-          <div className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500 flex justify-between items-center">
+          <div className="px-4 py-3 border-t border-white/60 bg-white/30 text-xs text-[#64748B] font-medium flex justify-between items-center">
             <span>
               Hiển thị {invoices.length} / {meta.total} hóa đơn
             </span>
@@ -706,15 +708,15 @@ export default function InvoicesPage() {
       {/* ========================================================================= */}
       {advancedModalOpen && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
           onClick={() => !advancedSubmitting && setAdvancedModalOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-2xl space-y-5 my-8"
+            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-2xl shadow-xl space-y-5 my-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-              <div className="flex items-center gap-2 text-blue-700 font-bold text-lg">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+              <div className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
                 <SlidersHorizontal size={20} />
                 <h2>
                   {editingInvoice
@@ -724,7 +726,7 @@ export default function InvoicesPage() {
               </div>
               <button
                 onClick={() => setAdvancedModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150"
               >
                 <X size={20} />
               </button>
@@ -734,7 +736,7 @@ export default function InvoicesPage() {
               {/* Phòng và Kỳ thu */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                     Phòng <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -742,7 +744,7 @@ export default function InvoicesPage() {
                     value={advancedForm.room_id}
                     onChange={(e) => handleSelectRoom(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white disabled:bg-gray-100"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none disabled:bg-slate-100/80 transition-all duration-150"
                   >
                     <option value="">-- Chọn phòng --</option>
                     {rooms.map((r) => (
@@ -754,7 +756,7 @@ export default function InvoicesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                     Kỳ thu (Tháng/Năm) <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -763,16 +765,16 @@ export default function InvoicesPage() {
                     value={advancedForm.billing_month}
                     onChange={(e) => setAdvancedForm((f) => ({ ...f, billing_month: e.target.value }))}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white disabled:bg-gray-100"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none disabled:bg-slate-100/80 transition-all duration-150"
                   />
                 </div>
               </div>
 
               {/* Số người ở & Ngày chốt chỉ số */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                    <Users size={14} className="text-slate-500" />
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center gap-1">
+                    <Users size={14} className="text-[#64748B]" />
                     Số người ở tại lúc chốt
                   </label>
                   <input
@@ -785,16 +787,16 @@ export default function InvoicesPage() {
                         occupant_count: Math.max(0, parseInt(e.target.value, 10) || 0),
                       }))
                     }
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                   />
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-[#64748B]">
                     Lấy tự động từ Danh sách KTX (có thể điều chỉnh)
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                    <Calendar size={14} className="text-slate-500" />
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center gap-1">
+                    <Calendar size={14} className="text-[#64748B]" />
                     Ngày chốt chỉ số <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -802,26 +804,26 @@ export default function InvoicesPage() {
                     required
                     value={advancedForm.reading_date}
                     onChange={(e) => setAdvancedForm((f) => ({ ...f, reading_date: e.target.value }))}
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                   />
                 </div>
               </div>
 
               {/* Cụm thông số Điện */}
-              <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-3.5 space-y-3">
+              <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900 text-sm">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
                     <Zap size={16} className="text-amber-600" />
                     Thông số Điện
                   </div>
-                  <div className="text-xs font-semibold text-amber-800">
+                  <div className="text-xs font-semibold text-amber-700">
                     Thành tiền: {formatMoney(previewCalc.electricity.amount)}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Chỉ số cũ</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số cũ</label>
                     <input
                       type="number"
                       min="0"
@@ -835,12 +837,12 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Chỉ số mới</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số mới</label>
                     <input
                       type="number"
                       min="0"
@@ -854,14 +856,14 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className={`w-full px-2.5 py-1.5 border rounded-lg text-sm bg-white ${
-                        previewCalc.electricity.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                      className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 focus:outline-none transition-all duration-150 ${
+                        previewCalc.electricity.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Định mức/người (kWh)</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Định mức/người (kWh)</label>
                     <input
                       type="number"
                       min="0"
@@ -875,12 +877,12 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Đơn giá (đ/kWh)</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Đơn giá (đ/kWh)</label>
                     <input
                       type="number"
                       min="0"
@@ -894,7 +896,7 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
                 </div>
@@ -905,7 +907,7 @@ export default function InvoicesPage() {
                   </p>
                 )}
 
-                <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1 bg-white/70 p-2 rounded-lg border border-amber-100">
+                <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-4 gap-y-1 bg-white/80 p-2 rounded-xl border border-amber-500/15">
                   <span>Tiêu thụ: <b>{previewCalc.electricity.consumption} kWh</b></span>
                   <span>Định mức phòng: <b>{previewCalc.electricity.quota_total} kWh</b></span>
                   <span>Vượt định mức: <b>{previewCalc.electricity.excess} kWh</b></span>
@@ -913,20 +915,20 @@ export default function InvoicesPage() {
               </div>
 
               {/* Cụm thông số Nước */}
-              <div className="border border-sky-200 bg-sky-50/40 rounded-xl p-3.5 space-y-3">
+              <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-900 text-sm">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
                     <Droplets size={16} className="text-sky-600" />
                     Thông số Nước
                   </div>
-                  <div className="text-xs font-semibold text-sky-800">
+                  <div className="text-xs font-semibold text-sky-700">
                     Thành tiền: {formatMoney(previewCalc.water.amount)}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Chỉ số cũ</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số cũ</label>
                     <input
                       type="number"
                       min="0"
@@ -940,12 +942,12 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Chỉ số mới</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Chỉ số mới</label>
                     <input
                       type="number"
                       min="0"
@@ -959,14 +961,14 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className={`w-full px-2.5 py-1.5 border rounded-lg text-sm bg-white ${
-                        previewCalc.water.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                      className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 focus:outline-none transition-all duration-150 ${
+                        previewCalc.water.invalid ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Định mức/người (m³)</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Định mức/người (m³)</label>
                     <input
                       type="number"
                       min="0"
@@ -980,12 +982,12 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Đơn giá (đ/m³)</label>
+                    <label className="block text-[11px] font-medium text-[#64748B] mb-1">Đơn giá (đ/m³)</label>
                     <input
                       type="number"
                       min="0"
@@ -999,7 +1001,7 @@ export default function InvoicesPage() {
                           },
                         }))
                       }
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                     />
                   </div>
                 </div>
@@ -1010,7 +1012,7 @@ export default function InvoicesPage() {
                   </p>
                 )}
 
-                <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1 bg-white/70 p-2 rounded-lg border border-sky-100">
+                <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-4 gap-y-1 bg-white/80 p-2 rounded-xl border border-sky-500/15">
                   <span>Tiêu thụ: <b>{previewCalc.water.consumption} m³</b></span>
                   <span>Định mức phòng: <b>{previewCalc.water.quota_total} m³</b></span>
                   <span>Vượt định mức: <b>{previewCalc.water.excess} m³</b></span>
@@ -1020,19 +1022,19 @@ export default function InvoicesPage() {
               {/* Hạn thu & Cờ Không thu */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                     Bắt đầu thu
                   </label>
                   <input
                     type="date"
                     value={advancedForm.payment_start_date}
                     onChange={(e) => setAdvancedForm((f) => ({ ...f, payment_start_date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                     Hạn kết thúc thu <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1040,46 +1042,46 @@ export default function InvoicesPage() {
                     required
                     value={advancedForm.due_date}
                     onChange={(e) => setAdvancedForm((f) => ({ ...f, due_date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                   />
                 </div>
               </div>
 
               {/* Checkbox Miễn thu / Không thu */}
-              <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 p-2.5 bg-slate-500/5 rounded-xl border border-slate-500/10">
                 <input
                   type="checkbox"
                   id="is_exempt"
                   checked={advancedForm.is_exempt}
                   onChange={(e) => setAdvancedForm((f) => ({ ...f, is_exempt: e.target.checked }))}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-[#1A73E8] rounded-xl focus:ring-[#1A73E8]"
                 />
-                <label htmlFor="is_exempt" className="text-xs font-medium text-gray-700 cursor-pointer">
+                <label htmlFor="is_exempt" className="text-xs font-medium text-[#1E293B] cursor-pointer">
                   <b>Không thu đợt này</b> (Vẫn lưu chỉ số công-tơ, tổng tiền phải thu = 0đ)
                 </label>
               </div>
 
               {/* Ghi chú */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Ghi chú</label>
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú</label>
                 <textarea
                   rows={2}
                   value={advancedForm.notes}
                   onChange={(e) => setAdvancedForm((f) => ({ ...f, notes: e.target.value }))}
                   placeholder="Ghi chú về đợt thu, sự cố công tơ..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                 />
               </div>
 
               {/* Hộp tổng kết tiền xem trước */}
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
+              <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-blue-800 font-medium">Tổng tiền phải thu dự tính</div>
-                  <div className="text-xl font-black text-blue-900 mt-0.5">
+                  <div className="text-xs text-[#1A73E8] font-semibold">Tổng tiền phải thu dự tính</div>
+                  <div className="text-xl font-black text-[#1E293B] mt-0.5">
                     {formatMoney(previewCalc.totalAmount)}
                   </div>
                 </div>
-                <div className="text-right text-[11px] text-blue-700 space-y-0.5">
+                <div className="text-right text-[11px] text-[#64748B] space-y-0.5 font-medium">
                   <div>Điện: {formatMoney(previewCalc.electricity.amount)}</div>
                   <div>Nước: {formatMoney(previewCalc.water.amount)}</div>
                 </div>
@@ -1091,14 +1093,14 @@ export default function InvoicesPage() {
                   type="button"
                   disabled={advancedSubmitting}
                   onClick={() => setAdvancedModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                  className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01]"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={advancedSubmitting}
-                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition shadow-sm disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50"
                 >
                   {advancedSubmitting ? 'Đang lưu...' : editingInvoice ? 'Cập nhật' : 'Tạo đợt thu'}
                 </button>
@@ -1113,49 +1115,49 @@ export default function InvoicesPage() {
       {/* ========================================================================= */}
       {payModalOpen && payingInvoice && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
           onClick={() => !paySubmitting && setPayModalOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
+            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-md shadow-xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-              <h2 className="text-lg font-bold text-gray-800">Xác nhận thu tiền</h2>
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+              <h2 className="text-lg font-bold text-[#1E293B]">Xác nhận thu tiền</h2>
               <button
                 onClick={() => setPayModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-3 bg-gray-50 rounded-xl space-y-1 text-xs text-gray-600">
+            <div className="p-3 bg-slate-500/5 rounded-xl border border-slate-500/10 space-y-1 text-xs text-[#64748B]">
               <div>
                 Phòng:{' '}
-                <b>
+                <b className="text-[#1E293B]">
                   {typeof payingInvoice.room_id === 'object'
                     ? payingInvoice.room_id?.room_name || payingInvoice.room_id?.room_code
                     : '—'}
                 </b>
               </div>
               <div>
-                Kỳ thu: <b>{formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}</b>
+                Kỳ thu: <b className="text-[#1E293B]">{formatBillingMonth(payingInvoice.billing_month, payingInvoice.billing_period)}</b>
               </div>
               <div>
-                Số tiền: <b className="text-emerald-700 text-sm">{formatMoney(payingInvoice.total_amount)}</b>
+                Số tiền: <b className="text-emerald-700 text-sm font-bold">{formatMoney(payingInvoice.total_amount)}</b>
               </div>
             </div>
 
             <form onSubmit={handleConfirmPay} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                   Phương thức thanh toán <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={payMethod}
                   onChange={(e) => setPayMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                 >
                   <option value="Chuyển khoản">Chuyển khoản</option>
                   <option value="Tiền mặt">Tiền mặt</option>
@@ -1165,10 +1167,10 @@ export default function InvoicesPage() {
 
               {/* Upload ảnh chứng từ */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                   Ảnh chứng từ thanh toán (tuỳ chọn)
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-3 text-center hover:border-blue-400 transition bg-slate-50">
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 text-center hover:border-[#1A73E8]/50 transition-all duration-150 bg-slate-500/5">
                   <input
                     type="file"
                     id="proof_upload"
@@ -1182,17 +1184,17 @@ export default function InvoicesPage() {
                         <img
                           src={payProofPreview}
                           alt="Chứng từ"
-                          className="max-h-36 mx-auto rounded-lg shadow-sm object-contain"
+                          className="max-h-36 mx-auto rounded-xl shadow-sm object-contain"
                         />
-                        <span className="text-xs text-blue-600 hover:underline block">
+                        <span className="text-xs text-[#1A73E8] font-medium hover:underline block">
                           Chọn ảnh khác
                         </span>
                       </div>
                     ) : (
                       <div className="space-y-1 py-2">
-                        <Upload size={24} className="mx-auto text-gray-400" />
-                        <div className="text-xs text-gray-600 font-medium">Bấm để tải ảnh chứng từ</div>
-                        <div className="text-[10px] text-gray-400">PNG, JPG, WebP tối đa 5MB</div>
+                        <Upload size={24} className="mx-auto text-[#64748B]" />
+                        <div className="text-xs text-[#1E293B] font-medium">Bấm để tải ảnh chứng từ</div>
+                        <div className="text-[10px] text-[#64748B]">PNG, JPG, WebP tối đa 5MB</div>
                       </div>
                     )}
                   </label>
@@ -1200,13 +1202,13 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Ghi chú thanh toán</label>
+                <label className="block text-xs font-semibold text-[#1E293B] mb-1">Ghi chú thanh toán</label>
                 <textarea
                   rows={2}
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
                   placeholder="Mã giao dịch, thông tin người nộp..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] focus:outline-none transition-all duration-150"
                 />
               </div>
 
@@ -1215,14 +1217,14 @@ export default function InvoicesPage() {
                   type="button"
                   disabled={paySubmitting}
                   onClick={() => setPayModalOpen(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01]"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={paySubmitting}
-                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition shadow-sm disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-emerald-600/20 disabled:opacity-50"
                 >
                   {paySubmitting ? 'Đang xử lý...' : 'Xác nhận thu'}
                 </button>
@@ -1237,23 +1239,23 @@ export default function InvoicesPage() {
       {/* ========================================================================= */}
       {proofModalOpen && viewingInvoice && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
           onClick={() => setProofModalOpen(false)}
           onKeyDown={(e) => e.key === 'Escape' && setProofModalOpen(false)}
           tabIndex={-1}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-lg shadow-xl space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
               <div>
-                <h2 className="text-lg font-bold text-gray-800">Chi tiết chứng từ thanh toán</h2>
+                <h2 className="text-lg font-bold text-[#1E293B]">Chi tiết chứng từ thanh toán</h2>
                 <span className="text-xs text-emerald-700 font-medium">Trạng thái: Đã thu</span>
               </div>
               <button
                 onClick={() => setProofModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150"
                 aria-label="Đóng"
               >
                 <X size={20} />
@@ -1261,67 +1263,67 @@ export default function InvoicesPage() {
             </div>
 
             {/* Thông tin thanh toán */}
-            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10">
               <div>
-                <span className="text-gray-500 block">Phòng</span>
-                <span className="font-semibold text-gray-800">
+                <span className="text-[#64748B] block">Phòng</span>
+                <span className="font-semibold text-[#1E293B]">
                   {typeof viewingInvoice.room_id === 'object'
                     ? viewingInvoice.room_id?.room_name || viewingInvoice.room_id?.room_code
                     : '—'}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block">Kỳ thu</span>
-                <span className="font-semibold text-gray-800">
+                <span className="text-[#64748B] block">Kỳ thu</span>
+                <span className="font-semibold text-[#1E293B]">
                   {formatBillingMonth(viewingInvoice.billing_month, viewingInvoice.billing_period)}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block">Tổng tiền</span>
+                <span className="text-[#64748B] block">Tổng tiền</span>
                 <span className="font-bold text-emerald-700 text-sm">
                   {formatMoney(viewingInvoice.total_amount)}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block">Phương thức</span>
-                <span className="font-semibold text-gray-800">
+                <span className="text-[#64748B] block">Phương thức</span>
+                <span className="font-semibold text-[#1E293B]">
                   {viewingInvoice.payment_method || 'Chuyển khoản'}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block">Ngày thu</span>
-                <span className="font-semibold text-gray-800">
+                <span className="text-[#64748B] block">Ngày thu</span>
+                <span className="font-semibold text-[#1E293B]">
                   {formatDate(viewingInvoice.paid_at)}
                 </span>
               </div>
               <div>
-                <span className="text-gray-500 block">Người xác nhận</span>
-                <span className="font-semibold text-gray-800">
+                <span className="text-[#64748B] block">Người xác nhận</span>
+                <span className="font-semibold text-[#1E293B]">
                   {viewingInvoice.confirmed_by_id?.full_name ||
                     viewingInvoice.confirmed_by_id?.user_name ||
                     'Quản lý KTX'}
                 </span>
               </div>
               {viewingInvoice.notes && (
-                <div className="col-span-2 pt-1 border-t border-slate-200">
-                  <span className="text-gray-500 block">Ghi chú:</span>
-                  <span className="text-gray-700">{viewingInvoice.notes}</span>
+                <div className="col-span-2 pt-1 border-t border-slate-200/60">
+                  <span className="text-[#64748B] block">Ghi chú:</span>
+                  <span className="text-[#1E293B]">{viewingInvoice.notes}</span>
                 </div>
               )}
             </div>
 
             {/* Ảnh chứng từ */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2">
+              <label className="block text-xs font-semibold text-[#1E293B] mb-2">
                 Ảnh chứng từ đính kèm
               </label>
               {viewingInvoice.payment_proof?.url ? (
                 <div className="space-y-2">
-                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-black/5 flex items-center justify-center p-2">
+                  <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
                     <img
                       src={viewingInvoice.payment_proof.url}
                       alt="Chứng từ thanh toán"
-                      className="max-h-72 w-auto object-contain rounded-lg shadow-sm"
+                      className="max-h-72 w-auto object-contain rounded-xl shadow-sm"
                     />
                   </div>
                   <div className="text-right">
@@ -1329,16 +1331,16 @@ export default function InvoicesPage() {
                       href={viewingInvoice.payment_proof.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+                      className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
                     >
                       <Eye size={12} /> Xem ảnh kích thước đầy đủ
                     </a>
                   </div>
                 </div>
               ) : (
-                <div className="p-6 border border-dashed border-gray-200 rounded-xl text-center text-gray-400 bg-gray-50">
+                <div className="p-6 border border-dashed border-slate-200 rounded-xl text-center text-[#64748B] bg-slate-500/5">
                   <FileText size={28} className="mx-auto mb-1 opacity-30" />
-                  <p className="text-xs">Chưa có ảnh chứng từ thanh toán cho hóa đơn này</p>
+                  <p className="text-xs font-medium">Chưa có ảnh chứng từ thanh toán cho hóa đơn này</p>
                 </div>
               )}
             </div>
@@ -1346,7 +1348,7 @@ export default function InvoicesPage() {
             <div className="pt-2">
               <button
                 onClick={() => setProofModalOpen(false)}
-                className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition"
+                className="w-full px-4 py-2.5 bg-slate-100 text-[#1E293B] rounded-xl text-sm font-medium hover:bg-slate-200 transition-all duration-150 hover:scale-[1.01]"
               >
                 Đóng
               </button>
@@ -1360,39 +1362,39 @@ export default function InvoicesPage() {
       {/* ========================================================================= */}
       {configModalOpen && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto"
           onClick={() => !configSubmitting && setConfigModalOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-5 my-8"
+            className="bg-white/95 backdrop-blur-xl rounded-2xl border border-white/80 p-6 w-full max-w-lg shadow-xl space-y-5 my-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-              <div className="flex items-center gap-2 text-blue-700 font-bold text-lg">
+            <div className="flex items-center justify-between border-b pb-3 border-slate-100">
+              <div className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
                 <SlidersHorizontal size={20} />
                 <h2>Cấu hình định mức & đơn giá điện - nước</h2>
               </div>
               <button
                 onClick={() => setConfigModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#64748B] hover:text-[#1E293B] hover:bg-white/80 border border-transparent hover:border-white/70 transition-all duration-150"
               >
                 <X size={20} />
               </button>
             </div>
 
             {configLoading ? (
-              <div className="py-8 text-center text-sm text-gray-500">Đang tải cấu hình...</div>
+              <div className="py-8 text-center text-sm text-[#64748B]">Đang tải cấu hình...</div>
             ) : (
               <form onSubmit={handleSaveConfig} className="space-y-4">
                 {/* Thông số điện */}
-                <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900 text-sm">
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
                     <Zap size={16} className="text-amber-600" />
                     Thông số Điện
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                         Định mức/người (kWh) <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1409,11 +1411,11 @@ export default function InvoicesPage() {
                             },
                           }))
                         }
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                         Đơn giá (đ/kWh) <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1430,21 +1432,21 @@ export default function InvoicesPage() {
                             },
                           }))
                         }
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Thông số nước */}
-                <div className="border border-sky-200 bg-sky-50/40 rounded-xl p-3.5 space-y-3">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-900 text-sm">
+                <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
                     <Droplets size={16} className="text-sky-600" />
                     Thông số Nước
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                         Định mức/người (m³) <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1461,11 +1463,11 @@ export default function InvoicesPage() {
                             },
                           }))
                         }
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
                         Đơn giá (đ/m³) <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1482,16 +1484,16 @@ export default function InvoicesPage() {
                             },
                           }))
                         }
-                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Thời hạn thu tự động */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                  <label className="block text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                    <Calendar size={14} className="text-slate-500" />
+                <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                    <Calendar size={14} className="text-[#64748B]" />
                     Số ngày thu tự động (ngày) <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1505,9 +1507,9 @@ export default function InvoicesPage() {
                         configured_collection_days: Math.max(1, parseInt(e.target.value, 10) || 1),
                       }))
                     }
-                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
                   />
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[11px] text-[#64748B]">
                     Hạn kết thúc thu (due date) của mỗi phòng sẽ tự động bằng ngày ghi chỉ số cộng thêm số ngày này.
                   </p>
                 </div>
@@ -1517,14 +1519,14 @@ export default function InvoicesPage() {
                     type="button"
                     disabled={configSubmitting}
                     onClick={() => setConfigModalOpen(false)}
-                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                    className="flex-1 px-4 py-2.5 border border-slate-200/80 rounded-xl text-sm font-medium text-[#1E293B] bg-white/70 hover:bg-white transition-all duration-150 hover:scale-[1.01]"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
                     disabled={configSubmitting}
-                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition shadow-sm disabled:opacity-50"
+                    className="flex-1 px-4 py-2.5 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] transition-all duration-150 hover:scale-[1.01] shadow-sm shadow-blue-500/20 disabled:opacity-50"
                   >
                     {configSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
                   </button>

@@ -415,21 +415,21 @@ export default function MeterReadingsPage() {
   return (
     <div className="space-y-6 pb-16">
       {/* Header và Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex items-center justify-between flex-wrap gap-4 rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md p-4 sm:p-5 shadow-sm shadow-slate-300/30">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/dormitory/invoices')}
-            className="p-2 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/50 backdrop-blur-sm border border-white/70 text-[#1E293B] hover:bg-white/80 hover:text-[#1A73E8] hover:scale-[1.02] transition-all duration-150 shadow-sm shadow-slate-300/30"
             title="Quay lại danh sách hóa đơn"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight flex items-center gap-2">
               <Zap size={22} className="text-amber-500" />
               Ghi chỉ số điện - nước KTX
             </h1>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs font-medium text-[#64748B] mt-0.5">
               Ghi chỉ số công-tơ cho các phòng trong kỳ, hệ thống tự động tính tiền và hạn thu
             </p>
           </div>
@@ -438,21 +438,21 @@ export default function MeterReadingsPage() {
         <div className="flex items-center gap-3 flex-wrap">
           {/* Chọn kỳ thu */}
           <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">
+            <label className="text-xs font-semibold text-[#1E293B] whitespace-nowrap">
               Kỳ thu:
             </label>
             <input
               type="month"
               value={billingMonth}
               onChange={(e) => setBillingMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              className="px-3 py-1.5 rounded-xl bg-white/50 backdrop-blur-sm border border-white/70 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 font-medium"
             />
           </div>
 
           <button
             onClick={loadData}
             disabled={loading}
-            className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/50 backdrop-blur-sm border border-white/70 text-[#1E293B] hover:bg-white/80 hover:text-[#1A73E8] hover:scale-[1.02] transition-all duration-150 shadow-sm shadow-slate-300/30 disabled:opacity-50"
             title="Tải lại dữ liệu"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -462,7 +462,7 @@ export default function MeterReadingsPage() {
           <button
             onClick={handleSaveAll}
             disabled={savingAll || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[#1A73E8] text-white rounded-xl text-sm font-medium hover:bg-[#1557B0] hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-blue-500/20 disabled:opacity-50"
           >
             <Save size={16} /> {savingAll ? 'Đang lưu...' : 'Lưu tất cả hợp lệ'}
           </button>
@@ -470,18 +470,18 @@ export default function MeterReadingsPage() {
       </div>
 
       {/* Tiến độ ghi chỉ số */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2">
+      <div className="rounded-2xl border border-white/75 bg-white/45 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30 space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-gray-700">
+          <span className="font-semibold text-[#1E293B]">
             Tiến độ ghi chỉ số kỳ {billingMonth}
           </span>
-          <span className="font-bold text-blue-700">
+          <span className="font-bold text-[#1A73E8]">
             {recordedCount} / {totalCount} phòng ({progressPercent}%)
           </span>
         </div>
-        <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+        <div className="w-full bg-slate-200/60 h-2.5 rounded-xl overflow-hidden">
           <div
-            className="bg-blue-600 h-full rounded-full transition-all duration-300"
+            className="bg-[#1A73E8] h-full rounded-xl transition-all duration-300"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -491,16 +491,16 @@ export default function MeterReadingsPage() {
       <div className="space-y-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 animate-pulse space-y-4">
-              <div className="h-6 bg-gray-100 rounded w-1/4" />
+            <div key={i} className="rounded-2xl border border-white/75 bg-white/45 p-6 shadow-sm shadow-slate-300/30 backdrop-blur-md animate-pulse space-y-4">
+              <div className="h-6 bg-slate-200/60 rounded-xl w-1/4" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="h-24 bg-gray-50 rounded-xl" />
-                <div className="h-24 bg-gray-50 rounded-xl" />
+                <div className="h-24 bg-slate-100/70 rounded-xl" />
+                <div className="h-24 bg-slate-100/70 rounded-xl" />
               </div>
             </div>
           ))
         ) : rooms.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100 shadow-sm">
+          <div className="rounded-2xl border border-white/75 bg-white/45 p-12 text-center text-[#64748B] shadow-sm shadow-slate-300/30 backdrop-blur-md">
             <BuildingIcon size={40} className="mx-auto mb-2 opacity-30" />
             <p className="text-sm font-medium">Không tìm thấy phòng nào trong hệ thống</p>
           </div>
@@ -522,34 +522,34 @@ export default function MeterReadingsPage() {
               <div
                 key={room.room_id}
                 data-testid={`room-card-${room.room_id}`}
-                className={`bg-white rounded-2xl p-5 shadow-sm border transition ${
+                className={`rounded-2xl p-5 shadow-sm shadow-slate-300/30 backdrop-blur-md transition-all duration-150 hover:bg-white/60 hover:scale-[1.005] border ${
                   cardState.error
-                    ? 'border-red-300 ring-1 ring-red-200'
+                    ? 'border-rose-500/30 bg-rose-500/5 ring-1 ring-rose-500/20'
                     : cardState.dirty
-                    ? 'border-blue-300 ring-1 ring-blue-100'
+                    ? 'border-blue-500/30 bg-blue-500/5 ring-1 ring-blue-500/20'
                     : isRecorded
-                    ? 'border-emerald-200/80 bg-emerald-50/10'
-                    : 'border-gray-200'
+                    ? 'border-emerald-500/30 bg-white/50'
+                    : 'border-white/75 bg-white/45'
                 }`}
               >
                 {/* Header Thẻ phòng */}
-                <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-gray-100">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-white/60">
                   <div className="flex items-center gap-3">
-                    <div className="font-bold text-gray-800 text-base">
+                    <div className="font-bold text-[#1E293B] text-base">
                       {roomName} {buildingName ? `(${buildingName})` : ''}
                     </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-slate-500/10 text-[#1E293B] border border-slate-500/20">
                       <Users size={13} /> {room.occupant_count} người ở
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {isRecorded ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
                         <CheckCircle size={13} /> Đã ghi {room.invoice_code ? `(${room.invoice_code})` : ''}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                      <span className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
                         Chưa ghi
                       </span>
                     )}
@@ -559,32 +559,32 @@ export default function MeterReadingsPage() {
                 {/* Body Thẻ: 2 Cụm thông số Điện và Nước */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
                   {/* Cụm Điện */}
-                  <div className="border border-amber-200/80 bg-amber-50/30 rounded-xl p-3.5 space-y-2.5">
+                  <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-900 text-sm">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
                         <Zap size={16} className="text-amber-600" />
                         Điện (kWh)
                       </div>
-                      <div className="text-xs font-semibold text-amber-800">
+                      <div className="text-xs font-semibold text-amber-700">
                         Thành tiền: {formatMoney(preview.elecAmount)}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-medium text-gray-500 mb-1">
+                        <label className="block text-[11px] font-medium text-[#64748B] mb-1">
                           Chỉ số cũ (kWh)
                         </label>
                         <input
                           type="number"
                           disabled
                           value={preview.prevElec}
-                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-700 cursor-not-allowed font-medium"
+                          className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 text-sm bg-slate-100/80 text-[#64748B] cursor-not-allowed font-medium"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        <label className="block text-[11px] font-bold text-[#1E293B] mb-1">
                           Số điện mới <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -596,8 +596,8 @@ export default function MeterReadingsPage() {
                           onChange={(e) =>
                             handleInputChange(room.room_id, 'electricity_reading', e.target.value)
                           }
-                          className={`w-full px-2.5 py-1.5 border rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                            preview.elecInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300'
+                          className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 font-medium focus:outline-none transition-all duration-150 ${
+                            preview.elecInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
                           }`}
                         />
                       </div>
@@ -609,7 +609,7 @@ export default function MeterReadingsPage() {
                       </p>
                     )}
 
-                    <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5 bg-white/80 p-2 rounded-lg border border-amber-100">
+                    <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-3 gap-y-0.5 bg-white/80 p-2 rounded-xl border border-amber-500/15">
                       <span>Tiêu thụ: <b>{preview.elecConsumption} kWh</b></span>
                       <span>Định mức: <b>{preview.elecQuotaTotal} kWh</b></span>
                       <span>Vượt: <b>{preview.elecExcess} kWh</b></span>
@@ -617,32 +617,32 @@ export default function MeterReadingsPage() {
                   </div>
 
                   {/* Cụm Nước */}
-                  <div className="border border-sky-200/80 bg-sky-50/30 rounded-xl p-3.5 space-y-2.5">
+                  <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-bold text-sky-900 text-sm">
+                      <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
                         <Droplets size={16} className="text-sky-600" />
                         Nước (m³)
                       </div>
-                      <div className="text-xs font-semibold text-sky-800">
+                      <div className="text-xs font-semibold text-sky-700">
                         Thành tiền: {formatMoney(preview.waterAmount)}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-medium text-gray-500 mb-1">
+                        <label className="block text-[11px] font-medium text-[#64748B] mb-1">
                           Chỉ số cũ (m³)
                         </label>
                         <input
                           type="number"
                           disabled
                           value={preview.prevWater}
-                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-100 text-gray-700 cursor-not-allowed font-medium"
+                          className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200/80 text-sm bg-slate-100/80 text-[#64748B] cursor-not-allowed font-medium"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        <label className="block text-[11px] font-bold text-[#1E293B] mb-1">
                           Số nước mới <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -654,8 +654,8 @@ export default function MeterReadingsPage() {
                           onChange={(e) =>
                             handleInputChange(room.room_id, 'water_reading', e.target.value)
                           }
-                          className={`w-full px-2.5 py-1.5 border rounded-lg text-sm bg-white font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                            preview.waterInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-gray-300'
+                          className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 font-medium focus:outline-none transition-all duration-150 ${
+                            preview.waterInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
                           }`}
                         />
                       </div>
@@ -667,7 +667,7 @@ export default function MeterReadingsPage() {
                       </p>
                     )}
 
-                    <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5 bg-white/80 p-2 rounded-lg border border-sky-100">
+                    <div className="text-[11px] text-[#64748B] flex flex-wrap gap-x-3 gap-y-0.5 bg-white/80 p-2 rounded-xl border border-sky-500/15">
                       <span>Tiêu thụ: <b>{preview.waterConsumption} m³</b></span>
                       <span>Định mức: <b>{preview.waterQuotaTotal} m³</b></span>
                       <span>Vượt: <b>{preview.waterExcess} m³</b></span>
@@ -676,11 +676,11 @@ export default function MeterReadingsPage() {
                 </div>
 
                 {/* Footer Thẻ: Tổng tiền & Nút Lưu phòng */}
-                <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-gray-100 mt-3">
+                <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-white/60 mt-3">
                   <div className="flex items-center gap-4">
                     <div>
-                      <span className="text-xs text-gray-500 block">Tổng tiền dự tính:</span>
-                      <span className="text-base font-bold text-blue-700">
+                      <span className="text-xs text-[#64748B] block font-medium">Tổng tiền dự tính:</span>
+                      <span className="text-base font-bold text-[#1A73E8]">
                         {formatMoney(preview.totalAmount)}
                       </span>
                     </div>
@@ -697,7 +697,7 @@ export default function MeterReadingsPage() {
                     <button
                       onClick={() => handleSaveSingle(room)}
                       disabled={cardState.saving || !preview.readyToSave}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#1A73E8] text-white rounded-xl text-xs font-semibold hover:bg-[#1557B0] hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Check size={14} />
                       {cardState.saving ? 'Đang lưu...' : isRecorded ? 'Cập nhật' : 'Lưu phòng này'}
@@ -712,12 +712,12 @@ export default function MeterReadingsPage() {
 
       {/* Floating Bottom Bar khi có thay đổi chưa lưu */}
       {hasUnsavedChanges && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-4 z-40 border border-slate-700 animate-in fade-in slide-in-from-bottom-4">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-4 z-40 border border-white/20 animate-in fade-in slide-in-from-bottom-4">
           <div className="text-xs font-medium">Có thay đổi chỉ số chưa lưu</div>
           <button
             onClick={handleSaveAll}
             disabled={savingAll}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-500 transition shadow"
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1A73E8] text-white rounded-xl text-xs font-semibold hover:bg-[#1557B0] hover:scale-[1.01] transition-all duration-150 shadow"
           >
             <Save size={14} /> {savingAll ? 'Đang lưu...' : 'Lưu tất cả hợp lệ'}
           </button>
