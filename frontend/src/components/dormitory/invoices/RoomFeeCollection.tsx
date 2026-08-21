@@ -932,10 +932,10 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
         key: 'actions',
         header: 'Thao tác',
         priority: 'action',
-        className: 'w-[140px] min-w-[140px] text-left',
+        className: 'w-[140px] min-w-[140px] pr-5 text-right whitespace-nowrap',
         render: (_, inv) => {
           return (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-end gap-1.5">
               {canConfirmInvoice && (
                 <button
                   type="button"
