@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Search,
   CheckCircle,
@@ -21,7 +21,10 @@ import {
   ArrowRight,
   ShieldCheck,
   RotateCcw,
+  ListFilter,
+  ChevronDown,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   dormitoryApi,
   RoomFeeInvoice,
@@ -62,7 +65,11 @@ import {
   getDisplayStatus,
 } from '@/app/(dashboard)/dormitory/invoices/page';
 
-export default function RoomFeeCollection() {
+export interface RoomFeeCollectionProps {
+  subViewSwitcher?: React.ReactNode;
+}
+
+export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollectionProps = {}) {
   const { hasPermission } = useAuth();
   const canCreateInvoice =
     hasPermission('DORM_INVOICE_CREATE') ||
@@ -97,10 +104,21 @@ export default function RoomFeeCollection() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Calendar popovers
+  // Calendar popovers & status filter
   const [calendarFilterOpen, setCalendarFilterOpen] = useState(false);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [periodStartCalendarOpen, setPeriodStartCalendarOpen] = useState(false);
   const [periodDueDateCalendarOpen, setPeriodDueDateCalendarOpen] = useState(false);
+
+  // Mobile search expand state
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (mobileSearchOpen) {
+      searchRef.current?.focus();
+    }
+  }, [mobileSearchOpen]);
 
   // Config modal state
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -617,128 +635,196 @@ export default function RoomFeeCollection() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {/* Toolbar */}
-      <div className="flex shrink-0 items-center justify-start gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
-        {/* Search */}
-        <Research
-          aria-label="Tìm kiếm thành viên, phòng..."
-          placeholder="Tìm tên SV, mã SV, phòng..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-            setSelected([]);
-          }}
-          containerClassName="hidden sm:flex w-[240px] shrink-0"
-        />
+      {/* Header & Toolbar: mobile (2 hàng, 2 tab con full width, toolbar ưu tiên icon), desktop (chung 1 hàng) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-start gap-2 w-full shrink-0">
+        {subViewSwitcher}
 
-        {/* Lọc kỳ thu */}
-        <Popover open={calendarFilterOpen} onOpenChange={setCalendarFilterOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-9 rounded-xl border border-white/80 bg-white/50 px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
-              title="Lọc theo kỳ bắt đầu"
-              aria-label="Lọc theo kỳ bắt đầu"
-            >
-              <CalendarIcon size={14} className="text-[#1A73E8]" />
-              <span>{filterMonth ? `Kỳ: ${formatBillingMonth(filterMonth)}` : 'Tất cả kỳ thu'}</span>
-              {filterMonth && (
-                <X
-                  size={13}
-                  className="text-slate-400 hover:text-rose-600 transition-colors ml-0.5"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFilterMonth('');
-                    setPage(1);
-                    setSelected([]);
-                  }}
-                />
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
-            <CustomCalendar
-              monthOnly
-              monthValue={filterMonth || defaultMonth}
-              startDate={filterMonth ? new Date(`${filterMonth}-01T00:00:00`) : null}
-              endDate={null}
-              onRangeSelect={() => {}}
-              onRangeConfirm={(start) => {
-                const y = start.getFullYear();
-                const m = String(start.getMonth() + 1).padStart(2, '0');
-                setFilterMonth(`${y}-${m}`);
+        {/* Mobile search bar when expanded full width */}
+        {mobileSearchOpen ? (
+          <div className="flex w-full items-center gap-1.5 py-0.5 sm:hidden">
+            <Research
+              ref={searchRef}
+              aria-label="Tìm kiếm thành viên, phòng..."
+              placeholder="Tìm tên SV, mã SV, phòng..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
                 setPage(1);
                 setSelected([]);
-                setCalendarFilterOpen(false);
               }}
-              onCancel={() => setCalendarFilterOpen(false)}
-              onConfirm={() => setCalendarFilterOpen(false)}
+              containerClassName="flex-1 w-full max-w-none"
             />
-          </PopoverContent>
-        </Popover>
-
-        {/* Lọc trạng thái */}
-        <div className="w-[160px] shrink-0">
-          <Select
-            value={filterStatus}
-            onValueChange={(val: any) => {
-              setFilterStatus(val);
-              setPage(1);
-              setSelected([]);
-            }}
-          >
-            <SelectTrigger
-              aria-label="Lọc theo trạng thái phí phòng"
-              className="h-9 rounded-xl border border-white/80 bg-white/50 text-xs font-semibold text-slate-700 hover:bg-white/80"
-            >
-              <SelectValue placeholder="Tất cả trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Tất cả">Tất cả trạng thái</SelectItem>
-              <SelectItem value="Chưa thu">Chưa thu</SelectItem>
-              <SelectItem value="Đã thu">Đã thu</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Nút hành động bên phải */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {/* Nút Cấu hình đợt thu */}
-          <Button
-            variant="outline"
-            aria-label="Cấu hình đơn giá thu phí phòng"
-            title="Cấu hình đơn giá & QR thu phí phòng"
-            onClick={openConfigModal}
-            className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-          >
-            <SlidersHorizontal size={15} />
-          </Button>
-
-          {/* Nút Lập đợt thu */}
-          {canCreateInvoice && (
             <Button
-              aria-label="Lập đợt thu phí phòng"
-              onClick={openCreatePeriodModal}
-              className="h-9 rounded-xl bg-[#1A73E8] px-3.5 text-xs font-semibold text-white hover:bg-[#1557B0] shrink-0 gap-1.5 cursor-pointer shadow-sm"
+              type="button"
+              variant="outline"
+              aria-label="Đóng tìm kiếm"
+              title="Đóng tìm kiếm"
+              onClick={() => setMobileSearchOpen(false)}
+              className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 cursor-pointer"
             >
-              <Plus size={14} />
-              <span>Lập đợt thu</span>
+              <X size={16} />
             </Button>
-          )}
+          </div>
+        ) : (
+          /* Toolbar */
+          <div className="flex flex-1 items-center justify-start gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap min-w-0">
+            {/* Desktop search */}
+            <Research
+              aria-label="Tìm kiếm thành viên, phòng..."
+              placeholder="Tìm tên SV, mã SV, phòng..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+                setSelected([]);
+              }}
+              containerClassName="hidden sm:flex w-[240px] shrink-0"
+            />
 
-          {/* Nút Tải lại */}
-          <Button
-            variant="outline"
-            aria-label="Tải lại danh sách phí phòng"
-            title="Tải lại"
-            onClick={() => void loadInvoices(true)}
-            className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-          >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          </Button>
+            {/* Mobile search toggle button */}
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Mở tìm kiếm"
+              title="Tìm kiếm"
+              onClick={() => setMobileSearchOpen(true)}
+              className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 cursor-pointer"
+            >
+              <Search size={15} />
+            </Button>
+
+            {/* Lọc kỳ thu (Icon trên mobile, text đầy đủ trên desktop) */}
+            <Popover open={calendarFilterOpen} onOpenChange={setCalendarFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer relative"
+                  title="Lọc theo kỳ bắt đầu"
+                  aria-label="Lọc theo kỳ bắt đầu"
+                >
+                  <CalendarIcon size={14} className="text-[#1A73E8]" />
+                  <span className="hidden sm:inline">{filterMonth ? `Kỳ: ${formatBillingMonth(filterMonth)}` : 'Tất cả kỳ thu'}</span>
+                  {filterMonth && (
+                    <>
+                      <span className="sm:hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-[#1A73E8]" />
+                      <X
+                        size={13}
+                        className="hidden sm:inline text-slate-400 hover:text-rose-600 transition-colors ml-0.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFilterMonth('');
+                          setPage(1);
+                          setSelected([]);
+                        }}
+                      />
+                    </>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                <CustomCalendar
+                  monthOnly
+                  monthValue={filterMonth || defaultMonth}
+                  startDate={filterMonth ? new Date(`${filterMonth}-01T00:00:00`) : null}
+                  endDate={null}
+                  onRangeSelect={() => {}}
+                  onRangeConfirm={(start) => {
+                    const y = start.getFullYear();
+                    const m = String(start.getMonth() + 1).padStart(2, '0');
+                    setFilterMonth(`${y}-${m}`);
+                    setPage(1);
+                    setSelected([]);
+                    setCalendarFilterOpen(false);
+                  }}
+                  onCancel={() => setCalendarFilterOpen(false)}
+                  onConfirm={() => setCalendarFilterOpen(false)}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* Lọc trạng thái (Icon trên mobile, dropdown đầy đủ trên desktop) */}
+            <Popover open={statusFilterOpen} onOpenChange={setStatusFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  aria-label="Lọc theo trạng thái phí phòng"
+                  title="Lọc theo trạng thái phí phòng"
+                  className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer relative"
+                >
+                  <ListFilter size={15} className={filterStatus !== 'Tất cả' ? 'text-[#1A73E8]' : 'text-slate-600'} />
+                  <span className="hidden sm:inline">{filterStatus === 'Tất cả' ? 'Tất cả trạng thái' : filterStatus}</span>
+                  <ChevronDown className="hidden sm:inline h-3.5 w-3.5 opacity-50 ml-0.5 text-[#64748B]" />
+                  {filterStatus !== 'Tất cả' && (
+                    <span className="sm:hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-[#1A73E8]" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="z-[100] w-[160px] p-1.5 rounded-xl bg-white/90 backdrop-blur-md border border-white/80 shadow-md">
+                <div className="space-y-1">
+                  {['Tất cả', 'Chưa thu', 'Đã thu'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setFilterStatus(st as any);
+                        setPage(1);
+                        setSelected([]);
+                        setStatusFilterOpen(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 text-xs rounded-lg transition-all flex items-center justify-between cursor-pointer",
+                        filterStatus === st ? "bg-blue-50/80 text-[#1A73E8] font-bold" : "text-slate-700 hover:bg-white/60 font-medium"
+                      )}
+                    >
+                      <span>{st === 'Tất cả' ? 'Tất cả trạng thái' : st}</span>
+                      {filterStatus === st && <Check size={14} className="text-[#1A73E8]" />}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+          {/* Nút hành động bên phải */}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {/* Nút Cấu hình đợt thu */}
+            <Button
+              variant="outline"
+              aria-label="Cấu hình đơn giá thu phí phòng"
+              title="Cấu hình đơn giá & QR thu phí phòng"
+              onClick={openConfigModal}
+              className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
+            >
+              <SlidersHorizontal size={15} />
+            </Button>
+
+            {/* Nút Lập đợt thu */}
+            {canCreateInvoice && (
+              <Button
+                variant="outline"
+                aria-label="Lập đợt thu phí phòng"
+                title="Lập đợt thu"
+                onClick={openCreatePeriodModal}
+                className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span className="hidden sm:inline">Lập đợt thu</span>
+              </Button>
+            )}
+
+            {/* Nút Tải lại */}
+            <Button
+              variant="outline"
+              aria-label="Tải lại danh sách phí phòng"
+              title="Tải lại"
+              onClick={() => void loadInvoices(true)}
+              className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
+            >
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Floating Action Bar */}
       {canBulkAction && (

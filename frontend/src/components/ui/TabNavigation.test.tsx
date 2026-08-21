@@ -17,9 +17,8 @@ describe('TabNavigation responsive distribution', () => {
     const track = viewport?.firstElementChild;
 
     expect(viewport).toHaveClass('overflow-x-auto');
-    expect(track).toHaveClass('min-w-full');
-    expect(track).toHaveClass('w-max');
-    expect(screen.getByRole('button', { name: 'Tổng quan' })).toHaveClass('min-w-[104px]');
+    expect(track).toHaveClass('min-w-max');
+    expect(screen.getByRole('button', { name: 'Tổng quan' })).toHaveClass('shrink-0');
     expect(screen.getByRole('button', { name: 'Tổng quan' }).querySelector('[class*="bg-[#1A73E8]"]')).toBeTruthy();
   });
 

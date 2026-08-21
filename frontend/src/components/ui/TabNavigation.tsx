@@ -37,12 +37,12 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
   return (
     <div 
       className={cn(
-        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10 gap-0 lg:gap-[32px]",
-        responsiveScrollable && 'overflow-x-auto scrollbar-none lg:overflow-visible',
+        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 sm:px-4 lg:px-6 shrink-0 z-[49] shadow-sm shadow-slate-200/10",
+        responsiveScrollable && 'overflow-x-auto scrollbar-none',
         className
       )}
     >
-      <div className={cn(responsiveScrollable ? 'flex w-max min-w-full lg:contents' : 'contents')}>
+      <div className={cn("flex items-center gap-5 sm:gap-6 lg:gap-7 h-full", responsiveScrollable && "min-w-max")}>
         {tabs.map((tab) => {
           const isDropdown = tab.type === 'select-option';
           const isActive = activeTab === tab.id || (tab.options?.some(opt => opt.id === activeTab));
@@ -53,16 +53,13 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
             return (
               <div 
                 key={tab.id}
-                className={cn(
-                  'relative h-full flex-1 lg:flex-none flex items-center justify-center',
-                  responsiveScrollable && 'min-w-[104px]',
-                )}
+                className="relative h-full shrink-0 flex items-center justify-center"
                 onMouseEnter={() => setOpenSelectId(tab.id)}
                 onMouseLeave={() => setOpenSelectId(null)}
               >
                 <button
                   className={cn(
-                    "flex items-center justify-center w-full lg:w-auto gap-1.5 h-full px-1 text-[13.5px] leading-[20px] transition-all duration-200 cursor-pointer outline-none",
+                    "flex items-center justify-center gap-1.5 h-full px-1 text-[13.5px] leading-[20px] transition-all duration-200 cursor-pointer outline-none shrink-0 whitespace-nowrap",
                     isActive 
                       ? 'text-[#1A73E8] font-bold' 
                       : 'text-[#64748B] font-medium hover:text-[#1E293B]'
@@ -97,7 +94,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
                             setOpenSelectId(null);
                           }}
                           className={cn(
-                            "w-full text-left px-3 py-1.5 text-[12.5px] rounded-lg transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer",
+                            "w-full text-left px-3 py-1.5 text-[12.5px] rounded-lg transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer whitespace-nowrap",
                             activeTab === option.id 
                               ? 'bg-white/60 text-[#1A73E8] font-bold' 
                               : 'text-[#1E293B] hover:bg-white/60 font-medium'
@@ -118,8 +115,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "relative flex-1 lg:flex-none flex items-center justify-center h-full px-1 text-[13.5px] leading-[20px] transition-colors duration-200 cursor-pointer outline-none",
-                responsiveScrollable && 'min-w-[104px]',
+                "relative shrink-0 flex items-center justify-center h-full px-1 text-[13.5px] leading-[20px] transition-colors duration-200 cursor-pointer outline-none whitespace-nowrap",
                 isActive 
                   ? 'text-[#1A73E8] font-bold' 
                   : 'text-[#64748B] font-medium hover:text-[#1E293B]'
