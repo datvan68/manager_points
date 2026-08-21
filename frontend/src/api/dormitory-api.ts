@@ -298,6 +298,114 @@ export interface BulkDeleteInvoicesResponse {
   rejected: Array<{ id: string; invoice_code?: string; reason: string }>;
 }
 
+export interface RoomFeeConfig {
+  _id?: string;
+  standard_monthly_rate: number;
+  air_conditioned_monthly_rate: number;
+  months_to_collect: number;
+  transfer_qr_image?: PaymentProof;
+  updated_by_id?: any;
+  updatedAt?: string;
+}
+
+export interface UpdateRoomFeeConfigInput {
+  standard_monthly_rate: number;
+  air_conditioned_monthly_rate: number;
+  months_to_collect: number;
+  transfer_qr_image?: PaymentProof;
+}
+
+export interface PreviewRoomFeePeriodInput {
+  start_month: string;
+  months_count?: number;
+  due_date?: string;
+}
+
+export interface PreviewRoomFeePeriodResponse {
+  start_month: string;
+  end_month: string;
+  months_count: number;
+  standard_monthly_rate: number;
+  air_conditioned_monthly_rate: number;
+  total_assigned: number;
+  eligible_count: number;
+  eligible_standard_count: number;
+  eligible_ac_count: number;
+  skipped_existing_count: number;
+  invalid_assignment_count: number;
+  expected_total_amount: number;
+}
+
+export interface CreateRoomFeePeriodInput {
+  start_month: string;
+  months_count?: number;
+  due_date?: string;
+  notes?: string;
+}
+
+export interface CreateRoomFeePeriodResponse {
+  start_month: string;
+  end_month: string;
+  months_count: number;
+  created_count: number;
+  skipped_count: number;
+  invalid_count: number;
+  total_amount: number;
+  created_ids: string[];
+}
+
+export interface RoomFeeInvoice {
+  _id: string;
+  invoice_code: string;
+  roster_entry_id?: any;
+  student_id?: any;
+  room_id?: Room | any;
+  semester_id?: any;
+  member_name: string;
+  member_code?: string;
+  room_code: string;
+  room_name?: string;
+  room_type: 'Thường' | 'Máy lạnh' | string;
+  monthly_rate: number;
+  start_month: string;
+  end_month: string;
+  months_count: number;
+  line_description?: string;
+  total_amount: number;
+  status: 'Chưa thu' | 'Đã thu' | 'Chưa thanh toán' | 'Đã thanh toán' | 'Quá hạn';
+  due_date?: string;
+  paid_at?: string;
+  payment_method?: string;
+  payment_proof?: PaymentProof;
+  payment_review?: PaymentReview;
+  confirmed_by_id?: any;
+  created_by_id?: any;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PayRoomFeeInvoiceInput {
+  payment_method: string;
+  notes?: string;
+  payment_proof?: PaymentProof;
+  proof_url?: string;
+}
+
+export interface UpdateRoomFeeProofInput {
+  payment_method?: string;
+  notes?: string;
+  payment_proof?: PaymentProof;
+  proof_url?: string;
+}
+
+export interface BulkDeleteRoomFeeInvoicesResponse {
+  requested: number;
+  deleted: string[];
+  not_found: string[];
+  rejected: Array<{ id: string; invoice_code?: string; reason: string }>;
+}
+
 export interface DormViolation {
   _id: string;
   violation_code: string;
@@ -813,6 +921,165 @@ export const dormitoryApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
+      return handleResponse(res);
+    },
+  },
+
+  // ── Room Fee Invoices (Thu phí phòng) ──
+  roomFeeInvoices: {
+    async getConfig(): Promise<RoomFeeConfig> {
+      const res = await httpClient(`${API_BASE}/dormitory/room-fee-invoices/config`);
+      return handleResponse(res);
+    },
+    async updateConfig(dto: UpdateRoomFeeConfigInput): Promise<RoomFeeConfig> {
+      const res = await httpClient(`${API_BASE}/dormitory/room-fee-invoices/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto),
+      });
+      return handleResponse(res);
+    },
+    async uploadTransferQr(file: File): Promise<PaymentProof> {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/config/upload-transfer-qr`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+      return handleResponse(res);
+    },
+    async previewPeriod(
+      dto: PreviewRoomFeePeriodInput,
+    ): Promise<PreviewRoomFeePeriodResponse> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/preview-period`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async createPeriod(
+      dto: CreateRoomFeePeriodInput,
+    ): Promise<CreateRoomFeePeriodResponse> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/create-period`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async uploadProof(file: File): Promise<PaymentProof> {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/upload-proof`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+      return handleResponse(res);
+    },
+    async getAll(
+      params?: QueryParams,
+    ): Promise<PaginatedResponse<RoomFeeInvoice>> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices${buildQuery(params)}`,
+      );
+      return handleResponse(res);
+    },
+    async getOne(id: string): Promise<RoomFeeInvoice> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/${id}`,
+      );
+      return handleResponse(res);
+    },
+    async pay(
+      id: string,
+      dto: PayRoomFeeInvoiceInput,
+    ): Promise<RoomFeeInvoice> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/${id}/pay`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async updateProof(
+      id: string,
+      dto: UpdateRoomFeeProofInput,
+    ): Promise<RoomFeeInvoice> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/${id}/proof`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async reviewProof(
+      id: string,
+      decision: 'approved' | 'rejected' | 'revoked',
+      requestId: string,
+    ): Promise<RoomFeeInvoice> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/${id}/proof/review`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision, request_id: requestId }),
+        },
+      );
+      return handleResponse(res);
+    },
+    async bulkReviewProof(
+      ids: string[],
+      decision: 'approved' | 'rejected',
+      requestId: string,
+    ): Promise<{
+      requested: number;
+      results: Array<{
+        id: string;
+        outcome: string;
+        invoice?: RoomFeeInvoice;
+        error?: string;
+      }>;
+    }> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/proof/review/bulk`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, decision, request_id: requestId }),
+        },
+      );
+      return handleResponse(res);
+    },
+    async bulkDelete(
+      ids: string[],
+    ): Promise<BulkDeleteRoomFeeInvoicesResponse> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/bulk-delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        },
+      );
       return handleResponse(res);
     },
   },

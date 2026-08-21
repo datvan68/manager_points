@@ -52,6 +52,25 @@ vi.mock('@/api/dormitory-api', () => ({
       bulkReviewProof: vi.fn(),
       bulkDelete: vi.fn(),
     },
+    roomFeeInvoices: {
+      getAll: vi.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
+      getOne: vi.fn(),
+      getConfig: vi.fn().mockResolvedValue({
+        standard_monthly_rate: 500000,
+        air_conditioned_monthly_rate: 700000,
+        months_to_collect: 5,
+      }),
+      updateConfig: vi.fn(),
+      uploadTransferQr: vi.fn(),
+      previewPeriod: vi.fn(),
+      createPeriod: vi.fn(),
+      uploadProof: vi.fn(),
+      pay: vi.fn(),
+      updateProof: vi.fn(),
+      reviewProof: vi.fn(),
+      bulkReviewProof: vi.fn(),
+      bulkDelete: vi.fn(),
+    },
   },
 }));
 
@@ -750,6 +769,34 @@ describe('Dormitory Invoices Page', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /Không duyệt/i })).toBeNull();
+    });
+  });
+
+  it('renders both Thu điện nước and Thu phí phòng view buttons and switches views (AC-01)', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Thu điện nước' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Thu phí phòng' })).toBeDefined();
+    });
+
+    // Initially active is Thu điện nước
+    expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
+
+    // Click Thu phí phòng
+    fireEvent.click(screen.getByRole('button', { name: 'Thu phí phòng' }));
+
+    await waitFor(() => {
+      // Room fee collection is rendered
+      expect(dormitoryApi.roomFeeInvoices.getAll).toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /Cấu hình đơn giá thu phí phòng/i })).toBeDefined();
+    });
+
+    // Switch back to Thu điện nước
+    fireEvent.click(screen.getByRole('button', { name: 'Thu điện nước' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
     });
   });
 });

@@ -15,7 +15,9 @@ import {
   Calendar as CalendarIcon,
   DollarSign,
   RefreshCw,
+  Home,
 } from 'lucide-react';
+import RoomFeeCollection from '@/components/dormitory/invoices/RoomFeeCollection';
 import {
   dormitoryApi,
   DormInvoice,
@@ -180,6 +182,9 @@ export default function InvoicesPage() {
 
   // View mode: 'table' hoặc 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+
+  // Sub-view: 'utility' (Thu điện nước) hoặc 'room_fee' (Thu phí phòng)
+  const [activeSubView, setActiveSubView] = useState<'utility' | 'room_fee'>('utility');
 
   // Popover calendar cho bộ lọc toolbar
   const [calendarFilterOpen, setCalendarFilterOpen] = useState(false);
@@ -898,7 +903,41 @@ export default function InvoicesPage() {
 
   return (
     <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
-      {/* Toolbar theo phong cách của trang Phòng */}
+      {/* Sub-view switcher: Thu điện nước / Thu phí phòng */}
+      <div className="flex items-center gap-1 p-1 bg-white/60 backdrop-blur-md rounded-2xl border border-white/80 w-fit shrink-0 shadow-2xs">
+        <button
+          type="button"
+          aria-label="Thu điện nước"
+          onClick={() => setActiveSubView('utility')}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubView === 'utility'
+              ? 'bg-[#1A73E8] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Zap size={14} />
+          <span>Thu điện nước</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Thu phí phòng"
+          onClick={() => setActiveSubView('room_fee')}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeSubView === 'room_fee'
+              ? 'bg-[#1A73E8] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+          }`}
+        >
+          <Home size={14} />
+          <span>Thu phí phòng</span>
+        </button>
+      </div>
+
+      {activeSubView === 'room_fee' ? (
+        <RoomFeeCollection />
+      ) : (
+        <>
+          {/* Toolbar theo phong cách của trang Phòng */}
       <div className="flex shrink-0 items-center justify-start gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
         {/* Search box */}
         <Research
@@ -2039,6 +2078,8 @@ export default function InvoicesPage() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </main>
   );
 }

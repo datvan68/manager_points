@@ -17,6 +17,14 @@ import {
   UtilityConfig,
   UtilityConfigSchema,
 } from './schemas/utility-config.schema';
+import {
+  RoomFeeConfig,
+  RoomFeeConfigSchema,
+} from './schemas/room-fee-config.schema';
+import {
+  RoomFeeInvoice,
+  RoomFeeInvoiceSchema,
+} from './schemas/room-fee-invoice.schema';
 import { MeterReading, MeterReadingSchema } from './schemas/meter-reading.schema';
 
 // Services
@@ -26,6 +34,7 @@ import { BedsService } from './services/beds.service';
 import { ContractsService } from './services/contracts.service';
 import { RoomAssignmentService } from './services/room-assignment.service';
 import { InvoicesService } from './services/invoices.service';
+import { RoomFeeInvoicesService } from './services/room-fee-invoices.service';
 import { ViolationsService } from './services/violations.service';
 import { MaintenanceService } from './services/maintenance.service';
 import { DormitoryReportsService } from './services/dormitory-reports.service';
@@ -39,6 +48,7 @@ import { BedsController } from './controllers/beds.controller';
 import { DormitoryRosterController } from './controllers/dormitory-roster.controller';
 import { ContractsController } from './controllers/contracts.controller';
 import { InvoicesController } from './controllers/invoices.controller';
+import { RoomFeeInvoicesController } from './controllers/room-fee-invoices.controller';
 import { ViolationsController } from './controllers/violations.controller';
 import { MaintenanceController } from './controllers/maintenance.controller';
 import { DormitoryReportsController } from './controllers/dormitory-reports.controller';
@@ -74,6 +84,8 @@ import {
       { name: Contract.name, schema: ContractSchema },
       { name: Invoice.name, schema: InvoiceSchema },
       { name: UtilityConfig.name, schema: UtilityConfigSchema },
+      { name: RoomFeeConfig.name, schema: RoomFeeConfigSchema },
+      { name: RoomFeeInvoice.name, schema: RoomFeeInvoiceSchema },
       { name: MeterReading.name, schema: MeterReadingSchema },
       { name: Violation.name, schema: ViolationSchema },
       { name: MaintenanceRequest.name, schema: MaintenanceRequestSchema },
@@ -88,6 +100,7 @@ import {
     DormitoryRosterController,
     ContractsController,
     InvoicesController,
+    RoomFeeInvoicesController,
     ViolationsController,
     MaintenanceController,
     DormitoryReportsController,
@@ -100,6 +113,7 @@ import {
     ContractsService,
     RoomAssignmentService,
     InvoicesService,
+    RoomFeeInvoicesService,
     ViolationsService,
     MaintenanceService,
     DormitoryReportsService,
@@ -112,6 +126,7 @@ import {
     BedsService,
     ContractsService,
     InvoicesService,
+    RoomFeeInvoicesService,
   ],
 })
 export class DormitoryModule {}

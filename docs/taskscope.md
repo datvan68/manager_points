@@ -1,120 +1,112 @@
 # Task Identity and Pipeline
 
-- Task: `dormitory-pdf-catalog-and-responsive-data-views`
+- Task ID: `dormitory-member-room-fee-collection`
 - Pipeline: `feature_development`
 - Profile: Full, planning-only
-- Rules/protocol: 3.2.0
+- Protocol/rules version: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Branch/base commit: `main` / `497733a94054304394ebcce658306bb28a7613fe`
-- Base state: clean before this taskscope update.
+- Base/current commit: `5ace537a9117bbb111f1047bd068b682434313ae`
+- Base state: clean worktree before this task artifact is written.
 
-## Risk Level
+# Risk Level
 
 - Risk: high.
-- Environment: development.
-- Evidence: the work changes a shared navigation component, two data-heavy Dormitory pages, dashboard summaries, and a backend PDF descriptor contract that validates persisted layouts.
-- Reversibility: source changes are Git-reversible; no automatic database or production mutation is planned.
-- Blast radius: Dormitory PDF catalog/designer, Roster, Rooms, Overview, and the opt-in responsive behavior of shared `TabNavigation`.
+- Evidence: the feature creates persistent per-member financial records, adds MongoDB schemas/indexes and API contracts, uploads/displays payment QR/proofs, and introduces approval state transitions across backend and frontend.
+- Environment: development source planning. Source edits are reversible through Git; persisted charge generation and production index/application are not automatically reversible.
+- Blast radius: Dormitory invoice UI/API, roster-to-room membership snapshots, payment configuration, and payment review audit history.
 
-## Objective
+# Objective
 
-Simplify the Dormitory PDF catalog header, make the residence-contract template upload use the same field palette as the KTX registration template, and provide usable mobile/tablet navigation and scalable card-based data views across Roster, Rooms, and Overview.
+Add a second, clearly separated room-fee collection view inside `Hóa đơn` so staff can generate and manage one charge per currently assigned dormitory member, configure standard/air-conditioned monthly rates, QR and collection duration, and record or review payments without changing the existing electricity/water workflow.
 
-## Scope Boundaries
+# Scope Boundaries
 
 - Approved boundaries:
-  - `frontend/src/app/(dashboard)/dormitory/**`
-  - `frontend/src/components/pdf-template/**`
-  - `frontend/src/components/ui/TabNavigation.tsx` and its focused test
-  - `frontend/src/components/ui/ResponsiveDataView.tsx` and its focused test only if the verified component contract must be extended
-  - `backend/src/dormitory/pdf-template-adapter.ts`
-  - `backend/src/dormitory/dormitory-pdf-template.spec.ts`
-  - `backend/src/pdf-template/pdf-template.spec.ts`
+  - `frontend/src/app/(dashboard)/dormitory/invoices/**`
+  - `frontend/src/components/dormitory/invoices/**` (new)
+  - `frontend/src/api/dormitory-api.ts` and its focused test
+  - `backend/src/dormitory/**`
   - `docs/taskscope.md`
-- Expected write paths:
-  - `frontend/src/components/pdf-template/PdfTemplateCatalog.tsx`
-  - `frontend/src/components/pdf-template/PdfTemplateCatalog.test.tsx`
-  - `frontend/src/components/ui/TabNavigation.tsx`
-  - `frontend/src/components/ui/TabNavigation.test.tsx` (new)
-  - `frontend/src/app/(dashboard)/dormitory/layout.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/layout.test.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/roster/page.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/roster/page.test.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/buildings/page.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/buildings/page.test.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/overview/page.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx`
-  - `backend/src/dormitory/pdf-template-adapter.ts`
-  - `backend/src/dormitory/dormitory-pdf-template.spec.ts`
-  - `backend/src/pdf-template/pdf-template.spec.ts`
-- Excluded boundaries: contract CRUD/routes, room or invoice APIs, report logic, permissions, schema/data migration, deployment, and unrelated consumers of `TabNavigation`.
+- Expected backend write paths:
+  - `backend/src/dormitory/schemas/room-fee-config.schema.ts` (new)
+  - `backend/src/dormitory/schemas/room-fee-invoice.schema.ts` (new)
+  - `backend/src/dormitory/dto/room-fee-invoice.dto.ts` (new)
+  - `backend/src/dormitory/services/room-fee-invoices.service.ts` and `.spec.ts` (new)
+  - `backend/src/dormitory/controllers/room-fee-invoices.controller.ts` and `.spec.ts` (new)
+  - `backend/src/dormitory/dormitory.module.ts`
+- Expected frontend write paths:
+  - `frontend/src/api/dormitory-api.ts`
+  - `frontend/src/api/dormitory-api.test.ts`
+  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx`
+  - `frontend/src/app/(dashboard)/dormitory/invoices/page.test.tsx`
+  - `frontend/src/components/dormitory/invoices/RoomFeeCollection.tsx` and `.test.tsx` (new)
+- Excluded boundaries: Contracts tab/service, electricity/water formulas or meter-reading persistence, student-facing payment portal/payment gateway, permissions registry, accounting exports, notifications, deployment, production data/index mutation, and deletion of collected financial records.
 
-## Out of Scope
+# Out of Scope
 
-- Do not remove the PDF template catalog items or their upload/edit/delete actions. “Keep only the title” applies to the catalog header: remove the `PDF Template Designer` eyebrow/tag and descriptive sentence while retaining `Quản lý mẫu PDF` and functional template cards.
-- Do not add a contract-document export endpoint or restore the hidden Contracts tab.
-- Do not change backend pagination responses or Overview aggregation calculations.
-- Do not truncate records or monetary values; limiting display means a bounded viewport with scrolling.
-- Do not automatically rewrite or delete existing persisted PDF template layouts.
+- Do not derive payers from active contracts; use assigned `DormitoryRosterEntry` records.
+- Do not merge room fees into utility invoices or reuse their `{ room_id, billing_month }` uniqueness, because utility charges are per room while room fees are per member.
+- Do not split a whole-room price among occupants. For this task, `Giá phòng thường/tháng` and `Giá phòng máy lạnh/tháng` mean the configured charge for one member per month. If product intent is a room-total price, amend the scope before implementation.
+- Do not alter existing room `room_price`, retroactively recalculate issued charges, hard-delete collected charges, or expose raw upload filesystem paths.
 
-## Context and Dependencies
+# Context and Dependencies
 
-- `PdfTemplateCatalog.tsx` currently renders the eyebrow, title, description, and cards. The unconfigured residence-contract card already routes to `/dormitory/pdf-template/new?templateTypeCode=DORMITORY_RESIDENCE_CONTRACT`; this upload path must remain operational.
-- `DORMITORY_ROSTER_APPLICATION_DESCRIPTOR` exposes 25 registration fields. `DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR` currently exposes a different 15-field contract/room/bed palette. The requested contract palette will reuse the registration field definitions, formatters, sensitivity flags, and synthetic fixtures while retaining its own type code, display name, feature code, and `DORM_CONTRACT_READ` source permission.
-- Existing stored contract layouts may reference removed `contract.*`, `room.*`, or `bed.*` keys. No data migration is authorized; validation must not silently accept stale keys, and replacement/re-layout remains an explicit user action.
-- `ResponsiveDataView` already supports `breakpoint`, mobile cards, `mobileFooter`, a scroll ref, and optional `@tanstack/react-virtual` virtualization.
-- Roster currently has an IntersectionObserver infinite loader but does not enable `mobileVirtualization`. Rooms enables virtualization and infinite loading only for `max-width: 767px`; both pages use the default `md` card breakpoint, so tablet behavior is incomplete.
-- The Rooms mobile search icon has no click handler or expanded input state. Roster already provides the intended open/focus/close search interaction.
-- `TabNavigation` currently distributes tabs with `flex-1` below `lg` but has no horizontal overflow viewport or equal-width inner track. An opt-in Dormitory mode avoids changing unrelated navigation consumers.
-- Overview renders `Tình trạng phòng` and `Công nợ theo phòng` only as wide tables with horizontal scrolling and no bounded high-row viewport.
+- The current `Hóa đơn` page renders only the room-level electricity/water table and already provides search, month/status filters, payment modal, proof upload, pending/approved/revoked review flow, bulk approval, pagination, and an advanced utility-config icon.
+- Existing legacy invoice creation is contract-based and therefore cannot satisfy this feature while the Contracts tab is unused.
+- `DormitoryRosterEntry` contains the authoritative assigned `room_id`, member identity/name, semester, and requested room type; `Room.room_type` has canonical values `Thường` and `Máy lạnh`.
+- The new room-fee model needs immutable payer/room/rate/period snapshots plus references for lookup. A named partial unique index must prevent issuing the same member the same configured collection period twice, including concurrent requests.
+- Reuse `DORM_INVOICE_READ`, `DORM_INVOICE_CREATE`, and `DORM_INVOICE_CONFIRM`; no permission expansion is authorized.
+- Reuse the current image restrictions (PNG/JPEG/WebP, maximum 5 MB), payment status vocabulary, request-id idempotency, optimistic state checks, and reviewer/revoker audit metadata.
 
-## Steps
+# Steps
 
-1. Capture focused frontend/backend test baselines and preserve the current clean implementation state.
-2. Simplify only the PDF catalog header, retaining catalog loading, states, permissions, and all template actions. Verify the residence-contract upload button opens the correct editor route.
-3. Refactor the residence-contract descriptor to reuse the exact registration field palette and fixtures. Adapt its value resolver to registration/roster data when context is supplied; keep descriptor identity and permission unchanged. Update descriptor/registry regression tests, including rejection of removed contract-only field keys.
-4. Add an opt-in scrollable/even-distribution mode to `TabNavigation`: tabs share available width on mobile/tablet, have a consistent minimum width, and the containing bar scrolls horizontally when the minimum widths exceed the viewport. Enable it only in Dormitory layout and keep the active indicator and navigation behavior intact.
-5. Standardize Roster and Rooms compact mode to widths below `lg` (mobile and tablet). In compact mode, start at page 1, append unique pages through IntersectionObserver, expose loading/end/error/retry states, hide desktop pagination, and enable virtualization with stable row keys. Keep desktop table pagination unchanged and reset compact paging safely after search, page-size, or breakpoint changes.
-6. Implement the Rooms compact search interaction using an accessible open button, focused full-width input, and close button. Preserve the search value, debounce/load behavior, and pagination reset; ensure toolbar actions remain reachable.
-7. Remove the Overview header description and reduce `Tổng quan Quản lý KTX` from `text-2xl` to the repository-consistent smaller heading size.
-8. Add mobile/tablet card renderers for `Tình trạng phòng` and `Công nợ theo phòng`, preserving every current field/action and empty/anomaly state. Keep desktop tables, but bound both record containers with a responsive maximum height and vertical scrolling so large result sets do not grow the page indefinitely.
-9. Add responsive, interaction, observer, virtualization, accessibility, and PDF descriptor regression tests; run focused tests, typecheck/builds, then inspect the final diff and status.
+1. Capture focused frontend/backend baselines and document the current utility table/payment behavior that must remain unchanged.
+2. Add `RoomFeeConfig` with non-negative standard and air-conditioned per-member monthly rates, `months_to_collect` as a bounded positive integer, optional validated transfer QR metadata, and updater audit fields. Add read/update and QR-upload endpoints guarded by existing invoice permissions.
+3. Add a separate `RoomFeeInvoice` model containing a generated non-null unique code; roster/student/room references; immutable member name/code, room code/name/type, monthly rate, start/end month, month count, line description and total snapshots; payment/proof/review/audit fields; timestamps; and named lookup/partial uniqueness indexes.
+4. Implement a preview/create-period command. It selects only roster entries currently assigned to valid rooms, maps canonical room type to configured rate, calculates `total_amount = monthly_rate * months_to_collect`, previews created/skipped/invalid counts, then creates one charge per eligible member with concurrency-safe idempotency. Reject unsupported room types or incomplete assignments explicitly and never leave a partially reported result ambiguous.
+5. Implement paginated/searchable room-fee listing with filters for period, status, and room. Return the exact table fields: `Họ tên`, `Phòng`, `Kỳ thu`, `Khoản thu`, `Trạng thái`, `Thao tác`, plus stable IDs and pagination metadata.
+6. Implement payment transitions for room fees: cash `Đóng ngay` marks collected immediately; transfer shows configured QR, accepts a validated proof, enters `Chờ duyệt`, supports `Duyệt`/`Không duyệt`, and allows approved proof revocation back to pending. Use atomic preconditions and idempotent request IDs; preserve proof and rejection/revocation audit history.
+7. Add an internal `Thu điện nước` / `Thu phí phòng` view switch under the existing `Hóa đơn` navigation. Keep the current utility table as the default and mount the new table without mixing filters, selection, pagination, requests, or modal state between views.
+8. Build the room-fee toolbar and table/card view: search and filters, create-period action with preview/confirmation, refresh, and an advanced icon opening configuration for both room-type rates, QR, and number of months. Restrict create/config/payment/review controls by existing permissions and provide loading, empty, error, retry, and partial-create feedback.
+9. Reuse the established payment modal interaction and responsive data patterns. Display configured QR only for transfers; expose `Đóng ngay`, proof replacement, approve/reject/revoke actions only in valid states; prevent duplicate submits and reload the affected row/list after success.
+10. Add service/controller/API/UI regression tests for calculations, roster snapshots, uniqueness/races, permission guards, validation/upload constraints, filters/pagination, all payment transitions, view isolation, responsive rendering, and preservation of the utility workflow. Run affected verification and review the final diff/status.
 
-## Acceptance Criteria
+# Acceptance Criteria
 
-- AC-01: The PDF catalog header contains the single heading `Quản lý mẫu PDF`; `PDF Template Designer` and the descriptive sentence are absent, while catalog cards and permission-gated actions remain usable.
-- AC-02: From the unconfigured `Mẫu đơn hợp đồng nội trú` card, `Tải PDF lên` opens the new-template editor with `DORMITORY_RESIDENCE_CONTRACT`; create, preview, validate, and edit continue through the shared PDF template APIs.
-- AC-03: Contract-template metadata exposes the same ordered 25 field keys, formatters, sensitivity flags, and fixture values as `Mẫu đơn đăng ký KTX`, while retaining contract descriptor identity and `DORM_CONTRACT_READ`.
-- AC-04: Removed contract-only field keys are not silently accepted in newly validated layouts; existing stored layouts are neither deleted nor automatically mutated.
-- AC-05: Dormitory tabs are evenly distributed when they fit below `lg`; when their minimum total width exceeds the viewport, the bar scrolls horizontally without wrapping, clipping labels, or losing the active indicator/navigation action.
-- AC-06: On mobile and tablet, Roster and Rooms show virtualized cards and append unique API pages through infinite scroll with loading, completion, error, and retry feedback. Desktop retains its table and explicit pagination.
-- AC-07: Changing search, page size, or crossing the compact breakpoint cannot append stale/duplicate rows or continue from the wrong page; selection remains consistent with visible loaded records.
-- AC-08: Pressing the Rooms compact search button replaces the toolbar search trigger with an autofocus input and close control; typing reloads filtered page 1 and infinite loading uses the same query.
-- AC-09: Overview shows a smaller title without its description. Both room-status and room-debt sections use cards below `lg`, tables on desktop, preserve all current values/actions/empty states, and provide bounded vertical scrolling for large result sets.
-- AC-10: Focused frontend/backend tests, frontend typecheck/build, backend build, whitespace check, and final changed-path review pass.
+- AC-01: `Hóa đơn` exposes separate `Thu điện nước` and `Thu phí phòng` views; opening, filtering, selecting, or paging one view does not mutate the other view's state, and the existing utility behavior remains green.
+- AC-02: The room-fee table/card view displays `Họ tên`, `Phòng`, `Kỳ thu`, `Khoản thu`, `Trạng thái`, and `Thao tác`, with server pagination, search by member or room, period/status filters, and explicit loading/empty/error/retry states.
+- AC-03: Authorized staff can configure per-member monthly rates for `Thường` and `Máy lạnh`, a positive bounded month count, and an optional validated QR image; invalid types, negative values, invalid files, oversized files, and server-owned metadata are rejected.
+- AC-04: Before issuing a period, the UI shows start/end period, eligible count, skipped-existing count, invalid-assignment count, configured rates/month count, and expected total. Creation requires confirmation and reports deterministic per-category results.
+- AC-05: Period creation uses only currently assigned roster members and creates one immutable charge snapshot per eligible member. Amount equals the applicable configured per-member monthly rate multiplied by month count; later roster moves or config changes do not change issued rows.
+- AC-06: Repeating or concurrently submitting the same member/period request cannot create duplicate charges. Every created record has a non-null unique code; invalid/unassigned members are reported without corrupting successful rows.
+- AC-07: `Đóng ngay` with cash changes an unpaid charge to `Đã thu` once and records payer method, confirmer, and timestamp. An already collected charge cannot be paid again.
+- AC-08: Transfer payment displays the room-fee QR, stores a valid proof, and moves to `Chờ duyệt`. Approve moves atomically to `Đã thu`; reject records an audit attempt and remains pending for replacement/re-review; revoke returns an approved charge to pending without deleting proof or charge data.
+- AC-09: Read/create/config/confirm actions enforce existing `DORM_INVOICE_*` permissions in both API and UI; unauthorized users cannot invoke hidden actions directly through the endpoints.
+- AC-10: Existing utility invoice creation, meter readings, configuration, list filters, payment, review, bulk approval, and responsive display pass unchanged.
+- AC-11: Focused tests, frontend typecheck/build, backend build, whitespace check, and changed-path review pass before completion.
 
-## Verification
+# Verification
 
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/components/pdf-template/PdfTemplateCatalog.test.tsx" "src/components/ui/TabNavigation.test.tsx" "src/components/ui/ResponsiveDataView.test.tsx" "src/app/(dashboard)/dormitory/layout.test.tsx" "src/app/(dashboard)/dormitory/roster/page.test.tsx" "src/app/(dashboard)/dormitory/buildings/page.test.tsx" "src/app/(dashboard)/dormitory/overview/page.test.tsx"` => catalog, navigation, compact search, infinite/virtualized data, and Overview responsive behavior pass.
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/dormitory-pdf-template.spec.ts pdf-template/pdf-template.spec.ts` => contract/application palette parity, registry, fixture, resolver, and validation expectations pass.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/room-fee-invoices.service.spec.ts dormitory/controllers/room-fee-invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts dormitory/controllers/invoices.controller.spec.ts` => configuration, issuance, snapshot, uniqueness/concurrency, authorization wiring, payment state machine, and utility regressions pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/api/dormitory-api.test.ts" "src/components/dormitory/invoices/RoomFeeCollection.test.tsx" "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` => API contract, table/config/create/payment interactions, permissions, view isolation, and existing utility behavior pass.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors.
-- `D:\PROJECT\manager_points\frontend` :: `npm run build` => Next.js build passes.
+- `D:\PROJECT\manager_points\frontend` :: `npm run build` => Next.js production build passes.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS build passes.
-- Manual responsive inspection at 375 px, 768 px, 1024 px, and desktop widths => navigation distribution/scroll, search transition, card/table breakpoint, virtualized scrolling, and bounded Overview lists match AC-05 through AC-09.
+- Manual development inspection at 375 px, 768 px, 1024 px, and desktop widths => both invoice views, advanced config, preview, table/cards, QR/proof, and review actions remain usable without horizontal page overflow.
 - `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended paths.
 
-## Safety Gates
+# Safety Gates
 
-- Implementation and automated verification require a separate implementation request because this task is planning-only.
-- Human Gate: None for source implementation and development verification.
-- Stop and amend scope before any permission change, persistent PDF-layout migration/deletion, contract CRUD/export change, backend pagination/API contract change, dependency addition, deployment, or production mutation.
-- If product intent was to remove the functional template cards rather than only the PDF header eyebrow/description, stop because that conflicts with the requested contract upload workflow and requires a UI decision.
+- Planning-only: implementation and automated verification require a later implementation request.
+- Human Gate before applying new collection/index definitions to any shared or production database. Artifact: reviewed schema/index diff and dry-run/index inspection output. Impact: creates persistent room-fee financial storage and uniqueness indexes. Rollback: stop writes, remove only confirmed new empty indexes/collection or use an approved data-preserving rollback. Resume: after explicit environment-specific approval.
+- Human Gate before generating room-fee records in any shared/production database. Artifact: preview counts/totals, target period, configuration snapshot, environment, and rollback/reconciliation procedure. Resume: after explicit approval of that exact preview.
+- Stop and amend scope for room-total allocation, new permissions, online payment gateway, student self-service, schema/data migration of legacy invoices, deletion of financial records, deployment, or production mutation.
 
-## Artifacts and Checkpoints
+# Artifacts and Checkpoints
 
 - Task artifact: `docs/taskscope.md`.
-- Review evidence: focused test outputs, build/typecheck results, manual viewport evidence, and final diff/status.
-- Checkpoint: base commit plus final scoped diff; no intermediate planning checkpoint required.
+- Implementation evidence: API/schema diff, named-index definition, focused test outputs, manual responsive evidence, and final diff/status.
+- Checkpoints: base commit above; checkpoint after backend model/API/tests pass and before frontend integration; final scoped diff. Validate the task artifact hash before execution handoff.
 - Effective Rules Manifest (SHA-256):
   - `safety.md`: `6a3f283b835394b1af1f6380d94cba260acbed8a60d3065dd5365bb15806a772`
   - `global.md`: `67806f70a5f89adf42e3be88413cc76cc27a02c90fad0609ae71de34d046a43f`
@@ -122,9 +114,10 @@ Simplify the Dormitory PDF catalog header, make the residence-contract template 
   - `orchestrator.md`: `b782109e896b2fa48a6523358a788a9db9b81b72f3d8fc66f70019395738d716`
   - `pipeline.md`: `0419c072380887f96b37fe4eb48dae764306f46fb03190b176a43ebcea3f41f3`
 
-## Execution Budgets
+# Execution Budgets
 
-- Step deadline: 600 seconds; maximum 1,800 seconds for affected builds and responsive verification.
-- Concurrency: one writer per path; serialize shared navigation/component edits with consuming page changes.
+- Default step deadline: 600 seconds; maximum 1,800 seconds for builds or race-focused verification.
+- Concurrency: one writer per path; serialize module/controller integration and invoice page/API changes.
 - Idempotent retries: 2; engineering loops: 3; review remediation cycles: 2.
-- Stop on scope expansion, stale persisted-layout mutation, permission/API changes, dependency addition, or unrelated failures.
+- Independent review is mandatory for financial persistence, uniqueness/concurrency, upload validation, authorization, and payment state transitions.
+- Stop on gate, dirty overlap, new dependency, public-contract expansion beyond listed endpoints, ambiguous financial calculation, or unrelated failing baseline.
