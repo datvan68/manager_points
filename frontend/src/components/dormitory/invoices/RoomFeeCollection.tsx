@@ -23,6 +23,9 @@ import {
   RotateCcw,
   ListFilter,
   ChevronDown,
+  Trash2,
+  XCircle,
+  Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -193,7 +196,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [proofImageFailed, setProofImageFailed] = useState(false);
   const [transferQrImageFailed, setTransferQrImageFailed] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
-  const updateProofInputRef = useRef<HTMLInputElement>(null);
+  const [deleteProofConfirmOpen, setDeleteProofConfirmOpen] = useState(false);
   const reviewRequestIdsRef = useRef<Partial<Record<'approved' | 'rejected' | 'revoked', string>>>({});
 
   useEffect(() => {
@@ -653,7 +656,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
     setPayProofPreview(url);
   }
 
-  // Gửi chứng từ thanh toán lần đầu
+  // Gửi chứng từ thanh toán (cho cả lần đầu và sau khi xóa ảnh để tải lại)
   async function handleConfirmPay(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (!payingInvoice) return;
@@ -681,7 +684,16 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
     }
   }
 
-  // Cập nhật / thay thế ảnh chứng từ mới
+  // Xác nhận xóa ảnh chứng từ hiện tại
+  function handleConfirmDeleteProof() {
+    setPayingInvoice((prev) => (prev ? { ...prev, payment_proof: undefined } : null));
+    setPayProofFile(null);
+    setPayProofPreview(null);
+    setDeleteProofConfirmOpen(false);
+    toast.info('Đã xóa ảnh chứng từ. Bạn có thể chọn ảnh mới để tải lên.');
+  }
+
+  // Cập nhật / thay thế ảnh chứng từ mới (backward compatibility)
   async function handleSaveUpdatedProof() {
     if (!payingInvoice || !payProofFile) return;
     try {
@@ -867,27 +879,28 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {
         key: 'status',
         header: 'Trạng thái',
-        className: 'w-[130px] min-w-[130px] text-left',
+        className: 'w-[140px] min-w-[140px] text-center',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
-          if (displayStatus === 'Đã thu') {
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                <Check size={11} /> Đã thu
-              </span>
-            );
-          }
-          if (displayStatus === 'Chờ duyệt') {
-            return (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 animate-pulse">
-                <Eye size={11} /> Chờ duyệt
-              </span>
-            );
-          }
           return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-              <AlertCircle size={11} /> Chưa thu
-            </span>
+            <div className="flex items-center justify-center">
+              {displayStatus === 'Đã thu' ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
+                  <CheckCircle size={13} />
+                  Đã thu
+                </span>
+              ) : displayStatus === 'Chờ duyệt' ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-blue-500/10 text-blue-700 border border-blue-500/20 shadow-2xs">
+                  <Eye size={13} />
+                  Chờ duyệt
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20 shadow-2xs">
+                  <AlertCircle size={13} />
+                  Chưa thu
+                </span>
+              )}
+            </div>
           );
         },
       },
@@ -897,29 +910,17 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
         priority: 'action',
         className: 'w-[140px] min-w-[140px] text-left',
         render: (_, inv) => {
-          const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
             <div className="flex items-center gap-1.5">
-              {displayStatus === 'Chưa thu' && canConfirmInvoice && (
+              {canConfirmInvoice && (
                 <button
                   type="button"
-                  aria-label="Đóng ngay"
+                  aria-label="Kiểm tra"
                   onClick={() => openPayModal(inv)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
-                  title="Đóng tiền ngay"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                  title="Kiểm tra hóa đơn & chứng từ thanh toán"
                 >
-                  <CheckCircle size={14} /> Đóng ngay
-                </button>
-              )}
-              {displayStatus === 'Chờ duyệt' && canConfirmInvoice && (
-                <button
-                  type="button"
-                  aria-label="Duyệt"
-                  onClick={() => openPayModal(inv)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
-                  title="Duyệt chứng từ thanh toán"
-                >
-                  <Eye size={14} /> Duyệt
+                  <Eye size={14} /> Kiểm tra
                 </button>
               )}
             </div>
@@ -2007,9 +2008,22 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                       <div className="space-y-3">
                         {/* Ảnh chứng từ hiện tại */}
                         <div className="space-y-1.5">
-                          <label className="block text-xs font-semibold text-[#1E293B]">
-                            Ảnh chứng từ hiện tại
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-[#1E293B]">
+                              Ảnh chứng từ hiện tại
+                            </label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeleteProofConfirmOpen(true)}
+                              className="h-7 px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border-rose-200 rounded-xl inline-flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.01]"
+                              title="Xóa ảnh chứng từ hiện tại"
+                            >
+                              <Trash2 size={13} />
+                              <span>Xóa ảnh</span>
+                            </Button>
+                          </div>
                           <div className="space-y-2">
                             <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
                               {proofImageFailed ? (
@@ -2042,64 +2056,9 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                             </div>
                           </div>
                         </div>
-
-                        {/* Cập nhật ảnh mới thay thế */}
-                        <div className="border-t border-slate-200/60 pt-3 space-y-2">
-                          <label className="block text-xs font-semibold text-[#1E293B]">
-                            Cập nhật ảnh mới (nếu tải lên sai)
-                          </label>
-                          <input
-                            ref={updateProofInputRef}
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                            onChange={handleProofFileChange}
-                            className="hidden"
-                            id="room-fee-pay-proof-replace-upload"
-                          />
-                          {!payProofFile ? (
-                            <label
-                              htmlFor="room-fee-pay-proof-replace-upload"
-                              className="flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
-                            >
-                              <Upload size={18} className="text-[#1A73E8] mb-1" />
-                              <span className="text-xs font-medium text-[#1E293B]">
-                                Bấm để chọn ảnh mới thay thế
-                              </span>
-                              <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
-                            </label>
-                          ) : (
-                            <div className="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-500/20">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPayProofFile(null);
-                                    setPayProofPreview(null);
-                                  }}
-                                  className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
-                                >
-                                  <X size={13} /> Hủy chọn
-                                </button>
-                              </div>
-                              {payProofPreview && (
-                                <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
-                                  <img
-                                    src={payProofPreview}
-                                    alt="Ảnh mới"
-                                    className="max-h-40 w-auto object-contain rounded-md"
-                                  />
-                                </div>
-                              )}
-                              <div className="text-[11px] text-[#64748B] truncate">
-                                {payProofFile.name} ({(payProofFile.size / 1024).toFixed(1)} KB)
-                              </div>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     ) : (
-                      /* Upload ảnh chứng từ lần đầu */
+                      /* Upload ảnh chứng từ */
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
                           <span>Ảnh chứng từ thanh toán</span>
@@ -2183,17 +2142,19 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                             variant="outline"
                             disabled={reviewSubmitting || paySubmitting}
                             onClick={() => handleReviewProof('rejected')}
-                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
+                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                           >
-                            Không duyệt
+                            <XCircle size={14} />
+                            <span>Không duyệt</span>
                           </Button>
                           <Button
                             type="button"
                             disabled={reviewSubmitting || paySubmitting}
                             onClick={() => handleReviewProof('approved')}
-                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                           >
-                            {reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}
+                            <CheckCircle size={14} />
+                            <span>{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</span>
                           </Button>
                         </>
                       )}
@@ -2203,9 +2164,10 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                           variant="outline"
                           disabled={reviewSubmitting || paySubmitting}
                           onClick={() => handleReviewProof('revoked')}
-                          className="col-span-2 rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                          className="col-span-2 rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                         >
-                          {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
+                          <RotateCcw size={14} />
+                          <span>{reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}</span>
                         </Button>
                       )}
                       {hasExistingProof && payProofFile && (
@@ -2213,9 +2175,10 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                           type="button"
                           disabled={paySubmitting || reviewSubmitting}
                           onClick={handleSaveUpdatedProof}
-                          className="col-span-2 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white"
+                          className="col-span-2 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white shadow-xs flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                         >
-                          {paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
+                          <Upload size={14} />
+                          <span>{paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}</span>
                         </Button>
                       )}
                       {!hasExistingProof && (
@@ -2223,9 +2186,10 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                           type="button"
                           disabled={paySubmitting || reviewSubmitting || !payProofFile}
                           onClick={handleConfirmPay}
-                          className="col-span-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="col-span-2 rounded-xl bg-[#1A73E8] hover:bg-blue-600 text-white shadow-xs flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                         >
-                          {paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
+                          <Upload size={14} />
+                          <span>{paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}</span>
                         </Button>
                       )}
                       <Button
@@ -2233,9 +2197,10 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                         variant="outline"
                         disabled={paySubmitting || reviewSubmitting}
                         onClick={() => setPayModalOpen(false)}
-                        className="col-span-2 rounded-xl"
+                        className="col-span-2 rounded-xl border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white flex items-center justify-center gap-1.5 font-semibold text-xs h-9 cursor-pointer transition-all hover:scale-[1.01]"
                       >
-                        Đóng
+                        <X size={14} />
+                        <span>Đóng</span>
                       </Button>
                     </div>
                   </div>
@@ -2268,6 +2233,16 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
         message="Hóa đơn sẽ trở về trạng thái Chưa thu và thành viên có thể đăng tải lại chứng từ. Bạn có chắc chắn muốn tiếp tục?"
         confirmLabel="Bỏ duyệt"
         variant="warning"
+      />
+
+      <ConfirmModal
+        isOpen={deleteProofConfirmOpen}
+        onClose={() => setDeleteProofConfirmOpen(false)}
+        onConfirm={handleConfirmDeleteProof}
+        title="Xác nhận xóa ảnh chứng từ"
+        message="Bạn có chắc chắn muốn xóa ảnh chứng từ này không? Sau khi xóa, bạn có thể chọn và tải lên ảnh chứng từ mới."
+        confirmLabel="Xóa ảnh"
+        variant="danger"
       />
     </div>
   );

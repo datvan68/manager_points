@@ -301,7 +301,7 @@ describe('Dormitory Invoices Page', () => {
       transfer_qr_image: { url: '/uploads/default-transfer-qr.png', file_name: 'default-transfer-qr.png' },
     });
     render(<InvoicesPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Đóng ngay/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Kiểm tra/i }))[0]);
     const qr = await screen.findByAltText('Mã QR chuyển khoản');
     expect(qr.getAttribute('src')).toContain('/uploads/default-transfer-qr.png');
     expect(screen.queryByText(/1234567890|MBBank/)).toBeNull();
@@ -310,7 +310,7 @@ describe('Dormitory Invoices Page', () => {
 
   it('does not expose a QR download action', async () => {
     render(<InvoicesPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Đóng ngay/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Kiểm tra/i }))[0]);
     await screen.findByText('Quét mã để thanh toán');
     expect(screen.queryByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeNull();
   });
@@ -345,10 +345,10 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Đóng ngay/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const payBtn = screen.getAllByRole('button', { name: /Đóng ngay/i })[0];
+    const payBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[0];
     fireEvent.click(payBtn);
 
     await waitFor(() => {
@@ -394,7 +394,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('clicking "Duyệt" opens shared modal in review mode and allows approving or rejecting (AC-07, AC-08, AC-09)', async () => {
+  it('clicking "Kiểm tra" opens shared modal in review mode and allows approving or rejecting (AC-07, AC-08, AC-09)', async () => {
     (dormitoryApi.invoices.reviewProof as any).mockResolvedValue({
       ...mockInvoices[1],
       status: 'Đã thu',
@@ -404,10 +404,10 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const reviewBtn = screen.getAllByRole('button', { name: /Duyệt/i })[0];
+    const reviewBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[1];
     fireEvent.click(reviewBtn);
 
     await waitFor(() => {
@@ -434,10 +434,10 @@ describe('Dormitory Invoices Page', () => {
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const reviewBtn = screen.getAllByRole('button', { name: /Duyệt/i })[0];
+    const reviewBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[1];
     fireEvent.click(reviewBtn);
 
     await waitFor(() => {
@@ -452,7 +452,7 @@ describe('Dormitory Invoices Page', () => {
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce({ ...mockInvoices[1], payment_review: { status: 'pending' } });
     render(<InvoicesPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Duyệt/i }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Kiểm tra/i }))[1]);
     const reject = await screen.findByRole('button', { name: /Không duyệt/i });
     fireEvent.click(reject);
     await waitFor(() => expect(dormitoryApi.invoices.reviewProof).toHaveBeenCalledTimes(1));
@@ -476,7 +476,7 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[0];
+    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[2];
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
@@ -505,7 +505,7 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
-  it('allows uploading replacement proof in shared modal (AC-12)', async () => {
+  it('allows deleting existing proof with confirmation and uploading new proof (AC-12)', async () => {
     (dormitoryApi.invoices.uploadProof as any).mockResolvedValue({
       url: '/uploads/replacement-proof.png',
       file_name: 'replacement-proof.png',
@@ -524,23 +524,44 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
     });
 
-    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[0];
+    const checkBtn = screen.getAllByRole('button', { name: /Kiểm tra/i })[2];
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
       expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
-      expect(screen.getByText('Cập nhật ảnh mới (nếu tải lên sai)')).toBeDefined();
+      expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
+      expect(screen.getByRole('button', { name: /Xóa ảnh/i })).toBeDefined();
+    });
+
+    // Click Xóa ảnh
+    const deleteProofBtn = screen.getByRole('button', { name: /Xóa ảnh/i });
+    fireEvent.click(deleteProofBtn);
+
+    // ConfirmModal appears
+    await waitFor(() => {
+      expect(screen.getByText('Xác nhận xóa ảnh chứng từ')).toBeDefined();
+    });
+
+    // Confirm delete
+    const confirmDeleteBtn = screen.getAllByRole('button', { name: 'Xóa ảnh' })[1] || screen.getAllByRole('button', { name: 'Xóa ảnh' })[0];
+    await act(async () => {
+      fireEvent.click(confirmDeleteBtn);
+    });
+
+    // Now upload area should appear
+    await waitFor(() => {
+      expect(screen.getByText('Ảnh chứng từ thanh toán')).toBeDefined();
     });
 
     const file = new File(['fake-image'], 'replacement.png', { type: 'image/png' });
-    const fileInput = document.getElementById('pay-proof-replace-upload') as HTMLInputElement;
+    const fileInput = document.getElementById('pay-proof-upload') as HTMLInputElement;
     expect(fileInput).toBeDefined();
 
     await act(async () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
 
-    const saveBtn = screen.getByRole('button', { name: /Lưu cập nhật/i });
+    const saveBtn = screen.getByRole('button', { name: /Gửi duyệt/i });
     expect(saveBtn).toBeDefined();
 
     await act(async () => {
@@ -549,7 +570,6 @@ describe('Dormitory Invoices Page', () => {
 
     await waitFor(() => {
       expect(dormitoryApi.invoices.uploadProof).toHaveBeenCalled();
-      expect(dormitoryApi.invoices.updateProof).toHaveBeenCalledWith('inv-paid', expect.any(Object));
     });
   });
 
