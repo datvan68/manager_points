@@ -1,112 +1,100 @@
 # Task Identity and Pipeline
 
-- Task ID: `dormitory-member-room-fee-collection`
+- Task ID: `dormitory-individual-room-fee-mobile-infinite-scroll`
 - Pipeline: `feature_development`
 - Profile: Full, planning-only
 - Protocol/rules version: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Base/current commit: `5ace537a9117bbb111f1047bd068b682434313ae`
+- Base/current commit: `3421416c3a3aaa78381b05896fd8c1e1ad6e0725`
 - Base state: clean worktree before this task artifact is written.
 
 # Risk Level
 
 - Risk: high.
-- Evidence: the feature creates persistent per-member financial records, adds MongoDB schemas/indexes and API contracts, uploads/displays payment QR/proofs, and introduces approval state transitions across backend and frontend.
-- Environment: development source planning. Source edits are reversible through Git; persisted charge generation and production index/application are not automatically reversible.
-- Blast radius: Dormitory invoice UI/API, roster-to-room membership snapshots, payment configuration, and payment review audit history.
+- Evidence: the change creates persistent financial records with staff-adjustable price and duration, extends protected backend/API behavior, and changes responsive loading/selection state in two invoice views.
+- Environment: development source planning. Source changes are Git-reversible; room-fee records created in a shared or production database require an explicit gate.
+- Blast radius: dormitory room-fee issuance, invoice API contracts, and the electricity/water and room-fee list experiences on compact screens.
 
 # Objective
 
-Add a second, clearly separated room-fee collection view inside `Hóa đơn` so staff can generate and manage one charge per currently assigned dormitory member, configure standard/air-conditioned monthly rates, QR and collection duration, and record or review payments without changing the existing electricity/water workflow.
+Allow authorized staff to issue a room-fee charge for one assigned dormitory member with an independently adjustable month count and monthly price, and make both `Thu điện nước` and `Thu phí phòng` use infinite loading plus card virtualization instead of pagination on mobile/tablet while preserving desktop pagination and existing payment workflows.
 
 # Scope Boundaries
 
 - Approved boundaries:
-  - `frontend/src/app/(dashboard)/dormitory/invoices/**`
-  - `frontend/src/components/dormitory/invoices/**` (new)
-  - `frontend/src/api/dormitory-api.ts` and its focused test
-  - `backend/src/dormitory/**`
+  - `backend/src/dormitory/controllers/room-fee-invoices.controller.ts` and focused spec
+  - `backend/src/dormitory/services/room-fee-invoices.service.ts` and focused spec
+  - `backend/src/dormitory/dto/room-fee-invoice.dto.ts`
+  - `frontend/src/api/dormitory-api.ts` and focused test
+  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx` and focused test
+  - `frontend/src/components/dormitory/invoices/RoomFeeCollection.tsx` and focused test
+  - `frontend/src/components/ui/ResponsiveDataView.tsx` and focused test only if its existing mobile hooks are insufficient
   - `docs/taskscope.md`
-- Expected backend write paths:
-  - `backend/src/dormitory/schemas/room-fee-config.schema.ts` (new)
-  - `backend/src/dormitory/schemas/room-fee-invoice.schema.ts` (new)
-  - `backend/src/dormitory/dto/room-fee-invoice.dto.ts` (new)
-  - `backend/src/dormitory/services/room-fee-invoices.service.ts` and `.spec.ts` (new)
-  - `backend/src/dormitory/controllers/room-fee-invoices.controller.ts` and `.spec.ts` (new)
-  - `backend/src/dormitory/dormitory.module.ts`
-- Expected frontend write paths:
-  - `frontend/src/api/dormitory-api.ts`
-  - `frontend/src/api/dormitory-api.test.ts`
-  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx`
-  - `frontend/src/app/(dashboard)/dormitory/invoices/page.test.tsx`
-  - `frontend/src/components/dormitory/invoices/RoomFeeCollection.tsx` and `.test.tsx` (new)
-- Excluded boundaries: Contracts tab/service, electricity/water formulas or meter-reading persistence, student-facing payment portal/payment gateway, permissions registry, accounting exports, notifications, deployment, production data/index mutation, and deletion of collected financial records.
+- Excluded boundaries: utility calculations/meter persistence, room-fee configuration semantics, payment/review state machines, permission registry, Contracts, student self-service/payment gateway, exports, notifications, deployment, migration, production mutation, and deletion of financial records.
 
 # Out of Scope
 
-- Do not derive payers from active contracts; use assigned `DormitoryRosterEntry` records.
-- Do not merge room fees into utility invoices or reuse their `{ room_id, billing_month }` uniqueness, because utility charges are per room while room fees are per member.
-- Do not split a whole-room price among occupants. For this task, `Giá phòng thường/tháng` and `Giá phòng máy lạnh/tháng` mean the configured charge for one member per month. If product intent is a room-total price, amend the scope before implementation.
-- Do not alter existing room `room_price`, retroactively recalculate issued charges, hard-delete collected charges, or expose raw upload filesystem paths.
+- Do not create a new fee type, change the global standard/air-conditioned rates, or update previously issued room-fee rows.
+- Do not replace desktop server pagination; infinite scrolling is limited to the compact responsive mode.
+- Do not load the full collection in one request or simulate virtualization over an unbounded DOM list.
+- Do not permit free-text payer creation or issue a charge to an unassigned roster entry.
+- For this task, editable `Giá tiền` means the selected member's non-negative monthly rate; `Tổng tiền = đơn giá/tháng × số tháng`. If the product intends an editable final total instead, amend the scope before implementation.
 
 # Context and Dependencies
 
-- The current `Hóa đơn` page renders only the room-level electricity/water table and already provides search, month/status filters, payment modal, proof upload, pending/approved/revoked review flow, bulk approval, pagination, and an advanced utility-config icon.
-- Existing legacy invoice creation is contract-based and therefore cannot satisfy this feature while the Contracts tab is unused.
-- `DormitoryRosterEntry` contains the authoritative assigned `room_id`, member identity/name, semester, and requested room type; `Room.room_type` has canonical values `Thường` and `Máy lạnh`.
-- The new room-fee model needs immutable payer/room/rate/period snapshots plus references for lookup. A named partial unique index must prevent issuing the same member the same configured collection period twice, including concurrent requests.
-- Reuse `DORM_INVOICE_READ`, `DORM_INVOICE_CREATE`, and `DORM_INVOICE_CONFIRM`; no permission expansion is authorized.
-- Reuse the current image restrictions (PNG/JPEG/WebP, maximum 5 MB), payment status vocabulary, request-id idempotency, optimistic state checks, and reviewer/revoker audit metadata.
+- `RoomFeeCollection` currently supports only whole-roster `preview-period` / `create-period`; it seeds price from room type and lets staff adjust only the period month count.
+- The room-fee schema already stores immutable member, room, monthly-rate, period, month-count, and total snapshots and has the named unique index `room_fee_roster_period_unique` on `{ roster_entry_id, start_month, end_month }`.
+- Both invoice views currently request one server page and render `CustomPagination`. Neither passes `hidePaginationOnMobile`, `mobileScrollRef`, `mobileFooter`, or `mobileVirtualization` to `ResponsiveDataView`.
+- `ResponsiveDataView` already uses `@tanstack/react-virtual` for compact cards. Dormitory roster/building pages provide the repository pattern for `(max-width: 1023px)`, guarded appended-page loading, `IntersectionObserver`, retry, deduplication, and stale-request protection.
+- Existing room-fee list pagination metadata is sufficient for infinite loading; no list endpoint contract change is required.
+- Reuse `DORM_INVOICE_CREATE` for individual preview/create and existing read/confirm/delete permissions elsewhere.
 
 # Steps
 
-1. Capture focused frontend/backend baselines and document the current utility table/payment behavior that must remain unchanged.
-2. Add `RoomFeeConfig` with non-negative standard and air-conditioned per-member monthly rates, `months_to_collect` as a bounded positive integer, optional validated transfer QR metadata, and updater audit fields. Add read/update and QR-upload endpoints guarded by existing invoice permissions.
-3. Add a separate `RoomFeeInvoice` model containing a generated non-null unique code; roster/student/room references; immutable member name/code, room code/name/type, monthly rate, start/end month, month count, line description and total snapshots; payment/proof/review/audit fields; timestamps; and named lookup/partial uniqueness indexes.
-4. Implement a preview/create-period command. It selects only roster entries currently assigned to valid rooms, maps canonical room type to configured rate, calculates `total_amount = monthly_rate * months_to_collect`, previews created/skipped/invalid counts, then creates one charge per eligible member with concurrency-safe idempotency. Reject unsupported room types or incomplete assignments explicitly and never leave a partially reported result ambiguous.
-5. Implement paginated/searchable room-fee listing with filters for period, status, and room. Return the exact table fields: `Họ tên`, `Phòng`, `Kỳ thu`, `Khoản thu`, `Trạng thái`, `Thao tác`, plus stable IDs and pagination metadata.
-6. Implement payment transitions for room fees: cash `Đóng ngay` marks collected immediately; transfer shows configured QR, accepts a validated proof, enters `Chờ duyệt`, supports `Duyệt`/`Không duyệt`, and allows approved proof revocation back to pending. Use atomic preconditions and idempotent request IDs; preserve proof and rejection/revocation audit history.
-7. Add an internal `Thu điện nước` / `Thu phí phòng` view switch under the existing `Hóa đơn` navigation. Keep the current utility table as the default and mount the new table without mixing filters, selection, pagination, requests, or modal state between views.
-8. Build the room-fee toolbar and table/card view: search and filters, create-period action with preview/confirmation, refresh, and an advanced icon opening configuration for both room-type rates, QR, and number of months. Restrict create/config/payment/review controls by existing permissions and provide loading, empty, error, retry, and partial-create feedback.
-9. Reuse the established payment modal interaction and responsive data patterns. Display configured QR only for transfers; expose `Đóng ngay`, proof replacement, approve/reject/revoke actions only in valid states; prevent duplicate submits and reload the affected row/list after success.
-10. Add service/controller/API/UI regression tests for calculations, roster snapshots, uniqueness/races, permission guards, validation/upload constraints, filters/pagination, all payment transitions, view isolation, responsive rendering, and preservation of the utility workflow. Run affected verification and review the final diff/status.
+1. Record focused frontend/backend baselines for whole-roster issuance, both paginated lists, selection, payment, proof review, and bulk actions.
+2. Add validated individual preview/create DTOs containing `roster_entry_id`, `start_month`, `months_count` (1–36), `monthly_rate` (finite and non-negative), optional due date, and optional notes. Do not accept client-owned member/room/total snapshots.
+3. Add protected individual preview/create endpoints and service methods. Resolve the selected roster entry and its current room server-side, reject missing/unassigned/unsupported-room records, calculate the end month and total, and return a single-member preview before confirmation.
+4. On create, re-read the roster assignment, persist the existing immutable snapshots with the custom monthly rate and calculated total, attribute the creator, and preserve the existing invoice/payment lifecycle. Treat the current unique index as the concurrency authority: an exact duplicate member/start/end request returns a clear conflict/existing-charge result and never creates or reports a second charge. A custom price must not mutate `RoomFeeConfig`.
+5. Add an authorized `Lập đợt thu cá nhân` flow to `RoomFeeCollection`: searchable assigned-member selection by name/code/room, current room/type summary, start month, editable month count and monthly rate, optional due date/notes, computed total, preview, confirmation, success/error feedback, and refresh of the affected list. Disable repeat submits and invalidate the preview whenever an input or selected member changes.
+6. In both invoice views, detect compact mode with the repository convention `(max-width: 1023px)`. On compact entry or any filter/search change, reset to page 1; append later API pages when the internal scroll sentinel intersects; deduplicate by invoice ID; and ignore stale/out-of-order responses with request and query-generation guards.
+7. Enable `ResponsiveDataView` compact-card virtualization, pass its scroll container and a mobile footer containing loading-more, retry, and end-of-list states, and hide `CustomPagination` below the desktop breakpoint. Keep desktop requests, page-size controls, and page replacement behavior unchanged.
+8. Preserve selection only for currently loaded/visible-query records; clear it on filter, page-mode, or tab-context reset. Prevent duplicate next-page calls, do not erase accumulated rows after a load-more failure, and make manual refresh deterministically rebuild compact data from page 1.
+9. Add API/service/controller/UI regression tests for individual validation/calculation/snapshots/permissions/duplicate races and, for both sub-tabs, breakpoint switching, first-page reset, ordered append, deduplication, stale-response rejection, observer re-entry guards, retry/end states, virtualization, hidden compact pagination, retained desktop pagination, and unchanged financial/payment behavior.
+10. Run focused tests, affected type/build checks, responsive manual inspection, and final diff/status review.
 
 # Acceptance Criteria
 
-- AC-01: `Hóa đơn` exposes separate `Thu điện nước` and `Thu phí phòng` views; opening, filtering, selecting, or paging one view does not mutate the other view's state, and the existing utility behavior remains green.
-- AC-02: The room-fee table/card view displays `Họ tên`, `Phòng`, `Kỳ thu`, `Khoản thu`, `Trạng thái`, and `Thao tác`, with server pagination, search by member or room, period/status filters, and explicit loading/empty/error/retry states.
-- AC-03: Authorized staff can configure per-member monthly rates for `Thường` and `Máy lạnh`, a positive bounded month count, and an optional validated QR image; invalid types, negative values, invalid files, oversized files, and server-owned metadata are rejected.
-- AC-04: Before issuing a period, the UI shows start/end period, eligible count, skipped-existing count, invalid-assignment count, configured rates/month count, and expected total. Creation requires confirmation and reports deterministic per-category results.
-- AC-05: Period creation uses only currently assigned roster members and creates one immutable charge snapshot per eligible member. Amount equals the applicable configured per-member monthly rate multiplied by month count; later roster moves or config changes do not change issued rows.
-- AC-06: Repeating or concurrently submitting the same member/period request cannot create duplicate charges. Every created record has a non-null unique code; invalid/unassigned members are reported without corrupting successful rows.
-- AC-07: `Đóng ngay` with cash changes an unpaid charge to `Đã thu` once and records payer method, confirmer, and timestamp. An already collected charge cannot be paid again.
-- AC-08: Transfer payment displays the room-fee QR, stores a valid proof, and moves to `Chờ duyệt`. Approve moves atomically to `Đã thu`; reject records an audit attempt and remains pending for replacement/re-review; revoke returns an approved charge to pending without deleting proof or charge data.
-- AC-09: Read/create/config/confirm actions enforce existing `DORM_INVOICE_*` permissions in both API and UI; unauthorized users cannot invoke hidden actions directly through the endpoints.
-- AC-10: Existing utility invoice creation, meter readings, configuration, list filters, payment, review, bulk approval, and responsive display pass unchanged.
-- AC-11: Focused tests, frontend typecheck/build, backend build, whitespace check, and changed-path review pass before completion.
+- AC-01: A user with `DORM_INVOICE_CREATE` can choose exactly one currently assigned roster member and preview the member, room/type, start/end period, month count, monthly rate, calculated total, due date, and notes before creation; unauthorized calls are rejected.
+- AC-02: Month count accepts only integers from 1 through 36 and monthly rate accepts only finite non-negative values. The backend calculates `end_month` and `total_amount`; client-supplied identity, room, or total snapshots cannot override server data.
+- AC-03: Confirming an individual preview creates exactly one unpaid room-fee invoice with immutable current roster/room snapshots, the adjusted monthly rate, and `total_amount = monthly_rate × months_count`; the shared room-fee configuration remains unchanged.
+- AC-04: If the member becomes unassigned or invalid between preview and create, creation fails without a partial record. Concurrent or repeated creation for the same member/start/end period cannot create duplicates and returns an actionable conflict.
+- AC-05: Existing whole-roster issuance, filters, payment/proof review, bulk approve/delete eligibility, and invoice status behavior pass unchanged.
+- AC-06: At widths up to 1023 px, both `Thu điện nước` and `Thu phí phòng` show no pagination controls, fetch page 1 initially, automatically append subsequent pages near the list end, and expose loading-more, retry, empty, and end-of-list states.
+- AC-07: Compact lists render only a bounded virtual window plus overscan even after multiple pages are loaded. Appended records remain in API sort order, duplicate IDs are not rendered, and rapid observer/filter events do not cause duplicate requests or stale rows.
+- AC-08: At 1024 px and above, both sub-tabs retain the current table and server pagination/page-size controls; switching responsive mode or changing search/filter resets paging consistently without cross-tab state leakage.
+- AC-09: Checkbox and floating bulk-action behavior operates on loaded eligible records only and never silently selects an unloaded page; a failed load-more preserves already loaded rows and can be retried.
+- AC-10: Focused tests, frontend typecheck/build, backend build, whitespace check, and changed-path review pass before completion.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/room-fee-invoices.service.spec.ts dormitory/controllers/room-fee-invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts dormitory/controllers/invoices.controller.spec.ts` => configuration, issuance, snapshot, uniqueness/concurrency, authorization wiring, payment state machine, and utility regressions pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/api/dormitory-api.test.ts" "src/components/dormitory/invoices/RoomFeeCollection.test.tsx" "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` => API contract, table/config/create/payment interactions, permissions, view isolation, and existing utility behavior pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` => no TypeScript errors.
-- `D:\PROJECT\manager_points\frontend` :: `npm run build` => Next.js production build passes.
+- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/services/room-fee-invoices.service.spec.ts dormitory/controllers/room-fee-invoices.controller.spec.ts` => individual issuance validation, calculation, assignment recheck, immutable snapshots, authorization wiring, and duplicate/concurrency behavior pass alongside batch issuance.
+- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/api/dormitory-api.test.ts" "src/components/dormitory/invoices/RoomFeeCollection.test.tsx" "src/app/(dashboard)/dormitory/invoices/page.test.tsx"` => API contracts, individual modal, both infinite lists, virtualization wiring, observer/error states, compact selection, and desktop regression pass.
+- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` and `npm run build` => TypeScript and Next.js production build pass.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS build passes.
-- Manual development inspection at 375 px, 768 px, 1024 px, and desktop widths => both invoice views, advanced config, preview, table/cards, QR/proof, and review actions remain usable without horizontal page overflow.
+- Manual development inspection at 375 px, 768 px, 1023 px, and 1024 px => compact cards infinitely load without pagination or horizontal page overflow; desktop pagination remains usable; individual preview/create interaction is complete.
 - `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended paths.
 
 # Safety Gates
 
 - Planning-only: implementation and automated verification require a later implementation request.
-- Human Gate before applying new collection/index definitions to any shared or production database. Artifact: reviewed schema/index diff and dry-run/index inspection output. Impact: creates persistent room-fee financial storage and uniqueness indexes. Rollback: stop writes, remove only confirmed new empty indexes/collection or use an approved data-preserving rollback. Resume: after explicit environment-specific approval.
-- Human Gate before generating room-fee records in any shared/production database. Artifact: preview counts/totals, target period, configuration snapshot, environment, and rollback/reconciliation procedure. Resume: after explicit approval of that exact preview.
-- Stop and amend scope for room-total allocation, new permissions, online payment gateway, student self-service, schema/data migration of legacy invoices, deletion of financial records, deployment, or production mutation.
+- Human Gate before creating an individual room-fee record in any shared or production database. Artifact: selected member/room, period, monthly rate, total, environment, duplicate/overlap result, and reconciliation procedure. Resume only after approval of that exact preview.
+- Stop and amend scope for editable final-total semantics, overlapping-period policy changes, new permissions, new collections/indexes, legacy migration, online payment, deletion, deployment, or production mutation.
 
 # Artifacts and Checkpoints
 
 - Task artifact: `docs/taskscope.md`.
-- Implementation evidence: API/schema diff, named-index definition, focused test outputs, manual responsive evidence, and final diff/status.
-- Checkpoints: base commit above; checkpoint after backend model/API/tests pass and before frontend integration; final scoped diff. Validate the task artifact hash before execution handoff.
+- Implementation evidence: endpoint/DTO diff, individual preview payload, focused test output, compact virtualization/infinite-scroll evidence at specified widths, and final scoped diff/status.
+- Checkpoints: base commit above; checkpoint after backend individual issuance tests pass and before frontend integration; final scoped diff. Validate the task artifact hash before execution handoff.
 - Effective Rules Manifest (SHA-256):
   - `safety.md`: `6a3f283b835394b1af1f6380d94cba260acbed8a60d3065dd5365bb15806a772`
   - `global.md`: `67806f70a5f89adf42e3be88413cc76cc27a02c90fad0609ae71de34d046a43f`
@@ -116,8 +104,8 @@ Add a second, clearly separated room-fee collection view inside `Hóa đơn` so 
 
 # Execution Budgets
 
-- Default step deadline: 600 seconds; maximum 1,800 seconds for builds or race-focused verification.
-- Concurrency: one writer per path; serialize module/controller integration and invoice page/API changes.
+- Default step deadline: 600 seconds; maximum 1,800 seconds for builds or concurrency/responsive verification.
+- Concurrency: one writer per path; serialize backend controller/service integration and the two frontend invoice-view changes.
 - Idempotent retries: 2; engineering loops: 3; review remediation cycles: 2.
-- Independent review is mandatory for financial persistence, uniqueness/concurrency, upload validation, authorization, and payment state transitions.
-- Stop on gate, dirty overlap, new dependency, public-contract expansion beyond listed endpoints, ambiguous financial calculation, or unrelated failing baseline.
+- Independent review is mandatory for financial calculation/persistence, authorization, duplicate handling, and async infinite-scroll state.
+- Stop on gate, dirty overlap, new dependency, shared component behavior outside the two invoice consumers, ambiguous price semantics, or unrelated failing baseline.

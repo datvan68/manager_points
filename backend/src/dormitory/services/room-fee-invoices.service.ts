@@ -24,6 +24,8 @@ import {
   UpdateRoomFeeConfigDto,
   PreviewRoomFeePeriodDto,
   CreateRoomFeePeriodDto,
+  PreviewIndividualRoomFeeDto,
+  CreateIndividualRoomFeeDto,
   PayRoomFeeInvoiceDto,
   UpdateRoomFeeProofDto,
   QueryRoomFeeInvoiceDto,
@@ -291,6 +293,200 @@ export class RoomFeeInvoicesService {
       total_amount: totalAmount,
       created_ids: createdIds,
     };
+  }
+
+  /**
+   * Xem trước kết quả lập đợt thu phí phòng cho cá nhân một thành viên
+   */
+  async previewIndividual(dto: PreviewIndividualRoomFeeDto) {
+    if (!Types.ObjectId.isValid(dto.roster_entry_id)) {
+      throw new BadRequestException('ID thành viên không hợp lệ');
+    }
+
+    const entry = await this.rosterModel
+      .findById(dto.roster_entry_id)
+      .populate('room_id')
+      .exec();
+
+    if (!entry) {
+      throw new NotFoundException('Không tìm thấy thành viên trong danh sách KTX');
+    }
+
+    const room = entry.room_id as any;
+    if (!room || !room._id) {
+      throw new BadRequestException('Thành viên chưa được xếp phòng');
+    }
+
+    const roomType = room.room_type;
+    if (roomType !== 'Thường' && roomType !== 'Máy lạnh') {
+      throw new BadRequestException('Loại phòng của thành viên không hợp lệ để tính phí phòng');
+    }
+
+    const config = await this.getConfig();
+    const monthsCount =
+      dto.months_count !== undefined && dto.months_count !== null
+        ? Number(dto.months_count)
+        : config.months_to_collect || 5;
+
+    if (monthsCount < 1 || monthsCount > 36) {
+      throw new BadRequestException('Số tháng thu phải từ 1 đến 36');
+    }
+
+    const endMonth = this.calculatePeriodEnd(dto.start_month, monthsCount);
+    const defaultRate =
+      roomType === 'Máy lạnh'
+        ? config.air_conditioned_monthly_rate
+        : config.standard_monthly_rate;
+
+    const rate =
+      dto.monthly_rate !== undefined && dto.monthly_rate !== null
+        ? Number(dto.monthly_rate)
+        : defaultRate;
+
+    if (rate < 0 || !Number.isFinite(rate)) {
+      throw new BadRequestException('Đơn giá/tháng phải là số không âm');
+    }
+
+    const totalAmount = rate * monthsCount;
+
+    const existingInvoice = await this.roomFeeInvoiceModel
+      .findOne({
+        roster_entry_id: entry._id,
+        start_month: dto.start_month,
+        end_month: endMonth,
+      })
+      .select('invoice_code')
+      .exec();
+
+    return {
+      roster_entry_id: String(entry._id),
+      student_id: entry.student_id ? String(entry.student_id) : undefined,
+      member_name: entry.full_name,
+      member_code: entry.student_code,
+      room_id: String(room._id),
+      room_code: room.room_code,
+      room_name: room.room_name,
+      room_type: roomType,
+      start_month: dto.start_month,
+      end_month: endMonth,
+      months_count: monthsCount,
+      monthly_rate: rate,
+      total_amount: totalAmount,
+      due_date: dto.due_date,
+      notes: dto.notes,
+      already_exists: !!existingInvoice,
+      existing_invoice_code: existingInvoice?.invoice_code,
+    };
+  }
+
+  /**
+   * Lập đợt thu phí phòng cá nhân cho một thành viên
+   */
+  async createIndividual(dto: CreateIndividualRoomFeeDto, user: any) {
+    if (!Types.ObjectId.isValid(dto.roster_entry_id)) {
+      throw new BadRequestException('ID thành viên không hợp lệ');
+    }
+
+    const entry = await this.rosterModel
+      .findById(dto.roster_entry_id)
+      .populate('room_id')
+      .exec();
+
+    if (!entry) {
+      throw new NotFoundException('Không tìm thấy thành viên trong danh sách KTX');
+    }
+
+    const room = entry.room_id as any;
+    if (!room || !room._id) {
+      throw new BadRequestException('Thành viên chưa được xếp phòng');
+    }
+
+    const roomType = room.room_type;
+    if (roomType !== 'Thường' && roomType !== 'Máy lạnh') {
+      throw new BadRequestException('Loại phòng của thành viên không hợp lệ để tính phí phòng');
+    }
+
+    const config = await this.getConfig();
+    const monthsCount =
+      dto.months_count !== undefined && dto.months_count !== null
+        ? Number(dto.months_count)
+        : config.months_to_collect || 5;
+
+    if (monthsCount < 1 || monthsCount > 36) {
+      throw new BadRequestException('Số tháng thu phải từ 1 đến 36');
+    }
+
+    const endMonth = this.calculatePeriodEnd(dto.start_month, monthsCount);
+    const defaultRate =
+      roomType === 'Máy lạnh'
+        ? config.air_conditioned_monthly_rate
+        : config.standard_monthly_rate;
+
+    const rate =
+      dto.monthly_rate !== undefined && dto.monthly_rate !== null
+        ? Number(dto.monthly_rate)
+        : defaultRate;
+
+    if (rate < 0 || !Number.isFinite(rate)) {
+      throw new BadRequestException('Đơn giá/tháng phải là số không âm');
+    }
+
+    const totalAmount = rate * monthsCount;
+
+    const existingInvoice = await this.roomFeeInvoiceModel
+      .findOne({
+        roster_entry_id: entry._id,
+        start_month: dto.start_month,
+        end_month: endMonth,
+      })
+      .select('invoice_code')
+      .exec();
+
+    if (existingInvoice) {
+      throw new ConflictException(
+        `Hóa đơn phí phòng cho thành viên ${entry.full_name || entry.student_code} trong khoảng thời gian ${dto.start_month} - ${endMonth} đã tồn tại (${existingInvoice.invoice_code})`,
+      );
+    }
+
+    const invoiceCode = `RFI-${randomUUID().substring(0, 8).toUpperCase()}`;
+    const dueDate = dto.due_date ? new Date(dto.due_date) : undefined;
+    const creatorId = user?._id || user?.userId;
+
+    const invoice = new this.roomFeeInvoiceModel({
+      invoice_code: invoiceCode,
+      roster_entry_id: entry._id,
+      student_id: entry.student_id,
+      room_id: room._id,
+      semester_id: entry.semester_id,
+      member_name: entry.full_name,
+      member_code: entry.student_code,
+      room_code: room.room_code,
+      room_name: room.room_name,
+      room_type: roomType,
+      monthly_rate: rate,
+      start_month: dto.start_month,
+      end_month: endMonth,
+      months_count: monthsCount,
+      line_description: `Phí phòng ${roomType} (${monthsCount} tháng: ${dto.start_month} - ${endMonth})`,
+      total_amount: totalAmount,
+      status: 'Chưa thu',
+      due_date: dueDate,
+      notes: dto.notes,
+      created_by_id: creatorId,
+    });
+
+    try {
+      await invoice.save();
+    } catch (err: any) {
+      if (err.code === 11000) {
+        throw new ConflictException(
+          `Hóa đơn phí phòng cho thành viên trong khoảng thời gian ${dto.start_month} - ${endMonth} đã tồn tại`,
+        );
+      }
+      throw err;
+    }
+
+    return invoice;
   }
 
   /**

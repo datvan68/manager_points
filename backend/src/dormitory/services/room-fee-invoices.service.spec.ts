@@ -6,6 +6,7 @@ jest.mock('crypto', () => ({
 import {
   BadRequestException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { RoomFeeInvoicesService } from './room-fee-invoices.service';
 
@@ -25,6 +26,8 @@ function query<T>(value: T) {
 describe('RoomFeeInvoicesService', () => {
   const roomStandardId = '507f1f77bcf86cd799439011';
   const roomAcId = '507f1f77bcf86cd799439022';
+  const roster1Id = '507f1f77bcf86cd799439033';
+  const roster2Id = '507f1f77bcf86cd799439044';
 
   const roomStandard = {
     _id: roomStandardId,
@@ -42,7 +45,7 @@ describe('RoomFeeInvoicesService', () => {
 
   const rosterEntries = [
     {
-      _id: 'roster-1',
+      _id: roster1Id,
       student_id: 'student-1',
       room_id: roomStandard,
       full_name: 'Nguyễn Văn A',
@@ -50,7 +53,7 @@ describe('RoomFeeInvoicesService', () => {
       semester_id: 'sem-1',
     },
     {
-      _id: 'roster-2',
+      _id: roster2Id,
       student_id: 'student-2',
       room_id: roomAc,
       full_name: 'Trần Thị B',
@@ -105,6 +108,9 @@ describe('RoomFeeInvoicesService', () => {
 
     const rosterModel: any = {
       find: jest.fn(() => query(rosterEntries)),
+      findById: jest.fn((id: string) =>
+        query(rosterEntries.find((r) => String(r._id) === String(id)) || null),
+      ),
     };
 
     const roomModel: any = {
@@ -221,7 +227,7 @@ describe('RoomFeeInvoicesService', () => {
     it('accounts for already issued invoices in skipped_existing_count', async () => {
       const { service, roomFeeInvoiceModel } = setup();
       roomFeeInvoiceModel.find = jest.fn(() =>
-        query([{ roster_entry_id: 'roster-1' }]),
+        query([{ roster_entry_id: roster1Id }]),
       );
 
       const preview = await service.previewPeriod({ start_month: '2026-03' });
@@ -428,6 +434,207 @@ describe('RoomFeeInvoicesService', () => {
       expect(result.deleted).toContain('rfi-1');
       expect(result.not_found).toContain('rfi-3');
       expect(result.rejected.some((r) => r.id === 'rfi-2')).toBe(true);
+    });
+  });
+
+  describe('previewIndividual (AC-01, AC-02)', () => {
+    it('calculates single member preview with default room type rate', async () => {
+      const { service } = setup();
+      const preview = await service.previewIndividual({
+        roster_entry_id: roster1Id,
+        start_month: '2026-03',
+      });
+
+      expect(preview.roster_entry_id).toBe(roster1Id);
+      expect(preview.member_name).toBe('Nguyễn Văn A');
+      expect(preview.room_code).toBe('P101');
+      expect(preview.room_type).toBe('Thường');
+      expect(preview.start_month).toBe('2026-03');
+      expect(preview.end_month).toBe('2026-07');
+      expect(preview.months_count).toBe(5);
+      expect(preview.monthly_rate).toBe(500000);
+      expect(preview.total_amount).toBe(2500000);
+      expect(preview.already_exists).toBe(false);
+    });
+
+    it('calculates single member preview with custom monthly rate and custom months_count', async () => {
+      const { service } = setup();
+      const preview = await service.previewIndividual({
+        roster_entry_id: roster2Id,
+        start_month: '2026-03',
+        months_count: 6,
+        monthly_rate: 850000,
+        due_date: '2026-04-15',
+        notes: 'Ghi chú đặc biệt',
+      });
+
+      expect(preview.roster_entry_id).toBe(roster2Id);
+      expect(preview.member_name).toBe('Trần Thị B');
+      expect(preview.room_type).toBe('Máy lạnh');
+      expect(preview.end_month).toBe('2026-08');
+      expect(preview.months_count).toBe(6);
+      expect(preview.monthly_rate).toBe(850000);
+      expect(preview.total_amount).toBe(5100000);
+      expect(preview.due_date).toBe('2026-04-15');
+      expect(preview.notes).toBe('Ghi chú đặc biệt');
+    });
+
+    it('flags already_exists when an invoice for this period already exists', async () => {
+      const { service, roomFeeInvoiceModel } = setup();
+      roomFeeInvoiceModel.findOne = jest.fn(() =>
+        query({ _id: 'rfi-existing', invoice_code: 'RFI-EXIST-01' }),
+      );
+
+      const preview = await service.previewIndividual({
+        roster_entry_id: roster1Id,
+        start_month: '2026-03',
+      });
+
+      expect(preview.already_exists).toBe(true);
+      expect(preview.existing_invoice_code).toBe('RFI-EXIST-01');
+    });
+
+    it('throws NotFoundException when roster entry does not exist', async () => {
+      const { service, rosterModel } = setup();
+      rosterModel.findById = jest.fn(() => query(null));
+
+      await expect(
+        service.previewIndividual({
+          roster_entry_id: '507f1f77bcf86cd799439099',
+          start_month: '2026-03',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when roster entry has no room or invalid room type', async () => {
+      const { service, rosterModel } = setup();
+      rosterModel.findById = jest.fn(() =>
+        query({
+          _id: '507f1f77bcf86cd799439099',
+          room_id: null,
+          full_name: 'Chưa xếp phòng',
+        }),
+      );
+
+      await expect(
+        service.previewIndividual({
+          roster_entry_id: '507f1f77bcf86cd799439099',
+          start_month: '2026-03',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException on invalid ObjectId or negative rate', async () => {
+      const { service } = setup();
+      await expect(
+        service.previewIndividual({
+          roster_entry_id: 'invalid-id',
+          start_month: '2026-03',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.previewIndividual({
+          roster_entry_id: roster1Id,
+          start_month: '2026-03',
+          monthly_rate: -100,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('createIndividual (AC-03, AC-04, AC-05)', () => {
+    it('creates an individual room-fee invoice with custom rate and immutable snapshots', async () => {
+      const { service, saved, roomFeeConfigModel } = setup();
+      const user = { _id: 'user-admin-1' };
+
+      const invoice = await service.createIndividual(
+        {
+          roster_entry_id: roster1Id,
+          start_month: '2026-03',
+          months_count: 6,
+          monthly_rate: 650000,
+          due_date: '2026-04-20',
+          notes: 'Ưu đãi đặc biệt',
+        },
+        user,
+      );
+
+      expect(saved).toHaveBeenCalledTimes(1);
+      expect(invoice.roster_entry_id).toBe(roster1Id);
+      expect(invoice.member_name).toBe('Nguyễn Văn A');
+      expect(invoice.room_code).toBe('P101');
+      expect(invoice.room_type).toBe('Thường');
+      expect(invoice.start_month).toBe('2026-03');
+      expect(invoice.end_month).toBe('2026-08');
+      expect(invoice.months_count).toBe(6);
+      expect(invoice.monthly_rate).toBe(650000);
+      expect(invoice.total_amount).toBe(3900000);
+      expect(invoice.status).toBe('Chưa thu');
+      expect(invoice.created_by_id).toBe('user-admin-1');
+
+      // Verify global RoomFeeConfig was NOT updated or saved
+      expect(roomFeeConfigModel.prototype?.save).toBeUndefined();
+    });
+
+    it('throws ConflictException if an invoice for the period already exists in pre-check', async () => {
+      const { service, roomFeeInvoiceModel } = setup();
+      roomFeeInvoiceModel.findOne = jest.fn(() =>
+        query({ _id: 'rfi-existing', invoice_code: 'RFI-EXIST-01' }),
+      );
+
+      await expect(
+        service.createIndividual(
+          {
+            roster_entry_id: roster1Id,
+            start_month: '2026-03',
+            months_count: 5,
+            monthly_rate: 500000,
+          },
+          { userId: 'u1' },
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException on Mongo E11000 duplicate key error', async () => {
+      const { service, roomFeeInvoiceModel } = setup();
+      roomFeeInvoiceModel.mockImplementation((value: any) => ({
+        ...value,
+        save: jest.fn().mockImplementation(async () => {
+          const err: any = new Error('E11000 duplicate key error');
+          err.code = 11000;
+          throw err;
+        }),
+      }));
+
+      await expect(
+        service.createIndividual(
+          {
+            roster_entry_id: roster1Id,
+            start_month: '2026-03',
+            months_count: 5,
+            monthly_rate: 500000,
+          },
+          { userId: 'u1' },
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws NotFoundException when roster entry is missing', async () => {
+      const { service, rosterModel } = setup();
+      rosterModel.findById = jest.fn(() => query(null));
+
+      await expect(
+        service.createIndividual(
+          {
+            roster_entry_id: '507f1f77bcf86cd799439099',
+            start_month: '2026-03',
+            months_count: 5,
+            monthly_rate: 500000,
+          },
+          { userId: 'u1' },
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

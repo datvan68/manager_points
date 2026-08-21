@@ -799,4 +799,28 @@ describe('Dormitory Invoices Page', () => {
       expect(screen.getByRole('button', { name: /Ghi điện nước/i })).toBeDefined();
     });
   });
+
+  it('handles compact mode matchMedia without breaking utility invoices list', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query === '(max-width: 1023px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.getAll).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1 }),
+      );
+    });
+
+    window.matchMedia = originalMatchMedia;
+  });
 });

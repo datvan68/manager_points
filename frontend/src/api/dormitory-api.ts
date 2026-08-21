@@ -354,6 +354,44 @@ export interface CreateRoomFeePeriodResponse {
   created_ids: string[];
 }
 
+export interface PreviewIndividualRoomFeeInput {
+  roster_entry_id: string;
+  start_month: string;
+  months_count?: number;
+  monthly_rate?: number;
+  due_date?: string;
+  notes?: string;
+}
+
+export interface PreviewIndividualRoomFeeResponse {
+  roster_entry_id: string;
+  student_id?: string;
+  member_name: string;
+  member_code?: string;
+  room_id: string;
+  room_code: string;
+  room_name?: string;
+  room_type: string;
+  start_month: string;
+  end_month: string;
+  months_count: number;
+  monthly_rate: number;
+  total_amount: number;
+  due_date?: string;
+  notes?: string;
+  already_exists: boolean;
+  existing_invoice_code?: string;
+}
+
+export interface CreateIndividualRoomFeeInput {
+  roster_entry_id: string;
+  start_month: string;
+  months_count: number;
+  monthly_rate: number;
+  due_date?: string;
+  notes?: string;
+}
+
 export interface RoomFeeInvoice {
   _id: string;
   invoice_code: string;
@@ -969,6 +1007,32 @@ export const dormitoryApi = {
     ): Promise<CreateRoomFeePeriodResponse> {
       const res = await httpClient(
         `${API_BASE}/dormitory/room-fee-invoices/create-period`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async previewIndividual(
+      dto: PreviewIndividualRoomFeeInput,
+    ): Promise<PreviewIndividualRoomFeeResponse> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/preview-individual`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto),
+        },
+      );
+      return handleResponse(res);
+    },
+    async createIndividual(
+      dto: CreateIndividualRoomFeeInput,
+    ): Promise<RoomFeeInvoice> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/create-individual`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -180,9 +180,19 @@ export default function InvoicesPage() {
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Pagination state
+  // Pagination & Compact Infinite Scroll state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [isCompact, setIsCompact] = useState(false);
+  const [mobileLoadingMore, setMobileLoadingMore] = useState(false);
+  const [mobileLoadError, setMobileLoadError] = useState(false);
+  const [mobileHasMore, setMobileHasMore] = useState(true);
+  const mobilePageRef = useRef(1);
+  const mobileHasMoreRef = useRef(true);
+  const queryGenerationRef = useRef(0);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const invoiceRequestRef = useRef(0);
 
   // View mode: 'table' hoặc 'cards'
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -199,6 +209,16 @@ export default function InvoicesPage() {
       searchRef.current?.focus();
     }
   }, [mobileSearchOpen]);
+
+  // Responsive breakpoint listener (max-width: 1023px)
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsCompact(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   // Popover calendar & status filter cho bộ lọc toolbar
   const [calendarFilterOpen, setCalendarFilterOpen] = useState(false);
@@ -363,28 +383,98 @@ export default function InvoicesPage() {
 
   // Load danh sách hóa đơn
   const load = useCallback(
-    async (background = false) => {
+    async (background = false, requestedPage = page) => {
+      const requestId = ++invoiceRequestRef.current;
+      const requested = isCompact ? 1 : requestedPage;
       try {
         if (background) setRefreshing(true);
         else setLoading(true);
-        const params: any = { page, limit: pageSize };
+        const params: any = { page: requested, limit: pageSize };
         if (filterStatus === 'Chưa thu') params.status = 'Chưa thu';
         else if (filterStatus === 'Đã thu') params.status = 'Đã thu';
         if (filterMonth) params.billing_month = filterMonth;
         if (search) params.search = search;
 
         const res = await dormitoryApi.invoices.getAll(params);
+        if (invoiceRequestRef.current !== requestId) return;
         setInvoices(res.data || []);
         setMeta(res.meta);
+        mobilePageRef.current = requested;
+        const hasMore = isCompact && requested < (res.meta?.totalPages || 1);
+        mobileHasMoreRef.current = hasMore;
+        setMobileHasMore(hasMore);
+        setMobileLoadError(false);
       } catch (err: any) {
-        toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
+        if (invoiceRequestRef.current === requestId) {
+          toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (invoiceRequestRef.current === requestId) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [filterStatus, filterMonth, search, page, pageSize],
+    [isCompact, filterStatus, filterMonth, search, page, pageSize],
   );
+
+  // Reset pagination on filter or breakpoint changes
+  useEffect(() => {
+    queryGenerationRef.current += 1;
+    mobilePageRef.current = 1;
+    mobileHasMoreRef.current = true;
+    setMobileHasMore(true);
+    setMobileLoadError(false);
+    if (isCompact) {
+      setPage(1);
+      setSelected([]);
+    }
+  }, [isCompact, pageSize, search, filterStatus, filterMonth]);
+
+  // Mobile Infinite Scroll loader
+  const loadMoreMobile = useCallback(async () => {
+    if (!isCompact || loading || mobileLoadingMore || !mobileHasMoreRef.current) return;
+    setMobileLoadingMore(true);
+    const nextPage = mobilePageRef.current + 1;
+    const generation = queryGenerationRef.current;
+    const requestId = ++invoiceRequestRef.current;
+    try {
+      const params: any = { page: nextPage, limit: pageSize };
+      if (filterStatus === 'Chưa thu') params.status = 'Chưa thu';
+      else if (filterStatus === 'Đã thu') params.status = 'Đã thu';
+      if (filterMonth) params.billing_month = filterMonth;
+      if (search) params.search = search;
+
+      const res = await dormitoryApi.invoices.getAll(params);
+      const next = res.data || [];
+      if (invoiceRequestRef.current !== requestId || queryGenerationRef.current !== generation) return;
+      setInvoices(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
+      mobilePageRef.current = nextPage;
+      const hasMore = nextPage < (res.meta?.totalPages || 1);
+      mobileHasMoreRef.current = hasMore;
+      setMobileHasMore(hasMore);
+      setMobileLoadError(false);
+    } catch {
+      if (queryGenerationRef.current === generation) {
+        setMobileLoadError(true);
+      }
+    } finally {
+      setMobileLoadingMore(false);
+    }
+  }, [isCompact, loading, mobileLoadingMore, search, filterStatus, filterMonth, pageSize]);
+
+  // IntersectionObserver for Mobile Sentinel
+  useEffect(() => {
+    const target = mobileSentinelRef.current;
+    if (!target || !isCompact || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !mobileLoadError) {
+        void loadMoreMobile();
+      }
+    }, { root: mobileScrollRef.current, rootMargin: '160px', threshold: 0.1 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isCompact, loadMoreMobile, mobileLoadError]);
 
   useEffect(() => {
     load();
@@ -1185,7 +1275,24 @@ export default function InvoicesPage() {
           data={invoices}
           columns={columns}
           isLoading={loading}
+          breakpoint="lg"
           keyExtractor={(inv) => inv._id}
+          mobileScrollRef={mobileScrollRef}
+          mobileVirtualization
+          hidePaginationOnMobile
+          mobileFooter={
+            <div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-center text-xs text-slate-500">
+              {mobileLoadingMore ? (
+                'Đang tải thêm...'
+              ) : mobileLoadError ? (
+                <button type="button" className="text-blue-600 underline cursor-pointer" onClick={() => void loadMoreMobile()}>
+                  Thử lại
+                </button>
+              ) : !mobileHasMore && invoices.length ? (
+                'Đã hiển thị tất cả bản ghi.'
+              ) : null}
+            </div>
+          }
           selection={
             canBulkAction
               ? {

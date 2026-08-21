@@ -6,6 +6,8 @@ import {
   UpdateRoomFeeConfigDto,
   PreviewRoomFeePeriodDto,
   CreateRoomFeePeriodDto,
+  PreviewIndividualRoomFeeDto,
+  CreateIndividualRoomFeeDto,
   ReviewRoomFeeProofDto,
   BulkReviewRoomFeeProofDto,
 } from '../dto/room-fee-invoice.dto';
@@ -38,6 +40,22 @@ describe('RoomFeeInvoicesController', () => {
         skipped_count: 0,
         invalid_count: 0,
         total_amount: 50000000,
+      }),
+      previewIndividual: jest.fn().mockResolvedValue({
+        roster_entry_id: 'roster-1',
+        member_name: 'Nguyễn Văn A',
+        start_month: '2026-03',
+        end_month: '2026-07',
+        months_count: 5,
+        monthly_rate: 600000,
+        total_amount: 3000000,
+        already_exists: false,
+      }),
+      createIndividual: jest.fn().mockResolvedValue({
+        _id: 'rfi-ind-1',
+        invoice_code: 'RFI-IND-01',
+        member_name: 'Nguyễn Văn A',
+        total_amount: 3000000,
       }),
       findAll: jest.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
       findOne: jest.fn().mockResolvedValue({ _id: 'rfi-1' }),
@@ -91,6 +109,31 @@ describe('RoomFeeInvoicesController', () => {
     const result = await controller.createPeriod(dto, req);
     expect(service.createPeriod).toHaveBeenCalledWith(dto, req.user);
     expect(result.created_count).toBe(10);
+  });
+
+  it('previewIndividual delegates to service.previewIndividual', async () => {
+    const dto: any = {
+      roster_entry_id: 'roster-1',
+      start_month: '2026-03',
+      months_count: 5,
+      monthly_rate: 600000,
+    };
+    const result = await controller.previewIndividual(dto);
+    expect(service.previewIndividual).toHaveBeenCalledWith(dto);
+    expect(result.total_amount).toBe(3000000);
+  });
+
+  it('createIndividual delegates to service.createIndividual', async () => {
+    const dto: any = {
+      roster_entry_id: 'roster-1',
+      start_month: '2026-03',
+      months_count: 5,
+      monthly_rate: 600000,
+    };
+    const req = { user: { userId: 'admin-1' } };
+    const result = await controller.createIndividual(dto, req);
+    expect(service.createIndividual).toHaveBeenCalledWith(dto, req.user);
+    expect(result._id).toBe('rfi-ind-1');
   });
 
   it('uploadProof returns metadata on valid image', () => {
@@ -173,6 +216,53 @@ describe('RoomFeeInvoicesController', () => {
       });
       const errors = await validate(invalidDto);
       expect(errors.some((e) => e.property === 'decision')).toBe(true);
+    });
+
+    it('validates PreviewIndividualRoomFeeDto fields', async () => {
+      const invalidDto = plainToInstance(PreviewIndividualRoomFeeDto, {
+        roster_entry_id: '',
+        start_month: 'invalid-month',
+        months_count: 50,
+        monthly_rate: -500,
+      });
+      const errors = await validate(invalidDto);
+      expect(errors.some((e) => e.property === 'roster_entry_id')).toBe(true);
+      expect(errors.some((e) => e.property === 'start_month')).toBe(true);
+      expect(errors.some((e) => e.property === 'months_count')).toBe(true);
+      expect(errors.some((e) => e.property === 'monthly_rate')).toBe(true);
+
+      const validDto = plainToInstance(PreviewIndividualRoomFeeDto, {
+        roster_entry_id: '507f1f77bcf86cd799439011',
+        start_month: '2026-03',
+        months_count: 5,
+        monthly_rate: 600000,
+      });
+      const validErrors = await validate(validDto);
+      expect(validErrors.length).toBe(0);
+    });
+
+    it('validates CreateIndividualRoomFeeDto fields', async () => {
+      const invalidDto = plainToInstance(CreateIndividualRoomFeeDto, {
+        roster_entry_id: '',
+        start_month: '2026-03',
+        months_count: 0,
+        monthly_rate: -1,
+      });
+      const errors = await validate(invalidDto);
+      expect(errors.some((e) => e.property === 'roster_entry_id')).toBe(true);
+      expect(errors.some((e) => e.property === 'months_count')).toBe(true);
+      expect(errors.some((e) => e.property === 'monthly_rate')).toBe(true);
+
+      const validDto = plainToInstance(CreateIndividualRoomFeeDto, {
+        roster_entry_id: '507f1f77bcf86cd799439011',
+        start_month: '2026-03',
+        months_count: 6,
+        monthly_rate: 650000,
+        due_date: '2026-04-15',
+        notes: 'Ghi chú thu riêng',
+      });
+      const validErrors = await validate(validDto);
+      expect(validErrors.length).toBe(0);
     });
   });
 });

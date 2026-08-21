@@ -31,6 +31,8 @@ import {
   RoomFeeConfig,
   UpdateRoomFeeConfigInput,
   PreviewRoomFeePeriodResponse,
+  PreviewIndividualRoomFeeResponse,
+  DormitoryRosterEntry,
 } from '@/api/dormitory-api';
 import { API_ORIGIN } from '@/api/config';
 import { toast } from 'sonner';
@@ -94,9 +96,20 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState<any>(null);
 
-  // Pagination state
+  // Pagination & Compact Infinite Scroll state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [isCompact, setIsCompact] = useState(false);
+  const [mobileLoadingMore, setMobileLoadingMore] = useState(false);
+  const [mobileLoadError, setMobileLoadError] = useState(false);
+  const [mobileHasMore, setMobileHasMore] = useState(true);
+  const mobilePageRef = useRef(1);
+  const mobileHasMoreRef = useRef(true);
+  const queryGenerationRef = useRef(0);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const invoiceRequestRef = useRef(0);
+  const rosterSearchRequestRef = useRef(0);
 
   // Selection state
   const [selected, setSelected] = useState<string[]>([]);
@@ -119,6 +132,16 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       searchRef.current?.focus();
     }
   }, [mobileSearchOpen]);
+
+  // Responsive breakpoint listener (max-width: 1023px)
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsCompact(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   // Config modal state
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -143,6 +166,23 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [previewLoading, setPreviewLoading] = useState(false);
   const [periodSubmitting, setPeriodSubmitting] = useState(false);
 
+  // Individual Issuance Modal state
+  const [individualModalOpen, setIndividualModalOpen] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterOptions, setRosterOptions] = useState<DormitoryRosterEntry[]>([]);
+  const [rosterSearching, setRosterSearching] = useState(false);
+  const [selectedRosterEntry, setSelectedRosterEntry] = useState<DormitoryRosterEntry | null>(null);
+  const [individualStartMonth, setIndividualStartMonth] = useState('');
+  const [individualMonthsCount, setIndividualMonthsCount] = useState(5);
+  const [individualMonthlyRate, setIndividualMonthlyRate] = useState(500000);
+  const [individualDueDate, setIndividualDueDate] = useState('');
+  const [individualNotes, setIndividualNotes] = useState('');
+  const [individualPreview, setIndividualPreview] = useState<PreviewIndividualRoomFeeResponse | null>(null);
+  const [individualPreviewLoading, setIndividualPreviewLoading] = useState(false);
+  const [individualSubmitting, setIndividualSubmitting] = useState(false);
+  const [individualStartCalendarOpen, setIndividualStartCalendarOpen] = useState(false);
+  const [individualDueDateCalendarOpen, setIndividualDueDateCalendarOpen] = useState(false);
+
   // Payment modal state
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<RoomFeeInvoice | null>(null);
@@ -158,14 +198,45 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
+  // Debounced search for assigned roster members
+  useEffect(() => {
+    const requestId = ++rosterSearchRequestRef.current;
+    if (!individualModalOpen || !rosterSearch.trim() || selectedRosterEntry) {
+      setRosterOptions([]);
+      setRosterSearching(false);
+      return;
+    }
+    setRosterSearching(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await dormitoryApi.roster.getAll({ search: rosterSearch.trim(), limit: 10 });
+        if (rosterSearchRequestRef.current === requestId) {
+          const list = (res.data || []).filter(item => Boolean(item.room_id));
+          setRosterOptions(list);
+        }
+      } catch {
+        if (rosterSearchRequestRef.current === requestId) {
+          setRosterOptions([]);
+        }
+      } finally {
+        if (rosterSearchRequestRef.current === requestId) {
+          setRosterSearching(false);
+        }
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [individualModalOpen, rosterSearch, selectedRosterEntry]);
+
   // Load Invoices
-  const loadInvoices = useCallback(async (isRefresh = false) => {
+  const loadInvoices = useCallback(async (isRefresh = false, requestedPage = page) => {
+    const requestId = ++invoiceRequestRef.current;
+    const requested = isCompact ? 1 : requestedPage;
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
       const params: any = {
-        page,
+        page: requested,
         limit: pageSize,
       };
 
@@ -174,15 +245,85 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       if (filterMonth) params.start_month = filterMonth;
 
       const res = await dormitoryApi.roomFeeInvoices.getAll(params);
+      if (invoiceRequestRef.current !== requestId) return;
       setInvoices(res.data || []);
       setMeta(res.meta || null);
+      mobilePageRef.current = requested;
+      const hasMore = isCompact && requested < (res.meta?.totalPages || 1);
+      mobileHasMoreRef.current = hasMore;
+      setMobileHasMore(hasMore);
+      setMobileLoadError(false);
     } catch (err: any) {
-      toast.error(err?.message || 'Lỗi tải danh sách phí phòng');
+      if (invoiceRequestRef.current === requestId) {
+        toast.error(err?.message || 'Lỗi tải danh sách phí phòng');
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (invoiceRequestRef.current === requestId) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [page, pageSize, search, filterStatus, filterMonth]);
+  }, [isCompact, page, pageSize, search, filterStatus, filterMonth]);
+
+  // Reset pagination on filter or breakpoint changes
+  useEffect(() => {
+    queryGenerationRef.current += 1;
+    mobilePageRef.current = 1;
+    mobileHasMoreRef.current = true;
+    setMobileHasMore(true);
+    setMobileLoadError(false);
+    if (isCompact) {
+      setPage(1);
+      setSelected([]);
+    }
+  }, [isCompact, pageSize, search, filterStatus, filterMonth]);
+
+  // Mobile Infinite Scroll loader
+  const loadMoreMobile = useCallback(async () => {
+    if (!isCompact || loading || mobileLoadingMore || !mobileHasMoreRef.current) return;
+    setMobileLoadingMore(true);
+    const nextPage = mobilePageRef.current + 1;
+    const generation = queryGenerationRef.current;
+    const requestId = ++invoiceRequestRef.current;
+    try {
+      const params: any = {
+        page: nextPage,
+        limit: pageSize,
+      };
+      if (search.trim()) params.search = search.trim();
+      if (filterStatus !== 'Tất cả') params.status = filterStatus;
+      if (filterMonth) params.start_month = filterMonth;
+
+      const res = await dormitoryApi.roomFeeInvoices.getAll(params);
+      const next = res.data || [];
+      if (invoiceRequestRef.current !== requestId || queryGenerationRef.current !== generation) return;
+      setInvoices(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
+      mobilePageRef.current = nextPage;
+      const hasMore = nextPage < (res.meta?.totalPages || 1);
+      mobileHasMoreRef.current = hasMore;
+      setMobileHasMore(hasMore);
+      setMobileLoadError(false);
+    } catch {
+      if (queryGenerationRef.current === generation) {
+        setMobileLoadError(true);
+      }
+    } finally {
+      setMobileLoadingMore(false);
+    }
+  }, [isCompact, loading, mobileLoadingMore, search, filterStatus, filterMonth, pageSize]);
+
+  // IntersectionObserver for Mobile Sentinel
+  useEffect(() => {
+    const target = mobileSentinelRef.current;
+    if (!target || !isCompact || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !mobileLoadError) {
+        void loadMoreMobile();
+      }
+    }, { root: mobileScrollRef.current, rootMargin: '160px', threshold: 0.1 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isCompact, loadMoreMobile, mobileLoadError]);
 
   // Load Config
   const loadConfig = useCallback(async () => {
@@ -350,6 +491,132 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       toast.error(err?.message || 'Lỗi lập đợt thu');
     } finally {
       setPeriodSubmitting(false);
+    }
+  }
+
+  // Open Individual Issuance Modal
+  function openIndividualModal() {
+    setSelectedRosterEntry(null);
+    setRosterSearch('');
+    setRosterOptions([]);
+    setIndividualStartMonth(defaultMonth);
+    const months = configData?.months_to_collect || 5;
+    setIndividualMonthsCount(months);
+    setIndividualMonthlyRate(configData?.standard_monthly_rate || 500000);
+    setIndividualDueDate('');
+    setIndividualNotes('');
+    setIndividualPreview(null);
+    setIndividualModalOpen(true);
+  }
+
+  // Select a roster entry
+  function selectRosterEntry(entry: DormitoryRosterEntry) {
+    setSelectedRosterEntry(entry);
+    setRosterSearch('');
+    setRosterOptions([]);
+    const room = entry.room_id as any;
+    const isAc = room?.room_type === 'Máy lạnh' || entry.room_type === 'Máy lạnh';
+    const rate = isAc
+      ? configData?.air_conditioned_monthly_rate || 700000
+      : configData?.standard_monthly_rate || 500000;
+    setIndividualMonthlyRate(rate);
+    void fetchIndividualPreview(entry._id, individualStartMonth, individualMonthsCount, rate);
+  }
+
+  // Fetch Individual Preview
+  async function fetchIndividualPreview(
+    rosterEntryId: string,
+    startMonth: string,
+    monthsCount: number,
+    rate: number,
+  ) {
+    if (!rosterEntryId || !startMonth || !/^\d{4}-\d{2}$/.test(startMonth)) {
+      setIndividualPreview(null);
+      return;
+    }
+    try {
+      setIndividualPreviewLoading(true);
+      const res = await dormitoryApi.roomFeeInvoices.previewIndividual({
+        roster_entry_id: rosterEntryId,
+        start_month: startMonth,
+        months_count: monthsCount,
+        monthly_rate: rate,
+        due_date: individualDueDate || undefined,
+        notes: individualNotes || undefined,
+      });
+      setIndividualPreview(res);
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi tính toán xem trước');
+      setIndividualPreview(null);
+    } finally {
+      setIndividualPreviewLoading(false);
+    }
+  }
+
+  function handleIndividualMonthsChange(count: number) {
+    setIndividualMonthsCount(count);
+    setIndividualPreview(null);
+    if (selectedRosterEntry) {
+      void fetchIndividualPreview(selectedRosterEntry._id, individualStartMonth, count, individualMonthlyRate);
+    }
+  }
+
+  function handleIndividualRateChange(rate: number) {
+    setIndividualMonthlyRate(rate);
+    setIndividualPreview(null);
+    if (selectedRosterEntry) {
+      void fetchIndividualPreview(selectedRosterEntry._id, individualStartMonth, individualMonthsCount, rate);
+    }
+  }
+
+  function handleIndividualStartMonthChange(ym: string) {
+    setIndividualStartMonth(ym);
+    setIndividualPreview(null);
+    if (selectedRosterEntry) {
+      void fetchIndividualPreview(selectedRosterEntry._id, ym, individualMonthsCount, individualMonthlyRate);
+    }
+  }
+
+  // Submit Individual Issuance
+  async function handleCreateIndividualSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedRosterEntry) {
+      toast.error('Vui lòng chọn thành viên KTX');
+      return;
+    }
+    if (!individualStartMonth) {
+      toast.error('Vui lòng chọn kỳ bắt đầu');
+      return;
+    }
+    if (individualMonthlyRate < 0) {
+      toast.error('Đơn giá không được là số âm');
+      return;
+    }
+    if (individualMonthsCount < 1 || individualMonthsCount > 36) {
+      toast.error('Số tháng thu phải từ 1 đến 36');
+      return;
+    }
+
+    try {
+      setIndividualSubmitting(true);
+      const invoice = await dormitoryApi.roomFeeInvoices.createIndividual({
+        roster_entry_id: selectedRosterEntry._id,
+        start_month: individualStartMonth,
+        months_count: individualMonthsCount,
+        monthly_rate: individualMonthlyRate,
+        due_date: individualDueDate || undefined,
+        notes: individualNotes || undefined,
+      });
+
+      toast.success(
+        `Lập hóa đơn phí phòng thành công cho ${invoice.member_name} (${invoice.invoice_code})`,
+      );
+      setIndividualModalOpen(false);
+      void loadInvoices(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi lập hóa đơn phí phòng cá nhân');
+    } finally {
+      setIndividualSubmitting(false);
     }
   }
 
@@ -797,12 +1064,26 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
               <SlidersHorizontal size={15} />
             </Button>
 
+            {/* Nút Lập đợt thu cá nhân */}
+            {canCreateInvoice && (
+              <Button
+                variant="outline"
+                aria-label="Lập đợt thu cá nhân"
+                title="Lập đợt thu cá nhân"
+                onClick={openIndividualModal}
+                className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
+              >
+                <User size={14} />
+                <span className="hidden sm:inline">Thu cá nhân</span>
+              </Button>
+            )}
+
             {/* Nút Lập đợt thu */}
             {canCreateInvoice && (
               <Button
                 variant="outline"
                 aria-label="Lập đợt thu phí phòng"
-                title="Lập đợt thu"
+                title="Lập đợt thu hàng loạt"
                 onClick={openCreatePeriodModal}
                 className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
               >
@@ -867,7 +1148,24 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
           data={invoices}
           columns={columns}
           isLoading={loading}
+          breakpoint="lg"
           keyExtractor={(inv) => inv._id}
+          mobileScrollRef={mobileScrollRef}
+          mobileVirtualization
+          hidePaginationOnMobile
+          mobileFooter={
+            <div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-center text-xs text-slate-500">
+              {mobileLoadingMore ? (
+                'Đang tải thêm...'
+              ) : mobileLoadError ? (
+                <button type="button" className="text-blue-600 underline cursor-pointer" onClick={() => void loadMoreMobile()}>
+                  Thử lại
+                </button>
+              ) : !mobileHasMore && invoices.length ? (
+                'Đã hiển thị tất cả bản ghi.'
+              ) : null}
+            </div>
+          }
           selection={
             canBulkAction
               ? {
@@ -918,6 +1216,305 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
           }
         />
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL LẬP ĐỢT THU PHÍ PHÒNG CÁ NHÂN */}
+      {/* ========================================================================= */}
+      <Dialog open={individualModalOpen} onOpenChange={setIndividualModalOpen}>
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+          <DialogHeader className="border-b border-white/50 pb-3">
+            <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
+              <User size={20} className="text-[#1A73E8]" />
+              Lập đợt thu phí phòng cá nhân
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateIndividualSubmit} className="space-y-4 pt-2">
+            {/* Chọn thành viên */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Chọn thành viên KTX <span className="text-red-500">*</span>
+              </label>
+
+              {selectedRosterEntry ? (
+                <div className="flex items-center justify-between p-3 bg-white/80 rounded-xl border border-blue-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1A73E8]/10 text-[#1A73E8] font-bold text-xs">
+                      {selectedRosterEntry.full_name?.charAt(0).toUpperCase() || <User size={16} />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800 text-xs">
+                        {selectedRosterEntry.full_name}{' '}
+                        {selectedRosterEntry.student_code && (
+                          <span className="font-mono text-slate-500 font-normal">({selectedRosterEntry.student_code})</span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-slate-600">
+                        {typeof selectedRosterEntry.room_id === 'object' && selectedRosterEntry.room_id
+                          ? `${selectedRosterEntry.room_id.room_name || selectedRosterEntry.room_id.room_code} · ${selectedRosterEntry.room_id.room_type || 'Thường'}`
+                          : selectedRosterEntry.assigned_room_name || 'Đã xếp phòng'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedRosterEntry(null);
+                      setIndividualPreview(null);
+                    }}
+                    className="h-7 px-2 text-xs rounded-lg border-slate-300 text-slate-600 cursor-pointer"
+                  >
+                    Đổi thành viên
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Tìm theo tên SV, mã SV..."
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 focus:ring-2 focus:ring-[#1A73E8]/30"
+                  />
+                  {rosterSearching && (
+                    <div className="absolute right-3 top-2.5 text-xs text-slate-400">Đang tìm...</div>
+                  )}
+                  {rosterOptions.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">
+                      {rosterOptions.map((entry) => {
+                        const room = entry.room_id as any;
+                        const roomName = room ? room.room_name || room.room_code : 'Phòng';
+                        const roomType = room?.room_type || entry.room_type || 'Thường';
+                        return (
+                          <button
+                            key={entry._id}
+                            type="button"
+                            onClick={() => selectRosterEntry(entry)}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-blue-50 border-b border-slate-100 last:border-b-0 cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-800">{entry.full_name}</span>
+                              {entry.student_code && (
+                                <span className="ml-1.5 font-mono text-slate-500">({entry.student_code})</span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500">
+                              {roomName} ({roomType})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {!rosterSearching && rosterSearch.trim() && rosterOptions.length === 0 && (
+                    <div className="absolute z-20 mt-1 w-full rounded-xl border border-white/80 bg-white p-3 text-center text-xs text-slate-500 shadow-xl">
+                      Không tìm thấy thành viên có phòng phù hợp.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Kỳ bắt đầu & Số tháng thu */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Kỳ bắt đầu (Tháng/Năm) <span className="text-red-500">*</span>
+                </label>
+                <Popover open={individualStartCalendarOpen} onOpenChange={setIndividualStartCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 flex items-center justify-between text-left focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+                    >
+                      <span>{individualStartMonth ? formatBillingMonth(individualStartMonth) : 'Chọn kỳ'}</span>
+                      <CalendarIcon size={14} className="text-[#1A73E8]" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                    <CustomCalendar
+                      monthOnly
+                      monthValue={individualStartMonth || defaultMonth}
+                      startDate={individualStartMonth ? new Date(`${individualStartMonth}-01T00:00:00`) : null}
+                      endDate={null}
+                      onRangeSelect={() => {}}
+                      onRangeConfirm={(start) => {
+                        const y = start.getFullYear();
+                        const m = String(start.getMonth() + 1).padStart(2, '0');
+                        const ym = `${y}-${m}`;
+                        setIndividualStartCalendarOpen(false);
+                        handleIndividualStartMonthChange(ym);
+                      }}
+                      onCancel={() => setIndividualStartCalendarOpen(false)}
+                      onConfirm={() => setIndividualStartCalendarOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Số tháng thu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="36"
+                  required
+                  value={individualMonthsCount}
+                  onChange={(e) => {
+                    const count = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    handleIndividualMonthsChange(count);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 focus:ring-2 focus:ring-[#1A73E8]/30"
+                />
+              </div>
+            </div>
+
+            {/* Đơn giá / tháng */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Đơn giá / tháng (VNĐ) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="10000"
+                required
+                value={individualMonthlyRate}
+                onChange={(e) => {
+                  const rate = Math.max(0, parseInt(e.target.value, 10) || 0);
+                  handleIndividualRateChange(rate);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 font-semibold focus:ring-2 focus:ring-[#1A73E8]/30"
+              />
+            </div>
+
+            {/* Hạn đóng */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Hạn thanh toán (Tùy chọn)
+              </label>
+              <Popover open={individualDueDateCalendarOpen} onOpenChange={setIndividualDueDateCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 flex items-center justify-between text-left focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+                  >
+                    <span>{individualDueDate ? formatDate(individualDueDate) : 'Chọn hạn thanh toán'}</span>
+                    <CalendarIcon size={14} className="text-slate-400" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                  <CustomCalendar
+                    startDate={individualDueDate ? new Date(`${individualDueDate}T00:00:00`) : null}
+                    endDate={null}
+                    onRangeSelect={(start) => setIndividualDueDate(toDateValue(start))}
+                    onRangeConfirm={(start) => {
+                      setIndividualDueDate(toDateValue(start));
+                      setIndividualDueDateCalendarOpen(false);
+                    }}
+                    onCancel={() => setIndividualDueDateCalendarOpen(false)}
+                    onConfirm={() => setIndividualDueDateCalendarOpen(false)}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Ghi chú */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700">Ghi chú</label>
+              <input
+                type="text"
+                placeholder="Ví dụ: Đợt thu bổ sung, miễn giảm theo thỏa thuận..."
+                value={individualNotes}
+                onChange={(e) => setIndividualNotes(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 focus:ring-2 focus:ring-[#1A73E8]/30"
+              />
+            </div>
+
+            {/* Xem trước kết quả */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 space-y-2 text-xs">
+              <p className="font-bold text-blue-900 flex items-center justify-between">
+                <span>Xem trước kết quả thu cá nhân</span>
+                {individualPreview && (
+                  <span className="text-blue-700">
+                    {formatBillingMonth(individualPreview.start_month)} - {formatBillingMonth(individualPreview.end_month)} ({individualPreview.months_count} tháng)
+                  </span>
+                )}
+              </p>
+
+              {individualPreviewLoading ? (
+                <p className="text-slate-500 py-2 text-center">Đang tính toán xem trước...</p>
+              ) : individualPreview ? (
+                <div className="space-y-2 pt-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                      <span className="text-slate-500 text-[11px]">Thành viên</span>
+                      <p className="font-semibold text-slate-800 text-xs truncate">
+                        {individualPreview.member_name} ({individualPreview.member_code || '—'})
+                      </p>
+                    </div>
+                    <div className="bg-white/80 p-2 rounded-lg border border-blue-100">
+                      <span className="text-slate-500 text-[11px]">Phòng</span>
+                      <p className="font-semibold text-slate-800 text-xs">
+                        {individualPreview.room_code} ({individualPreview.room_type})
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100 flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-500 text-[11px]">Đơn giá: {formatMoney(individualPreview.monthly_rate)} / tháng</span>
+                      <p className="text-xs font-bold text-slate-700">{individualPreview.months_count} tháng</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500 text-[11px]">Tổng tiền</span>
+                      <p className="text-base font-bold text-[#1A73E8]">{formatMoney(individualPreview.total_amount)}</p>
+                    </div>
+                  </div>
+
+                  {individualPreview.already_exists && (
+                    <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-1.5 font-medium">
+                      <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                      <span>Hóa đơn cho thành viên trong khoảng thời gian này đã tồn tại ({individualPreview.existing_invoice_code}).</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center py-1">Vui lòng chọn thành viên để xem trước.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/50">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIndividualModalOpen(false)}
+                disabled={individualSubmitting}
+                className="rounded-xl border-slate-300 text-xs cursor-pointer"
+              >
+                Hủy
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  individualSubmitting ||
+                  individualPreviewLoading ||
+                  !selectedRosterEntry ||
+                  !individualStartMonth ||
+                  !individualPreview ||
+                  individualPreview.already_exists
+                }
+                className="rounded-xl bg-[#1A73E8] px-4 text-xs font-semibold text-white hover:bg-[#1557B0] cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {individualSubmitting ? 'Đang tạo...' : 'Xác nhận tạo hóa đơn'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* ========================================================================= */}
       {/* MODAL CẤU HÌNH ĐƠN GIÁ & QR THU PHÍ PHÒNG */}

@@ -157,4 +157,74 @@ describe('dormitoryApi.roomFeeInvoices', () => {
     );
     expect(result.deleted).toContain('rfi-1');
   });
+
+  it('previewIndividual calls POST /dormitory/room-fee-invoices/preview-individual', async () => {
+    const payload = {
+      roster_entry_id: '507f1f77bcf86cd799439011',
+      start_month: '2026-03',
+      months_count: 5,
+      monthly_rate: 600000,
+    };
+    const mockResponse = {
+      roster_entry_id: '507f1f77bcf86cd799439011',
+      member_name: 'Nguyễn Văn A',
+      room_id: 'room-1',
+      room_code: 'P101',
+      room_type: 'Thường',
+      start_month: '2026-03',
+      end_month: '2026-07',
+      months_count: 5,
+      monthly_rate: 600000,
+      total_amount: 3000000,
+      already_exists: false,
+    };
+
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    } as any);
+
+    const result = await dormitoryApi.roomFeeInvoices.previewIndividual(payload);
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/room-fee-invoices/preview-individual'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(result.total_amount).toBe(3000000);
+    expect(result.member_name).toBe('Nguyễn Văn A');
+  });
+
+  it('createIndividual calls POST /dormitory/room-fee-invoices/create-individual', async () => {
+    const payload = {
+      roster_entry_id: '507f1f77bcf86cd799439011',
+      start_month: '2026-03',
+      months_count: 6,
+      monthly_rate: 650000,
+    };
+    const mockResponse = {
+      _id: 'rfi-ind-1',
+      invoice_code: 'RFI-IND-001',
+      member_name: 'Nguyễn Văn A',
+      total_amount: 3900000,
+      status: 'Chưa thu',
+    };
+
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    } as any);
+
+    const result = await dormitoryApi.roomFeeInvoices.createIndividual(payload);
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/room-fee-invoices/create-individual'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(result.invoice_code).toBe('RFI-IND-001');
+    expect(result.total_amount).toBe(3900000);
+  });
 });

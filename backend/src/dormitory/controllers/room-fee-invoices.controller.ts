@@ -24,6 +24,8 @@ import {
   UpdateRoomFeeConfigDto,
   PreviewRoomFeePeriodDto,
   CreateRoomFeePeriodDto,
+  PreviewIndividualRoomFeeDto,
+  CreateIndividualRoomFeeDto,
   PayRoomFeeInvoiceDto,
   UpdateRoomFeeProofDto,
   ReviewRoomFeeProofDto,
@@ -107,6 +109,20 @@ export class RoomFeeInvoicesController {
   @ApiOperation({ summary: 'Lập đợt thu phí phòng cho danh sách KTX' })
   createPeriod(@Body() dto: CreateRoomFeePeriodDto, @Request() req: any) {
     return this.roomFeeInvoicesService.createPeriod(dto, req.user);
+  }
+
+  @Post('preview-individual')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Xem trước đợt thu phí phòng cho cá nhân' })
+  previewIndividual(@Body() dto: PreviewIndividualRoomFeeDto) {
+    return this.roomFeeInvoicesService.previewIndividual(dto);
+  }
+
+  @Post('create-individual')
+  @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
+  @ApiOperation({ summary: 'Lập đợt thu phí phòng cho cá nhân' })
+  createIndividual(@Body() dto: CreateIndividualRoomFeeDto, @Request() req: any) {
+    return this.roomFeeInvoicesService.createIndividual(dto, req.user);
   }
 
   @Post('upload-proof')

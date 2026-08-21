@@ -82,6 +82,70 @@ export class CreateRoomFeePeriodDto {
   notes?: string;
 }
 
+export class PreviewIndividualRoomFeeDto {
+  @IsNotEmpty()
+  @IsString()
+  roster_entry_id: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'start_month phải có định dạng YYYY-MM (ví dụ: 2026-03)',
+  })
+  start_month: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(36)
+  months_count?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monthly_rate?: number;
+
+  @IsOptional()
+  @IsDateString()
+  due_date?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CreateIndividualRoomFeeDto {
+  @IsNotEmpty()
+  @IsString()
+  roster_entry_id: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'start_month phải có định dạng YYYY-MM (ví dụ: 2026-03)',
+  })
+  start_month: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(1)
+  @Max(36)
+  months_count: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  monthly_rate: number;
+
+  @IsOptional()
+  @IsDateString()
+  due_date?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class PayRoomFeeInvoiceDto {
   @IsNotEmpty()
   @IsEnum(['Tiền mặt', 'Chuyển khoản', 'Cổng thanh toán'])

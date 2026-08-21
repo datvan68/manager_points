@@ -24,6 +24,9 @@ vi.mock('@/providers/auth-provider', () => ({
 
 vi.mock('@/api/dormitory-api', () => ({
   dormitoryApi: {
+    roster: {
+      getAll: vi.fn(),
+    },
     roomFeeInvoices: {
       getAll: vi.fn(),
       getOne: vi.fn(),
@@ -32,6 +35,8 @@ vi.mock('@/api/dormitory-api', () => ({
       uploadTransferQr: vi.fn(),
       previewPeriod: vi.fn(),
       createPeriod: vi.fn(),
+      previewIndividual: vi.fn(),
+      createIndividual: vi.fn(),
       uploadProof: vi.fn(),
       pay: vi.fn(),
       updateProof: vi.fn(),
@@ -203,10 +208,10 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Lập đợt thu/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Lập đợt thu phí phòng' })).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Lập đợt thu/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lập đợt thu phí phòng' }));
 
     await waitFor(() => {
       expect(screen.getByText('Lập đợt thu tiền phòng')).toBeDefined();
@@ -310,5 +315,106 @@ describe('RoomFeeCollection Component', () => {
         expect.any(String),
       );
     });
+  });
+
+  it('opens Individual Issuance modal, previews calculation, and submits individual invoice', async () => {
+    (dormitoryApi.roster.getAll as any).mockResolvedValue({
+      data: [
+        {
+          _id: 'roster-entry-1',
+          full_name: 'Phạm Minh D',
+          student_code: 'SV004',
+          room_id: { _id: 'room-1', room_name: 'Phòng 101', room_type: 'Thường' },
+        },
+      ],
+    });
+
+    (dormitoryApi.roomFeeInvoices.previewIndividual as any).mockResolvedValue({
+      roster_entry_id: 'roster-entry-1',
+      member_name: 'Phạm Minh D',
+      member_code: 'SV004',
+      room_id: 'room-1',
+      room_code: 'P101',
+      room_name: 'Phòng 101',
+      room_type: 'Thường',
+      start_month: '2026-03',
+      end_month: '2026-07',
+      months_count: 5,
+      monthly_rate: 550000,
+      total_amount: 2750000,
+      already_exists: false,
+    });
+
+    (dormitoryApi.roomFeeInvoices.createIndividual as any).mockResolvedValue({
+      _id: 'rfi-ind-1',
+      invoice_code: 'RFI-IND-01',
+      member_name: 'Phạm Minh D',
+      total_amount: 2750000,
+    });
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Lập đợt thu cá nhân/i })).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Lập đợt thu cá nhân/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Lập đợt thu phí phòng cá nhân')).toBeDefined();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Tìm theo tên SV, mã SV/i);
+    fireEvent.change(searchInput, { target: { value: 'Phạm Minh' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Phạm Minh D')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Phạm Minh D'));
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.previewIndividual).toHaveBeenCalled();
+      expect(screen.getByText(/Xem trước kết quả thu cá nhân/i)).toBeDefined();
+    });
+
+    const submitBtn = screen.getByRole('button', { name: /Xác nhận tạo hóa đơn/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.createIndividual).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roster_entry_id: 'roster-entry-1',
+          months_count: 5,
+        }),
+      );
+      expect(toast.success).toHaveBeenCalledWith(
+        expect.stringContaining('Lập hóa đơn phí phòng thành công'),
+      );
+    });
+  });
+
+  it('handles compact mode matchMedia without breaking pagination or list', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query === '(max-width: 1023px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.getAll).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1 }),
+      );
+    });
+
+    window.matchMedia = originalMatchMedia;
   });
 });
