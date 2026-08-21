@@ -183,20 +183,22 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [individualStartCalendarOpen, setIndividualStartCalendarOpen] = useState(false);
   const [individualDueDateCalendarOpen, setIndividualDueDateCalendarOpen] = useState(false);
 
-  // Payment modal state
+  // Modal Hóa đơn thanh toán & Kiểm tra / Duyệt chứng từ (Dùng chung 1 modal giống Thu điện nước)
   const [payModalOpen, setPayModalOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<RoomFeeInvoice | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'Tiền mặt' | 'Chuyển khoản'>('Tiền mặt');
-  const [paymentNotes, setPaymentNotes] = useState('');
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofPreview, setProofPreview] = useState<string | null>(null);
-  const [paying, setPaying] = useState(false);
-
-  // Proof Review modal state
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [reviewInvoice, setReviewInvoice] = useState<RoomFeeInvoice | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<RoomFeeInvoice | null>(null);
+  const [payProofFile, setPayProofFile] = useState<File | null>(null);
+  const [payProofPreview, setPayProofPreview] = useState<string | null>(null);
+  const [paySubmitting, setPaySubmitting] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [proofImageFailed, setProofImageFailed] = useState(false);
+  const [transferQrImageFailed, setTransferQrImageFailed] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+  const updateProofInputRef = useRef<HTMLInputElement>(null);
+  const reviewRequestIdsRef = useRef<Partial<Record<'approved' | 'rejected' | 'revoked', string>>>({});
+
+  useEffect(() => {
+    setProofImageFailed(false);
+  }, [payingInvoice?._id, payingInvoice?.payment_proof?.url]);
 
   // Debounced search for assigned roster members
   useEffect(() => {
@@ -620,82 +622,121 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
     }
   }
 
-  // Open Payment Modal
+  // Open Payment / Review Modal (Dùng chung 1 modal)
   function openPayModal(inv: RoomFeeInvoice) {
-    setSelectedInvoice(inv);
-    setPaymentMethod('Tiền mặt');
-    setPaymentNotes('');
-    setProofFile(null);
-    setProofPreview(null);
+    setPayingInvoice(inv);
+    setPayProofFile(null);
+    setPayProofPreview(null);
+    setProofImageFailed(false);
+    setTransferQrImageFailed(false);
     setPayModalOpen(true);
   }
 
-  // Submit Payment
-  async function handlePaySubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedInvoice) return;
-
-    if (paymentMethod === 'Chuyển khoản' && !proofFile) {
-      toast.error('Vui lòng tải lên ảnh chứng từ chuyển khoản');
+  // Handle Proof File Change
+  function handleProofFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Chỉ chấp nhận file ảnh JPEG, PNG hoặc WebP');
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Dung lượng file tối đa là 5MB');
+      return;
+    }
+    setPayProofFile(file);
+    const url =
+      typeof window !== 'undefined' && window.URL && typeof window.URL.createObjectURL === 'function'
+        ? window.URL.createObjectURL(file)
+        : 'blob:preview';
+    setPayProofPreview(url);
+  }
 
+  // Gửi chứng từ thanh toán lần đầu
+  async function handleConfirmPay(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!payingInvoice) return;
+    if (!payProofFile) {
+      toast.error('Vui lòng tải ảnh chứng từ thanh toán');
+      return;
+    }
     try {
-      setPaying(true);
-      let proofPayload;
-      if (proofFile) {
-        proofPayload = await dormitoryApi.roomFeeInvoices.uploadProof(proofFile);
-      }
-
-      await dormitoryApi.roomFeeInvoices.pay(selectedInvoice._id, {
-        payment_method: paymentMethod,
-        notes: paymentNotes || undefined,
-        payment_proof: proofPayload,
+      setPaySubmitting(true);
+      const proofMeta = await dormitoryApi.roomFeeInvoices.uploadProof(payProofFile);
+      const updated = await dormitoryApi.roomFeeInvoices.pay(payingInvoice._id, {
+        payment_method: 'Chuyển khoản',
+        payment_proof: proofMeta,
       });
-
-      toast.success(
-        paymentMethod === 'Tiền mặt'
-          ? 'Đã xác nhận thu tiền mặt thành công'
-          : 'Đã gửi chứng từ thanh toán chờ duyệt',
-      );
+      toast.success('Đã gửi chứng từ, chờ duyệt');
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
       setPayModalOpen(false);
       void loadInvoices(true);
     } catch (err: any) {
-      toast.error(err?.message || 'Lỗi thanh toán');
+      toast.error(err?.message || 'Lỗi gửi chứng từ thanh toán');
     } finally {
-      setPaying(false);
+      setPaySubmitting(false);
     }
   }
 
-  // Open Review / Check Proof Modal
-  function openReviewModal(inv: RoomFeeInvoice) {
-    setReviewInvoice(inv);
-    setReviewModalOpen(true);
-  }
-
-  // Submit Review decision
-  async function submitReviewDecision(decision: 'approved' | 'rejected' | 'revoked') {
-    if (!reviewInvoice) return;
+  // Cập nhật / thay thế ảnh chứng từ mới
+  async function handleSaveUpdatedProof() {
+    if (!payingInvoice || !payProofFile) return;
     try {
-      setReviewSubmitting(true);
-      const requestId = `${decision}-${reviewInvoice._id}-${Date.now()}`;
-      await dormitoryApi.roomFeeInvoices.reviewProof(reviewInvoice._id, decision, requestId);
-
-      toast.success(
-        decision === 'approved'
-          ? 'Đã duyệt chứng từ thanh toán'
-          : decision === 'rejected'
-            ? 'Đã từ chối chứng từ thanh toán'
-            : 'Đã hủy duyệt chứng từ',
-      );
-      setReviewModalOpen(false);
-      setRevokeConfirmOpen(false);
+      setPaySubmitting(true);
+      const proofMeta = await dormitoryApi.roomFeeInvoices.uploadProof(payProofFile);
+      const updated = await dormitoryApi.roomFeeInvoices.updateProof(payingInvoice._id, {
+        payment_method: 'Chuyển khoản',
+        payment_proof: proofMeta,
+      });
+      toast.success('Cập nhật chứng từ thanh toán thành công');
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
       void loadInvoices(true);
     } catch (err: any) {
-      toast.error(err?.message || 'Lỗi xử lý chứng từ');
+      toast.error(err?.message || 'Lỗi cập nhật chứng từ');
+    } finally {
+      setPaySubmitting(false);
+    }
+  }
+
+  async function submitReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
+    if (!payingInvoice || reviewSubmitting) return;
+    try {
+      setReviewSubmitting(true);
+      const requestId =
+        reviewRequestIdsRef.current[decision] ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${decision}-${payingInvoice._id}-${Date.now()}`);
+      reviewRequestIdsRef.current[decision] = requestId;
+      const updated = await dormitoryApi.roomFeeInvoices.reviewProof(payingInvoice._id, decision, requestId);
+      delete reviewRequestIdsRef.current[decision];
+      setPayingInvoice(updated);
+      await loadInvoices(true);
+      toast.success(
+        decision === 'approved'
+          ? 'Đã duyệt chứng từ'
+          : decision === 'revoked'
+          ? 'Đã bỏ duyệt chứng từ'
+          : 'Đã từ chối chứng từ',
+      );
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể cập nhật duyệt chứng từ');
     } finally {
       setReviewSubmitting(false);
     }
+  }
+
+  async function handleReviewProof(decision: 'approved' | 'rejected' | 'revoked') {
+    if (decision === 'revoked') {
+      setRevokeConfirmOpen(true);
+      return;
+    }
+    await submitReviewProof(decision);
   }
 
   // Bulk Approve
@@ -854,7 +895,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
         key: 'actions',
         header: 'Thao tác',
         priority: 'action',
-        className: 'w-[160px] min-w-[160px] text-left',
+        className: 'w-[140px] min-w-[140px] text-left',
         render: (_, inv) => {
           const displayStatus = getDisplayStatus(inv.status, inv.payment_review?.status);
           return (
@@ -864,32 +905,21 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                   type="button"
                   aria-label="Đóng ngay"
                   onClick={() => openPayModal(inv)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-all shadow-xs cursor-pointer"
-                  title="Thanh toán ngay"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 hover:scale-[1.01] transition-all duration-150 shadow-sm shadow-emerald-600/20 cursor-pointer"
+                  title="Đóng tiền ngay"
                 >
-                  <CheckCircle size={13} /> Đóng ngay
+                  <CheckCircle size={14} /> Đóng ngay
                 </button>
               )}
               {displayStatus === 'Chờ duyệt' && canConfirmInvoice && (
                 <button
                   type="button"
                   aria-label="Duyệt"
-                  onClick={() => openReviewModal(inv)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 transition-all shadow-xs cursor-pointer"
-                  title="Duyệt chứng từ"
+                  onClick={() => openPayModal(inv)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-medium hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                  title="Duyệt chứng từ thanh toán"
                 >
-                  <Eye size={13} /> Duyệt
-                </button>
-              )}
-              {(displayStatus === 'Đã thu' || inv.payment_proof?.url) && (
-                <button
-                  type="button"
-                  aria-label="Kiểm tra"
-                  onClick={() => openReviewModal(inv)}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
-                  title="Xem chứng từ & thông tin"
-                >
-                  <Eye size={13} /> Kiểm tra
+                  <Eye size={14} /> Duyệt
                 </button>
               )}
             </div>
@@ -1832,255 +1862,387 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* MODAL THANH TOÁN (Tiền mặt / Chuyển khoản) */}
+      {/* MODAL HÓA ĐƠN THANH TOÁN (Dùng chung cho Nộp chứng từ & Kiểm tra / Duyệt) */}
       {/* ========================================================================= */}
       <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
-          <DialogHeader className="border-b border-white/50 pb-3">
-            <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
-              <DollarSign size={20} className="text-emerald-600" />
-              Thanh toán phí phòng
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+          {payingInvoice && (() => {
+            const isApproved =
+              payingInvoice.payment_review?.status === 'approved' &&
+              (payingInvoice.status === 'Đã thu' || payingInvoice.status === 'Đã thanh toán');
+            const isPendingReview = payingInvoice.payment_review?.status === 'pending';
+            const isRejected = payingInvoice.payment_review?.status === 'rejected';
+            const hasExistingProof = !!payingInvoice.payment_proof?.url;
 
-          {selectedInvoice && (
-            <form onSubmit={handlePaySubmit} className="space-y-4 pt-2">
-              {/* Thông tin hóa đơn */}
-              <div className="rounded-xl bg-white/70 border border-slate-200/80 p-3 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Thành viên:</span>
-                  <span className="font-bold text-slate-800">{selectedInvoice.member_name} ({selectedInvoice.member_code || '—'})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Phòng:</span>
-                  <span className="font-semibold text-slate-800">{selectedInvoice.room_name || selectedInvoice.room_code} ({selectedInvoice.room_type})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Kỳ thu:</span>
-                  <span className="font-semibold text-slate-800">{formatBillingMonth(selectedInvoice.start_month)} - {formatBillingMonth(selectedInvoice.end_month)} ({selectedInvoice.months_count} tháng)</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-slate-100">
-                  <span className="text-slate-600 font-bold">Số tiền cần đóng:</span>
-                  <span className="text-sm font-bold text-[#1A73E8]">{formatMoney(selectedInvoice.total_amount)}</span>
-                </div>
-              </div>
-
-              {/* Phương thức thanh toán */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Phương thức thanh toán</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('Tiền mặt')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      paymentMethod === 'Tiền mặt'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white/60 text-slate-700 hover:bg-white'
-                    }`}
-                  >
-                    Tiền mặt tại quầy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('Chuyển khoản')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      paymentMethod === 'Chuyển khoản'
-                        ? 'border-[#1A73E8] bg-blue-50 text-[#1A73E8] ring-2 ring-[#1A73E8]/20'
-                        : 'border-slate-200 bg-white/60 text-slate-700 hover:bg-white'
-                    }`}
-                  >
-                    Chuyển khoản kèm QR
-                  </button>
-                </div>
-              </div>
-
-              {/* Nếu là Chuyển khoản, hiển thị QR và ô upload */}
-              {paymentMethod === 'Chuyển khoản' && (
-                <div className="space-y-3 rounded-xl border border-blue-200/80 bg-blue-50/50 p-3">
-                  {configData?.transfer_qr_image?.url && (
-                    <div className="text-center space-y-1">
-                      <p className="text-[11px] font-semibold text-slate-600">Quét mã QR để chuyển khoản:</p>
-                      <img
-                        src={getImageUrl(configData.transfer_qr_image.url)}
-                        alt="QR chuyển khoản"
-                        className="max-h-40 mx-auto rounded-lg border border-slate-200 bg-white p-1"
-                      />
+            return (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between border-b border-slate-200/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <DialogTitle className="text-xl font-bold text-[#1E293B]">
+                        Hóa đơn thanh toán phí phòng
+                      </DialogTitle>
+                      {isApproved ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle size={13} className="shrink-0" />
+                          Đã thu
+                        </span>
+                      ) : isPendingReview ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          <Eye size={13} className="shrink-0" />
+                          Chờ duyệt
+                        </span>
+                      ) : isRejected ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          <X size={13} className="shrink-0" />
+                          Từ chối / Bỏ duyệt
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle size={13} className="shrink-0" />
+                          Sẵn sàng
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                      {payingInvoice.room_name || payingInvoice.room_code || 'Phòng'} - {payingInvoice.months_count} tháng ({formatBillingMonth(payingInvoice.start_month)} - {formatBillingMonth(payingInvoice.end_month)})
+                    </p>
+                  </div>
+                </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Tải lên ảnh chứng từ chuyển khoản <span className="text-red-500">*</span>
-                    </label>
-                    {proofPreview && (
-                      <div className="flex justify-center p-1 bg-white rounded border border-slate-200">
-                        <img src={proofPreview} alt="Chứng từ preview" className="max-h-32 object-contain" />
+                {/* 2-Column Content */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
+                  {/* Cột trái: Chi tiết chi phí, timeline / thông tin thu & upload chứng từ */}
+                  <div className="md:col-span-7 space-y-4">
+                    {/* Bảng kê chi phí */}
+                    <div className="rounded-2xl border border-slate-200/70 bg-white/70 backdrop-blur-sm p-4 space-y-2.5 text-xs shadow-2xs">
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Thành viên</span>
+                        <span className="font-semibold text-slate-800">
+                          {payingInvoice.member_name} ({payingInvoice.member_code || '—'})
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Phòng & Loại phòng</span>
+                        <span className="font-semibold text-slate-800">
+                          {payingInvoice.room_name || payingInvoice.room_code} ({payingInvoice.room_type})
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Đơn giá/tháng</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatMoney(payingInvoice.monthly_rate)}/tháng
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Thời gian thu</span>
+                        <span className="font-semibold text-slate-800">
+                          {payingInvoice.months_count} tháng ({formatBillingMonth(payingInvoice.start_month)} - {formatBillingMonth(payingInvoice.end_month)})
+                        </span>
+                      </div>
+                      <div className="border-t border-slate-200/80 pt-2.5 flex justify-between items-baseline">
+                        <span className="text-xs font-bold text-slate-700">Tổng cộng</span>
+                        <div className="text-right">
+                          <span className="text-xl sm:text-2xl font-black text-[#1A73E8]">
+                            {formatMoney(payingInvoice.total_amount)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Thông tin thanh toán (khi đã thu hoặc có xác nhận) */}
+                    {(isApproved || payingInvoice.paid_at || payingInvoice.confirmed_by_id) && (
+                      <div className="grid grid-cols-2 gap-2.5 text-xs bg-white/60 p-3 rounded-xl border border-slate-200/70">
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Phương thức</span>
+                          <span className="font-semibold text-slate-800">
+                            {payingInvoice.payment_method || 'Chuyển khoản'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">Ngày thu</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatDate(payingInvoice.paid_at)}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-slate-400 block text-[11px]">Người xác nhận</span>
+                          <span className="font-semibold text-slate-800">
+                            {payingInvoice.confirmed_by_id?.full_name ||
+                              payingInvoice.confirmed_by_id?.user_name ||
+                              'Quản lý KTX'}
+                          </span>
+                        </div>
                       </div>
                     )}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      required
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 5 * 1024 * 1024) {
-                            toast.error('Dung lượng ảnh không được quá 5MB');
-                            return;
-                          }
-                          setProofFile(file);
-                          setProofPreview(URL.createObjectURL(file));
-                        }
-                      }}
-                      className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1A73E8]/10 file:text-[#1A73E8] hover:file:bg-[#1A73E8]/20"
-                    />
+
+                    {/* Timeline Kỳ thu & Hạn thanh toán (khi chưa thu) */}
+                    {!isApproved && (
+                      <div className="relative pl-5 space-y-3 text-xs">
+                        <div className="absolute left-1.5 top-1.5 bottom-1.5 w-0.5 bg-slate-200" />
+
+                        <div className="relative flex items-start gap-2.5">
+                          <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-[#F8FAFC]" />
+                          <div>
+                            <p className="text-[11px] text-slate-400 font-medium">Kỳ thanh toán</p>
+                            <p className="font-semibold text-slate-700">
+                              {formatBillingMonth(payingInvoice.start_month)} - {formatBillingMonth(payingInvoice.end_month)} ({payingInvoice.months_count} tháng)
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="relative flex items-start gap-2.5">
+                          <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-[#F8FAFC]" />
+                          <div>
+                            <p className="text-[11px] text-slate-400 font-medium">Hạn thanh toán</p>
+                            <p className="font-bold text-amber-600">{formatDate(payingInvoice.due_date)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Phần ảnh chứng từ */}
+                    {hasExistingProof ? (
+                      <div className="space-y-3">
+                        {/* Ảnh chứng từ hiện tại */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-semibold text-[#1E293B]">
+                            Ảnh chứng từ hiện tại
+                          </label>
+                          <div className="space-y-2">
+                            <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
+                              {proofImageFailed ? (
+                                <a
+                                  className="inline-flex items-center justify-center p-6 text-xs text-blue-600 hover:underline font-medium"
+                                  href={getImageUrl(payingInvoice.payment_proof?.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Mở ảnh gốc
+                                </a>
+                              ) : (
+                                <img
+                                  src={getImageUrl(payingInvoice.payment_proof?.url)}
+                                  alt="Chứng từ thanh toán"
+                                  onError={() => setProofImageFailed(true)}
+                                  className="max-h-48 w-auto object-contain rounded-lg shadow-sm"
+                                />
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <a
+                                href={getImageUrl(payingInvoice.payment_proof?.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
+                              >
+                                <Eye size={12} /> Xem ảnh kích thước đầy đủ
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Cập nhật ảnh mới thay thế */}
+                        <div className="border-t border-slate-200/60 pt-3 space-y-2">
+                          <label className="block text-xs font-semibold text-[#1E293B]">
+                            Cập nhật ảnh mới (nếu tải lên sai)
+                          </label>
+                          <input
+                            ref={updateProofInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            onChange={handleProofFileChange}
+                            className="hidden"
+                            id="room-fee-pay-proof-replace-upload"
+                          />
+                          {!payProofFile ? (
+                            <label
+                              htmlFor="room-fee-pay-proof-replace-upload"
+                              className="flex flex-col items-center justify-center p-3 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                            >
+                              <Upload size={18} className="text-[#1A73E8] mb-1" />
+                              <span className="text-xs font-medium text-[#1E293B]">
+                                Bấm để chọn ảnh mới thay thế
+                              </span>
+                              <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                            </label>
+                          ) : (
+                            <div className="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-500/20">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-[#1A73E8]">Ảnh mới đã chọn:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPayProofFile(null);
+                                    setPayProofPreview(null);
+                                  }}
+                                  className="text-xs text-rose-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
+                                >
+                                  <X size={13} /> Hủy chọn
+                                </button>
+                              </div>
+                              {payProofPreview && (
+                                <div className="flex items-center justify-center p-1 bg-white rounded-lg border border-slate-200">
+                                  <img
+                                    src={payProofPreview}
+                                    alt="Ảnh mới"
+                                    className="max-h-40 w-auto object-contain rounded-md"
+                                  />
+                                </div>
+                              )}
+                              <div className="text-[11px] text-[#64748B] truncate">
+                                {payProofFile.name} ({(payProofFile.size / 1024).toFixed(1)} KB)
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Upload ảnh chứng từ lần đầu */
+                      <div className="space-y-2">
+                        <label className="block text-xs font-semibold text-[#1E293B] mb-1 flex items-center justify-between">
+                          <span>Ảnh chứng từ thanh toán</span>
+                          <span className="text-[11px] text-[#1A73E8] font-normal">Bắt buộc để gửi duyệt</span>
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          onChange={handleProofFileChange}
+                          className="hidden"
+                          id="room-fee-pay-proof-upload"
+                        />
+                        {!payProofFile ? (
+                          <label
+                            htmlFor="room-fee-pay-proof-upload"
+                            className="flex flex-col items-center justify-center p-3.5 border border-dashed border-slate-300 rounded-xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                          >
+                            <Upload size={20} className="text-[#1A73E8] mb-1" />
+                            <span className="text-xs font-medium text-[#1E293B]">Bấm để chọn file ảnh bill/chứng từ</span>
+                            <span className="text-[11px] text-[#64748B] mt-0.5">PNG, JPG, WebP tối đa 5MB</span>
+                          </label>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+                              <div className="flex items-center gap-2 truncate">
+                                <CheckCircle size={15} className="text-emerald-700 shrink-0" />
+                                <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPayProofFile(null);
+                                  setPayProofPreview(null);
+                                }}
+                                className="text-xs text-rose-600 hover:underline shrink-0 ml-2 cursor-pointer font-medium"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                            {payProofPreview && (
+                              <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
+                                <img
+                                  src={payProofPreview}
+                                  alt="Xem trước chứng từ"
+                                  className="max-h-36 w-auto object-contain rounded-lg shadow-2xs"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cột phải: Thẻ Quét mã QR thanh toán */}
+                  <div className="md:col-span-5 md:sticky md:top-0 md:self-start flex flex-col items-center rounded-2xl border border-slate-200/70 bg-white p-4 shadow-2xs text-center gap-3">
+                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Quét mã để thanh toán
+                    </p>
+
+                    <div className="w-full h-44 max-w-[220px] flex items-center justify-center p-2 rounded-xl bg-slate-50/60 border border-slate-100">
+                      {configData?.transfer_qr_image?.url && !transferQrImageFailed ? (
+                        <img
+                          src={getImageUrl(configData.transfer_qr_image.url)}
+                          alt="Mã QR chuyển khoản"
+                          onError={() => setTransferQrImageFailed(true)}
+                          className="w-full h-full object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center px-4 text-xs text-slate-500">
+                          {transferQrImageFailed ? 'Không thể tải mã QR chuyển khoản' : 'Chưa cấu hình mã QR chuyển khoản'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid w-full grid-cols-2 gap-2 border-t border-slate-200/60 pt-3">
+                      {isPendingReview && canConfirmInvoice && (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={reviewSubmitting || paySubmitting}
+                            onClick={() => handleReviewProof('rejected')}
+                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
+                          >
+                            Không duyệt
+                          </Button>
+                          <Button
+                            type="button"
+                            disabled={reviewSubmitting || paySubmitting}
+                            onClick={() => handleReviewProof('approved')}
+                            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            {reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}
+                          </Button>
+                        </>
+                      )}
+                      {isApproved && canConfirmInvoice && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={reviewSubmitting || paySubmitting}
+                          onClick={() => handleReviewProof('revoked')}
+                          className="col-span-2 rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                        >
+                          {reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}
+                        </Button>
+                      )}
+                      {hasExistingProof && payProofFile && (
+                        <Button
+                          type="button"
+                          disabled={paySubmitting || reviewSubmitting}
+                          onClick={handleSaveUpdatedProof}
+                          className="col-span-2 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white"
+                        >
+                          {paySubmitting ? 'Đang lưu...' : 'Lưu cập nhật'}
+                        </Button>
+                      )}
+                      {!hasExistingProof && (
+                        <Button
+                          type="button"
+                          disabled={paySubmitting || reviewSubmitting || !payProofFile}
+                          onClick={handleConfirmPay}
+                          className="col-span-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          {paySubmitting ? 'Đang xử lý...' : 'Gửi duyệt'}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={paySubmitting || reviewSubmitting}
+                        onClick={() => setPayModalOpen(false)}
+                        className="col-span-2 rounded-xl"
+                      >
+                        Đóng
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              )}
-
-              {/* Ghi chú */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-slate-700">Ghi chú thanh toán</label>
-                <input
-                  type="text"
-                  placeholder="Ghi chú thêm (nếu có)"
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200/80 bg-white/70 text-sm text-slate-800 focus:ring-2 focus:ring-[#1A73E8]/30"
-                />
               </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/50">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setPayModalOpen(false)}
-                  disabled={paying}
-                  className="rounded-xl border-slate-300 text-xs cursor-pointer"
-                >
-                  Hủy
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={paying}
-                  className="rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer shadow-sm"
-                >
-                  {paying
-                    ? 'Đang xử lý...'
-                    : paymentMethod === 'Tiền mặt'
-                      ? 'Xác nhận Đã thu tiền mặt'
-                      : 'Gửi chứng từ thanh toán'}
-                </Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ========================================================================= */}
-      {/* MODAL KIỂM TRA & DUYỆT CHỨNG TỪ */}
-      {/* ========================================================================= */}
-      <Dialog open={reviewModalOpen} onOpenChange={setReviewModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
-          <DialogHeader className="border-b border-white/50 pb-3">
-            <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
-              <Eye size={20} className="text-[#1A73E8]" />
-              Chứng từ & Thông tin hóa đơn
-            </DialogTitle>
-          </DialogHeader>
-
-          {reviewInvoice && (
-            <div className="space-y-4 pt-2 text-xs">
-              {/* Thông tin */}
-              <div className="rounded-xl bg-white/80 border border-slate-200 p-3 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mã hóa đơn:</span>
-                  <span className="font-mono font-bold text-slate-800">{reviewInvoice.invoice_code}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Họ tên thành viên:</span>
-                  <span className="font-bold text-slate-800">{reviewInvoice.member_name} ({reviewInvoice.member_code || '—'})</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Phòng:</span>
-                  <span className="font-semibold text-slate-800">{reviewInvoice.room_name || reviewInvoice.room_code}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Khoản thu:</span>
-                  <span className="font-bold text-[#1A73E8]">{formatMoney(reviewInvoice.total_amount)} ({reviewInvoice.months_count} tháng)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Phương thức:</span>
-                  <span className="font-semibold text-slate-700">{reviewInvoice.payment_method || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Trạng thái:</span>
-                  <span className="font-bold text-slate-800">{getDisplayStatus(reviewInvoice.status, reviewInvoice.payment_review?.status)}</span>
-                </div>
-              </div>
-
-              {/* Ảnh chứng từ */}
-              {reviewInvoice.payment_proof?.url ? (
-                <div className="space-y-1.5">
-                  <span className="font-semibold text-slate-700">Ảnh chứng từ thanh toán:</span>
-                  <div className="flex justify-center p-2 bg-white rounded-xl border border-slate-200">
-                    <img
-                      src={getImageUrl(reviewInvoice.payment_proof.url)}
-                      alt="Chứng từ"
-                      className="max-h-64 object-contain rounded"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <p className="text-slate-500 italic text-center py-2">Hóa đơn này chưa có ảnh chứng từ.</p>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/50">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setReviewModalOpen(false)}
-                  disabled={reviewSubmitting}
-                  className="rounded-xl border-slate-300 text-xs cursor-pointer"
-                >
-                  Đóng
-                </Button>
-
-                {canConfirmInvoice && reviewInvoice.payment_review?.status === 'pending' && (
-                  <>
-                    <Button
-                      type="button"
-                      onClick={() => void submitReviewDecision('rejected')}
-                      disabled={reviewSubmitting}
-                      className="rounded-xl bg-rose-600 px-3 text-xs font-semibold text-white hover:bg-rose-700 cursor-pointer"
-                    >
-                      {reviewSubmitting ? 'Đang xử lý...' : 'Không duyệt'}
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => void submitReviewDecision('approved')}
-                      disabled={reviewSubmitting}
-                      className="rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-                    >
-                      {reviewSubmitting ? 'Đang xử lý...' : 'Duyệt chứng từ'}
-                    </Button>
-                  </>
-                )}
-
-                {canConfirmInvoice && reviewInvoice.payment_review?.status === 'approved' && (
-                  <Button
-                    type="button"
-                    onClick={() => setRevokeConfirmOpen(true)}
-                    disabled={reviewSubmitting}
-                    className="rounded-xl bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700 cursor-pointer"
-                  >
-                    Bỏ duyệt chứng từ
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -2099,7 +2261,8 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
         isOpen={revokeConfirmOpen}
         onClose={() => !reviewSubmitting && setRevokeConfirmOpen(false)}
         onConfirm={async () => {
-          await submitReviewDecision('revoked');
+          setRevokeConfirmOpen(false);
+          await submitReviewProof('revoked');
         }}
         title="Bỏ duyệt chứng từ phí phòng"
         message="Hóa đơn sẽ trở về trạng thái Chưa thu và thành viên có thể đăng tải lại chứng từ. Bạn có chắc chắn muốn tiếp tục?"

@@ -226,11 +226,25 @@ describe('RoomFeeCollection Component', () => {
     });
   });
 
-  it('opens Pay modal for unpaid invoice and supports cash payment', async () => {
+  it('does not render "Kiểm tra" button in actions column for paid invoice', async () => {
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Nguyễn Văn A').length).toBeGreaterThanOrEqual(1);
+    });
+
+    expect(screen.queryByRole('button', { name: /Kiểm tra/i })).toBeNull();
+  });
+
+  it('opens unified modal for unpaid invoice and submits transfer proof', async () => {
+    const fakeProof = { url: '/uploads/new-proof.png', file_name: 'new-proof.png' };
+    (dormitoryApi.roomFeeInvoices.uploadProof as any).mockResolvedValue(fakeProof);
     (dormitoryApi.roomFeeInvoices.pay as any).mockResolvedValue({
       ...mockInvoices[0],
-      status: 'Đã thu',
-      payment_method: 'Tiền mặt',
+      status: 'Chưa thu',
+      payment_method: 'Chuyển khoản',
+      payment_proof: fakeProof,
+      payment_review: { status: 'pending' },
     });
 
     render(<RoomFeeCollection />);
@@ -242,22 +256,28 @@ describe('RoomFeeCollection Component', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Đóng ngay/i })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('Thanh toán phí phòng')).toBeDefined();
-      expect(screen.getByText('Tiền mặt tại quầy')).toBeDefined();
+      expect(screen.getByText('Hóa đơn thanh toán phí phòng')).toBeDefined();
+      expect(screen.getByText(/Quét mã để thanh toán/i)).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Xác nhận Đã thu tiền mặt/i }));
+    // Upload file
+    const fileInput = document.getElementById('room-fee-pay-proof-upload') as HTMLInputElement;
+    const file = new File(['dummy'], 'bill.png', { type: 'image/png' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const submitBtn = await screen.findByRole('button', { name: 'Gửi duyệt' });
+    fireEvent.click(submitBtn);
 
     await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.uploadProof).toHaveBeenCalledWith(file);
       expect(dormitoryApi.roomFeeInvoices.pay).toHaveBeenCalledWith('rfi-unpaid', {
-        payment_method: 'Tiền mặt',
-        notes: undefined,
-        payment_proof: undefined,
+        payment_method: 'Chuyển khoản',
+        payment_proof: fakeProof,
       });
     });
   });
 
-  it('opens Review modal for pending proof and supports approving', async () => {
+  it('opens unified modal for pending proof and supports approving and rejecting', async () => {
     (dormitoryApi.roomFeeInvoices.reviewProof as any).mockResolvedValue({
       ...mockInvoices[1],
       status: 'Đã thu',
@@ -273,12 +293,12 @@ describe('RoomFeeCollection Component', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Duyệt/i })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('Chứng từ & Thông tin hóa đơn')).toBeDefined();
-      expect(screen.getByRole('button', { name: 'Duyệt chứng từ' })).toBeDefined();
+      expect(screen.getByText('Hóa đơn thanh toán phí phòng')).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDefined();
       expect(screen.getByRole('button', { name: 'Không duyệt' })).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Duyệt chứng từ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
 
     await waitFor(() => {
       expect(dormitoryApi.roomFeeInvoices.reviewProof).toHaveBeenCalledWith(
@@ -417,4 +437,68 @@ describe('RoomFeeCollection Component', () => {
 
     window.matchMedia = originalMatchMedia;
   });
+
+  it('supports rejecting proof in unified modal', async () => {
+    (dormitoryApi.roomFeeInvoices.reviewProof as any).mockResolvedValue({
+      ...mockInvoices[1],
+      status: 'Chưa thu',
+      payment_review: { status: 'rejected' },
+    });
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Duyệt/i })[0]);
+
+    const rejectBtn = await screen.findByRole('button', { name: 'Không duyệt' });
+    fireEvent.click(rejectBtn);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.reviewProof).toHaveBeenCalledWith(
+        'rfi-pending',
+        'rejected',
+        expect.any(String),
+      );
+    });
+  });
+
+  it('supports uploading replacement proof when invoice already has proof', async () => {
+    const updatedProof = { url: '/uploads/replaced-proof.png', file_name: 'replaced.png' };
+    (dormitoryApi.roomFeeInvoices.uploadProof as any).mockResolvedValue(updatedProof);
+    (dormitoryApi.roomFeeInvoices.updateProof as any).mockResolvedValue({
+      ...mockInvoices[1],
+      payment_proof: updatedProof,
+    });
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Duyệt/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Duyệt/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cập nhật ảnh mới/i)).toBeDefined();
+    });
+
+    const fileInput = document.getElementById('room-fee-pay-proof-replace-upload') as HTMLInputElement;
+    const file = new File(['replacement'], 'new-bill.jpg', { type: 'image/jpeg' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const saveBtn = await screen.findByRole('button', { name: 'Lưu cập nhật' });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.uploadProof).toHaveBeenCalledWith(file);
+      expect(dormitoryApi.roomFeeInvoices.updateProof).toHaveBeenCalledWith('rfi-pending', {
+        payment_method: 'Chuyển khoản',
+        payment_proof: updatedProof,
+      });
+    });
+  });
 });
+
