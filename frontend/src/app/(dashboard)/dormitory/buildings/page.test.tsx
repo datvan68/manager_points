@@ -18,6 +18,16 @@ const room = {
   status: 'Trống', amenities: ['Quạt'], qr_code: '', public_url: '', description: '  Gần cầu thang  ',
 } as any;
 
+let compactViewport = false;
+let intersectionCallback: IntersectionObserverCallback | undefined;
+class MockIntersectionObserver {
+  constructor(callback: IntersectionObserverCallback) { intersectionCallback = callback; }
+  observe() {}
+  disconnect() {}
+  unobserve() {}
+}
+vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+
 describe('KTX room capacity display', () => {
   it('uses the persisted-bed-derived maximum under the Giường column', () => {
     expect(roomBedCountLabel({ max_students: 1 })).toBe('1');
@@ -65,9 +75,11 @@ describe('KTX room edit interaction', () => {
   const building = { _id: 'building-1', building_code: 'A', name: 'Tòa A', status: 'Trống' as const };
 
   beforeEach(() => {
+    compactViewport = false;
+    intersectionCallback = undefined;
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
-      value: vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+      value: vi.fn().mockImplementation(() => ({ matches: compactViewport, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
     });
     vi.spyOn(dormitoryApi.rooms, 'getAll').mockResolvedValue({ data: [pageRoom], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } });
     vi.spyOn(dormitoryApi.buildings, 'getAll').mockResolvedValue({ data: [building], meta: { total: 1, page: 1, limit: 100, totalPages: 1 } });
@@ -115,5 +127,31 @@ describe('KTX room edit interaction', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Mã phòng đã tồn tại');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the compact search, reloads page one, and appends the next unique page', async () => {
+    compactViewport = true;
+    const pageTwoRoom = { ...pageRoom, _id: 'room-2', room_code: 'B201', room_name: 'Phòng B201' };
+    const getRooms = dormitoryApi.rooms.getAll as ReturnType<typeof vi.fn>;
+    getRooms.mockImplementation(async (query: Record<string, string | number | undefined>) => ({
+      data: query.page === 2 ? [pageTwoRoom] : [pageRoom],
+      meta: { total: 2, page: Number(query.page), limit: Number(query.limit), totalPages: 2 },
+    }));
+
+    const { default: BuildingsPage } = await import('./page');
+    render(<BuildingsPage />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mở tìm kiếm phòng' })).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mở tìm kiếm phòng' }));
+    const input = screen.getAllByRole('textbox', { name: 'Tìm kiếm phòng' })[0];
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'B201' } });
+    await waitFor(() => expect(getRooms).toHaveBeenCalledWith(expect.objectContaining({ search: 'B201', page: 1 })));
+    expect(screen.getByRole('button', { name: 'Đóng tìm kiếm phòng' })).toBeInTheDocument();
+
+    await waitFor(() => expect(intersectionCallback).toBeDefined());
+    intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await waitFor(() => expect(getRooms).toHaveBeenCalledWith(expect.objectContaining({ search: 'B201', page: 2 })));
+    expect(await screen.findByText('Phòng B201')).toBeInTheDocument();
   });
 });

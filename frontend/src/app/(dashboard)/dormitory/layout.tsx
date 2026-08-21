@@ -35,6 +35,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
       <TabNavigation
         tabs={tabs}
         activeTab={activeTab}
+        responsiveScrollable
         onTabChange={(id) => {
           const tab = tabs.find((item) => item.id === id);
           if (tab) router.push(tab.href);

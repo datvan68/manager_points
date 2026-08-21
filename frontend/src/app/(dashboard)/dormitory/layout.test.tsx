@@ -18,8 +18,8 @@ vi.mock('@/providers/auth-provider', () => ({
 }));
 
 vi.mock('@/components/ui/TabNavigation', () => ({
-  default: ({ tabs, activeTab, onTabChange }: any) => (
-    <nav data-testid="tabs" data-active={activeTab}>
+  default: ({ tabs, activeTab, onTabChange, responsiveScrollable }: any) => (
+    <nav data-testid="tabs" data-active={activeTab} data-responsive-scrollable={String(Boolean(responsiveScrollable))}>
       {tabs.map((tab: any) => (
         <button key={tab.id} onClick={() => onTabChange(tab.id)}>
           {tab.label}
@@ -39,6 +39,7 @@ describe('DormitoryLayout', () => {
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
+    expect(screen.getByTestId('tabs')).toHaveAttribute('data-responsive-scrollable', 'true');
     expect(screen.getAllByRole('button')[0]).toHaveTextContent('Tổng quan');
     expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Phòng' })).toBeInTheDocument();

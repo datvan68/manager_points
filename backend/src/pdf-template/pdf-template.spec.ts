@@ -26,7 +26,9 @@ describe('shared PDF template contracts', () => {
     registry.onModuleInit();
     expect(registry.get('DORMITORY_ROSTER_APPLICATION').fields.map((field) => field.key)).toContain('student.fullName');
     expect(registry.get('DORMITORY_RESIDENCE_INFO').fields.map((field) => field.key)).toContain('dormitory.semester');
-    expect(registry.get('DORMITORY_RESIDENCE_CONTRACT').fields.map((field) => field.key)).toContain('contract.code');
+    expect(registry.get('DORMITORY_RESIDENCE_CONTRACT').fields.map((field) => field.key)).toEqual(
+      registry.get('DORMITORY_ROSTER_APPLICATION').fields.map((field) => field.key),
+    );
     expect(() => registry.get('UNKNOWN')).toThrow();
     expect(() => new PdfTemplateRegistry([DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, DORMITORY_ROSTER_APPLICATION_DESCRIPTOR])).toThrow('Duplicate');
     expect(() => new PdfTemplateRegistry([DORMITORY_RESIDENCE_INFO_DESCRIPTOR, DORMITORY_RESIDENCE_INFO_DESCRIPTOR])).toThrow('Duplicate');
@@ -39,6 +41,8 @@ describe('shared PDF template contracts', () => {
     expect(layout.items.every((item) => item.x + item.width <= 1 && item.y + item.height <= 1)).toBe(true);
     expect(() => validateAndNormalizeLayout({ ...layout, items: [{ ...layout.items[0], fieldKey: 'student.__proto__' }] }, DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, pages)).toThrow(BadRequestException);
     expect(() => validateAndNormalizeLayout({ ...layout, items: [{ ...layout.items[0], x: 0.9 }] }, DORMITORY_ROSTER_APPLICATION_DESCRIPTOR, pages)).toThrow(BadRequestException);
+    expect(() => validateAndNormalizeLayout({ ...layout, items: [{ ...layout.items[0], fieldKey: 'contract.code' }] }, DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR, pages)).toThrow(BadRequestException);
+    expect(() => validateAndNormalizeLayout({ ...layout, items: [{ ...layout.items[0], fieldKey: 'room.code' }] }, DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR, pages)).toThrow(BadRequestException);
   });
 
   it('accepts the supplied static PDF and rejects spoofed MIME', async () => {

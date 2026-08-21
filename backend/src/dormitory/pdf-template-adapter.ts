@@ -107,71 +107,19 @@ export const DORMITORY_RESIDENCE_INFO_DESCRIPTOR: PdfTemplateTypeDescriptor = {
   resolveValues: (context: any) => resolveDormitoryResidenceInfoPdfValues(context?.roster || context, context?.student, context?.room, context?.bed),
 };
 
-const contractFields = [
-  ['contract.code', 'Số hợp đồng', 'string'],
-  ['contract.startDate', 'Ngày bắt đầu', 'date'],
-  ['contract.endDate', 'Ngày kết thúc', 'date'],
-  ['contract.status', 'Trạng thái', 'string'],
-  ['student.code', 'Mã sinh viên', 'string'],
-  ['student.fullName', 'Họ và tên', 'string'],
-  ['student.dateOfBirth', 'Ngày sinh', 'date'],
-  ['student.gender', 'Giới tính', 'string'],
-  ['roster.phone', 'Số điện thoại', 'string'],
-  ['applicant.citizenId', 'Số căn cước', 'string'],
-  ['applicant.permanentAddress', 'Địa chỉ thường trú', 'string'],
-  ['room.code', 'Mã phòng', 'string'],
-  ['room.name', 'Tên phòng', 'string'],
-  ['bed.code', 'Mã giường', 'string'],
-  ['bed.position', 'Vị trí giường', 'string'],
-] as const;
-
-const contractVietnameseSamples: Record<string, string> = {
-  'contract.code': 'HD-2026-0001',
-  'contract.startDate': '01/09/2026',
-  'contract.endDate': '30/06/2027',
-  'contract.status': 'Hiệu lực',
-  'student.code': 'SV2026001',
-  'student.fullName': 'Nguyễn Thị Minh Khánh',
-  'student.dateOfBirth': '02/01/2004',
-  'student.gender': 'Nữ',
-  'roster.phone': '0912345678',
-  'applicant.citizenId': '012345678901',
-  'applicant.permanentAddress': 'Hà Nội',
-  'room.code': 'P101',
-  'room.name': 'Phòng 101',
-  'bed.code': 'G01',
-  'bed.position': 'Tầng 1 - Trái',
-};
-
-function contractSyntheticValue(name: 'short' | 'long' | 'missing' | 'vietnamese', fieldKey: string, dataType: string, index: number) {
-  if (name === 'missing' && index % 3 === 0) return '';
-  if (dataType === 'date') return name === 'long' ? '2027-12-31' : '2026-09-01';
-  if (name === 'long') return `${fieldKey} - Giá trị rất dài để kiểm tra wrap và shrink trong hợp đồng nội trú KTX`;
-  if (name === 'vietnamese') return contractVietnameseSamples[fieldKey] || 'Giá trị mẫu';
-  return `Mẫu HĐ ${index + 1}`;
-}
-
 export const DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR: PdfTemplateTypeDescriptor = {
   moduleCode: 'DORMITORY',
   featureCode: 'DORMITORY_CONTRACT',
   templateTypeCode: DORMITORY_RESIDENCE_CONTRACT,
   displayName: 'Mẫu đơn hợp đồng nội trú',
   sourcePermission: 'DORM_CONTRACT_READ',
-  fields: contractFields.map(([fieldKey, label, dataType]) => ({
-    key: fieldKey,
-    label,
-    dataType: dataType as any,
-    sensitive: fieldKey.includes('fullName') || fieldKey.includes('citizen') || fieldKey.includes('phone') || fieldKey.includes('permanentAddress'),
-    syntheticSample: fieldKey.toLowerCase().includes('date') ? '01/09/2026' : 'Giá trị mẫu',
-    allowedFormatters: (fieldKey.toLowerCase().includes('date') ? ['date_ddmmyyyy'] : ['plain', ...(fieldKey.endsWith('gender') ? ['gender_vi'] : [])]) as PdfTemplateFormatter[],
-    defaultStyle: { ...style, overflow: 'shrink', maxLines: 1 },
-  })),
+  fields: DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.fields,
   pagePolicy: { minPages: 1, maxPages: 10, allowedDimensions: { width: 595.32, height: 842.04, tolerance: 2 } },
-  syntheticFixture: (name) => ({
-    name,
-    values: Object.fromEntries(contractFields.map(([fieldKey, , dataType], index) => [fieldKey, contractSyntheticValue(name, fieldKey, dataType, index)])),
-  }),
-  resolveValues: (context: any) => resolveDormitoryContractPdfValues(context?.contract || context, context?.student, context?.room, context?.bed, context?.roster),
+  syntheticFixture: (name) => DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.syntheticFixture(name),
+  resolveValues: (context: any) => resolveDormitoryRosterPdfValues(
+    context?.roster || context?.contract?.roster_entry_id || context,
+    context?.student,
+  ),
 };
 
 export function createDefaultDormitoryLayout(pages: Array<{ pageIndex: number; width: number; height: number; rotation: number }>): PdfTemplateLayout {
@@ -212,26 +160,5 @@ export function resolveDormitoryResidenceInfoPdfValues(roster: any, student?: an
 }
 
 export function resolveDormitoryContractPdfValues(contract: any, student?: any, room?: any, bed?: any, roster?: any) {
-  const s = student || contract?.student_id || {};
-  const r = room || contract?.room_id || {};
-  const b = bed || contract?.bed_id || {};
-  const ros = roster || contract?.roster_entry_id || {};
-  const profile = ros?.applicant_profile || {};
-  return {
-    'contract.code': contract?.contract_code || '',
-    'contract.startDate': contract?.start_date || '',
-    'contract.endDate': contract?.end_date || '',
-    'contract.status': contract?.status || '',
-    'student.code': s?.student_code || ros?.student_code || '',
-    'student.fullName': s?.full_name || ros?.full_name || '',
-    'student.dateOfBirth': s?.date_bir || ros?.date_of_birth || '',
-    'student.gender': s?.sex || ros?.gender || '',
-    'roster.phone': ros?.phone_number || '',
-    'applicant.citizenId': profile?.citizen_id_number || '',
-    'applicant.permanentAddress': profile?.permanent_address || '',
-    'room.code': r?.room_code || '',
-    'room.name': r?.room_name || '',
-    'bed.code': b?.bed_code || '',
-    'bed.position': b?.position || '',
-  };
+  return resolveDormitoryRosterPdfValues(roster || contract?.roster_entry_id || contract, student);
 }

@@ -118,9 +118,16 @@ const mockStats = {
   },
 };
 
+let compactViewport = false;
+
 describe('DormitoryOverviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    compactViewport = false;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockImplementation(() => ({ matches: compactViewport, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    });
     vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValue(mockStats as any);
   });
 
@@ -144,6 +151,15 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getByText('Nam')).toBeInTheDocument();
     expect(screen.getByText('Nữ')).toBeInTheDocument();
     expect(screen.getAllByText('Máy lạnh').length).toBeGreaterThan(1);
+  });
+
+  it('switches both large data sections to complete compact cards below lg', async () => {
+    compactViewport = true;
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('table')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Xem thành viên phòng A101' })).toBeInTheDocument();
+    expect(screen.getAllByText((content) => content.includes('350.000')).length).toBeGreaterThan(0);
   });
 
   it('searches room names and puts empty rooms first', async () => {

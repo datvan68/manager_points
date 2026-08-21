@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dormitoryApi } from '@/api/dormitory-api';
 import {
   applyRoomAssignment,
   getPublicRegistrationUrl,
@@ -8,11 +10,35 @@ import {
   studentName,
 } from './page';
 
+vi.mock('@/providers/auth-provider', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
+
+let compactViewport = false;
+let intersectionCallback: IntersectionObserverCallback | undefined;
+class MockIntersectionObserver {
+  constructor(callback: IntersectionObserverCallback) { intersectionCallback = callback; }
+  observe() {}
+  disconnect() {}
+  unobserve() {}
+}
+vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+
 const entry1 = { _id: 'entry-1', roster_entry_code: 'DK-1', full_name: 'Nguyễn A', semester: 'HK1', academic_year: '2026-2027', identity_state: 'UNLINKED' as const };
 const entry2 = { _id: 'entry-2', roster_entry_code: 'DK-2', full_name: 'Trần B', semester: 'HK1', academic_year: '2026-2027', identity_state: 'LINKED' as const };
 const entry3 = { _id: 'entry-3', roster_entry_code: 'DK-3', full_name: 'Lê C', semester: 'HK1', academic_year: '2026-2027', identity_state: 'LINKED' as const };
 
 describe('Danh sách KTX canonical page capabilities', () => {
+  beforeEach(() => {
+    compactViewport = false;
+    intersectionCallback = undefined;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockImplementation(() => ({ matches: compactViewport, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
   it('keeps public QR route and roster row helpers canonical', () => {
     expect(getPublicRegistrationUrl('https://example.test/')).toBe('https://example.test/public/dormitory/register');
     expect(studentName(entry1)).toBe('Nguyễn A');
@@ -34,5 +60,24 @@ describe('Danh sách KTX canonical page capabilities', () => {
     const updated = applyRoomAssignment(entry1, { room: { _id: 'room-1', room_code: 'A101', building_id: 'building-1', room_type: 'Thường', bed_count: 1, max_students: 1, current_students: 0, available_bed_count: 1, room_price: 0, status: 'Trống', amenities: [], qr_code: '', public_url: '' }, bed: { _id: 'bed-1', bed_code: 'A101-G1', room_id: 'room-1', status: 'Đang sử dụng' } });
     expect(updated.room_id).toEqual(expect.objectContaining({ _id: 'room-1' }));
     expect(updated.bed_id).toEqual(expect.objectContaining({ _id: 'bed-1' }));
+  });
+
+  it('uses compact page one and appends a unique next page after intersection', async () => {
+    compactViewport = true;
+    const first = { ...entry1, _id: 'entry-1', student_code: 'SV001' };
+    const second = { ...entry2, _id: 'entry-2', student_code: 'SV002' };
+    const getAll = vi.spyOn(dormitoryApi.roster, 'getAll').mockImplementation(async (query: any) => ({
+      data: query.page === 2 ? [second, first] : [first],
+      meta: { total: 2, page: query.page, limit: query.limit, totalPages: 2 },
+    } as any));
+
+    const { default: DormitoryRosterPage } = await import('./page');
+    render(<DormitoryRosterPage />);
+    await waitFor(() => expect(getAll).toHaveBeenCalledWith(expect.objectContaining({ page: 1 })));
+    await waitFor(() => expect(intersectionCallback).toBeDefined());
+    intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await waitFor(() => expect(getAll).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })));
+
+    expect(screen.getAllByText('Trần B').length).toBeGreaterThan(0);
   });
 });

@@ -101,6 +101,9 @@ describe('PdfTemplateCatalog', () => {
     render(<PdfTemplateCatalog />);
 
     expect(await screen.findByText('Mẫu đơn đăng ký KTX')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Quản lý mẫu PDF' })).toBeInTheDocument();
+    expect(screen.queryByText('PDF Template Designer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mỗi collection đã đăng ký có tối đa một PDF và layout hiện hành.')).not.toBeInTheDocument();
     expect(screen.getByText('Mẫu đơn hợp đồng nội trú')).toBeInTheDocument();
     expect(screen.getByText('Mẫu đơn thông tin cư trú')).toBeInTheDocument();
 

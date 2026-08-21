@@ -110,119 +110,49 @@ describe('dormitory-pdf-template contract', () => {
   });
 
   describe('DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR (Mẫu đơn hợp đồng nội trú)', () => {
-    it('exposes contract descriptor metadata and field palette', () => {
+    it('reuses the ordered registration field palette while retaining contract identity', () => {
       expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.templateTypeCode).toBe('DORMITORY_RESIDENCE_CONTRACT');
       expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.displayName).toBe('Mẫu đơn hợp đồng nội trú');
       expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.moduleCode).toBe('DORMITORY');
       expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.featureCode).toBe('DORMITORY_CONTRACT');
       expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.sourcePermission).toBe('DORM_CONTRACT_READ');
-      expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields.length).toBe(15);
-
-      const fieldKeys = DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields.map((f) => f.key);
-      expect(fieldKeys).toEqual([
-        'contract.code',
-        'contract.startDate',
-        'contract.endDate',
-        'contract.status',
-        'student.code',
-        'student.fullName',
-        'student.dateOfBirth',
-        'student.gender',
-        'roster.phone',
-        'applicant.citizenId',
-        'applicant.permanentAddress',
-        'room.code',
-        'room.name',
-        'bed.code',
-        'bed.position',
-      ]);
+      expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields).toEqual(DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.fields);
+      expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields.map((f) => f.key)).toEqual(
+        DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.fields.map((f) => f.key),
+      );
     });
 
-    it('marks personal identity and contact fields as sensitive', () => {
-      const sensitiveKeys = DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields
-        .filter((f) => f.sensitive)
-        .map((f) => f.key);
-      expect(sensitiveKeys).toEqual([
-        'student.fullName',
-        'roster.phone',
-        'applicant.citizenId',
-        'applicant.permanentAddress',
-      ]);
+    it('reuses registration formatters, sensitivity flags, and synthetic fixtures', () => {
+      expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.fields.map((f) => ({ key: f.key, allowedFormatters: f.allowedFormatters, sensitive: f.sensitive })))
+        .toEqual(DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.fields.map((f) => ({ key: f.key, allowedFormatters: f.allowedFormatters, sensitive: f.sensitive })));
+      for (const name of ['short', 'long', 'missing', 'vietnamese'] as const) {
+        expect(DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.syntheticFixture(name)).toEqual(
+          DORMITORY_ROSTER_APPLICATION_DESCRIPTOR.syntheticFixture(name),
+        );
+      }
     });
 
-    it('generates synthetic contract fixtures for all fixture modes', () => {
-      const viFixture = DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.syntheticFixture('vietnamese');
-      expect(viFixture.values['contract.code']).toBe('HD-2026-0001');
-      expect(viFixture.values['student.fullName']).toBe('Nguyễn Thị Minh Khánh');
-      expect(viFixture.values['room.code']).toBe('P101');
-      expect(viFixture.values['bed.code']).toBe('G01');
-
-      const longFixture = DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.syntheticFixture('long');
-      expect(longFixture.values['contract.code']).toContain('wrap và shrink');
-
-      const missingFixture = DORMITORY_RESIDENCE_CONTRACT_DESCRIPTOR.syntheticFixture('missing');
-      expect(missingFixture.values['contract.code']).toBe('');
-    });
-
-    it('resolves contract PDF values from populated contract entity', () => {
-      const contract = {
-        contract_code: 'HD-12345678',
-        start_date: new Date('2026-09-01'),
-        end_date: new Date('2027-06-30'),
-        status: 'Hiệu lực',
-        student_id: {
-          student_code: 'SV001',
-          full_name: 'Trần Văn B',
-          date_bir: new Date('2004-05-15'),
-          sex: 'Male',
-        },
-        room_id: {
-          room_code: 'P202',
-          room_name: 'Phòng 202',
-        },
-        bed_id: {
-          bed_code: 'G02',
-          position: 'Tầng 1 - Phải',
-        },
-        roster_entry_id: {
-          phone_number: '0901112233',
-          applicant_profile: {
-            citizen_id_number: '079204000111',
-            permanent_address: 'Hà Nội',
-          },
+    it('resolves the registration palette from roster context and never emits removed contract keys', () => {
+      const roster = {
+        full_name: 'Lê Thị C',
+        date_of_birth: '2004-08-20',
+        gender: 'Female',
+        phone_number: '0933445566',
+        applicant_profile: {
+          citizen_id_number: '012345678901',
+          permanent_address: 'Đà Nẵng',
         },
       };
-
-      const values = resolveDormitoryContractPdfValues(contract);
-      expect(values['contract.code']).toBe('HD-12345678');
-      expect(values['contract.status']).toBe('Hiệu lực');
-      expect(values['student.code']).toBe('SV001');
-      expect(values['student.fullName']).toBe('Trần Văn B');
-      expect(values['student.gender']).toBe('Male');
-      expect(values['room.code']).toBe('P202');
-      expect(values['room.name']).toBe('Phòng 202');
-      expect(values['bed.code']).toBe('G02');
-      expect(values['bed.position']).toBe('Tầng 1 - Phải');
-      expect(values['roster.phone']).toBe('0901112233');
-      expect(values['applicant.citizenId']).toBe('079204000111');
-      expect(values['applicant.permanentAddress']).toBe('Hà Nội');
-    });
-
-    it('resolves contract PDF values from separate context arguments', () => {
-      const contract = { contract_code: 'HD-888', start_date: '2026-09-01', end_date: '2027-06-30', status: 'Hiệu lực' };
-      const student = { student_code: 'SV888', full_name: 'Lê Thị C', date_bir: '2004-08-20', sex: 'Female' };
-      const room = { room_code: 'P303', room_name: 'Phòng 303' };
-      const bed = { bed_code: 'G03', position: 'Tầng 2 - Trái' };
-      const roster = { phone_number: '0933445566', applicant_profile: { citizen_id_number: '012345678901', permanent_address: 'Đà Nẵng' } };
-
-      const values = resolveDormitoryContractPdfValues(contract, student, room, bed, roster);
-      expect(values['contract.code']).toBe('HD-888');
+      const values = resolveDormitoryContractPdfValues(
+        { roster_entry_id: roster },
+        { student_code: 'SV888', full_name: 'Lê Thị C', date_bir: '2004-08-20', sex: 'Female' },
+      );
       expect(values['student.fullName']).toBe('Lê Thị C');
-      expect(values['student.code']).toBe('SV888');
-      expect(values['room.code']).toBe('P303');
-      expect(values['bed.code']).toBe('G03');
       expect(values['roster.phone']).toBe('0933445566');
       expect(values['applicant.permanentAddress']).toBe('Đà Nẵng');
+      expect(values).not.toHaveProperty('contract.code');
+      expect(values).not.toHaveProperty('room.code');
+      expect(values).not.toHaveProperty('bed.code');
     });
   });
 });

@@ -17,28 +17,32 @@ interface Tab {
   options?: TabOption[];
 }
 
-interface TabNavigationProps {
+export interface TabNavigationProps {
   tabs: Tab[];
   activeTab: string;
   onTabChange: (id: string) => void;
   className?: string;
+  responsiveScrollable?: boolean;
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({ 
   tabs, 
   activeTab, 
   onTabChange,
-  className = ''
+  className = '',
+  responsiveScrollable = false,
 }) => {
   const [openSelectId, setOpenSelectId] = useState<string | null>(null);
 
   return (
     <div 
       className={cn(
-        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10 gap-0 lg:gap-[32px]", 
+        "relative w-full bg-white/45 backdrop-blur-md border-b border-white/70 h-[41px] flex items-center px-3 lg:px-[12px] shrink-0 z-[49] shadow-sm shadow-slate-200/10 gap-0 lg:gap-[32px]",
+        responsiveScrollable && 'overflow-x-auto scrollbar-none lg:overflow-visible',
         className
       )}
     >
+      <div className={cn(responsiveScrollable ? 'flex w-max min-w-full lg:contents' : 'contents')}>
         {tabs.map((tab) => {
           const isDropdown = tab.type === 'select-option';
           const isActive = activeTab === tab.id || (tab.options?.some(opt => opt.id === activeTab));
@@ -49,7 +53,10 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
             return (
               <div 
                 key={tab.id}
-                className="relative h-full flex-1 lg:flex-none flex items-center justify-center"
+                className={cn(
+                  'relative h-full flex-1 lg:flex-none flex items-center justify-center',
+                  responsiveScrollable && 'min-w-[104px]',
+                )}
                 onMouseEnter={() => setOpenSelectId(tab.id)}
                 onMouseLeave={() => setOpenSelectId(null)}
               >
@@ -112,6 +119,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
               onClick={() => onTabChange(tab.id)}
               className={cn(
                 "relative flex-1 lg:flex-none flex items-center justify-center h-full px-1 text-[13.5px] leading-[20px] transition-colors duration-200 cursor-pointer outline-none",
+                responsiveScrollable && 'min-w-[104px]',
                 isActive 
                   ? 'text-[#1A73E8] font-bold' 
                   : 'text-[#64748B] font-medium hover:text-[#1E293B]'
@@ -128,6 +136,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
             </button>
           );
         })}
+      </div>
     </div>
   );
 };

@@ -139,7 +139,17 @@ export default function DormitoryOverviewPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [selectedRoom, setSelectedRoom] = useState<DormitoryRoomRow | null>(null);
+  const [isCompact, setIsCompact] = useState(false);
   const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsCompact(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   const loadData = useCallback(async (initial = false) => {
     if (inFlightRef.current) return;
@@ -256,8 +266,7 @@ export default function DormitoryOverviewPage() {
     <main className="w-full space-y-4 pb-8" aria-label="Tổng quan quản lý KTX">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Tổng quan Quản lý KTX</h1>
-          <p className="mt-0.5 text-xs text-slate-500">Theo dõi phòng, giường và công nợ theo từng phòng.</p>
+          <h1 className="text-xl font-black tracking-tight text-slate-900">Tổng quan Quản lý KTX</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/dormitory/roster" className="inline-flex items-center gap-2 rounded-xl border border-white/80 bg-white/50 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs backdrop-blur-md transition-all hover:bg-white/80 hover:shadow-sm">
@@ -346,9 +355,32 @@ export default function DormitoryOverviewPage() {
           <span>Hiển thị {filteredRooms.length}/{roomRows.length} phòng</span>
         </div>
 
-        <div className="mt-2.5 overflow-x-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
+        {isCompact ? (
+          <div className="mt-2.5 space-y-3 lg:hidden">
+            {filteredRooms.map((room: DormitoryRoomRow) => {
+              const occupancy = room.total_beds > 0 ? Math.round((room.occupied_beds / room.total_beds) * 100) : 0;
+              const isFull = room.total_beds > 0 && room.occupied_beds >= room.total_beds;
+              const config = stateConfig[room.state] || stateConfig['Chưa cấu hình'];
+              return (
+                <article key={room.room_id} className="rounded-xl border border-white/75 bg-white/55 p-3 shadow-2xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><div className="font-semibold text-slate-900">{room.room_code}</div><div className="text-xs text-slate-500">{room.room_name}</div></div>
+                    <span aria-label={`${room.state}, ${occupancy}% đã sử dụng`} className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10.5px] font-bold ${isFull ? 'text-rose-700' : occupancy > 0 ? 'text-indigo-700' : 'text-slate-500'}`} style={{ background: occupancy > 0 ? `conic-gradient(${isFull ? '#e11d48' : config.ringColor} ${occupancy}%, #e2e8f0 0)` : '#e2e8f0' }}><span className="grid h-6.5 w-6.5 place-items-center rounded-full bg-white/90 shadow-2xs">{occupancy}%</span></span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-white/60 pt-3 text-xs">
+                    <div><dt className="text-slate-500">Loại phòng</dt><dd className="mt-0.5 font-semibold text-slate-700">{room.room_type}</dd></div>
+                    <div><dt className="text-slate-500">Giường</dt><dd className="mt-0.5 font-semibold text-slate-700">{room.occupied_beds}/{room.total_beds}</dd></div>
+                    <div><dt className="text-slate-500">Còn chỗ</dt><dd className={`mt-0.5 font-semibold ${room.free_beds > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{room.free_beds}</dd></div>
+                    <div className="text-right"><dt className="sr-only">Thành viên</dt><dd><button type="button" aria-label={`Xem thành viên phòng ${room.room_code}`} onClick={() => setSelectedRoom(room)} className="inline-flex items-center rounded-lg border border-white/80 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-blue-600">Chi tiết</button></dd></div>
+                  </dl>
+                </article>
+              );
+            })}
+            {!filteredRooms.length && <p className="rounded-xl border border-dashed border-white/80 px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</p>}
+          </div>
+        ) : <div className="mt-2.5 max-h-[min(45vh,32rem)] overflow-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
           <table className="min-w-[760px] w-full text-left text-sm">
-            <thead className="border-b border-white/60 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
+            <thead className="sticky top-0 z-10 border-b border-white/60 bg-slate-50/95 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
               <tr>
                 <th className="px-4 py-3">Phòng</th>
                 <th className="px-4 py-3">Loại</th>
@@ -415,7 +447,7 @@ export default function DormitoryOverviewPage() {
               {!filteredRooms.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div>}
       </Card>
 
       <Card>
@@ -430,9 +462,19 @@ export default function DormitoryOverviewPage() {
           </div>
         </div>
         {invoices.anomaly_count > 0 && <div role="status" className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/80 p-2.5 text-xs text-amber-900 backdrop-blur-sm">Có {invoices.anomaly_count} hóa đơn còn nợ ({money.format(invoices.anomaly_amount)}) chưa xác định được phòng; số này không cộng vào các dòng phòng.</div>}
-        <div className="mt-3 overflow-x-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
+        {isCompact ? (
+          <div className="mt-3 space-y-3 lg:hidden">
+            {invoices.rows.map((row) => (
+              <article key={row.room_id} className="rounded-xl border border-white/75 bg-white/55 p-3 shadow-2xs">
+                <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-900">{row.room_code}</div><div className="text-xs text-slate-500">{row.room_name} · {row.building_name}</div></div><div className="text-right font-bold text-rose-700">{money.format(row.total_outstanding_amount)}</div></div>
+                <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-white/60 pt-3 text-xs"><div><dt className="text-slate-500">Người nợ</dt><dd className="mt-0.5 font-semibold text-slate-700">{row.debtor_count}</dd></div><div><dt className="text-slate-500">Chưa thanh toán</dt><dd className="mt-0.5 font-semibold text-slate-700">{row.unpaid_count}</dd></div><div><dt className="text-slate-500">Quá hạn</dt><dd className="mt-0.5 font-semibold text-rose-700">{row.overdue_count}</dd></div></dl>
+              </article>
+            ))}
+            {!invoices.rows.length && <p className="rounded-xl border border-dashed border-white/80 px-4 py-8 text-center text-sm text-slate-500">Không có phòng nào đang có hóa đơn chưa thu.</p>}
+          </div>
+        ) : <div className="mt-3 max-h-[min(45vh,32rem)] overflow-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
           <table className="min-w-[800px] w-full text-left text-sm">
-            <thead className="border-b border-white/60 bg-slate-50/70 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
+            <thead className="sticky top-0 z-10 border-b border-white/60 bg-slate-50/95 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
               <tr>
                 <th className="px-4 py-3">Phòng</th>
                 <th className="px-4 py-3">Người nợ</th>
@@ -457,7 +499,7 @@ export default function DormitoryOverviewPage() {
               {!invoices.rows.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng nào đang có hóa đơn chưa thu.</td></tr>}
             </tbody>
           </table>
-        </div>
+        </div>}
       </Card>
 
       <Card className="bg-white/35">

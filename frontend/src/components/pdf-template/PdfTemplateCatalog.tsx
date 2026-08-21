@@ -122,13 +122,9 @@ function CatalogPage({ routeBase = '/dormitory/pdf-template', lockedModuleCode }
   return (
     <main className="min-h-0 flex-1 space-y-6 overflow-y-auto p-6" aria-labelledby="pdf-template-title">
       <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">PDF Template Designer</p>
         <h1 id="pdf-template-title" className="text-2xl font-black text-slate-900">
           Quản lý mẫu PDF
         </h1>
-        <p className="text-sm text-slate-500">
-          Mỗi collection đã đăng ký có tối đa một PDF và layout hiện hành.
-        </p>
       </div>
 
       {error && (

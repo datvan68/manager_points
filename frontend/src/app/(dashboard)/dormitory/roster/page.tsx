@@ -262,10 +262,10 @@ export default function DormitoryRosterPage() {
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
   const [selected, setSelected] = useState<string[]>([]);
-  const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false); const [isCompact, setIsCompact] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const rosterRequestRef = useRef(0); const studentRequestRef = useRef(0);
-  const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true);
+  const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const [mobileLoadError, setMobileLoadError] = useState(false); const [mobileHasMore, setMobileHasMore] = useState(true); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true); const queryGenerationRef = useRef(0);
   const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false); const [activeSemesterName, setActiveSemesterName] = useState(''); const [calendarOpen, setCalendarOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
@@ -316,6 +316,14 @@ export default function DormitoryRosterPage() {
 
   useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
   useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsCompact(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
+  useEffect(() => {
     const requestId = ++studentRequestRef.current;
     if (!createOpen || !studentSearch.trim() || student) { setStudentOptions([]); return; }
     const timer = window.setTimeout(async () => {
@@ -351,31 +359,49 @@ export default function DormitoryRosterPage() {
     const payload: CreateDormitoryRosterEntryInput = { student_id: student._id, phone_number: createForm.phone_number.trim(), room_type: createForm.room_type, notes: createForm.notes || undefined };
     try { setCreateSaving(true); await dormitoryApi.roster.create(payload); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true, 1); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
   };
-  const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; };
-  const load = useCallback(async (background = false, requestedPage = page) => { const requestId = ++rosterRequestRef.current; try { background ? setRefreshing(true) : setLoading(true); setError(''); const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: requestedPage, limit: pageSize }); if (rosterRequestRef.current !== requestId) return; setRegistrations(res.data); setMeta(res.meta); } catch (err: any) { if (rosterRequestRef.current === requestId) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); } } finally { if (rosterRequestRef.current === requestId) { setLoading(false); setRefreshing(false); } } }, [search, page, pageSize]);
+  const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false); queryGenerationRef.current += 1; };
+  const load = useCallback(async (background = false, requestedPage = page) => {
+    const requestId = ++rosterRequestRef.current;
+    const requested = isCompact ? 1 : requestedPage;
+    try {
+      background ? setRefreshing(true) : setLoading(true); setError('');
+      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: requested, limit: pageSize });
+      if (rosterRequestRef.current !== requestId) return;
+      setRegistrations(res.data); setMeta(res.meta); mobilePageRef.current = requested;
+      const hasMore = isCompact && requested < res.meta.totalPages;
+      mobileHasMoreRef.current = hasMore; setMobileHasMore(hasMore); setMobileLoadError(false);
+    } catch (err: any) {
+      if (rosterRequestRef.current === requestId) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); }
+    } finally { if (rosterRequestRef.current === requestId) { setLoading(false); setRefreshing(false); } }
+  }, [isCompact, page, pageSize, search]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
-  useEffect(() => { mobilePageRef.current = 1; mobileHasMoreRef.current = true; }, [search, pageSize]);
+  useEffect(() => {
+    queryGenerationRef.current += 1; mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false);
+    if (isCompact) { setPage(1); setSelected([]); }
+  }, [isCompact, pageSize, search]);
   const loadMoreMobile = useCallback(async () => {
-    if (mobileLoadingMore || !mobileHasMoreRef.current) return;
+    if (!isCompact || loading || mobileLoadingMore || !mobileHasMoreRef.current) return;
     setMobileLoadingMore(true);
     const nextPage = mobilePageRef.current + 1;
+    const generation = queryGenerationRef.current;
+    const requestId = ++rosterRequestRef.current;
     try {
-      const requestId = ++rosterRequestRef.current;
       const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
-      if (rosterRequestRef.current !== requestId) return;
+      if (rosterRequestRef.current !== requestId || queryGenerationRef.current !== generation) return;
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
       mobilePageRef.current = nextPage;
-      mobileHasMoreRef.current = next.length === pageSize && nextPage * pageSize < res.meta.total;
-    } catch { setError('Không thể tải thêm đăng ký.'); } finally { setMobileLoadingMore(false); }
-  }, [search, pageSize, mobileLoadingMore]);
+      const hasMore = nextPage < res.meta.totalPages;
+      mobileHasMoreRef.current = hasMore; setMobileHasMore(hasMore); setMobileLoadError(false);
+    } catch { if (queryGenerationRef.current === generation) { setMobileLoadError(true); setError('Không thể tải thêm đăng ký.'); } } finally { setMobileLoadingMore(false); }
+  }, [isCompact, loading, search, pageSize, mobileLoadingMore]);
   useEffect(() => {
     const target = mobileSentinelRef.current;
-    if (!target) return;
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) void loadMoreMobile(); }, { root: mobileScrollRef.current, rootMargin: '160px', threshold: 0.1 });
+    if (!target || !isCompact) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting && !mobileLoadError) void loadMoreMobile(); }, { root: mobileScrollRef.current, rootMargin: '160px', threshold: 0.1 });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [loadMoreMobile]);
+  }, [isCompact, loadMoreMobile, mobileLoadError]);
   const allSelected = registrations.length > 0 && registrations.every(row => selected.includes(row._id));
   const toggleAll = (checked: boolean) => setSelected(checked ? registrations.map(row => row._id) : []);
   const openEdit = (row: DormitoryRosterEntry) => setEditRow(row);
@@ -418,23 +444,22 @@ export default function DormitoryRosterPage() {
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
     {mobileSearchOpen ? (
-      <div className="flex w-full items-center gap-1 py-0.5 sm:hidden">
+      <div className="flex w-full items-center gap-1 py-0.5 lg:hidden">
         <Research ref={searchRef} aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="flex-1 w-full max-w-none" />
         <Button type="button" variant="outline" aria-label="Đóng tìm kiếm" title="Đóng" onClick={() => setMobileSearchOpen(false)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><X size={16} /></Button>
       </div>
-    ) : (
-      <div className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
-        <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden sm:flex shrink-0 w-[231px]" />
-        <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>
-        <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
-          {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
-          {canCreate && <Button type="button" variant="outline" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
-          <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>
-        </div>
+    ) : null}
+    <div className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
+      <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden lg:flex shrink-0 w-[231px]" />
+      {!mobileSearchOpen && <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex lg:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>}
+      <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
+        {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
+        {canCreate && <Button type="button" variant="outline" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
+        <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>
       </div>
-    )}
+    </div>
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : !mobileHasMoreRef.current && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có mục Danh sách KTX nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="mục Danh sách KTX" />} /></div>
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} breakpoint="lg" keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} mobileVirtualization hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMore && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có mục Danh sách KTX nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="mục Danh sách KTX" />} /></div>
     <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" disabled={pdfLoading} onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Xuất PDF</button>}</>} />
     <Dialog open={pdfRows.length > 0} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); } }}>
       <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>{pdfRows.length > 1 ? `Xem trước đơn KTX (${pdfRows.length} sinh viên)` : 'Xem trước đơn KTX'}</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRows.length > 0 && void loadPdfPreview(pdfRows)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); }}>Đóng</Button>{pdfRows.length > 0 && <Button disabled={pdfLoading || Boolean(pdfError)} onClick={() => void downloadPdf(pdfRows)}>Xuất PDF</Button>}</DialogFooter></DialogContent>

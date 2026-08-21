@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Bed, Building, Room, dormitoryApi } from '@/api/dormitory-api';
 import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '@/components/modals/ConfirmModal';
@@ -102,7 +102,11 @@ export default function BuildingsPage() {
   const [error, setError] = useState('');
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false);
   const [mobileLoadError, setMobileLoadError] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const roomsRequestRef = useRef(0);
+  const queryGenerationRef = useRef(0);
   const mobilePageRef = useRef(1);
   const mobileHasMoreRef = useRef(true);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
@@ -130,49 +134,67 @@ export default function BuildingsPage() {
   const [deletingBedId, setDeletingBedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 767px)');
-    const update = () => setIsMobile(media.matches);
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsCompact(media.matches);
     update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
   }, []);
 
+  useEffect(() => { if (mobileSearchOpen) searchRef.current?.focus(); }, [mobileSearchOpen]);
+
   const load = useCallback(async (background = false) => {
+    const requestId = ++roomsRequestRef.current;
+    const requestedPage = isCompact ? 1 : page;
     try {
       if (background) setRefreshing(true); else setLoading(true);
       setError('');
       const [roomResult, buildingResult] = await Promise.all([
-        dormitoryApi.rooms.getAll({ search: search.trim() || undefined, page: isMobile ? 1 : page, limit: pageSize }),
+        dormitoryApi.rooms.getAll({ search: search.trim() || undefined, page: requestedPage, limit: pageSize }),
         dormitoryApi.buildings.getAll({ limit: 100 }),
       ]);
+      if (roomsRequestRef.current !== requestId) return;
       setRooms(roomResult.data);
       setMeta(roomResult.meta);
       setBuildings(buildingResult.data);
-      mobilePageRef.current = 1;
-      mobileHasMoreRef.current = roomResult.meta.totalPages > 1;
+      mobilePageRef.current = requestedPage;
+      mobileHasMoreRef.current = isCompact && requestedPage < roomResult.meta.totalPages;
       setMobileLoadError(false);
+      setPage(current => isCompact ? 1 : current);
       setSelected([]);
     } catch (err: any) {
+      if (roomsRequestRef.current !== requestId) return;
       setError(err?.message || 'Không thể tải danh sách phòng.');
       toast.error(err?.message || 'Không thể tải danh sách phòng.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (roomsRequestRef.current === requestId) { setLoading(false); setRefreshing(false); }
     }
-  }, [isMobile, page, pageSize, search]);
+  }, [isCompact, page, pageSize, search]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 200);
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    queryGenerationRef.current += 1;
+    mobilePageRef.current = 1;
+    mobileHasMoreRef.current = true;
+    setMobileLoadError(false);
+    if (isCompact) { setPage(1); setSelected([]); }
+  }, [isCompact, pageSize, search]);
+
   const loadMoreMobile = useCallback(async () => {
-    if (!isMobile || mobileLoadingMore || !mobileHasMoreRef.current) return;
+    if (!isCompact || loading || mobileLoadingMore || !mobileHasMoreRef.current) return;
     const nextPage = mobilePageRef.current + 1;
+    const generation = queryGenerationRef.current;
+    const requestId = ++roomsRequestRef.current;
     setMobileLoadingMore(true);
     setMobileLoadError(false);
     try {
       const result = await dormitoryApi.rooms.getAll({ search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      if (roomsRequestRef.current !== requestId || queryGenerationRef.current !== generation) return;
       setRooms(current => mergeUnique(current, result.data));
       mobilePageRef.current = nextPage;
       mobileHasMoreRef.current = nextPage < result.meta.totalPages;
@@ -182,14 +204,14 @@ export default function BuildingsPage() {
     } finally {
       setMobileLoadingMore(false);
     }
-  }, [isMobile, mobileLoadingMore, pageSize, search]);
+  }, [isCompact, loading, mobileLoadingMore, pageSize, search]);
 
   useEffect(() => {
-    if (!isMobile || !mobileSentinelRef.current || !mobileScrollRef.current) return;
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) void loadMoreMobile(); }, { root: mobileScrollRef.current, rootMargin: '160px' });
+    if (!isCompact || !mobileSentinelRef.current || !mobileScrollRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting && !mobileLoadError) void loadMoreMobile(); }, { root: mobileScrollRef.current, rootMargin: '160px' });
     observer.observe(mobileSentinelRef.current);
     return () => observer.disconnect();
-  }, [isMobile, loadMoreMobile]);
+  }, [isCompact, loadMoreMobile, mobileLoadError]);
 
   const openRoom = (room?: Room) => {
     setRoomEdit(room || null);
@@ -321,15 +343,21 @@ export default function BuildingsPage() {
   ], [canDeleteRoom, canManageBeds, canUpdateRoom]);
 
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
+    {mobileSearchOpen ? (
+      <div className="flex w-full items-center gap-1 py-0.5 lg:hidden">
+        <Research ref={searchRef} aria-label="Tìm kiếm phòng" placeholder="Tìm mã hoặc tên phòng..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); setSelected([]); }} containerClassName="flex-1 w-full max-w-none" />
+        <Button type="button" variant="outline" aria-label="Đóng tìm kiếm phòng" title="Đóng" onClick={() => setMobileSearchOpen(false)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><X size={16} /></Button>
+      </div>
+    ) : null}
     <div className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
-      <Research aria-label="Tìm kiếm phòng" placeholder="Tìm mã hoặc tên phòng..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} containerClassName="hidden sm:flex w-[280px] shrink-0" />
-      <button className="flex sm:hidden h-9 w-9 items-center justify-center rounded-xl border border-white/80 bg-white/50" aria-label="Tìm kiếm"><Search size={15} /></button>
+      <Research aria-label="Tìm kiếm phòng" placeholder="Tìm mã hoặc tên phòng..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); setSelected([]); }} containerClassName="hidden lg:flex w-[280px] shrink-0" />
+      {!mobileSearchOpen && <Button type="button" variant="outline" aria-label="Mở tìm kiếm phòng" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex lg:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0"><Search size={15} /></Button>}
       <div className="ml-auto flex shrink-0 gap-2">{canCreateRoom && <Button variant="outline" aria-label="Thêm phòng" title="Thêm phòng" onClick={() => openRoom()} className="h-9 rounded-xl px-3"><Plus size={15} /><span>Thêm phòng</span></Button>} {(canCreateBuilding || canUpdateBuilding || canDeleteBuilding) && <Button variant="outline" aria-label="Quản lý khu vực" title="Quản lý khu vực" onClick={() => { setAreaFormOpen(false); setAreaOpen(true); }} className="h-9 w-9 rounded-xl p-0"><Building2 size={15} /></Button>}<Button variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} className="h-9 w-9 rounded-xl p-0"><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /></Button></div>
     </div>
 
     {canDeleteRoom && <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="phòng" actions={<button type="button" aria-label="Xóa phòng đã chọn" disabled={bulkDeleting} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} />Xóa</button>} />}
     <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
-      <ResponsiveDataView data={rooms} columns={columns} isLoading={loading} keyExtractor={room => room._id} mobileScrollRef={mobileScrollRef} mobileVirtualization hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMoreRef.current && rooms.length ? 'Đã hiển thị tất cả phòng.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">{error || 'Chưa có phòng nào'}</div>} pagination={<CustomPagination totalItems={meta.total} pageSize={pageSize} currentPage={page} onPageChange={next => { setPage(next); setSelected([]); }} onPageSizeChange={size => { setPage(1); setPageSize(size); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="phòng" />} />
+      <ResponsiveDataView data={rooms} columns={columns} isLoading={loading} breakpoint="lg" keyExtractor={room => room._id} mobileScrollRef={mobileScrollRef} mobileVirtualization hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMoreRef.current && rooms.length ? 'Đã hiển thị tất cả phòng.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">{error || 'Chưa có phòng nào'}</div>} pagination={<CustomPagination totalItems={meta.total} pageSize={pageSize} currentPage={page} onPageChange={next => { setPage(next); setSelected([]); }} onPageSizeChange={size => { setPage(1); setPageSize(size); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="phòng" />} />
     </div>
 
     <Dialog open={roomOpen} onOpenChange={setRoomOpen}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl"><DialogHeader className="border-b border-white/50 pb-3"><DialogTitle>{roomEdit ? 'Sửa phòng' : 'Thêm phòng'}</DialogTitle></DialogHeader><form onSubmit={saveRoom} className="grid gap-4 py-4 sm:grid-cols-2">{field('Mã phòng', 'room_code', 'text', true)}{field('Tên phòng', 'room_name', 'text', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Khu vực</label><Select value={roomForm.building_id} onValueChange={value => { setRoomErrors(errors => ({ ...errors, building_id: '' })); setRoomForm(current => ({ ...current, building_id: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.building_id)}><SelectValue placeholder="Chọn khu vực" /></SelectTrigger><SelectContent>{buildings.map(building => <SelectItem key={building._id} value={building._id}>{building.name}</SelectItem>)}</SelectContent></Select>{selectError(roomErrors, 'building_id')}</div><div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={roomForm.room_type} onValueChange={value => { setRoomErrors(errors => ({ ...errors, room_type: '' })); setRoomForm(current => ({ ...current, room_type: value })); }}><SelectTrigger aria-invalid={Boolean(roomErrors.room_type)}><SelectValue placeholder="Chọn loại phòng" /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh</SelectItem></SelectContent></Select>{selectError(roomErrors, 'room_type')}</div>{field('Tổng số giường', 'bed_count', 'number', true)}{field('Giá phòng', 'room_price', 'number', true)}<div className="space-y-1.5"><label className="px-1 text-[13px] font-bold text-[#1E293B]">Trạng thái</label><Select value={roomForm.status} onValueChange={value => setRoomForm(current => ({ ...current, status: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['Trống', 'Đầy', 'Khóa', 'Bảo trì'].map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div><div className="sm:col-span-2"><Input label="Mô tả" multiline rows={3} value={roomForm.description ?? ''} onChange={event => setRoomForm(current => ({ ...current, description: event.target.value }))} /></div>{roomSaveError && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{roomSaveError}</p>}<DialogFooter className="col-span-full border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setRoomOpen(false)}>Hủy</Button><Button type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu phòng'}</Button></DialogFooter></form></DialogContent></Dialog>
