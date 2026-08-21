@@ -5,6 +5,7 @@ import { Building, BuildingDocument } from '../schemas/building.schema';
 import { CreateBuildingDto } from '../dto/create-building.dto';
 import { UpdateBuildingDto } from '../dto/update-building.dto';
 import { Room, RoomDocument } from '../schemas/room.schema';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 @Injectable()
 export class BuildingsService {
@@ -20,7 +21,9 @@ export class BuildingsService {
       throw new ConflictException(`Tòa nhà với mã "${dto.building_code}" đã tồn tại`);
     }
     const building = new this.buildingModel(dto);
-    return building.save();
+    const saved = await building.save();
+    emitDormitoryOverviewInvalidated('buildings');
+    return saved;
   }
 
   async findAll(query: { search?: string; status?: string; page?: number; limit?: number }) {
@@ -65,6 +68,7 @@ export class BuildingsService {
     if (!building) {
       throw new NotFoundException(`Không tìm thấy tòa nhà với ID: ${id}`);
     }
+    emitDormitoryOverviewInvalidated('buildings');
     return building;
   }
 
@@ -76,6 +80,7 @@ export class BuildingsService {
     if (!building) {
       throw new NotFoundException(`Không tìm thấy tòa nhà với ID: ${id}`);
     }
+    emitDormitoryOverviewInvalidated('buildings');
     return building;
   }
 }

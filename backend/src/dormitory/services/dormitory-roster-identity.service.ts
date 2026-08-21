@@ -4,6 +4,8 @@ import { Model } from 'mongoose';
 import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
 
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
+
 @Injectable()
 export class DormitoryRosterIdentityService {
   private readonly logger = new Logger(DormitoryRosterIdentityService.name);
@@ -59,6 +61,9 @@ export class DormitoryRosterIdentityService {
       entry.identity_state = 'LINKED';
       await entry.save();
       linked += 1;
+    }
+    if (linked > 0 || conflicts > 0) {
+      emitDormitoryOverviewInvalidated('roster');
     }
     this.logger.log(`Roster reconciliation completed for student ${studentId}: linked=${linked}, conflicts=${conflicts}, skipped=${skipped}`);
     return { linked, conflicts, skipped };

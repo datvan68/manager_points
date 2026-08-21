@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useDormitoryOverviewRealtime } from '@/hooks/useDormitoryOverviewRealtime';
 
 const money = new Intl.NumberFormat('vi-VN', {
   style: 'currency',
@@ -141,6 +142,8 @@ export default function DormitoryOverviewPage() {
   const [selectedRoom, setSelectedRoom] = useState<DormitoryRoomRow | null>(null);
   const [isCompact, setIsCompact] = useState(false);
   const inFlightRef = useRef(false);
+  const queuedRefreshRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!window.matchMedia) return;
@@ -152,35 +155,58 @@ export default function DormitoryOverviewPage() {
   }, []);
 
   const loadData = useCallback(async (initial = false) => {
-    if (inFlightRef.current) return;
+    if (inFlightRef.current) {
+      queuedRefreshRef.current = true;
+      return;
+    }
     inFlightRef.current = true;
+    const requestId = ++latestRequestIdRef.current;
     if (initial) setLoading(true);
     else setRefreshing(true);
     setError('');
     try {
       const response = await dormitoryApi.reports.getDashboardStats();
-      setData(response);
+      if (requestId === latestRequestIdRef.current) {
+        setData(response);
+      }
     } catch (reason: any) {
-      setError(reason?.message || 'Không thể tải dữ liệu tổng quan KTX.');
+      if (requestId === latestRequestIdRef.current) {
+        setError(reason?.message || 'Không thể tải dữ liệu tổng quan KTX.');
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === latestRequestIdRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
       inFlightRef.current = false;
+      if (queuedRefreshRef.current) {
+        queuedRefreshRef.current = false;
+        void loadData(false);
+      }
     }
   }, []);
 
+  const handleRealtimeInvalidate = useCallback(() => {
+    void loadData(false);
+  }, [loadData]);
+
+  useDormitoryOverviewRealtime({
+    enabled: true,
+    onInvalidate: handleRealtimeInvalidate,
+    debounceMs: 250,
+  });
+
   useEffect(() => {
     void loadData(true);
-    const refresh = () => {
-      if (document.visibilityState === 'visible') void loadData(false);
-    };
-    const interval = window.setInterval(refresh, 30_000);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', refresh);
-    };
   }, [loadData]);
+
+  useEffect(() => {
+    if (!selectedRoom || !data?.room_rows) return;
+    const updated = data.room_rows.find((r) => r.room_id === selectedRoom.room_id);
+    if (updated) {
+      setSelectedRoom(updated);
+    }
+  }, [data, selectedRoom?.room_id]);
 
   const roomRows = data?.room_rows || [];
   const freeBedsByType = useMemo(() => roomRows.reduce(

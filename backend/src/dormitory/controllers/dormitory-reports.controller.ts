@@ -1,13 +1,24 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards, Sse, Request } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { DormitoryReportsService } from '../services/dormitory-reports.service';
+import { DormitoryOverviewRealtimeService } from '../dormitory-overview-realtime.service';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 
 @ApiTags('Dormitory - Reports')
 @ApiBearerAuth()
 @Controller('dormitory/reports')
 export class DormitoryReportsController {
-  constructor(private readonly reportsService: DormitoryReportsService) {}
+  constructor(
+    private readonly reportsService: DormitoryReportsService,
+    private readonly realtimeService: DormitoryOverviewRealtimeService,
+  ) {}
+
+  @Sse('realtime')
+  @UseGuards(checkPermission('DORM_PAGE'))
+  @ApiOperation({ summary: 'Lắng nghe sự kiện realtime cập nhật tổng quan KTX' })
+  realtime(@Request() req?: any) {
+    return this.realtimeService.getStream(req?.user);
+  }
 
   @Get('dashboard')
   @UseGuards(checkPermission('DORM_PAGE'))

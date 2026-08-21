@@ -10,6 +10,7 @@ import { Room, RoomDocument } from '../schemas/room.schema';
 import { CreateBedDto } from '../dto/create-bed.dto';
 import { RoomsService } from './rooms.service';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 @Injectable()
 export class BedsService {
@@ -50,6 +51,7 @@ export class BedsService {
 
     // Sync room availability
     await this.roomsService.syncRoomAvailability(dto.room_id);
+    emitDormitoryOverviewInvalidated('beds');
 
     return saved;
   }
@@ -99,6 +101,7 @@ export class BedsService {
     await this.roomsService.syncRoomAvailability(
       (bed.room_id as any)._id?.toString() || bed.room_id.toString(),
     );
+    emitDormitoryOverviewInvalidated('beds');
 
     return bed;
   }
@@ -123,6 +126,7 @@ export class BedsService {
 
     // Sync room availability
     await this.roomsService.syncRoomAvailability(roomId);
+    emitDormitoryOverviewInvalidated('beds');
 
     return bed;
   }
@@ -136,6 +140,7 @@ export class BedsService {
     user: any,
   ): Promise<Bed[]> {
     await this.roomsService.ensureRoomBeds(roomId, soGiuong);
+    emitDormitoryOverviewInvalidated('beds');
     return this.findByRoom(roomId);
     /* Legacy implementation intentionally removed; historical body retained below.
         position: `Vị trí ${i}`,

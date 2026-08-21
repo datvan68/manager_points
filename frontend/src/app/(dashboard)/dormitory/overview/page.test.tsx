@@ -3,12 +3,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DormitoryOverviewPage from './page';
 import { dormitoryApi } from '@/api/dormitory-api';
 
+let capturedOnInvalidate: ((event?: any) => void) | null = null;
+
 vi.mock('@/api/dormitory-api', () => ({
   dormitoryApi: {
     reports: {
       getDashboardStats: vi.fn(),
     },
   },
+}));
+
+vi.mock('@/hooks/useDormitoryOverviewRealtime', () => ({
+  useDormitoryOverviewRealtime: vi.fn((opts: any) => {
+    capturedOnInvalidate = opts.onInvalidate;
+    return { status: 'connected' };
+  }),
 }));
 
 const mockStats = {
@@ -124,6 +133,7 @@ describe('DormitoryOverviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     compactViewport = false;
+    capturedOnInvalidate = null;
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       value: vi.fn().mockImplementation(() => ({ matches: compactViewport, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -223,26 +233,86 @@ describe('DormitoryOverviewPage', () => {
     await waitFor(() => expect(screen.queryByText('Thành viên phòng A100')).not.toBeInTheDocument());
   });
 
-  it('refreshes visible data on an interval without overlapping requests', async () => {
-    vi.useFakeTimers();
-    try {
-      const view = render(<DormitoryOverviewPage />);
-      await vi.waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
-      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(1);
+  it('performs single initial fetch and does not poll on intervals', async () => {
+    let view: any;
+    await act(async () => {
+      view = render(<DormitoryOverviewPage />);
+    });
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+    expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(1);
 
-      let resolveRefresh!: (value: any) => void;
-      vi.mocked(dormitoryApi.reports.getDashboardStats).mockImplementationOnce(
-        () => new Promise((resolve) => { resolveRefresh = resolve; }),
-      );
-      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(2);
-      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(2);
-      await act(async () => { resolveRefresh(mockStats); });
-      view.unmount();
-    } finally {
-      vi.useRealTimers();
-    }
+    view.unmount();
+  });
+
+  it('reconciles on realtime invalidation without flashing skeleton, keeps search text and updates modal members', async () => {
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    // Set search text
+    fireEvent.change(screen.getByLabelText('Tìm phòng'), { target: { value: 'A101' } });
+    expect(screen.getByText('Phòng A101')).toBeInTheDocument();
+
+    // Open detail modal for A101
+    fireEvent.click(screen.getByLabelText('Xem thành viên phòng A101'));
+    expect(screen.getByText('Nguyễn Văn A')).toBeInTheDocument();
+
+    // Mock updated stats with new member added to A101
+    const updatedStats = {
+      ...mockStats,
+      room_rows: mockStats.room_rows.map((row) =>
+        row.room_id === 'r-partial'
+          ? {
+              ...row,
+              members: [
+                ...row.members,
+                { full_name: 'Sinh Viên Mới', class_name: '10C1' },
+              ],
+            }
+          : row,
+      ),
+    };
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValueOnce(updatedStats as any);
+
+    // Trigger realtime invalidation event
+    await act(async () => {
+      capturedOnInvalidate?.({ type: 'dormitory_overview.invalidated', domain: 'roster' });
+    });
+
+    // Content updates seamlessly
+    await waitFor(() => expect(screen.getByText('Sinh Viên Mới')).toBeInTheDocument());
+
+    // Skeleton is NOT shown
+    expect(screen.queryByLabelText('Đang tải tổng quan KTX')).not.toBeInTheDocument();
+
+    // Search value is preserved
+    expect((screen.getByLabelText('Tìm phòng') as HTMLInputElement).value).toBe('A101');
+
+    // Dialog stays open with new member
+    expect(screen.getByText('Thành viên phòng A101')).toBeInTheDocument();
+    expect(screen.getByText('10C1')).toBeInTheDocument();
+  });
+
+  it('queues trailing refresh if invalidation event arrives during in-flight fetch', async () => {
+    let resolveFirstFetch!: (value: any) => void;
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirstFetch = resolve; }),
+    );
+
+    render(<DormitoryOverviewPage />);
+
+    // Invalidation arrives while 1st fetch is in-flight
+    await act(async () => {
+      capturedOnInvalidate?.({ type: 'dormitory_overview.invalidated', domain: 'rooms' });
+    });
+
+    // Resolve 1st fetch
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValueOnce(mockStats as any);
+    await act(async () => {
+      resolveFirstFetch(mockStats);
+    });
+
+    // Should have automatically triggered 2nd queued fetch
+    await waitFor(() => expect(dormitoryApi.reports.getDashboardStats).toHaveBeenCalledTimes(2));
   });
 
   it('shows explicit empty and total failure states', async () => {
@@ -260,6 +330,22 @@ describe('DormitoryOverviewPage', () => {
     render(<DormitoryOverviewPage />);
     await waitFor(() => expect(screen.getByText('Không thể tải dữ liệu KTX')).toBeInTheDocument());
     expect(screen.getByText('Mất kết nối')).toBeInTheDocument();
+  });
+
+  it('retains stale data when background refresh fails', async () => {
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockRejectedValueOnce(new Error('Lỗi máy chủ tạm thời'));
+
+    await act(async () => {
+      capturedOnInvalidate?.({ type: 'dormitory_overview.invalidated', domain: 'invoices' });
+    });
+
+    // Stale data is retained and error banner is displayed
+    expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument();
+    expect(screen.getByText('Phòng A100')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Dữ liệu hiển thị từ lần tải trước: Lỗi máy chủ tạm thời');
   });
 
   it('warns when a cached response is structurally partial', async () => {

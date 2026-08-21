@@ -14,6 +14,7 @@ import { UpdateRoomDto } from '../dto/update-room.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 function isDuplicateKeyError(error: any): boolean {
   return error?.code === 11000 || error?.writeErrors?.some?.((item: any) => item?.code === 11000) === true;
@@ -138,6 +139,7 @@ export class RoomsService {
     try {
       savedRoom = await room.save();
       await this.ensureRoomBeds(savedRoom._id.toString(), dto.bed_count);
+      emitDormitoryOverviewInvalidated('rooms');
       return typeof (this.roomModel as any).findById === 'function'
         ? this.findOne(savedRoom._id.toString())
         : savedRoom;
@@ -423,6 +425,7 @@ export class RoomsService {
         roomUpdated = true;
       }
 
+      emitDormitoryOverviewInvalidated('rooms');
       return capacityChange && typeof (this.roomModel as any).findById === 'function'
         ? this.findOne(id) as Promise<Room>
         : room as Room;
@@ -442,6 +445,7 @@ export class RoomsService {
     const room = await this.roomModel.findByIdAndDelete(id).exec();
     if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
     await this.bedModel.deleteMany({ room_id: id });
+    emitDormitoryOverviewInvalidated('rooms');
     return room;
   }
 
@@ -458,6 +462,7 @@ export class RoomsService {
     await this.roomModel.findByIdAndUpdate(roomId, {
       $set: protectedStatuses.includes(room.status) ? { available_bed_count: availableBeds } : { available_bed_count: availableBeds, status },
     });
+    emitDormitoryOverviewInvalidated('rooms');
     void usedBeds;
   }
 }

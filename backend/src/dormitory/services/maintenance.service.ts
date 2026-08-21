@@ -10,6 +10,7 @@ import {
   HandleMaintenanceDto,
 } from '../dto/create-maintenance.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 @Injectable()
 export class MaintenanceService {
@@ -27,7 +28,9 @@ export class MaintenanceService {
       request_code: `BT-${uuidv4().substring(0, 8).toUpperCase()}`,
       status: 'Mới',
     });
-    return request.save();
+    const saved = await request.save();
+    emitDormitoryOverviewInvalidated('maintenance');
+    return saved;
   }
 
   async findAll(query: {
@@ -108,6 +111,8 @@ export class MaintenanceService {
       req.completed_at = new Date();
     }
 
-    return req.save();
+    const saved = await req.save();
+    emitDormitoryOverviewInvalidated('maintenance');
+    return saved;
   }
 }

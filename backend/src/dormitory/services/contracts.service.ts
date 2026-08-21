@@ -12,6 +12,7 @@ import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/d
 import { CreateContractDto, CancelContractDto } from '../dto/create-contract.dto';
 import { RoomsService } from './rooms.service';
 import { v4 as uuidv4 } from 'uuid';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 @Injectable()
 export class ContractsService {
@@ -59,7 +60,9 @@ export class ContractsService {
       created_by_id: user._id || user.userId,
     });
 
-    return contract.save();
+    const saved = await contract.save();
+    emitDormitoryOverviewInvalidated('contracts');
+    return saved;
   }
 
   async findAll(query: {
@@ -142,6 +145,7 @@ export class ContractsService {
 
     // Sync room availability
     await this.roomsService.syncRoomAvailability(contract.room_id.toString());
+    emitDormitoryOverviewInvalidated('contracts');
 
     return saved;
   }
@@ -159,6 +163,8 @@ export class ContractsService {
     }
 
     contract.end_date = new Date(newEndDate);
-    return contract.save();
+    const saved = await contract.save();
+    emitDormitoryOverviewInvalidated('contracts');
+    return saved;
   }
 }

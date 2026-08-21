@@ -109,4 +109,77 @@ describe('DormitoryReportsService canonical roster summary', () => {
     expect(roomEmpty).toBeDefined();
     expect(roomEmpty?.members).toEqual([]);
   });
+
+  it('reuses cached snapshot for sequential requests and invalidates cache on domain events', async () => {
+    const roomModel = modelFor([{ _id: 'room-1', room_code: 'A101', room_type: 'Thường', bed_count: 1, status: 'Trống' }]);
+    const service = new DormitoryReportsService(
+      modelFor([]) as any,
+      roomModel as any,
+      modelFor([]) as any,
+      modelFor([]) as any,
+      modelFor([]) as any,
+      {} as any,
+      { countDocuments: jest.fn().mockResolvedValue(0) } as any,
+      modelFor([]) as any,
+    );
+    service.onModuleInit();
+
+    // First call computes
+    const res1 = await service.getDashboardStats();
+    expect(roomModel.find).toHaveBeenCalledTimes(1);
+
+    // Second call hits cache
+    const res2 = await service.getDashboardStats();
+    expect(roomModel.find).toHaveBeenCalledTimes(1);
+    expect(res2).toEqual(res1);
+
+    // Invalidate via event emitter
+    const { emitDormitoryOverviewInvalidated } = require('../dormitory-overview-event-emitter');
+    emitDormitoryOverviewInvalidated('rooms');
+
+    // Third call re-computes
+    const res3 = await service.getDashboardStats();
+    expect(roomModel.find).toHaveBeenCalledTimes(2);
+    expect(res3).toEqual(res1);
+
+    service.onModuleDestroy();
+  });
+
+  it('deduplicates in-flight compute operations for concurrent callers (single-flight)', async () => {
+    let resolveQuery: (val: any) => void;
+    const pendingQuery = new Promise((resolve) => {
+      resolveQuery = resolve;
+    });
+
+    const mockQuery: any = {
+      populate: () => mockQuery,
+      lean: () => mockQuery,
+      select: () => mockQuery,
+      exec: () => pendingQuery,
+    };
+    const roomModel = { find: jest.fn(() => mockQuery), countDocuments: jest.fn().mockResolvedValue(0) };
+
+    const service = new DormitoryReportsService(
+      modelFor([]) as any,
+      roomModel as any,
+      modelFor([]) as any,
+      modelFor([]) as any,
+      modelFor([]) as any,
+      {} as any,
+      { countDocuments: jest.fn().mockResolvedValue(0) } as any,
+      modelFor([]) as any,
+    );
+
+    // Launch two concurrent calls
+    const call1 = service.getDashboardStats();
+    const call2 = service.getDashboardStats();
+
+    // Query should only be launched once
+    expect(roomModel.find).toHaveBeenCalledTimes(1);
+
+    resolveQuery!([{ _id: 'room-1', room_code: 'A101', room_type: 'Thường', bed_count: 1, status: 'Trống' }]);
+
+    const [res1, res2] = await Promise.all([call1, call2]);
+    expect(res1).toBe(res2);
+  });
 });

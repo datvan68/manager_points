@@ -25,6 +25,7 @@ import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
 import { PdfTemplateService as SharedPdfTemplateService } from '../../pdf-template/pdf-template.service';
 import { createDefaultDormitoryLayout, resolveDormitoryRosterPdfValues, DORMITORY_ROSTER_APPLICATION } from '../pdf-template-adapter';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -182,14 +183,18 @@ export class DormitoryRosterService {
       if (activeContract) throw new ConflictException('Sinh viên đang có hợp đồng KTX hiệu lực.');
     }
     const entry = new this.rosterModel(await this.buildEntry(dto));
-    return this.toResponse(await entry.save());
+    const saved = await entry.save();
+    emitDormitoryOverviewInvalidated('roster');
+    return this.toResponse(saved);
   }
 
   async createPublic(dto: CreateRosterEntryDto, room?: any) {
     const payload: any = await this.buildEntry(dto, true);
     if (room?._id) payload.room_id = room._id;
     const entry = new this.rosterModel(payload);
-    return this.toResponse(await entry.save());
+    const saved = await entry.save();
+    emitDormitoryOverviewInvalidated('roster');
+    return this.toResponse(saved);
   }
 
   async findAll(query: { semester?: string; academic_year?: string; search?: string; page?: number; limit?: number }) {
@@ -247,7 +252,9 @@ export class DormitoryRosterService {
     const common = this.validateCommon(merged);
     await this.ensureNoDuplicate(merged.student_id, entry.semester_id, id);
     Object.assign(entry, { ...merged, ...common });
-    return this.toResponse(await entry.save());
+    const saved = await entry.save();
+    emitDormitoryOverviewInvalidated('roster');
+    return this.toResponse(saved);
   }
 
   async remove(id: string) {
@@ -255,6 +262,7 @@ export class DormitoryRosterService {
     if (protectedReference) throw new ConflictException('Không thể xóa mục Danh sách KTX đang được hợp đồng tham chiếu.');
     const result = await this.rosterModel.findByIdAndDelete(id).exec();
     if (!result) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    emitDormitoryOverviewInvalidated('roster');
     return { success: true, id };
   }
 
@@ -293,12 +301,14 @@ export class DormitoryRosterService {
   async assignRoom(id: string, roomId: string, bedId: string) {
     const entry = await this.rosterModel.findOneAndUpdate({ _id: id }, { $set: { room_id: roomId, bed_id: bedId } }, { new: true }).exec();
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    emitDormitoryOverviewInvalidated('roster');
     return this.toResponse(entry);
   }
 
   async unassignRoom(id: string) {
     const entry = await this.rosterModel.findOneAndUpdate({ _id: id }, { $unset: { room_id: '', bed_id: '' } }, { new: true }).exec();
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    emitDormitoryOverviewInvalidated('roster');
     return this.toResponse(entry);
   }
 

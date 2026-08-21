@@ -14,6 +14,7 @@ import { TransferRoomDto } from '../dto/transfer-room.dto';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { RoomsService } from './rooms.service';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
+import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
 @Injectable()
 export class RoomAssignmentService {
@@ -141,6 +142,7 @@ export class RoomAssignmentService {
       throw error;
     }
 
+    emitDormitoryOverviewInvalidated('roster');
     return {
       roster_entry: assignedRosterEntry,
       room,
@@ -174,6 +176,7 @@ export class RoomAssignmentService {
       );
       if (!released) throw new ConflictException('Giường hiện tại không thể được giải phóng');
       await this.syncRooms(currentRoomId, null);
+      emitDormitoryOverviewInvalidated('roster');
       return { roster_entry: cleared, room: null, bed: released, message: 'Đã bỏ chọn phòng' };
     } catch (error) {
       const restore: any = { $set: { room_id: currentRoomId, bed_id: currentBedId } };
@@ -214,6 +217,7 @@ export class RoomAssignmentService {
       );
       if (!released) throw new ConflictException('Giường cũ không thể được giải phóng');
       await this.syncRooms(oldRoomId, newRoomId);
+      emitDormitoryOverviewInvalidated('roster');
       return {
         roster_entry: updatedRosterEntry,
         contract: updatedContract,

@@ -41,6 +41,7 @@ import { DormitoryReportsService } from './services/dormitory-reports.service';
 import { DormitoryRosterService } from './services/dormitory-roster.service';
 import { DormitoryRosterIdentityService } from './services/dormitory-roster-identity.service';
 import { DormitoryInvoiceRealtimeService } from './dormitory-invoice-realtime.service';
+import { DormitoryOverviewRealtimeService } from './dormitory-overview-realtime.service';
 
 // Controllers
 import { BuildingsController } from './controllers/buildings.controller';
@@ -121,6 +122,7 @@ import {
     DormitoryRosterService,
     DormitoryRosterIdentityService,
     DormitoryInvoiceRealtimeService,
+    DormitoryOverviewRealtimeService,
   ],
   exports: [
     BuildingsService,
@@ -130,6 +132,7 @@ import {
     InvoicesService,
     RoomFeeInvoicesService,
     DormitoryInvoiceRealtimeService,
+    DormitoryOverviewRealtimeService,
   ],
 })
 export class DormitoryModule {}

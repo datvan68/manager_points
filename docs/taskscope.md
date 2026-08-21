@@ -1,114 +1,102 @@
 # Task Identity and Pipeline
 
-- Task ID: `dormitory-invoice-realtime-permissions`
+- Task ID: `dormitory-overview-realtime-performance`
 - Pipeline: `feature_development`
 - Profile: Full, planning-only
 - Protocol/rules version: 3.2.0
 - Repository: `D:\PROJECT\manager_points`
-- Base/current commit: `7e9732a8`
+- Base/current commit: `b6e96165`
 - Base state: clean worktree before this task artifact is written.
 
 # Risk Level
 
 - Risk: high.
-- Evidence: the change spans frontend and backend, introduces concurrent realtime updates, and closes authorization gaps around financial invoice data and actions.
-- Environment: development source planning. No deployment, permission assignment, or production mutation is authorized.
-- Blast radius: the two invoice sub-tabs `Thu điện nước` and `Thu phí phòng`, their list/read and mutation APIs, and accounts granted dormitory invoice permissions.
+- Evidence: the change spans frontend and backend, replaces polling with authenticated concurrent realtime delivery, and optimizes an aggregate that reads multiple dormitory collections.
+- Environment: development source planning. No deployment, infrastructure, database migration, or production mutation is authorized.
+- Reversibility: source changes are reversible in Git; blast radius is limited to the dormitory overview and the mutation services that invalidate its data.
 
 # Objective
 
-Make both invoice tables update in realtime for every independently authenticated and authorized account, without clearing or flashing the current table, while enforcing invoice read/create/confirm/delete permissions consistently in the UI and API and removing both manual refresh buttons.
+Make the dormitory `Tổng quan` tab load once and stay current through realtime invalidation, with background reconciliation that does not flash, reset interactions, create duplicate requests, or overload the dashboard endpoint when many accounts are connected.
 
 # Scope Boundaries
 
-- Approved backend boundaries:
-  - `backend/src/dormitory/controllers/invoices.controller.ts` and focused spec
-  - `backend/src/dormitory/controllers/room-fee-invoices.controller.ts` and focused spec
-  - `backend/src/dormitory/services/invoices.service.ts` and focused spec
-  - `backend/src/dormitory/services/room-fee-invoices.service.ts` and focused spec
-  - `backend/src/dormitory/dormitory.module.ts`
-  - new focused realtime emitter/service files under `backend/src/dormitory/`
-- Approved frontend boundaries:
-  - `frontend/src/app/(dashboard)/dormitory/layout.tsx` and focused test
-  - `frontend/src/app/(dashboard)/dormitory/invoices/page.tsx` and focused test
-  - `frontend/src/components/dormitory/invoices/RoomFeeCollection.tsx` and focused test
-  - `frontend/src/app/(dashboard)/dormitory/invoices/meter-readings/page.tsx` and focused test only where access/action guards are required
-  - one new focused hook under `frontend/src/hooks/` and its test
-  - `docs/taskscope.md`
-- Excluded boundaries: invoice formulas, schemas/indexes, historical data, role/group definitions, assigning permissions to real accounts, notifications, exports, deployment, and production data.
+- Approved boundaries: `frontend/src/app/(dashboard)/dormitory/overview/**`, `frontend/src/hooks/**`, `frontend/src/api/dormitory-api.ts`, `backend/src/dormitory/**`, and focused tests under those owners.
+- Write boundaries and known targets:
+  - `frontend/src/app/(dashboard)/dormitory/overview/page.tsx` and `page.test.tsx`.
+  - A focused dormitory-overview realtime hook and test under `frontend/src/hooks/`.
+  - `backend/src/dormitory/controllers/dormitory-reports.controller.ts` and its focused test.
+  - `backend/src/dormitory/services/dormitory-reports.service.ts` and `dormitory-reports.service.spec.ts`.
+  - `backend/src/dormitory/dormitory.module.ts` plus a focused overview event emitter/realtime service and tests under `backend/src/dormitory/`.
+  - Mutation services whose successful commits change overview data: buildings, rooms, beds, contracts, roster/room assignment, invoices, and maintenance.
+- Excluded boundaries: schema files, migrations, deployment/CI, permission registry semantics, unrelated dashboard/report pages, and UI redesign.
 
 # Out of Scope
 
-- Do not introduce polling or keep the manual refresh buttons as fallback UI.
-- Do not broaden any account's permissions or alter the meaning of `DORM_INVOICE_READ`, `DORM_INVOICE_CREATE`, `DORM_INVOICE_CONFIRM`, or `DORM_INVOICE_DELETE`.
-- Do not reset filters, search, pagination, selection, scroll position, open dialogs, or unsaved form input when a realtime event arrives.
-- Do not expose full invoice/payment-proof data through a realtime event unless the subscriber is authorized for that data.
-- Do not add a database migration, collection, index, or third-party realtime dependency.
+- Changing dormitory business formulas, room allocation rules, invoice calculations, permissions, or database schema/indexes.
+- Adding Redis, a message broker, MongoDB change streams, or another dependency without a scope amendment.
+- Removing the initial-load retry or manual refresh control; the request covers realtime and performance behavior only.
+- Deployment, production configuration, and production performance testing.
 
 # Context and Dependencies
 
-- Both tables currently use request-based loading only. `InvoicesPage.load` and `RoomFeeCollection.loadInvoices` set foreground `loading` for normal loads; no dormitory realtime hook, stream, or emitter exists.
-- The two refresh buttons are in `page.tsx` and `RoomFeeCollection.tsx`; both import `RefreshCw` and maintain `refreshing` state.
-- Permission codes already exist and are included in the dormitory manager group. Most write endpoints use the matching permission guards.
-- Authorization gaps found: both list and detail endpoints use only `JwtAuthGuard`; the `Hóa đơn` sub-tab is always visible; utility configuration and meter-entry actions and room-fee configuration remain visible without `DORM_INVOICE_CREATE`.
-- Existing project realtime uses authenticated Server-Sent Events (SSE), heartbeat, reconnect/backoff, and cleanup. Reuse that pattern.
-- “Independent per account” means every browser/account owns its own authenticated stream and local table state. An action from one account updates other currently connected accounts that hold `DORM_INVOICE_READ`; reconnect/logout/account change must not reuse another account's token, stream, cache, or state.
-- Realtime events are invalidation signals scoped by invoice kind (`utility` or `room_fee`) and mutation (`created`, `updated`, `deleted`). Clients reconcile only the affected active query, coalesce bursts, and ignore stale responses.
+- The page currently calls `dormitoryApi.reports.getDashboardStats()` on mount, every 30 seconds while visible, on visibility changes, and manually. `inFlightRef` prevents overlap but polling remains per browser session.
+- Initial loading replaces the page with skeletons; refreshes retain existing data but expose a refresh state. Search, selected room, and responsive mode are local UI state.
+- `DormitoryReportsService.getDashboardStats()` runs seven parallel database operations and loads full building, room, bed, contract, roster, and invoice result sets before reducing them in memory.
+- Invoice-to-room aggregation performs a linear room search inside the invoice loop, and summaries repeatedly scan the same arrays; both amplify CPU cost as data grows.
+- The dashboard endpoint is guarded by `DORM_PAGE`. The realtime endpoint must use the same permission and must not include sensitive row data in events.
+- The repository already uses authenticated SSE with heartbeat, abort cleanup, reconnection, and bounded backoff. Dormitory invoice realtime events can be bridged into overview invalidation instead of duplicating invoice mutation logic.
+- Student/class profile changes can alter populated member labels but their mutation owners are outside the approved dormitory boundary; coverage of those external changes requires a later scope amendment.
+- Performance guidance applied: deduplicate client fetches, avoid waterfalls, keep stale data during reconciliation, coalesce frequent events, use transitions for non-urgent rendering, and avoid unnecessary list recomputation/rerenders.
 
 # Steps
 
-1. Capture focused frontend/backend baselines for list loading, actions, guards, and current refresh controls.
-2. Add an authenticated SSE endpoint for dormitory invoices guarded by `DORM_INVOICE_READ`. Validate the requested invoice kind, send heartbeat/connected events, unsubscribe on disconnect, and emit no sensitive row payload beyond stable IDs/kind/action needed for reconciliation.
-3. Emit realtime invalidation after successful create, update, pay/proof/review, bulk review, and delete operations for utility and room-fee invoices. Emit once after persistence succeeds; bulk operations must be coalescible and must not announce failed items as changed.
-4. Add a frontend realtime hook using the current access token, one independently cleaned-up connection per mounted account/view, bounded exponential reconnect, event parsing, burst coalescing, and abort on unmount/logout/token change.
-5. Connect both tables to the hook. On an event, perform background reconciliation for the current filters/page without setting foreground `loading`, replacing the table with an empty skeleton, or disturbing table/UI state. Protect against request races and deduplicate mobile/infinite-scroll rows.
-6. Preserve the last successful rows during background refresh and transient stream/API failure. Show errors non-destructively and recover automatically when the stream reconnects.
-7. Remove the two refresh buttons plus their `RefreshCw` imports and refresh-only state/branches. Keep internal background reconciliation callable by mutations and realtime events.
-8. Enforce `DORM_INVOICE_READ` on both list/detail API families and the SSE endpoint. Keep create/config/meter-entry under `DORM_INVOICE_CREATE`, payment/proof/review under `DORM_INVOICE_CONFIRM`, and deletion under `DORM_INVOICE_DELETE`.
-9. On the frontend, hide/block the `Hóa đơn` tab and direct route without read permission; render configuration, meter-entry, create, confirm/review, and delete controls only for their matching permission. Treat frontend checks as UX only; API guards remain authoritative.
-10. Add regression tests for two-account propagation/isolation, reconnect/cleanup, burst coalescing, no-flash background updates, preserved filters/page/selection/dialog state, removed refresh controls, and API/UI permission matrices.
-11. Run focused tests, builds/typecheck, a manual two-account scenario, security review, and final diff/status inspection.
+1. **Backend contract and baseline — code/test agent:** record the current query count/shape and response contract; define a minimal event such as `dormitory_overview.invalidated` with event ID, timestamp, and changed domain only.
+2. **Backend realtime delivery — code agent:** add a `DORM_PAGE`-guarded SSE endpoint with heartbeat, subscriber cleanup, and bounded per-connection state. Publish only after successful mutations affecting dashboard output; bridge existing invoice events.
+3. **Backend load optimization — code/test agent:** replace full-document reads with verified projections/lean queries, replace invoice-to-room linear searches with indexed maps, and consolidate avoidable repeated passes. Add a short-lived single-flight snapshot cache shared across concurrent requests, invalidated by successful domain events, without changing response values.
+4. **Frontend data lifecycle — code agent:** replace the 30-second interval and visibility-trigger polling with one authenticated realtime connection. Perform one initial fetch, then coalesce event bursts into one background reconciliation; prevent stale responses, duplicate in-flight calls, and reconnect storms.
+5. **No-flash rendering — code agent:** retain the last successful snapshot while reconnecting/refetching, keep search text, scroll position, and room dialog state, and apply non-urgent updates without remounting the page or showing the initial skeleton again.
+6. **Tests and performance evidence — test agent:** cover initial load, event-driven refresh, burst coalescing with one queued trailing refresh, stale-response ordering, retry/backoff, cleanup, authorization, failed-mutation silence, cache invalidation, response parity, and correct partial-response detection.
+7. **Independent review and final verification — review agent:** review concurrency, permission isolation, event coverage, query amplification, client rendering, and the final scoped diff before affected-package checks.
 
 # Acceptance Criteria
 
-- AC-01: Creating, editing, paying/reviewing, or deleting an invoice in one authorized account updates the matching table in a second authorized account without manual refresh.
-- AC-02: Utility events update only `Thu điện nước`; room-fee events update only `Thu phí phòng`. Each account uses its own token, stream lifecycle, and local state; logout/account switching closes the old stream and leaks no prior-account data.
-- AC-03: Realtime reconciliation keeps existing rows visible and preserves search, filters, page/page size, selection, scroll, open dialogs, and unsaved form input. No full-page/table flash or foreground skeleton occurs.
-- AC-04: Event bursts are coalesced, stale responses cannot overwrite newer data, duplicate rows are prevented, disconnected streams reconnect with bounded backoff, and cleanup leaves no duplicate connections/listeners.
-- AC-05: Both manual `Tải lại` buttons and unused refresh icon/state code are absent. Realtime and post-mutation background reconciliation remain functional.
-- AC-06: Accounts without `DORM_INVOICE_READ` cannot see the `Hóa đơn` tab, open its direct routes, read list/detail APIs, or subscribe to invoice realtime.
-- AC-07: `DORM_INVOICE_CREATE`, `DORM_INVOICE_CONFIRM`, and `DORM_INVOICE_DELETE` independently control their matching controls and APIs for both invoice kinds. Possessing read permission alone never authorizes a mutation.
-- AC-08: Admin compatibility follows the existing `admin`/`ADMIN_FULL` policy, while non-admin accounts receive no implicit fallback access.
-- AC-09: SSE events contain only the minimum authorized invalidation data and are emitted only after successful persistence. Failed/forbidden mutations do not publish a successful change.
-- AC-10: Focused frontend/backend tests, frontend typecheck/build, backend build, manual two-account verification, security review, whitespace check, and scoped changed-path review pass.
+- **AC-01:** Opening `Tổng quan` performs one initial dashboard request and establishes one authenticated realtime stream; no 30-second or visibility-change polling remains.
+- **AC-02:** A successful change to buildings, rooms/beds, contracts/assignments/roster, utility invoices, or maintenance triggers an overview invalidation and visible data reconciliation without manual reload.
+- **AC-03:** Multiple events inside a defined coalescing window cause at most one dashboard request; events arriving during an in-flight request queue at most one trailing reconciliation, and an older response cannot overwrite a newer snapshot.
+- **AC-04:** Background refresh/reconnect never replaces populated content with the initial skeleton, clears search, closes the selected-room dialog, resets scroll, or flashes the page.
+- **AC-05:** Each signed-in account owns an independent authenticated stream and cleanup lifecycle; stream access requires `DORM_PAGE`, and event payloads contain no student, room-member, invoice, or account-sensitive records.
+- **AC-06:** Disconnect, unmount, token change, and logout abort the stream and scheduled retries. Reconnection uses heartbeat plus bounded exponential backoff with jitter and does not create parallel streams.
+- **AC-07:** The optimized dashboard endpoint returns the same response contract and calculated values as the baseline while using explicit projections and single-flight/coalesced snapshot work for concurrent callers.
+- **AC-08:** Failed or rolled-back mutations emit no successful invalidation; every successful mutation that changes a displayed metric/row has focused event coverage.
+- **AC-09:** Initial, empty, partial, stale-data error, and retry states remain accessible and deterministic; no new console error or unhandled rejection occurs.
+- **AC-10:** Representative cold/warm measurements record query count, response bytes, latency, and concurrent-client rebuild count; one invalidation burst causes one shared snapshot rebuild per backend process rather than one rebuild per connected client.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend` :: `npm test -- --runInBand dormitory/controllers/invoices.controller.spec.ts dormitory/controllers/room-fee-invoices.controller.spec.ts dormitory/services/invoices.service.spec.ts dormitory/services/room-fee-invoices.service.spec.ts` => permission matrix, SSE access/lifecycle, and mutation emission tests pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/invoices/page.test.tsx" "src/components/dormitory/invoices/RoomFeeCollection.test.tsx" "src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx" "src/app/(dashboard)/dormitory/layout.test.tsx"` plus the new hook test target => both tables, permission UI, no-flash reconciliation, cleanup, and removed refresh buttons pass.
-- `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` and `npm run build` => TypeScript and Next.js production build pass.
-- `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS build passes.
-- Manual development check with two separate browser profiles/accounts: account A mutates each invoice kind; account B sees the matching filtered table update without flashing; revoke read/action permissions and confirm route, stream, controls, and API fail closed as specified.
-- `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended paths.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run "src/app/(dashboard)/dormitory/overview/page.test.tsx" "src/hooks/useDormitoryOverviewRealtime.test.ts"` => AC-01, AC-03, AC-04, AC-06, and AC-09 pass.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => affected frontend types pass.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand dormitory-reports dormitory-overview-realtime` => AC-02, AC-05, AC-07, and AC-08 pass with response-parity and query/cache assertions.
+- `D:\PROJECT\manager_points\backend :: npm run build` => backend compiles with the SSE service and mutation publishers.
+- Manual development verification with two authenticated browser accounts: keep both overview tabs open, mutate one source domain, confirm one smooth update per account, then disconnect/reconnect one account and confirm the other remains unaffected.
+- Final repository root checks: `git diff --check` and `git status --short`; only scoped implementation/tests and this task artifact may differ.
 
 # Safety Gates
 
-- Planning-only: implementation and automated verification require a later implementation request.
-- Human Gate before assigning/revoking permissions on real accounts or validating against shared/production data. Artifact: target environment/accounts, permission delta, expected access matrix, and rollback assignment. Resume only after approval.
-- Stop and amend scope if deployment is multi-instance and the existing in-process event pattern cannot broadcast between instances; a Redis/pub-sub transport or infrastructure change requires separate design and authorization.
-- Stop for permission-registry semantic changes, persistent-data changes, new dependencies, deployment, or production mutation.
+- Gate: None for development implementation and verification inside the approved boundaries.
+- Stop and amend scope if multi-instance delivery requires Redis/pub-sub or another infrastructure/dependency change; provide topology evidence and resume from backend realtime design after approval.
+- Stop for schema/index changes, permission changes, persistent-data mutation, deployment, production load tests, or unrelated dirty-path overlap.
 
 # Artifacts and Checkpoints
 
 - Task artifact: `docs/taskscope.md`.
-- Implementation evidence: API permission matrix, redacted SSE event examples, focused test output, two-account video/screenshots or log, security review, and final scoped diff/status.
-- Checkpoints: base commit above; checkpoint after backend permission/event tests; checkpoint after both clients pass realtime/no-flash tests; final scoped diff. Validate the task artifact before execution handoff.
-- Effective Rules Manifest: canonical rules version 3.2.0 (`safety.md`, `global.md`, `antigravity-operating-contract.md`, `orchestrator.md`, `pipeline.md`).
+- Required execution evidence: baseline/optimized query count, response bytes and cold/warm latency, concurrent-client rebuild count, response-parity test, redacted SSE example, focused test output, two-account manual evidence, independent review, and final diff/status.
+- Material checkpoints: backend event/permission tests complete; frontend realtime/no-flash tests complete; final affected verification complete. Record commit identity and task artifact hash at handoff.
+- Effective Rules Manifest: canonical rules version 3.2.0; selected performance skill `vercel-react-best-practices` version 1.0.0.
 
 # Execution Budgets
 
-- Default step deadline: 600 seconds; maximum 1,800 seconds for builds/manual two-account verification.
-- Concurrency: one writer per path; serialize backend event contract before frontend integration.
+- Default step deadline: 600 seconds; maximum 1,800 seconds for builds/manual verification.
+- Concurrency: one writer per path; serialize event contract before publishers and frontend integration.
 - Idempotent retries: 2; engineering loops: 3; review remediation cycles: 2.
-- Independent security/concurrency review is mandatory for authorization, SSE isolation, event payloads, cleanup, races, and financial UI consistency.
-- Stop on gate, dirty overlap, cross-instance transport requirement, new dependency, scope expansion, or unrelated failing baseline.
+- Independent concurrency/performance/security review is mandatory. Stop on gate, boundary expansion, dependency change, or unrelated failing baseline.
