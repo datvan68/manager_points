@@ -256,8 +256,8 @@ describe('RoomFeeCollection Component', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán phí phòng')).toBeDefined();
-      expect(screen.getByText(/Quét mã để thanh toán/i)).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
+      expect(screen.getByText(/Mã QR đóng tiền/i)).toBeDefined();
     });
 
     // Upload file
@@ -265,7 +265,7 @@ describe('RoomFeeCollection Component', () => {
     const file = new File(['dummy'], 'bill.png', { type: 'image/png' });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    const submitBtn = await screen.findByRole('button', { name: 'Gửi duyệt' });
+    const submitBtn = await screen.findByRole('button', { name: 'Gửi' });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
@@ -293,7 +293,7 @@ describe('RoomFeeCollection Component', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán phí phòng')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDefined();
       expect(screen.getByRole('button', { name: 'Không duyệt' })).toBeDefined();
     });
@@ -503,14 +503,14 @@ describe('RoomFeeCollection Component', () => {
 
     // Upload area should now be visible
     await waitFor(() => {
-      expect(screen.getByText('Ảnh chứng từ thanh toán')).toBeDefined();
+      expect(screen.getByText('Ảnh xác nhận chuyển khoản')).toBeDefined();
     });
 
     const fileInput = document.getElementById('room-fee-pay-proof-upload') as HTMLInputElement;
     const file = new File(['replacement'], 'new-bill.jpg', { type: 'image/jpeg' });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    const saveBtn = await screen.findByRole('button', { name: 'Gửi duyệt' });
+    const saveBtn = await screen.findByRole('button', { name: 'Gửi' });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {

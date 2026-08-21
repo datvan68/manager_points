@@ -293,26 +293,20 @@ describe('Dormitory Invoices Page', () => {
     })));
   });
 
-  it('shows the configured transfer QR without generated banking details or download action (AC-18, AC-19)', async () => {
+  it('shows the configured transfer QR on clicking toggle and provides download action (AC-18, AC-19)', async () => {
     (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
       electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
       water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
-       payment_deadline: '2030-03-31',
+      payment_deadline: '2030-03-31',
       transfer_qr_image: { url: '/uploads/default-transfer-qr.png', file_name: 'default-transfer-qr.png' },
     });
     render(<InvoicesPage />);
     fireEvent.click((await screen.findAllByRole('button', { name: /Kiểm tra/i }))[0]);
+    expect(screen.queryByAltText('Mã QR chuyển khoản')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: /Mã QR đóng tiền/i }));
     const qr = await screen.findByAltText('Mã QR chuyển khoản');
     expect(qr.getAttribute('src')).toContain('/uploads/default-transfer-qr.png');
-    expect(screen.queryByText(/1234567890|MBBank/)).toBeNull();
-    expect(screen.queryByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeNull();
-  });
-
-  it('does not expose a QR download action', async () => {
-    render(<InvoicesPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /Kiểm tra/i }))[0]);
-    await screen.findByText('Quét mã để thanh toán');
-    expect(screen.queryByRole('button', { name: /Tải mã QR chuyển khoản/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Tải về máy/i })).toBeDefined();
   });
 
   it('navigates to /dormitory/invoices/meter-readings on clicking "Ghi điện nước"', async () => {
@@ -352,16 +346,16 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(payBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       // AC-01: No payment method selector or notes input
       expect(screen.queryByText('Phương thức thanh toán')).toBeNull();
       expect(screen.queryByText('Ghi chú xác nhận')).toBeNull();
-      expect(screen.getByText('Ảnh chứng từ thanh toán')).toBeDefined();
-      expect(screen.getByText('Quét mã để thanh toán')).toBeDefined();
+      expect(screen.getByText('Ảnh xác nhận chuyển khoản')).toBeDefined();
+      expect(screen.getByText('Mã QR đóng tiền')).toBeDefined();
     });
 
     // AC-02: Submit button disabled without proof
-    const submitBtn = screen.getByRole('button', { name: /Gửi duyệt/i });
+    const submitBtn = screen.getByRole('button', { name: /^Gửi$/i });
     expect(submitBtn).toBeDefined();
     expect(submitBtn.hasAttribute('disabled')).toBe(true);
 
@@ -411,7 +405,7 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(reviewBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
       expect(screen.getByRole('button', { name: /Không duyệt/i })).toBeDefined();
       expect(screen.getByRole('button', { name: /^Duyệt$/i })).toBeDefined();
@@ -441,7 +435,7 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(reviewBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       expect(screen.queryByRole('button', { name: /Không duyệt/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /^Duyệt$/i })).toBeNull();
     });
@@ -480,7 +474,7 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       expect(screen.getByRole('button', { name: /Bỏ duyệt/i })).toBeDefined();
     });
 
@@ -528,7 +522,7 @@ describe('Dormitory Invoices Page', () => {
     fireEvent.click(checkBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Hóa đơn thanh toán')).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
       expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
       expect(screen.getByRole('button', { name: /Xóa ảnh/i })).toBeDefined();
     });
@@ -550,7 +544,7 @@ describe('Dormitory Invoices Page', () => {
 
     // Now upload area should appear
     await waitFor(() => {
-      expect(screen.getByText('Ảnh chứng từ thanh toán')).toBeDefined();
+      expect(screen.getByText('Ảnh xác nhận chuyển khoản')).toBeDefined();
     });
 
     const file = new File(['fake-image'], 'replacement.png', { type: 'image/png' });
@@ -561,7 +555,7 @@ describe('Dormitory Invoices Page', () => {
       fireEvent.change(fileInput, { target: { files: [file] } });
     });
 
-    const saveBtn = screen.getByRole('button', { name: /Gửi duyệt/i });
+    const saveBtn = screen.getByRole('button', { name: /^Gửi$/i });
     expect(saveBtn).toBeDefined();
 
     await act(async () => {
