@@ -141,7 +141,12 @@ export default function MeterReadingsPage() {
       room.effective_tariffs?.electricity?.unit_price ??
       config?.electricity?.unit_price ??
       2500;
-    const elecIsOverride = room.effective_tariffs?.electricity?.source === 'room_override';
+    const elecQuotaIsOverride =
+      room.effective_tariffs?.electricity?.quota_source === 'room_override' ||
+      (room.effective_tariffs?.electricity?.quota_source === undefined &&
+        room.effective_tariffs?.electricity?.source === 'room_override');
+    const elecPriceIsOverride =
+      room.effective_tariffs?.electricity?.unit_price_source === 'room_override';
 
     const waterQuotaPer =
       room.effective_tariffs?.water?.quota_per_person ??
@@ -151,7 +156,12 @@ export default function MeterReadingsPage() {
       room.effective_tariffs?.water?.unit_price ??
       config?.water?.unit_price ??
       10000;
-    const waterIsOverride = room.effective_tariffs?.water?.source === 'room_override';
+    const waterQuotaIsOverride =
+      room.effective_tariffs?.water?.quota_source === 'room_override' ||
+      (room.effective_tariffs?.water?.quota_source === undefined &&
+        room.effective_tariffs?.water?.source === 'room_override');
+    const waterPriceIsOverride =
+      room.effective_tariffs?.water?.unit_price_source === 'room_override';
 
     const currElecStr = state?.electricity_reading ?? '';
     const currWaterStr = state?.water_reading ?? '';
@@ -187,9 +197,13 @@ export default function MeterReadingsPage() {
       elecInvalid,
       waterInvalid,
       elecQuotaPer,
-      elecIsOverride,
+      elecPrice,
+      elecQuotaIsOverride,
+      elecPriceIsOverride,
       waterQuotaPer,
-      waterIsOverride,
+      waterPrice,
+      waterQuotaIsOverride,
+      waterPriceIsOverride,
       elecConsumption,
       elecQuotaTotal,
       elecExcess,
@@ -546,21 +560,29 @@ export default function MeterReadingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
                   {/* Cụm Điện */}
                   <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
                       <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
                         <Zap size={16} className="text-amber-600" />
                         Điện (kWh)
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center flex-wrap gap-2 text-xs">
                         <span className="text-[11px] text-[#64748B] flex items-center gap-1">
                           Định mức: <span className="font-semibold text-amber-900">{preview.elecQuotaPer} kWh</span>
-                          {preview.elecIsOverride && (
-                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-950 border border-amber-500/30">
+                          {preview.elecQuotaIsOverride && (
+                            <span className="inline-flex items-center px-1 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-950 border border-amber-500/30">
                               Riêng
                             </span>
                           )}
                         </span>
-                        <div className="text-xs font-semibold text-amber-700">
+                        <span className="text-[11px] text-[#64748B] flex items-center gap-1">
+                          Đơn giá: <span className="font-semibold text-amber-900">{preview.elecPrice.toLocaleString('vi-VN')} đ</span>
+                          {preview.elecPriceIsOverride && (
+                            <span className="inline-flex items-center px-1 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-950 border border-amber-500/30">
+                              Riêng
+                            </span>
+                          )}
+                        </span>
+                        <div className="font-semibold text-amber-700">
                           Thành tiền: {formatMoney(preview.elecAmount)}
                         </div>
                       </div>
@@ -609,21 +631,29 @@ export default function MeterReadingsPage() {
 
                   {/* Cụm Nước */}
                   <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
                       <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
                         <Droplets size={16} className="text-sky-600" />
                         Nước (m³)
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center flex-wrap gap-2 text-xs">
                         <span className="text-[11px] text-[#64748B] flex items-center gap-1">
                           Định mức: <span className="font-semibold text-sky-900">{preview.waterQuotaPer} m³</span>
-                          {preview.waterIsOverride && (
-                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-950 border border-sky-500/30">
+                          {preview.waterQuotaIsOverride && (
+                            <span className="inline-flex items-center px-1 py-0.2 rounded text-[10px] font-bold bg-sky-500/20 text-sky-950 border border-sky-500/30">
                               Riêng
                             </span>
                           )}
                         </span>
-                        <div className="text-xs font-semibold text-sky-700">
+                        <span className="text-[11px] text-[#64748B] flex items-center gap-1">
+                          Đơn giá: <span className="font-semibold text-sky-900">{preview.waterPrice.toLocaleString('vi-VN')} đ</span>
+                          {preview.waterPriceIsOverride && (
+                            <span className="inline-flex items-center px-1 py-0.2 rounded text-[10px] font-bold bg-sky-500/20 text-sky-950 border border-sky-500/30">
+                              Riêng
+                            </span>
+                          )}
+                        </span>
+                        <div className="font-semibold text-sky-700">
                           Thành tiền: {formatMoney(preview.waterAmount)}
                         </div>
                       </div>

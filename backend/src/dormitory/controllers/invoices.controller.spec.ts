@@ -66,17 +66,19 @@ describe('InvoicesController', () => {
     expect(result.configured_collection_days).toBe(15);
   });
 
-  it('validates UpdateUtilityConfigDto with room_quota_overrides', async () => {
+  it('validates UpdateUtilityConfigDto with room_quota_overrides and room_unit_price_overrides', async () => {
     const validDto = plainToInstance(UpdateUtilityConfigDto, {
       electricity: {
         quota_per_person: 20,
         unit_price: 3000,
         room_quota_overrides: [{ room_id: '507f1f77bcf86cd799439011', quota_per_person: 25 }],
+        room_unit_price_overrides: [{ room_id: '507f1f77bcf86cd799439011', unit_price: 3500 }],
       },
       water: {
         quota_per_person: 5,
         unit_price: 12000,
         room_quota_overrides: [{ room_id: '507f1f77bcf86cd799439011', quota_per_person: 6 }],
+        room_unit_price_overrides: [{ room_id: '507f1f77bcf86cd799439011', unit_price: 15000 }],
       },
       payment_deadline: '2026-04-10',
     });
@@ -88,6 +90,7 @@ describe('InvoicesController', () => {
         quota_per_person: 20,
         unit_price: 3000,
         room_quota_overrides: [{ room_id: '', quota_per_person: -1 }],
+        room_unit_price_overrides: [{ room_id: '', unit_price: -100 }],
       },
       water: { quota_per_person: 5, unit_price: 12000 },
       payment_deadline: '2026-04-10',

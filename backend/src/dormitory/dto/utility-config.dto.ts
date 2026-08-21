@@ -24,6 +24,17 @@ export class RoomQuotaOverrideDto {
   quota_per_person: number;
 }
 
+export class RoomUnitPriceOverrideDto {
+  @IsNotEmpty()
+  @IsString()
+  room_id: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  unit_price: number;
+}
+
 export class UtilityTariffDto {
   @IsNotEmpty()
   @IsNumber()
@@ -44,6 +55,12 @@ export class UtilityTariffDto {
   @ValidateNested({ each: true })
   @Type(() => RoomQuotaOverrideDto)
   room_quota_overrides?: RoomQuotaOverrideDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RoomUnitPriceOverrideDto)
+  room_unit_price_overrides?: RoomUnitPriceOverrideDto[];
 }
 
 export class TransferQrImageDto {

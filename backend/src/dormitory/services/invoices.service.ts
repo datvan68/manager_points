@@ -715,41 +715,85 @@ export class InvoicesService {
     const roomIdStr = String((roomId as any)?._id || roomId);
 
     const elecDefaultQuota = Number(config?.electricity?.quota_per_person ?? 15);
-    const elecUnitPrice = Number(config?.electricity?.unit_price ?? 2500);
+    const elecDefaultUnitPrice = Number(config?.electricity?.unit_price ?? 2500);
     const elecUnit = config?.electricity?.unit || 'kWh';
 
     const waterDefaultQuota = Number(config?.water?.quota_per_person ?? 4);
-    const waterUnitPrice = Number(config?.water?.unit_price ?? 10000);
+    const waterDefaultUnitPrice = Number(config?.water?.unit_price ?? 10000);
     const waterUnit = config?.water?.unit || 'm³';
 
-    const elecOverrides = config?.electricity?.room_quota_overrides || [];
-    const elecMatch = elecOverrides.find(
+    const elecQuotaOverrides = config?.electricity?.room_quota_overrides || [];
+    const elecQuotaMatch = elecQuotaOverrides.find(
       (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
     );
 
-    const waterOverrides = config?.water?.room_quota_overrides || [];
-    const waterMatch = waterOverrides.find(
+    const elecPriceOverrides = config?.electricity?.room_unit_price_overrides || [];
+    const elecPriceMatch = elecPriceOverrides.find(
       (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
     );
+
+    const waterQuotaOverrides = config?.water?.room_quota_overrides || [];
+    const waterQuotaMatch = waterQuotaOverrides.find(
+      (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
+    );
+
+    const waterPriceOverrides = config?.water?.room_unit_price_overrides || [];
+    const waterPriceMatch = waterPriceOverrides.find(
+      (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
+    );
+
+    const elecQuota =
+      elecQuotaMatch !== undefined && elecQuotaMatch.quota_per_person !== undefined
+        ? Number(elecQuotaMatch.quota_per_person)
+        : elecDefaultQuota;
+    const elecUnitPrice =
+      elecPriceMatch !== undefined && elecPriceMatch.unit_price !== undefined
+        ? Number(elecPriceMatch.unit_price)
+        : elecDefaultUnitPrice;
+
+    const waterQuota =
+      waterQuotaMatch !== undefined && waterQuotaMatch.quota_per_person !== undefined
+        ? Number(waterQuotaMatch.quota_per_person)
+        : waterDefaultQuota;
+    const waterUnitPrice =
+      waterPriceMatch !== undefined && waterPriceMatch.unit_price !== undefined
+        ? Number(waterPriceMatch.unit_price)
+        : waterDefaultUnitPrice;
+
+    const elecQuotaSource: 'room_override' | 'default' =
+      elecQuotaMatch !== undefined ? 'room_override' : 'default';
+    const elecPriceSource: 'room_override' | 'default' =
+      elecPriceMatch !== undefined ? 'room_override' : 'default';
+    const elecAggregateSource: 'room_override' | 'default' =
+      elecQuotaMatch !== undefined || elecPriceMatch !== undefined
+        ? 'room_override'
+        : 'default';
+
+    const waterQuotaSource: 'room_override' | 'default' =
+      waterQuotaMatch !== undefined ? 'room_override' : 'default';
+    const waterPriceSource: 'room_override' | 'default' =
+      waterPriceMatch !== undefined ? 'room_override' : 'default';
+    const waterAggregateSource: 'room_override' | 'default' =
+      waterQuotaMatch !== undefined || waterPriceMatch !== undefined
+        ? 'room_override'
+        : 'default';
 
     return {
       electricity: {
-        quota_per_person:
-          elecMatch !== undefined && elecMatch.quota_per_person !== undefined
-            ? Number(elecMatch.quota_per_person)
-            : elecDefaultQuota,
+        quota_per_person: elecQuota,
         unit_price: elecUnitPrice,
         unit: elecUnit,
-        source: (elecMatch !== undefined ? 'room_override' : 'default') as 'room_override' | 'default',
+        quota_source: elecQuotaSource,
+        unit_price_source: elecPriceSource,
+        source: elecAggregateSource,
       },
       water: {
-        quota_per_person:
-          waterMatch !== undefined && waterMatch.quota_per_person !== undefined
-            ? Number(waterMatch.quota_per_person)
-            : waterDefaultQuota,
+        quota_per_person: waterQuota,
         unit_price: waterUnitPrice,
         unit: waterUnit,
-        source: (waterMatch !== undefined ? 'room_override' : 'default') as 'room_override' | 'default',
+        quota_source: waterQuotaSource,
+        unit_price_source: waterPriceSource,
+        source: waterAggregateSource,
       },
     };
   }
@@ -766,7 +810,17 @@ export class InvoicesService {
         populate: { path: 'building_id', select: 'building_code name' },
       })
       .populate({
+        path: 'electricity.room_unit_price_overrides.room_id',
+        select: 'room_code room_name building_id',
+        populate: { path: 'building_id', select: 'building_code name' },
+      })
+      .populate({
         path: 'water.room_quota_overrides.room_id',
+        select: 'room_code room_name building_id',
+        populate: { path: 'building_id', select: 'building_code name' },
+      })
+      .populate({
+        path: 'water.room_unit_price_overrides.room_id',
         select: 'room_code room_name building_id',
         populate: { path: 'building_id', select: 'building_code name' },
       })
@@ -778,12 +832,14 @@ export class InvoicesService {
           unit_price: 2500,
           unit: 'kWh',
           room_quota_overrides: [],
+          room_unit_price_overrides: [],
         },
         water: {
           quota_per_person: 4,
           unit_price: 10000,
           unit: 'm³',
           room_quota_overrides: [],
+          room_unit_price_overrides: [],
         },
         payment_deadline: undefined,
       });
@@ -804,7 +860,7 @@ export class InvoicesService {
       config = new this.utilityConfigModel();
     }
 
-    const validateOverrides = (
+    const validateQuotaOverrides = (
       overrides: any[] | undefined,
       utilityLabel: string,
     ) => {
@@ -839,18 +895,63 @@ export class InvoicesService {
       return normalized;
     };
 
-    const elecOverrides = validateOverrides(
+    const validateUnitPriceOverrides = (
+      overrides: any[] | undefined,
+      utilityLabel: string,
+    ) => {
+      if (!overrides || !Array.isArray(overrides)) return [];
+      const seen = new Set<string>();
+      const normalized: Array<{ room_id: Types.ObjectId; unit_price: number }> = [];
+
+      for (const item of overrides) {
+        const idStr = String(item.room_id?._id || item.room_id || '').trim();
+        if (!Types.ObjectId.isValid(idStr)) {
+          throw new BadRequestException(
+            `Mã phòng không hợp lệ trong cấu hình đơn giá ${utilityLabel}`,
+          );
+        }
+        if (seen.has(idStr)) {
+          throw new BadRequestException(
+            `Phòng bị trùng lặp trong danh sách đơn giá ${utilityLabel} riêng`,
+          );
+        }
+        const price = Number(item.unit_price);
+        if (isNaN(price) || price < 0) {
+          throw new BadRequestException(
+            `Đơn giá phòng trong ${utilityLabel} phải là số không âm`,
+          );
+        }
+        seen.add(idStr);
+        normalized.push({
+          room_id: new Types.ObjectId(idStr),
+          unit_price: price,
+        });
+      }
+      return normalized;
+    };
+
+    const elecQuotaOverrides = validateQuotaOverrides(
       dto.electricity?.room_quota_overrides,
       'điện',
     );
-    const waterOverrides = validateOverrides(
+    const elecPriceOverrides = validateUnitPriceOverrides(
+      dto.electricity?.room_unit_price_overrides,
+      'điện',
+    );
+    const waterQuotaOverrides = validateQuotaOverrides(
       dto.water?.room_quota_overrides,
+      'nước',
+    );
+    const waterPriceOverrides = validateUnitPriceOverrides(
+      dto.water?.room_unit_price_overrides,
       'nước',
     );
 
     const allRoomIds = [
-      ...elecOverrides.map((o) => o.room_id),
-      ...waterOverrides.map((o) => o.room_id),
+      ...elecQuotaOverrides.map((o) => o.room_id),
+      ...elecPriceOverrides.map((o) => o.room_id),
+      ...waterQuotaOverrides.map((o) => o.room_id),
+      ...waterPriceOverrides.map((o) => o.room_id),
     ];
     if (allRoomIds.length > 0) {
       const existingRooms = await this.roomModel
@@ -873,13 +974,15 @@ export class InvoicesService {
       quota_per_person: Number(dto.electricity.quota_per_person),
       unit_price: Number(dto.electricity.unit_price),
       unit: dto.electricity.unit || 'kWh',
-      room_quota_overrides: elecOverrides as any,
+      room_quota_overrides: elecQuotaOverrides as any,
+      room_unit_price_overrides: elecPriceOverrides as any,
     };
     config.water = {
       quota_per_person: Number(dto.water.quota_per_person),
       unit_price: Number(dto.water.unit_price),
       unit: dto.water.unit || 'm³',
-      room_quota_overrides: waterOverrides as any,
+      room_quota_overrides: waterQuotaOverrides as any,
+      room_unit_price_overrides: waterPriceOverrides as any,
     };
     if (dto.payment_deadline) {
       const deadline = new Date(dto.payment_deadline);

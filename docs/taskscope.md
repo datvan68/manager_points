@@ -1,6 +1,6 @@
 # Task Identity and Pipeline
 
-- Task ID: `dormitory-room-specific-utility-quotas`
+- Task ID: `dormitory-room-specific-utility-tariffs`
 - Pipeline: `feature_development`
 - Profile: Full, planning-only
 - Protocol/rules version: 3.2.0
@@ -11,13 +11,13 @@
 # Risk Level
 
 - Risk: high.
-- Evidence: this changes persistent electricity/water configuration and the quota used to calculate financial invoices across backend, API, configuration UI, meter-entry preview, and manual invoice creation.
+- Evidence: this changes persistent electricity/water configuration and both quota and unit-price inputs used to calculate financial invoices across backend, API, configuration UI, meter-entry preview, and manual invoice creation.
 - Environment: development source planning. Source changes are Git-reversible; changing configuration or generating invoices in a shared/production database requires the applicable Human Gate.
-- Blast radius: future utility previews and invoices for rooms with overrides; rooms without overrides and historical invoice snapshots must remain unchanged.
+- Blast radius: future utility previews and invoices for rooms with quota and/or unit-price overrides; rooms without overrides and historical invoice snapshots must remain unchanged.
 
 # Objective
 
-Extend `Cấu hình định mức & đơn giá điện - nước` so authorized staff can keep a default per-person quota for electricity and water while assigning different per-person quota values to selected rooms. All future previews and invoice calculations must deterministically use the selected room's override when present and the default quota otherwise.
+Extend `Cấu hình định mức & đơn giá điện - nước` so authorized staff can keep default per-person quotas and default unit prices for electricity and water while assigning different quota and/or unit-price values to selected rooms. Widen and reorganize the modal on desktop/tablet so the added controls use horizontal space and avoid unnecessary vertical scrolling. All future previews and invoice calculations must deterministically resolve each value from the selected room's override when present and its utility default otherwise.
 
 # Scope Boundaries
 
@@ -36,47 +36,49 @@ Extend `Cấu hình định mức & đơn giá điện - nước` so authorized 
 
 # Out of Scope
 
-- Do not add room-specific unit prices; `unit_price` remains the shared electricity or water price already configured for all rooms.
 - Do not change the meaning of quota: both default and room-specific values remain `quota_per_person`, and `quota_total = occupant_count × effective quota_per_person`.
 - Do not recalculate previously created invoices. Their existing electricity/water quota, price, consumption, excess, and amount fields remain immutable snapshots unless separately edited through an already-supported workflow.
 - Do not add a new collection or index. Store the optional overrides in the existing singleton utility configuration using backward-compatible defaults.
-- Removing a room override only restores fallback to the default quota for future calculations; it must not delete the room, meter readings, or invoices.
+- Do not redesign unrelated invoice, payment, QR, or deadline modals. The width/layout change applies only to `Cấu hình định mức & đơn giá điện - nước` and any focused child editor it owns.
+- Removing a room-specific quota or unit price only restores that field's default for future calculations; it must not delete the room, meter readings, or invoices.
 
 # Context and Dependencies
 
-- `UtilityTariff` currently contains only `quota_per_person`, `unit_price`, and `unit`; therefore one global quota is used for every room.
-- `InvoicesService.saveBulkMeterReadings` reads the global configuration directly when it creates or updates each room invoice. `getMeterReadings` returns one global config, and the meter-entry page uses it for every card preview.
-- The advanced invoice modal also seeds generic quotas and `getRoomInfo` currently returns occupancy and previous readings without an effective room tariff.
+- `UtilityTariff` already supports `room_quota_overrides`; the current resolver applies a room-specific quota but always uses the global `unit_price`. This task extends the same server-authoritative pattern to room-specific prices without breaking stored quota overrides.
+- `InvoicesService.saveBulkMeterReadings`, `getMeterReadings`, and `getRoomInfo` already consume/return effective tariffs; their resolver and source metadata must now resolve quota and unit price independently.
+- The advanced invoice modal already seeds new invoices from `effective_tariffs`; extending that contract must make the selected room's effective unit price flow through without changing edit behavior for historical snapshots.
 - Invoice `UtilityDetail` already persists `quota_per_person` and `quota_total`, so no invoice schema or historical-data migration is needed.
-- Assumption: a room may have an electricity override, a water override, both, or neither. A room can appear at most once in each utility's override list, and the two values are independent.
-- Canonical resolution rule: `effective quota = matching room override ?? utility default quota`. Room identity is the Room ObjectId, not room name/code.
+- Assumption: a room may override quota, unit price, both, or neither independently for electricity and water. A room can appear at most once in each override list for a utility.
+- Backward-compatible storage: retain `room_quota_overrides` and add `room_unit_price_overrides: [{ room_id, unit_price }]` to each utility tariff. Missing legacy arrays default to empty; do not rewrite existing quota overrides into a new shape.
+- Canonical resolution rules: `effective quota = matching room quota override ?? default quota`; `effective unit price = matching room price override ?? default unit price`. Room identity is the Room ObjectId, not room name/code.
 - Existing permissions remain authoritative: `DORM_INVOICE_READ` reads configuration/effective tariffs and `DORM_INVOICE_CREATE` updates configuration or creates invoices.
 
 # Steps
 
 1. Capture focused baselines for utility configuration read/update, room info, meter-reading list/save, configuration modal, per-card preview, and advanced invoice creation.
-2. Extend each utility tariff with a backward-compatible `room_quota_overrides` array containing `{ room_id, quota_per_person }`; default missing legacy arrays to empty. Add nested DTO transformation and validation for a valid room id, a finite non-negative quota, a bounded list size based on the current room count, and no duplicate room within the same utility.
-3. In configuration update logic, normalize room ids, verify every referenced room exists, reject duplicate/unknown rooms with actionable validation messages, preserve electricity and water independence, and save the complete normalized configuration with existing audit attribution. Do not accept client-owned room names/codes as authority.
-4. Add one server-side helper/resolution path for the effective electricity and water tariff of a room. Use it in `getMeterReadings`, `saveBulkMeterReadings`, and the room-information/defaulting path used by manual invoice creation so preview and persistence cannot diverge.
-5. Extend each meter-reading room response (and room-info response where needed) with resolved effective tariffs plus enough source metadata to indicate `default` versus `room_override`. Continue returning the base configuration for the configuration modal; avoid making each client reimplement financial precedence rules.
-6. In `Cấu hình định mức & đơn giá điện - nước`, keep the current default quota and shared unit-price fields. Under the `Định mức` area of both `Thông số Điện` and `Thông số Nước`, add a compact `Định mức riêng theo phòng` editor with searchable room selection, add-row action, editable non-negative quota, room/building label, source/fallback explanation, and remove-override action.
-7. Prevent duplicate room selection within one utility, exclude already selected rooms from suggestions, preserve unsaved rows while editing the other utility, show inline validation, and disable repeated submit. On save success, replace local state with the normalized server response; on failure, keep user input and show the backend message.
-8. Update the meter-entry page to calculate every card from that room's server-resolved electricity/water tariffs. Clearly show the effective per-person quota and whether it is a room-specific value; saving must persist the same quota snapshot and amount shown in the preview.
-9. When a room is selected for a new advanced utility invoice, seed its electricity/water quota and shared prices from the resolved room tariffs. Preserve existing behavior when editing an issued invoice by using its stored snapshots rather than a newly changed configuration.
-10. Add regression tests for legacy empty overrides, validation/normalization, independent electricity/water overrides, fallback, unknown/duplicate room rejection, effective response metadata, preview/persistence parity, update versus create behavior, configuration UI add/edit/remove/error states, and unchanged defaults/historical invoices.
-11. Run focused tests, affected package type/build checks, manual responsive modal inspection, and final diff/status review.
+2. Retain the existing `room_quota_overrides` contract and add a backward-compatible `room_unit_price_overrides` array containing `{ room_id, unit_price }` to each utility tariff; default missing arrays to empty. Add nested DTO transformation and validation for a valid room id, a finite non-negative price, a bounded list size based on the current room count, and no duplicate room within the same price list.
+3. In configuration update logic, normalize room ids, verify every room referenced by either override list exists, reject duplicate/unknown rooms with actionable validation messages, preserve electricity/water and quota/price independence, and save the complete normalized configuration with existing audit attribution. Do not accept client-owned room names/codes as authority.
+4. Extend the existing server-side effective-tariff resolver so quota and unit price fall back independently. Use that single result in `getMeterReadings`, `saveBulkMeterReadings`, and the room-information/defaulting path used by manual invoice creation so preview and persistence cannot diverge.
+5. Extend each effective tariff response with separate source metadata for quota and unit price, such as `quota_source` and `unit_price_source`, each `default | room_override`. Keep a temporary aggregate `source` only if required for backward compatibility, with a documented deterministic meaning; do not let clients infer financial precedence from populated configuration arrays.
+6. In `Cấu hình định mức & đơn giá điện - nước`, keep the default quota and default unit-price fields. Under both `Thông số Điện` and `Thông số Nước`, provide compact room-specific editors for `Định mức` and `Đơn giá`, with searchable room selection, add-row action, editable non-negative value, room/building label, fallback explanation, and remove-override action. A room may be configured for one field without being forced to override the other.
+7. Prevent duplicate room selection within each quota/price list, exclude already selected rooms from that list's suggestions, preserve unsaved rows while editing other sections, show inline validation, and disable repeated submit. On save success, replace local state with the normalized server response; on failure, keep user input and show the backend message.
+8. Change only this configuration dialog from the current `max-w-lg` layout to a responsive wide layout (target desktop cap approximately `max-w-6xl`/1100-1200 px and viewport-safe width). Use two columns for electricity/water or equivalent horizontal grouping at sufficiently wide breakpoints, collapse to one column on narrow mobile, keep header/footer actions visible where practical, and allow internal vertical scrolling only when viewport height or content genuinely requires it. No page-level horizontal overflow.
+9. Update the meter-entry page to calculate every card from that room's server-resolved electricity/water tariffs. Clearly show effective quota and unit price and whether each is default or room-specific; saving must persist the same quota/price snapshots and amount shown in the preview.
+10. When a room is selected for a new advanced utility invoice, seed its electricity/water quota and unit price from the resolved room tariffs. Preserve existing behavior when editing an issued invoice by using its stored snapshots rather than a newly changed configuration.
+11. Add regression tests for legacy empty price overrides, preservation of existing quota overrides, validation/normalization, independent electricity/water and quota/price fallback, unknown/duplicate room rejection, field-level source metadata, preview/persistence parity, update versus create behavior, wide/responsive modal states, and unchanged defaults/historical invoices.
+12. Run focused tests, affected package type/build checks, manual responsive modal inspection, and final diff/status review.
 
 # Acceptance Criteria
 
-- AC-01: The configuration modal shows the existing default quota and unit price for both electricity and water, plus a room-specific quota editor under each utility; unit price remains global.
-- AC-02: An authorized user can add one or more existing rooms to either utility and assign a finite non-negative `quota_per_person`. The same room cannot occur twice in one utility, while it may independently have one electricity and one water override.
+- AC-01: The configuration modal shows default quota and default unit price for electricity and water, plus room-specific quota and room-specific unit-price editors under each utility.
+- AC-02: An authorized user can assign a finite non-negative `quota_per_person`, `unit_price`, or both to one or more existing rooms. The same room cannot occur twice in the same field's override list, while electricity, water, quota, and price remain independently configurable.
 - AC-03: Unknown/malformed room ids, duplicate room rows, invalid numeric values, and unauthorized updates are rejected without partially changing the stored configuration. Valid configuration is normalized and returned after save.
-- AC-04: A room with an override uses that quota; a room without one uses the default. Electricity and water resolve independently through one server-authoritative rule.
-- AC-05: Meter-entry cards display and calculate from their resolved room tariffs. The backend saves exactly the displayed effective `quota_per_person`, derived `quota_total`, excess consumption, unit price, and amount into the invoice snapshot.
+- AC-04: A room uses each matching quota/price override and falls back only the missing field to its utility default. Electricity, water, quota, and price resolve independently through one server-authoritative rule.
+- AC-05: Meter-entry cards display and calculate from resolved room tariffs, including field-level default/override indicators. The backend saves exactly the displayed effective `quota_per_person`, derived `quota_total`, excess consumption, `unit_price`, and amount into the invoice snapshot.
 - AC-06: New advanced invoices seed the selected room's effective tariffs. Editing an existing invoice continues to use its stored quota/price snapshots and is not silently changed by later configuration updates.
-- AC-07: Removing an override makes future previews/invoices fall back to the default and does not remove or mutate rooms, prior meter readings, or historical invoices.
-- AC-08: Legacy utility configuration documents without override arrays read as empty overrides and retain current global behavior; no migration or new collection/index is required.
-- AC-09: Configuration remains usable on mobile/tablet: room search, rows, validation, and actions fit or scroll within the existing modal without page-level horizontal overflow.
+- AC-07: Removing a quota or price override makes that field fall back to the default for future previews/invoices and does not remove or mutate rooms, prior meter readings, or historical invoices.
+- AC-08: Existing documents with `room_quota_overrides` retain those values; documents without `room_unit_price_overrides` read it as empty and retain current global-price behavior. No migration or new collection/index is required.
+- AC-09: On desktop/tablet, the configuration modal expands substantially beyond the current `max-w-lg` and uses the extra width to reduce vertical stacking. On mobile it collapses safely to one column; at all widths, controls remain accessible with no page-level horizontal overflow, and vertical scrolling appears only when content exceeds the available viewport.
 - AC-10: Focused backend/frontend tests, frontend typecheck/build, backend build, whitespace check, and changed-path review pass before completion.
 
 # Verification
@@ -85,21 +87,21 @@ Extend `Cấu hình định mức & đơn giá điện - nước` so authorized 
 - `D:\PROJECT\manager_points\frontend` :: `npm test -- --run "src/app/(dashboard)/dormitory/invoices/page.test.tsx" "src/app/(dashboard)/dormitory/invoices/meter-readings/page.test.tsx"` => configuration editor and room-specific card/advanced-form calculations pass.
 - `D:\PROJECT\manager_points\frontend` :: `npm run typecheck` and `npm run build` => TypeScript and Next.js production build pass.
 - `D:\PROJECT\manager_points\backend` :: `npm run build` => NestJS build passes.
-- Manual development inspection at 375 px, 768 px, and desktop width => both utility override editors can search/add/edit/remove rooms, remain within the modal, and show effective/fallback values without horizontal page overflow.
-- Manual calculation fixture: configure different electricity/water overrides for one room and leave another room at defaults; record equal occupancy/readings and confirm preview plus stored invoice snapshots differ only according to the configured effective quotas.
+- Manual development inspection at 375 px, 768 px, 1024 px, and 1440 px => the dialog is viewport-safe; wide layouts use horizontal space, mobile stacks cleanly, all quota/price editors and actions remain accessible, and unnecessary vertical scrolling is eliminated without page-level horizontal overflow.
+- Manual calculation fixture: configure different electricity/water quota and unit-price overrides for one room, configure only price for a second room, and leave a third at defaults; record equal occupancy/readings and confirm preview plus stored invoice snapshots follow independent field fallback exactly.
 - `D:\PROJECT\manager_points` :: `git diff --check` and `git status --short` => no whitespace errors or unintended paths.
 
 # Safety Gates
 
 - Planning-only: implementation and automated verification require a later implementation request.
-- Human Gate before saving room-specific quotas in any shared/production database. Artifact: environment, old/new default tariffs, complete affected room/utility override diff, sample before/after calculations, and rollback value set. Resume only after approval of that exact configuration change.
+- Human Gate before saving room-specific quotas or prices in any shared/production database. Artifact: environment, old/new default tariffs, complete affected room/utility/field override diff, sample before/after calculations, and rollback value set. Resume only after approval of that exact configuration change.
 - Human Gate before generating or updating invoices in a shared/production database to verify calculations. Use disposable development fixtures for implementation tests unless separately authorized.
-- Stop and amend scope if product intent is a fixed quota per room rather than per person, room-specific unit prices, time-versioned/effective-date tariffs, bulk import, new permissions, a new collection/index, legacy backfill, historical recalculation, deployment, or production mutation.
+- Stop and amend scope if product intent is a fixed quota per room rather than per person, tiered/unit price formulas instead of a single per-room price, time-versioned/effective-date tariffs, bulk import, new permissions, a new collection/index, legacy backfill, historical recalculation, deployment, or production mutation.
 
 # Artifacts and Checkpoints
 
 - Task artifact: `docs/taskscope.md`.
-- Implementation evidence: normalized configuration example, effective-tariff response for overridden/default rooms, focused test output, calculation parity evidence, responsive modal evidence, and final scoped diff/status.
+- Implementation evidence: normalized configuration example, effective-tariff response for fully/partially overridden and default rooms, focused test output, calculation parity evidence, wide/responsive modal evidence, and final scoped diff/status.
 - Checkpoints: base commit above; checkpoint after backend resolution/persistence tests pass and before frontend integration; final scoped diff. Validate the task artifact hash before execution handoff.
 - Effective Rules Manifest (SHA-256):
   - `safety.md`: `6a3f283b835394b1af1f6380d94cba260acbed8a60d3065dd5365bb15806a772`

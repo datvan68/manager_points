@@ -15,6 +15,17 @@ export class RoomQuotaOverride {
 export const RoomQuotaOverrideSchema = SchemaFactory.createForClass(RoomQuotaOverride);
 
 @Schema({ _id: false })
+export class RoomUnitPriceOverride {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
+  room_id: Types.ObjectId;
+
+  @Prop({ default: 0, required: true })
+  unit_price: number;
+}
+
+export const RoomUnitPriceOverrideSchema = SchemaFactory.createForClass(RoomUnitPriceOverride);
+
+@Schema({ _id: false })
 export class UtilityTariff {
   @Prop({ default: 0, required: true })
   quota_per_person: number;
@@ -27,6 +38,9 @@ export class UtilityTariff {
 
   @Prop({ type: [RoomQuotaOverrideSchema], default: [] })
   room_quota_overrides?: RoomQuotaOverride[];
+
+  @Prop({ type: [RoomUnitPriceOverrideSchema], default: [] })
+  room_unit_price_overrides?: RoomUnitPriceOverride[];
 }
 
 export const UtilityTariffSchema = SchemaFactory.createForClass(UtilityTariff);

@@ -149,11 +149,18 @@ export interface RoomQuotaOverride {
   quota_per_person: number;
 }
 
+export interface RoomUnitPriceOverride {
+  room_id: string | Room;
+  unit_price: number;
+}
+
 export interface EffectiveUtilityTariff {
   quota_per_person: number;
   unit_price: number;
   unit: string;
-  source: 'default' | 'room_override';
+  source?: 'default' | 'room_override';
+  quota_source?: 'default' | 'room_override';
+  unit_price_source?: 'default' | 'room_override';
 }
 
 export interface EffectiveTariffs {
@@ -166,6 +173,7 @@ export interface UtilityTariff {
   unit_price: number;
   unit?: string;
   room_quota_overrides?: RoomQuotaOverride[];
+  room_unit_price_overrides?: RoomUnitPriceOverride[];
 }
 
 export interface UtilityConfig {

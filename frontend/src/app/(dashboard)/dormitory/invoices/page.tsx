@@ -31,6 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import RoomFeeCollection from '@/components/dormitory/invoices/RoomFeeCollection';
 import RoomQuotaOverridesEditor from '@/components/dormitory/invoices/RoomQuotaOverridesEditor';
+import RoomUnitPriceOverridesEditor from '@/components/dormitory/invoices/RoomUnitPriceOverridesEditor';
 import {
   dormitoryApi,
   DormInvoice,
@@ -253,12 +254,14 @@ export default function InvoicesPage() {
       unit_price: 2500,
       unit: 'kWh',
       room_quota_overrides: [],
+      room_unit_price_overrides: [],
     },
     water: {
       quota_per_person: 4,
       unit_price: 10000,
       unit: 'm³',
       room_quota_overrides: [],
+      room_unit_price_overrides: [],
     },
     payment_deadline: '',
   });
@@ -276,12 +279,14 @@ export default function InvoicesPage() {
             unit_price: cfg.electricity?.unit_price ?? 2500,
             unit: cfg.electricity?.unit || 'kWh',
             room_quota_overrides: cfg.electricity?.room_quota_overrides || [],
+            room_unit_price_overrides: cfg.electricity?.room_unit_price_overrides || [],
           },
           water: {
             quota_per_person: cfg.water?.quota_per_person ?? 4,
             unit_price: cfg.water?.unit_price ?? 10000,
             unit: cfg.water?.unit || 'm³',
             room_quota_overrides: cfg.water?.room_quota_overrides || [],
+            room_unit_price_overrides: cfg.water?.room_unit_price_overrides || [],
           },
           payment_deadline: cfg.payment_deadline ? new Date(cfg.payment_deadline).toISOString().slice(0, 10) : '',
           transfer_qr_image: cfg.transfer_qr_image,
@@ -313,12 +318,20 @@ export default function InvoicesPage() {
             room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
             quota_per_person: Number(item.quota_per_person),
           })),
+          room_unit_price_overrides: (configForm.electricity?.room_unit_price_overrides || []).map((item) => ({
+            room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
+            unit_price: Number(item.unit_price),
+          })),
         },
         water: {
           ...configForm.water,
           room_quota_overrides: (configForm.water?.room_quota_overrides || []).map((item) => ({
             room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
             quota_per_person: Number(item.quota_per_person),
+          })),
+          room_unit_price_overrides: (configForm.water?.room_unit_price_overrides || []).map((item) => ({
+            room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
+            unit_price: Number(item.unit_price),
           })),
         },
         transfer_qr_image: configForm.transfer_qr_image
@@ -336,12 +349,14 @@ export default function InvoicesPage() {
           unit_price: saved.electricity?.unit_price ?? 2500,
           unit: saved.electricity?.unit || 'kWh',
           room_quota_overrides: saved.electricity?.room_quota_overrides || [],
+          room_unit_price_overrides: saved.electricity?.room_unit_price_overrides || [],
         },
         water: {
           quota_per_person: saved.water?.quota_per_person ?? 4,
           unit_price: saved.water?.unit_price ?? 10000,
           unit: saved.water?.unit || 'm³',
           room_quota_overrides: saved.water?.room_quota_overrides || [],
+          room_unit_price_overrides: saved.water?.room_unit_price_overrides || [],
         },
         payment_deadline: saved.payment_deadline ? new Date(saved.payment_deadline).toISOString().slice(0, 10) : '',
         transfer_qr_image: saved.transfer_qr_image,
@@ -2146,7 +2161,7 @@ export default function InvoicesPage() {
       {/* MODAL CẤU HÌNH DÙNG CHUNG (Định mức, đơn giá, số ngày thu tự động) */}
       {/* ========================================================================= */}
       <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+        <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl lg:max-w-6xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-5 sm:p-6 shadow-2xl">
           <DialogHeader className="border-b border-white/50 pb-3">
             <DialogTitle className="flex items-center gap-2 text-[#1A73E8] font-bold text-lg">
               <SlidersHorizontal size={20} />
@@ -2158,210 +2173,256 @@ export default function InvoicesPage() {
             <div className="py-8 text-center text-sm text-[#64748B]">Đang tải cấu hình...</div>
           ) : (
             <form onSubmit={handleSaveConfig} className="space-y-4 pt-2">
-              {/* Thông số điện */}
-              <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
-                  <Zap size={16} className="text-amber-600" />
-                  Thông số Điện
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                      Định mức/người (kWh) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={configForm.electricity.quota_per_person}
-                      onChange={(e) =>
-                        setConfigForm((f) => ({
-                          ...f,
-                          electricity: {
-                            ...f.electricity,
-                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
-                        }))
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                    />
+              {/* 2 Cột Thông số Điện & Nước trên Desktop/Tablet */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+                {/* Cột 1: Thông số điện */}
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm">
+                    <Zap size={16} className="text-amber-600" />
+                    Thông số Điện
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                      Đơn giá (đ/kWh) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={configForm.electricity.unit_price}
-                      onChange={(e) =>
-                        setConfigForm((f) => ({
-                          ...f,
-                          electricity: {
-                            ...f.electricity,
-                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
-                        }))
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                        Định mức/người (kWh) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.electricity.quota_per_person}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            electricity: {
+                              ...f.electricity,
+                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                        Đơn giá (đ/kWh) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.electricity.unit_price}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            electricity: {
+                              ...f.electricity,
+                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      />
+                    </div>
                   </div>
+
+                  {/* Định mức riêng theo phòng cho Điện */}
+                  <RoomQuotaOverridesEditor
+                    label="Định mức riêng theo phòng (Điện)"
+                    unit="kWh"
+                    defaultQuota={configForm.electricity.quota_per_person}
+                    overrides={configForm.electricity.room_quota_overrides || []}
+                    onChange={(nextOverrides) =>
+                      setConfigForm((f) => ({
+                        ...f,
+                        electricity: {
+                          ...f.electricity,
+                          room_quota_overrides: nextOverrides,
+                        },
+                      }))
+                    }
+                    rooms={rooms}
+                    disabled={configSubmitting}
+                  />
+
+                  {/* Đơn giá riêng theo phòng cho Điện */}
+                  <RoomUnitPriceOverridesEditor
+                    label="Đơn giá riêng theo phòng (Điện)"
+                    unit="đ/kWh"
+                    defaultPrice={configForm.electricity.unit_price}
+                    overrides={configForm.electricity.room_unit_price_overrides || []}
+                    onChange={(nextOverrides) =>
+                      setConfigForm((f) => ({
+                        ...f,
+                        electricity: {
+                          ...f.electricity,
+                          room_unit_price_overrides: nextOverrides,
+                        },
+                      }))
+                    }
+                    rooms={rooms}
+                    disabled={configSubmitting}
+                  />
                 </div>
 
-                {/* Định mức riêng theo phòng cho Điện */}
-                <RoomQuotaOverridesEditor
-                  label="Định mức riêng theo phòng (Điện)"
-                  unit="kWh"
-                  defaultQuota={configForm.electricity.quota_per_person}
-                  overrides={configForm.electricity.room_quota_overrides || []}
-                  onChange={(nextOverrides) =>
-                    setConfigForm((f) => ({
-                      ...f,
-                      electricity: {
-                        ...f.electricity,
-                        room_quota_overrides: nextOverrides,
-                      },
-                    }))
-                  }
-                  rooms={rooms}
-                  disabled={configSubmitting}
-                />
+                {/* Cột 2: Thông số nước */}
+                <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
+                    <Droplets size={16} className="text-sky-600" />
+                    Thông số Nước
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                        Định mức/người (m³) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.water.quota_per_person}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            water: {
+                              ...f.water,
+                              quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[#1E293B] mb-1">
+                        Đơn giá (đ/m³) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={configForm.water.unit_price}
+                        onChange={(e) =>
+                          setConfigForm((f) => ({
+                            ...f,
+                            water: {
+                              ...f.water,
+                              unit_price: Math.max(0, parseFloat(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Định mức riêng theo phòng cho Nước */}
+                  <RoomQuotaOverridesEditor
+                    label="Định mức riêng theo phòng (Nước)"
+                    unit="m³"
+                    defaultQuota={configForm.water.quota_per_person}
+                    overrides={configForm.water.room_quota_overrides || []}
+                    onChange={(nextOverrides) =>
+                      setConfigForm((f) => ({
+                        ...f,
+                        water: {
+                          ...f.water,
+                          room_quota_overrides: nextOverrides,
+                        },
+                      }))
+                    }
+                    rooms={rooms}
+                    disabled={configSubmitting}
+                  />
+
+                  {/* Đơn giá riêng theo phòng cho Nước */}
+                  <RoomUnitPriceOverridesEditor
+                    label="Đơn giá riêng theo phòng (Nước)"
+                    unit="đ/m³"
+                    defaultPrice={configForm.water.unit_price}
+                    overrides={configForm.water.room_unit_price_overrides || []}
+                    onChange={(nextOverrides) =>
+                      setConfigForm((f) => ({
+                        ...f,
+                        water: {
+                          ...f.water,
+                          room_unit_price_overrides: nextOverrides,
+                        },
+                      }))
+                    }
+                    rooms={rooms}
+                    disabled={configSubmitting}
+                  />
+                </div>
               </div>
 
-              {/* Thông số nước */}
-              <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-sky-800 text-sm">
-                  <Droplets size={16} className="text-sky-600" />
-                  Thông số Nước
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                      Định mức/người (m³) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={configForm.water.quota_per_person}
-                      onChange={(e) =>
-                        setConfigForm((f) => ({
-                          ...f,
-                          water: {
-                            ...f.water,
-                            quota_per_person: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
-                        }))
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                      Đơn giá (đ/m³) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={configForm.water.unit_price}
-                      onChange={(e) =>
-                        setConfigForm((f) => ({
-                          ...f,
-                          water: {
-                            ...f.water,
-                            unit_price: Math.max(0, parseFloat(e.target.value) || 0),
-                          },
-                        }))
-                      }
-                      className="w-full px-3 py-1.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none transition-all duration-150"
-                    />
-                  </div>
-                </div>
-
-                {/* Định mức riêng theo phòng cho Nước */}
-                <RoomQuotaOverridesEditor
-                  label="Định mức riêng theo phòng (Nước)"
-                  unit="m³"
-                  defaultQuota={configForm.water.quota_per_person}
-                  overrides={configForm.water.room_quota_overrides || []}
-                  onChange={(nextOverrides) =>
-                    setConfigForm((f) => ({
-                      ...f,
-                      water: {
-                        ...f.water,
-                        room_quota_overrides: nextOverrides,
-                      },
-                    }))
-                  }
-                  rooms={rooms}
-                  disabled={configSubmitting}
-                />
-              </div>
-
-              {/* Thời hạn thu tự động */}
-              <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
-                <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
-                  <CalendarIcon size={14} className="text-[#64748B]" />
-                  Hạn thanh toán <span className="text-red-500">*</span>
-                </label>
-                <Popover open={configDeadlineCalendarOpen} onOpenChange={setConfigDeadlineCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <button type="button" aria-label="Chọn ngày thanh toán" className="flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-left text-sm text-[#1E293B]">
-                      <span>{configForm.payment_deadline ? formatDate(configForm.payment_deadline) : 'Chọn ngày'}</span><CalendarIcon size={14} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
-                    <CustomCalendar
-                      startDate={configForm.payment_deadline ? new Date(`${configForm.payment_deadline}T00:00:00`) : null}
-                      endDate={null}
-                      minDate={new Date()}
-                      onRangeSelect={(start) => setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }))}
-                      onRangeConfirm={(start) => {
-                        setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }));
-                        setConfigDeadlineCalendarOpen(false);
-                      }}
-                      onCancel={() => setConfigDeadlineCalendarOpen(false)}
-                      onConfirm={() => setConfigDeadlineCalendarOpen(false)}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <input aria-label="Hạn thanh toán" value={configForm.payment_deadline || ''} onChange={(e) => setConfigForm((f) => ({ ...f, payment_deadline: e.target.value }))} className="sr-only" />
-              </div>
-
-              <div className="space-y-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-[#1E293B]">Mã QR chuyển khoản mặc định</label>
-                  <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG hoặc WebP, tối đa 5MB.</p>
-                </div>
-                <input id="config-transfer-qr-upload" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={handleConfigQrChange} className="hidden" />
-                <div className="flex items-center gap-3">
-                  {(configQrPreview || configForm.transfer_qr_image?.url) ? (
-                    <img src={configQrPreview || getImageUrl(configForm.transfer_qr_image?.url)} alt="Xem trước mã QR chuyển khoản" className="h-24 w-24 rounded-lg border border-slate-200 bg-white object-contain p-1" />
-                  ) : (
-                    <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 px-2 text-center text-[11px] text-slate-500">Chưa có mã QR</div>
-                  )}
-                  <label htmlFor="config-transfer-qr-upload" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    <Upload size={14} /> {configForm.transfer_qr_image?.url || configQrFile ? 'Thay ảnh QR' : 'Chọn ảnh QR'}
+              {/* Hàng dưới: Hạn thanh toán & Mã QR */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                {/* Thời hạn thu tự động */}
+                <div className="bg-slate-500/5 p-3.5 rounded-xl border border-slate-500/10 space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                    <CalendarIcon size={14} className="text-[#64748B]" />
+                    Hạn thanh toán <span className="text-red-500">*</span>
                   </label>
+                  <Popover open={configDeadlineCalendarOpen} onOpenChange={setConfigDeadlineCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <button type="button" aria-label="Chọn ngày thanh toán" className="flex w-full items-center justify-between rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-left text-sm text-[#1E293B]">
+                        <span>{configForm.payment_deadline ? formatDate(configForm.payment_deadline) : 'Chọn ngày'}</span><CalendarIcon size={14} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="z-[100] w-auto border-none bg-transparent p-0 shadow-none" align="start">
+                      <CustomCalendar
+                        startDate={configForm.payment_deadline ? new Date(`${configForm.payment_deadline}T00:00:00`) : null}
+                        endDate={null}
+                        minDate={new Date()}
+                        onRangeSelect={(start) => setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }))}
+                        onRangeConfirm={(start) => {
+                          setConfigForm((f) => ({ ...f, payment_deadline: toDateValue(start) }));
+                          setConfigDeadlineCalendarOpen(false);
+                        }}
+                        onCancel={() => setConfigDeadlineCalendarOpen(false)}
+                        onConfirm={() => setConfigDeadlineCalendarOpen(false)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <input aria-label="Hạn thanh toán" value={configForm.payment_deadline || ''} onChange={(e) => setConfigForm((f) => ({ ...f, payment_deadline: e.target.value }))} className="sr-only" />
+                </div>
+
+                {/* Mã QR chuyển khoản mặc định */}
+                <div className="space-y-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#1E293B]">Mã QR chuyển khoản mặc định</label>
+                    <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG hoặc WebP, tối đa 5MB.</p>
+                  </div>
+                  <input id="config-transfer-qr-upload" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" onChange={handleConfigQrChange} className="hidden" />
+                  <div className="flex items-center gap-3">
+                    {(configQrPreview || configForm.transfer_qr_image?.url) ? (
+                      <img src={configQrPreview || getImageUrl(configForm.transfer_qr_image?.url)} alt="Xem trước mã QR chuyển khoản" className="h-24 w-24 rounded-lg border border-slate-200 bg-white object-contain p-1" />
+                    ) : (
+                      <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 px-2 text-center text-[11px] text-slate-500">Chưa có mã QR</div>
+                    )}
+                    <label htmlFor="config-transfer-qr-upload" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <Upload size={14} /> {configForm.transfer_qr_image?.url || configQrFile ? 'Thay ảnh QR' : 'Chọn ảnh QR'}
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* Nút hành động */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200/60 mt-2">
                 <Button
                   type="button"
                   variant="outline"
                   disabled={configSubmitting}
                   onClick={() => setConfigModalOpen(false)}
-                  className="flex-1 rounded-xl"
+                  className="px-6 rounded-xl"
                 >
                   Hủy
                 </Button>
                 <Button
                   type="submit"
                   disabled={configSubmitting}
-                  className="flex-1 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
+                  className="px-6 rounded-xl bg-[#1A73E8] hover:bg-[#1557B0]"
                 >
                   {configSubmitting ? 'Đang lưu...' : 'Lưu cấu hình'}
                 </Button>
