@@ -954,7 +954,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                   type="button"
                   aria-label="Kiểm tra"
                   onClick={() => openPayModal(inv)}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/70 border border-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold hover:bg-white hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-xs font-semibold text-slate-700 hover:bg-white/80 hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
                   title="Kiểm tra hóa đơn & chứng từ thanh toán"
                 >
                   <Eye size={14} /> Kiểm tra
@@ -1894,7 +1894,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {/* MODAL HÓA ĐƠN THANH TOÁN (Dùng chung cho Nộp chứng từ & Kiểm tra / Duyệt) */}
       {/* ========================================================================= */}
       <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
-        <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#F8FAFC] to-[#EEF4FB] p-6 shadow-2xl">
+        <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl backdrop-blur-md">
           {payingInvoice && (() => {
             const isApproved =
               payingInvoice.status === 'Đã thu' ||
@@ -1907,28 +1907,28 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
             return (
               <div className="space-y-4">
                 {/* 1. Header: Chỉ để "Hóa đơn" + badge trạng thái, bỏ mô tả */}
-                <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                <div className="flex items-center justify-between border-b border-white/60 pb-3">
                   <div className="flex items-center gap-2">
                     <DialogTitle className="text-xl font-bold text-[#1E293B]">
                       Hóa đơn
                     </DialogTitle>
                     {isApproved ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
                         <CheckCircle size={13} className="shrink-0" />
                         Đã thu
                       </span>
                     ) : isPendingReview ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 shadow-2xs">
                         <Eye size={13} className="shrink-0" />
                         Chờ duyệt
                       </span>
                     ) : isRejected ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-700 border border-rose-500/20 shadow-2xs">
                         <X size={13} className="shrink-0" />
                         Từ chối / Bỏ duyệt
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 shadow-2xs">
                         <CheckCircle size={13} className="shrink-0" />
                         Sẵn sàng
                       </span>
@@ -1937,14 +1937,14 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                 </div>
 
                 {/* 2. Thông tin: Chỉ cần để Kỳ thu và Tổng tiền */}
-                <div className="rounded-2xl border border-slate-200/70 bg-white/80 backdrop-blur-sm p-4 space-y-3 shadow-2xs">
+                <div className="rounded-2xl border border-white/70 bg-white/50 backdrop-blur-sm p-4 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-500">Kỳ thu</span>
                     <span className="font-bold text-slate-800 text-sm">
                       {formatBillingMonth(payingInvoice.start_month)} - {formatBillingMonth(payingInvoice.end_month)} ({payingInvoice.months_count} tháng)
                     </span>
                   </div>
-                  <div className="border-t border-slate-200/60 pt-2.5 flex items-center justify-between">
+                  <div className="border-t border-white/60 pt-2.5 flex items-center justify-between">
                     <span className="font-bold text-slate-700 text-xs">Tổng tiền</span>
                     <span className="text-xl font-black text-[#1A73E8]">
                       {formatMoney(payingInvoice.total_amount)}
@@ -1953,11 +1953,11 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                 </div>
 
                 {/* 3. Nút mở QR đóng tiền mặc định ẩn (click mở ra & tải về máy) */}
-                <div className="rounded-2xl border border-slate-200/70 bg-white/70 overflow-hidden shadow-2xs">
+                <div className="rounded-2xl border border-white/70 bg-white/50 backdrop-blur-sm overflow-hidden shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setShowQrCode((prev) => !prev)}
-                    className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-white transition-all cursor-pointer"
+                    className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-white/60 transition-all cursor-pointer"
                   >
                     <span className="flex items-center gap-2">
                       <QrCode size={16} className="text-[#1A73E8]" />
@@ -1969,8 +1969,8 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                   </button>
 
                   {showQrCode && (
-                    <div className="p-4 border-t border-slate-200/60 bg-white flex flex-col items-center gap-3">
-                      <div className="w-48 h-48 flex items-center justify-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="p-4 border-t border-white/60 bg-white/40 backdrop-blur-sm flex flex-col items-center gap-3">
+                      <div className="w-48 h-48 flex items-center justify-center p-2 rounded-xl bg-white/70 border border-white/80">
                         {configData?.transfer_qr_image?.url && !transferQrImageFailed ? (
                           <img
                             src={getImageUrl(configData.transfer_qr_image.url)}
@@ -1986,16 +1986,14 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                       </div>
 
                       {configData?.transfer_qr_image?.url && !transferQrImageFailed && (
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
                           onClick={() => handleDownloadQr(configData?.transfer_qr_image?.url)}
-                          className="h-8 px-3 text-xs font-semibold text-[#1A73E8] border-[#1A73E8]/30 hover:bg-blue-50 rounded-xl inline-flex items-center gap-1.5 cursor-pointer"
+                          className="h-8 px-3 text-xs font-semibold text-slate-700 border border-white/80 bg-white/50 hover:bg-white/80 hover:text-[#1A73E8] rounded-xl inline-flex items-center gap-1.5 transition-all duration-150 hover:scale-[1.01] cursor-pointer shadow-2xs"
                         >
                           <Download size={14} />
                           <span>Tải về máy</span>
-                        </Button>
+                        </button>
                       )}
                     </div>
                   )}
@@ -2008,23 +2006,21 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                   </label>
 
                   {hasExistingProof ? (
-                    <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-3 space-y-2">
+                    <div className="rounded-2xl border border-white/70 bg-white/50 backdrop-blur-sm p-3 space-y-2.5 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] text-slate-500 font-medium">Ảnh chứng từ hiện tại</span>
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
                           onClick={() => setDeleteProofConfirmOpen(true)}
-                          className="h-6 px-2 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 border-rose-200 rounded-lg inline-flex items-center gap-1 cursor-pointer"
+                          className="h-7 px-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 bg-white/50 rounded-xl inline-flex items-center gap-1 transition-all duration-150 hover:scale-[1.01] cursor-pointer shadow-2xs"
                           title="Xóa ảnh chứng từ hiện tại"
                         >
                           <Trash2 size={12} />
                           <span>Xóa ảnh</span>
-                        </Button>
+                        </button>
                       </div>
 
-                      <div className="border border-slate-200/60 rounded-xl overflow-hidden bg-slate-900/5 flex items-center justify-center p-2">
+                      <div className="border border-white/70 rounded-xl overflow-hidden bg-white/30 backdrop-blur-sm flex items-center justify-center p-2">
                         {proofImageFailed ? (
                           <a
                             className="inline-flex items-center justify-center p-4 text-xs text-blue-600 hover:underline font-medium"
@@ -2043,17 +2039,6 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                           />
                         )}
                       </div>
-
-                      <div className="text-right">
-                        <a
-                          href={getImageUrl(payingInvoice.payment_proof?.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-[#1A73E8] hover:underline inline-flex items-center gap-1 font-medium"
-                        >
-                          <Eye size={12} /> Xem ảnh kích thước đầy đủ
-                        </a>
-                      </div>
                     </div>
                   ) : (
                     <div>
@@ -2067,7 +2052,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                       {!payProofFile ? (
                         <label
                           htmlFor="room-fee-pay-proof-upload"
-                          className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-2xl bg-white/50 hover:bg-white/80 transition-all duration-150 cursor-pointer text-center"
+                          className="flex flex-col items-center justify-center p-4 border border-dashed border-white/80 rounded-2xl bg-white/50 backdrop-blur-sm hover:bg-white/70 transition-all duration-150 cursor-pointer text-center"
                         >
                           <Upload size={20} className="text-[#1A73E8] mb-1" />
                           <span className="text-xs font-medium text-[#1E293B]">Bấm để chọn ảnh chuyển khoản</span>
@@ -2075,7 +2060,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                         </label>
                       ) : (
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+                          <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs shadow-2xs">
                             <div className="flex items-center gap-2 truncate">
                               <CheckCircle size={15} className="text-emerald-700 shrink-0" />
                               <span className="font-medium text-emerald-800 truncate">{payProofFile.name}</span>
@@ -2092,7 +2077,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                             </button>
                           </div>
                           {payProofPreview && (
-                            <div className="p-2 border border-slate-200 rounded-xl bg-slate-900/5 flex items-center justify-center">
+                            <div className="p-2 border border-white/70 rounded-xl bg-white/30 backdrop-blur-sm flex items-center justify-center">
                               <img
                                 src={payProofPreview}
                                 alt="Xem trước chứng từ"
@@ -2107,82 +2092,79 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                 </div>
 
                 {/* 4. Hàng nút hành động: Gửi, Duyệt, Không duyệt, Đóng */}
-                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-white/60">
                   {/* Nút gửi (khi upload chứng từ) */}
                   {!hasExistingProof && (
-                    <Button
+                    <button
                       type="button"
                       disabled={paySubmitting || reviewSubmitting || !payProofFile}
                       onClick={handleConfirmPay}
-                      className="rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all hover:scale-[1.01]"
+                      className="h-9 px-4 rounded-xl bg-[#1A73E8] hover:bg-blue-600 border border-[#1A73E8]/20 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <Upload size={14} />
                       <span>{paySubmitting ? 'Đang gửi...' : 'Gửi'}</span>
-                    </Button>
+                    </button>
                   )}
 
                   {hasExistingProof && payProofFile && (
-                    <Button
+                    <button
                       type="button"
                       disabled={paySubmitting || reviewSubmitting}
                       onClick={handleSaveUpdatedProof}
-                      className="rounded-xl bg-[#1A73E8] hover:bg-[#1557B0] text-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all hover:scale-[1.01]"
+                      className="h-9 px-4 rounded-xl bg-[#1A73E8] hover:bg-blue-600 border border-[#1A73E8]/20 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <Upload size={14} />
                       <span>{paySubmitting ? 'Đang lưu...' : 'Lưu'}</span>
-                    </Button>
+                    </button>
                   )}
 
                   {/* Nút Duyệt / Không duyệt (khi chờ duyệt) */}
                   {isPendingReview && canConfirmInvoice && (
                     <>
-                      <Button
+                      <button
                         type="button"
-                        variant="outline"
                         disabled={reviewSubmitting || paySubmitting}
                         onClick={() => handleReviewProof('rejected')}
-                        className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-xs h-9 px-3.5 cursor-pointer transition-all hover:scale-[1.01]"
+                        className="h-9 px-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-700 hover:bg-rose-600 hover:text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                       >
                         <XCircle size={14} />
                         <span>Không duyệt</span>
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         type="button"
                         disabled={reviewSubmitting || paySubmitting}
                         onClick={() => handleReviewProof('approved')}
-                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all hover:scale-[1.01]"
+                        className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-600/20 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                       >
                         <CheckCircle size={14} />
                         <span>{reviewSubmitting ? 'Đang xử lý...' : 'Duyệt'}</span>
-                      </Button>
+                      </button>
                     </>
                   )}
 
                   {/* Nút Bỏ duyệt (khi đã thu) */}
                   {isApproved && canConfirmInvoice && (
-                    <Button
+                    <button
                       type="button"
-                      variant="outline"
                       disabled={reviewSubmitting || paySubmitting}
                       onClick={() => handleReviewProof('revoked')}
-                      className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold text-xs h-9 px-3.5 cursor-pointer transition-all hover:scale-[1.01]"
+                      className="h-9 px-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-700 hover:bg-amber-600 hover:text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                     >
                       <RotateCcw size={14} />
                       <span>{reviewSubmitting ? 'Đang xử lý...' : 'Bỏ duyệt'}</span>
-                    </Button>
+                    </button>
                   )}
 
                   {/* Nút Đóng */}
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
                     disabled={paySubmitting || reviewSubmitting}
                     onClick={() => setPayModalOpen(false)}
-                    className="rounded-xl border-slate-200/80 bg-white/70 text-slate-700 hover:bg-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all hover:scale-[1.01]"
+                    className="h-9 px-4 rounded-xl border border-white/80 bg-white/50 text-slate-700 hover:bg-white/80 hover:text-[#1A73E8] font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all duration-150 hover:scale-[1.01] shadow-2xs disabled:opacity-50 disabled:pointer-events-none"
                   >
                     <X size={14} />
                     <span>Đóng</span>
-                  </Button>
+                  </button>
                 </div>
               </div>
             );
