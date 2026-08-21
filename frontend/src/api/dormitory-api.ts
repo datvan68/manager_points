@@ -144,10 +144,28 @@ export interface UtilityDetail {
   amount: number;
 }
 
+export interface RoomQuotaOverride {
+  room_id: string | Room;
+  quota_per_person: number;
+}
+
+export interface EffectiveUtilityTariff {
+  quota_per_person: number;
+  unit_price: number;
+  unit: string;
+  source: 'default' | 'room_override';
+}
+
+export interface EffectiveTariffs {
+  electricity: EffectiveUtilityTariff;
+  water: EffectiveUtilityTariff;
+}
+
 export interface UtilityTariff {
   quota_per_person: number;
   unit_price: number;
   unit?: string;
+  room_quota_overrides?: RoomQuotaOverride[];
 }
 
 export interface UtilityConfig {
@@ -190,6 +208,7 @@ export interface RoomMeterReadingItem {
   notes?: string;
   payment_start_date?: string;
   due_date?: string;
+  effective_tariffs?: EffectiveTariffs;
 }
 
 export interface MeterReadingsResponse {
@@ -859,6 +878,7 @@ export const dormitoryApi = {
       occupant_count: number;
       occupants: any[];
       last_readings: { electricity: number; water: number };
+      effective_tariffs?: EffectiveTariffs;
     }> {
       const res = await httpClient(
         `${API_BASE}/dormitory/invoices/room-info/${roomId}${buildQuery({ billing_month: billingMonth })}`,

@@ -14,6 +14,7 @@ function query<T>(value: T) {
     exec: jest.fn().mockResolvedValue(value),
     lean: jest.fn(() => result),
     populate: jest.fn(() => result),
+    select: jest.fn(() => result),
     sort: jest.fn(() => result),
     skip: jest.fn(() => result),
     limit: jest.fn(() => result),
@@ -719,9 +720,19 @@ describe('InvoicesService', () => {
       expect(info.last_readings.electricity).toBe(250);
       expect(info.last_readings.water).toBe(45);
     });
+
+    it('getRoomInfo returns effective_tariffs', async () => {
+      const { service } = setup();
+      const info = await service.getRoomInfo(roomId);
+      expect(info.effective_tariffs).toBeDefined();
+      expect(info.effective_tariffs.electricity.quota_per_person).toBe(15);
+      expect(info.effective_tariffs.electricity.source).toBe('default');
+      expect(info.effective_tariffs.water.quota_per_person).toBe(4);
+      expect(info.effective_tariffs.water.source).toBe('default');
+    });
   });
 
-  describe('UtilityConfig (AC-01)', () => {
+  describe('UtilityConfig and Room Quota Overrides (AC-01 - AC-08)', () => {
     it('getUtilityConfig returns existing config or creates default', async () => {
       const { service, configDoc } = setup();
       const config = await service.getUtilityConfig();
@@ -729,12 +740,22 @@ describe('InvoicesService', () => {
       expect(config.configured_collection_days).toBe(10);
     });
 
-    it('updateUtilityConfig updates config with validated parameters', async () => {
+    it('updateUtilityConfig updates config with validated parameters and room overrides', async () => {
       const { service, configDoc } = setup();
       const updated = await service.updateUtilityConfig(
         {
-          electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
-          water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
+          electricity: {
+            quota_per_person: 20,
+            unit_price: 3000,
+            unit: 'kWh',
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 25 }],
+          },
+          water: {
+            quota_per_person: 5,
+            unit_price: 12000,
+            unit: 'm³',
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 6 }],
+          },
           configured_collection_days: 15,
           transfer_qr_image: { url: '/uploads/transfer-qr.png', file_name: 'transfer-qr.png', mime_type: 'image/png', size: 1024 },
         },
@@ -743,10 +764,157 @@ describe('InvoicesService', () => {
 
       expect(updated.electricity.unit_price).toBe(3000);
       expect(updated.water.unit_price).toBe(12000);
+      expect(updated.electricity.room_quota_overrides).toBeDefined();
       expect(updated.configured_collection_days).toBe(15);
       expect(updated.transfer_qr_image.url).toBe('/uploads/transfer-qr.png');
       expect(updated.transfer_qr_image.uploaded_at).toBeDefined();
       expect(updated.updated_by_id).toBe('admin-1');
+    });
+
+    it('rejects duplicate room in electricity overrides (AC-02, AC-03)', async () => {
+      const { service } = setup();
+      await expect(
+        service.updateUtilityConfig(
+          {
+            electricity: {
+              quota_per_person: 15,
+              unit_price: 2500,
+              room_quota_overrides: [
+                { room_id: roomId, quota_per_person: 20 },
+                { room_id: roomId, quota_per_person: 30 },
+              ],
+            },
+            water: { quota_per_person: 4, unit_price: 10000, room_quota_overrides: [] },
+          },
+          { userId: 'admin-1' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects duplicate room in water overrides (AC-02, AC-03)', async () => {
+      const { service } = setup();
+      await expect(
+        service.updateUtilityConfig(
+          {
+            electricity: { quota_per_person: 15, unit_price: 2500, room_quota_overrides: [] },
+            water: {
+              quota_per_person: 4,
+              unit_price: 10000,
+              room_quota_overrides: [
+                { room_id: roomId, quota_per_person: 5 },
+                { room_id: roomId, quota_per_person: 6 },
+              ],
+            },
+          },
+          { userId: 'admin-1' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('allows same room in electricity and water overrides independently (AC-02, AC-04)', async () => {
+      const { service } = setup();
+      const updated = await service.updateUtilityConfig(
+        {
+          electricity: {
+            quota_per_person: 15,
+            unit_price: 2500,
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 25 }],
+          },
+          water: {
+            quota_per_person: 4,
+            unit_price: 10000,
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 6 }],
+          },
+        },
+        { userId: 'admin-1' },
+      );
+      expect(updated).toBeDefined();
+    });
+
+    it('rejects unknown room id in overrides (AC-03)', async () => {
+      const { service, roomModel } = setup();
+      const unknownRoomId = '507f1f77bcf86cd799439099';
+      roomModel.find.mockReturnValue(query([room])); // only returns 'room' (roomId)
+
+      await expect(
+        service.updateUtilityConfig(
+          {
+            electricity: {
+              quota_per_person: 15,
+              unit_price: 2500,
+              room_quota_overrides: [{ room_id: unknownRoomId, quota_per_person: 20 }],
+            },
+            water: { quota_per_person: 4, unit_price: 10000, room_quota_overrides: [] },
+          },
+          { userId: 'admin-1' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects negative quota in overrides (AC-02, AC-03)', async () => {
+      const { service } = setup();
+      await expect(
+        service.updateUtilityConfig(
+          {
+            electricity: {
+              quota_per_person: 15,
+              unit_price: 2500,
+              room_quota_overrides: [{ room_id: roomId, quota_per_person: -5 }],
+            },
+            water: { quota_per_person: 4, unit_price: 10000, room_quota_overrides: [] },
+          },
+          { userId: 'admin-1' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('resolveEffectiveTariff resolves overrides vs default correctly (AC-04)', () => {
+      const { service } = setup();
+      const otherRoomId = '507f1f77bcf86cd799439022';
+      const config: any = {
+        electricity: {
+          quota_per_person: 15,
+          unit_price: 2500,
+          unit: 'kWh',
+          room_quota_overrides: [{ room_id: roomId, quota_per_person: 25 }],
+        },
+        water: {
+          quota_per_person: 4,
+          unit_price: 10000,
+          unit: 'm³',
+          room_quota_overrides: [{ room_id: roomId, quota_per_person: 6 }],
+        },
+      };
+
+      // Room with overrides
+      const tariffRoom1 = service.resolveEffectiveTariff(config, roomId);
+      expect(tariffRoom1.electricity.quota_per_person).toBe(25);
+      expect(tariffRoom1.electricity.source).toBe('room_override');
+      expect(tariffRoom1.electricity.unit_price).toBe(2500);
+      expect(tariffRoom1.water.quota_per_person).toBe(6);
+      expect(tariffRoom1.water.source).toBe('room_override');
+      expect(tariffRoom1.water.unit_price).toBe(10000);
+
+      // Room without overrides (fallback)
+      const tariffRoom2 = service.resolveEffectiveTariff(config, otherRoomId);
+      expect(tariffRoom2.electricity.quota_per_person).toBe(15);
+      expect(tariffRoom2.electricity.source).toBe('default');
+      expect(tariffRoom2.water.quota_per_person).toBe(4);
+      expect(tariffRoom2.water.source).toBe('default');
+    });
+
+    it('resolveEffectiveTariff handles legacy config without room_quota_overrides (AC-08)', () => {
+      const { service } = setup();
+      const legacyConfig: any = {
+        electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+        water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+      };
+
+      const tariff = service.resolveEffectiveTariff(legacyConfig, roomId);
+      expect(tariff.electricity.quota_per_person).toBe(15);
+      expect(tariff.electricity.source).toBe('default');
+      expect(tariff.water.quota_per_person).toBe(4);
+      expect(tariff.water.source).toBe('default');
     });
   });
 
@@ -842,6 +1010,57 @@ describe('InvoicesService', () => {
       expect(result.results[0].invoice?.total_amount).toBe(70000);
       expect(result.results[0].invoice?.payment_start_date).toBeDefined();
       expect(result.results[0].invoice?.due_date).toBeDefined();
+      expect(saved).toHaveBeenCalled();
+    });
+
+    it('calculates invoice from room-specific quota overrides when present (AC-04, AC-05)', async () => {
+      const { service, saved, invoiceModel, utilityConfigModel } = setup(true);
+      utilityConfigModel.findOne.mockReturnValue(
+        query({
+          electricity: {
+            quota_per_person: 15,
+            unit_price: 2500,
+            unit: 'kWh',
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 20 }],
+          },
+          water: {
+            quota_per_person: 4,
+            unit_price: 10000,
+            unit: 'm³',
+            room_quota_overrides: [{ room_id: roomId, quota_per_person: 5 }],
+          },
+        }),
+      );
+
+      invoiceModel.findOne.mockReturnValueOnce(query(null));
+      invoiceModel.findOne.mockReturnValueOnce(
+        query({
+          electricity: { current_reading: 100 },
+          water: { current_reading: 10 },
+        }),
+      );
+
+      // 2 occupants. Room override: elec 20 kWh, water 5 m3.
+      // Elec: 100 -> 160 = 60 kWh. Quota total = 2 * 20 = 40 kWh. Excess = 20 kWh * 2500 = 50,000
+      // Water: 10 -> 22 = 12 m3. Quota total = 2 * 5 = 10 m3. Excess = 2 m3 * 10000 = 20,000
+      const result = await service.saveBulkMeterReadings(
+        {
+          billing_month: '2026-03',
+          readings: [
+            {
+              room_id: roomId,
+              electricity_reading: 160,
+              water_reading: 22,
+            },
+          ],
+        },
+        { userId: 'admin-1' },
+      );
+
+      expect(result.results[0].success).toBe(true);
+      expect(result.results[0].invoice?.electricity?.quota_per_person).toBe(20);
+      expect(result.results[0].invoice?.water?.quota_per_person).toBe(5);
+      expect(result.results[0].invoice?.total_amount).toBe(70000);
       expect(saved).toHaveBeenCalled();
     });
 

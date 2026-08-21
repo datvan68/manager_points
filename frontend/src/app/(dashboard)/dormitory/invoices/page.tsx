@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoomFeeCollection from '@/components/dormitory/invoices/RoomFeeCollection';
+import RoomQuotaOverridesEditor from '@/components/dormitory/invoices/RoomQuotaOverridesEditor';
 import {
   dormitoryApi,
   DormInvoice,
@@ -251,11 +252,13 @@ export default function InvoicesPage() {
       quota_per_person: 15,
       unit_price: 2500,
       unit: 'kWh',
+      room_quota_overrides: [],
     },
     water: {
       quota_per_person: 4,
       unit_price: 10000,
       unit: 'm³',
+      room_quota_overrides: [],
     },
     payment_deadline: '',
   });
@@ -272,11 +275,13 @@ export default function InvoicesPage() {
             quota_per_person: cfg.electricity?.quota_per_person ?? 15,
             unit_price: cfg.electricity?.unit_price ?? 2500,
             unit: cfg.electricity?.unit || 'kWh',
+            room_quota_overrides: cfg.electricity?.room_quota_overrides || [],
           },
           water: {
             quota_per_person: cfg.water?.quota_per_person ?? 4,
             unit_price: cfg.water?.unit_price ?? 10000,
             unit: cfg.water?.unit || 'm³',
+            room_quota_overrides: cfg.water?.room_quota_overrides || [],
           },
           payment_deadline: cfg.payment_deadline ? new Date(cfg.payment_deadline).toISOString().slice(0, 10) : '',
           transfer_qr_image: cfg.transfer_qr_image,
@@ -302,15 +307,45 @@ export default function InvoicesPage() {
       setConfigSubmitting(true);
       let nextConfig: UpdateUtilityConfigInput = {
         ...configForm,
+        electricity: {
+          ...configForm.electricity,
+          room_quota_overrides: (configForm.electricity?.room_quota_overrides || []).map((item) => ({
+            room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
+            quota_per_person: Number(item.quota_per_person),
+          })),
+        },
+        water: {
+          ...configForm.water,
+          room_quota_overrides: (configForm.water?.room_quota_overrides || []).map((item) => ({
+            room_id: typeof item.room_id === 'object' ? item.room_id?._id : item.room_id,
+            quota_per_person: Number(item.quota_per_person),
+          })),
+        },
         transfer_qr_image: configForm.transfer_qr_image
           ? (({ url, file_name, mime_type, size }) => ({ url, file_name, mime_type, size }))(configForm.transfer_qr_image)
           : undefined,
       };
       if (configQrFile) {
         const uploadedQr = await dormitoryApi.invoices.uploadTransferQr(configQrFile);
-        nextConfig = { ...configForm, transfer_qr_image: uploadedQr };
+        nextConfig = { ...nextConfig, transfer_qr_image: uploadedQr };
       }
       const saved = await dormitoryApi.invoices.updateConfig(nextConfig);
+      setConfigForm({
+        electricity: {
+          quota_per_person: saved.electricity?.quota_per_person ?? 15,
+          unit_price: saved.electricity?.unit_price ?? 2500,
+          unit: saved.electricity?.unit || 'kWh',
+          room_quota_overrides: saved.electricity?.room_quota_overrides || [],
+        },
+        water: {
+          quota_per_person: saved.water?.quota_per_person ?? 4,
+          unit_price: saved.water?.unit_price ?? 10000,
+          unit: saved.water?.unit || 'm³',
+          room_quota_overrides: saved.water?.room_quota_overrides || [],
+        },
+        payment_deadline: saved.payment_deadline ? new Date(saved.payment_deadline).toISOString().slice(0, 10) : '',
+        transfer_qr_image: saved.transfer_qr_image,
+      });
       setTransferQrImage(saved.transfer_qr_image);
       setTransferQrImageFailed(false);
       toast.success('Cập nhật cấu hình định mức & đơn giá thành công');
@@ -571,11 +606,27 @@ export default function InvoicesPage() {
           ...prev.electricity,
           previous_reading: info.last_readings?.electricity || 0,
           current_reading: Math.max(prev.electricity.current_reading, info.last_readings?.electricity || 0),
+          quota_per_person:
+            !editingInvoice && info.effective_tariffs?.electricity?.quota_per_person !== undefined
+              ? info.effective_tariffs.electricity.quota_per_person
+              : prev.electricity.quota_per_person,
+          unit_price:
+            !editingInvoice && info.effective_tariffs?.electricity?.unit_price !== undefined
+              ? info.effective_tariffs.electricity.unit_price
+              : prev.electricity.unit_price,
         },
         water: {
           ...prev.water,
           previous_reading: info.last_readings?.water || 0,
           current_reading: Math.max(prev.water.current_reading, info.last_readings?.water || 0),
+          quota_per_person:
+            !editingInvoice && info.effective_tariffs?.water?.quota_per_person !== undefined
+              ? info.effective_tariffs.water.quota_per_person
+              : prev.water.quota_per_person,
+          unit_price:
+            !editingInvoice && info.effective_tariffs?.water?.unit_price !== undefined
+              ? info.effective_tariffs.water.unit_price
+              : prev.water.unit_price,
         },
       }));
     } catch {
@@ -2157,6 +2208,25 @@ export default function InvoicesPage() {
                     />
                   </div>
                 </div>
+
+                {/* Định mức riêng theo phòng cho Điện */}
+                <RoomQuotaOverridesEditor
+                  label="Định mức riêng theo phòng (Điện)"
+                  unit="kWh"
+                  defaultQuota={configForm.electricity.quota_per_person}
+                  overrides={configForm.electricity.room_quota_overrides || []}
+                  onChange={(nextOverrides) =>
+                    setConfigForm((f) => ({
+                      ...f,
+                      electricity: {
+                        ...f.electricity,
+                        room_quota_overrides: nextOverrides,
+                      },
+                    }))
+                  }
+                  rooms={rooms}
+                  disabled={configSubmitting}
+                />
               </div>
 
               {/* Thông số nước */}
@@ -2209,6 +2279,25 @@ export default function InvoicesPage() {
                     />
                   </div>
                 </div>
+
+                {/* Định mức riêng theo phòng cho Nước */}
+                <RoomQuotaOverridesEditor
+                  label="Định mức riêng theo phòng (Nước)"
+                  unit="m³"
+                  defaultQuota={configForm.water.quota_per_person}
+                  overrides={configForm.water.room_quota_overrides || []}
+                  onChange={(nextOverrides) =>
+                    setConfigForm((f) => ({
+                      ...f,
+                      water: {
+                        ...f.water,
+                        room_quota_overrides: nextOverrides,
+                      },
+                    }))
+                  }
+                  rooms={rooms}
+                  disabled={configSubmitting}
+                />
               </div>
 
               {/* Thời hạn thu tự động */}

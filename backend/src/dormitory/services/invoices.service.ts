@@ -339,6 +339,9 @@ export class InvoicesService {
       .sort({ reading_date: -1, createdAt: -1 })
       .exec();
 
+    const config = await this.getUtilityConfig();
+    const effectiveTariffs = this.resolveEffectiveTariff(config, roomId);
+
     return {
       room,
       occupant_count: rosterEntries.length,
@@ -352,6 +355,7 @@ export class InvoicesService {
         electricity: lastInvoice?.electricity?.current_reading || 0,
         water: lastInvoice?.water?.current_reading || 0,
       },
+      effective_tariffs: effectiveTariffs,
     };
   }
 
@@ -702,21 +706,84 @@ export class InvoicesService {
   }
 
   /**
+   * Tính toán định mức & đơn giá áp dụng cho phòng (override hoặc mặc định)
+   */
+  resolveEffectiveTariff(
+    config: UtilityConfigDocument | UtilityConfig,
+    roomId: string | Types.ObjectId,
+  ) {
+    const roomIdStr = String((roomId as any)?._id || roomId);
+
+    const elecDefaultQuota = Number(config?.electricity?.quota_per_person ?? 15);
+    const elecUnitPrice = Number(config?.electricity?.unit_price ?? 2500);
+    const elecUnit = config?.electricity?.unit || 'kWh';
+
+    const waterDefaultQuota = Number(config?.water?.quota_per_person ?? 4);
+    const waterUnitPrice = Number(config?.water?.unit_price ?? 10000);
+    const waterUnit = config?.water?.unit || 'm³';
+
+    const elecOverrides = config?.electricity?.room_quota_overrides || [];
+    const elecMatch = elecOverrides.find(
+      (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
+    );
+
+    const waterOverrides = config?.water?.room_quota_overrides || [];
+    const waterMatch = waterOverrides.find(
+      (o: any) => String(o.room_id?._id || o.room_id) === roomIdStr,
+    );
+
+    return {
+      electricity: {
+        quota_per_person:
+          elecMatch !== undefined && elecMatch.quota_per_person !== undefined
+            ? Number(elecMatch.quota_per_person)
+            : elecDefaultQuota,
+        unit_price: elecUnitPrice,
+        unit: elecUnit,
+        source: (elecMatch !== undefined ? 'room_override' : 'default') as 'room_override' | 'default',
+      },
+      water: {
+        quota_per_person:
+          waterMatch !== undefined && waterMatch.quota_per_person !== undefined
+            ? Number(waterMatch.quota_per_person)
+            : waterDefaultQuota,
+        unit_price: waterUnitPrice,
+        unit: waterUnit,
+        source: (waterMatch !== undefined ? 'room_override' : 'default') as 'room_override' | 'default',
+      },
+    };
+  }
+
+  /**
    * Lấy cấu hình dùng chung điện - nước và hạn thu tự động
    */
   async getUtilityConfig(): Promise<UtilityConfigDocument> {
-    let config = await this.utilityConfigModel.findOne().exec();
+    let config = await this.utilityConfigModel
+      .findOne()
+      .populate({
+        path: 'electricity.room_quota_overrides.room_id',
+        select: 'room_code room_name building_id',
+        populate: { path: 'building_id', select: 'building_code name' },
+      })
+      .populate({
+        path: 'water.room_quota_overrides.room_id',
+        select: 'room_code room_name building_id',
+        populate: { path: 'building_id', select: 'building_code name' },
+      })
+      .exec();
     if (!config) {
       config = new this.utilityConfigModel({
         electricity: {
           quota_per_person: 15,
           unit_price: 2500,
           unit: 'kWh',
+          room_quota_overrides: [],
         },
         water: {
           quota_per_person: 4,
           unit_price: 10000,
           unit: 'm³',
+          room_quota_overrides: [],
         },
         payment_deadline: undefined,
       });
@@ -736,15 +803,83 @@ export class InvoicesService {
     if (!config) {
       config = new this.utilityConfigModel();
     }
+
+    const validateOverrides = (
+      overrides: any[] | undefined,
+      utilityLabel: string,
+    ) => {
+      if (!overrides || !Array.isArray(overrides)) return [];
+      const seen = new Set<string>();
+      const normalized: Array<{ room_id: Types.ObjectId; quota_per_person: number }> = [];
+
+      for (const item of overrides) {
+        const idStr = String(item.room_id?._id || item.room_id || '').trim();
+        if (!Types.ObjectId.isValid(idStr)) {
+          throw new BadRequestException(
+            `Mã phòng không hợp lệ trong cấu hình định mức ${utilityLabel}`,
+          );
+        }
+        if (seen.has(idStr)) {
+          throw new BadRequestException(
+            `Phòng bị trùng lặp trong danh sách định mức ${utilityLabel} riêng`,
+          );
+        }
+        const quota = Number(item.quota_per_person);
+        if (isNaN(quota) || quota < 0) {
+          throw new BadRequestException(
+            `Định mức phòng trong ${utilityLabel} phải là số không âm`,
+          );
+        }
+        seen.add(idStr);
+        normalized.push({
+          room_id: new Types.ObjectId(idStr),
+          quota_per_person: quota,
+        });
+      }
+      return normalized;
+    };
+
+    const elecOverrides = validateOverrides(
+      dto.electricity?.room_quota_overrides,
+      'điện',
+    );
+    const waterOverrides = validateOverrides(
+      dto.water?.room_quota_overrides,
+      'nước',
+    );
+
+    const allRoomIds = [
+      ...elecOverrides.map((o) => o.room_id),
+      ...waterOverrides.map((o) => o.room_id),
+    ];
+    if (allRoomIds.length > 0) {
+      const existingRooms = await this.roomModel
+        .find({ _id: { $in: allRoomIds } })
+        .select('_id')
+        .exec();
+      const existingRoomIdSet = new Set(
+        existingRooms.map((r) => String(r._id)),
+      );
+      for (const rId of allRoomIds) {
+        if (!existingRoomIdSet.has(String(rId))) {
+          throw new BadRequestException(
+            `Không tìm thấy phòng với ID ${rId} trong hệ thống`,
+          );
+        }
+      }
+    }
+
     config.electricity = {
       quota_per_person: Number(dto.electricity.quota_per_person),
       unit_price: Number(dto.electricity.unit_price),
       unit: dto.electricity.unit || 'kWh',
+      room_quota_overrides: elecOverrides as any,
     };
     config.water = {
       quota_per_person: Number(dto.water.quota_per_person),
       unit_price: Number(dto.water.unit_price),
       unit: dto.water.unit || 'm³',
+      room_quota_overrides: waterOverrides as any,
     };
     if (dto.payment_deadline) {
       const deadline = new Date(dto.payment_deadline);
@@ -764,7 +899,8 @@ export class InvoicesService {
     if (user?._id || user?.userId) {
       config.updated_by_id = user._id || user.userId;
     }
-    return config.save();
+    await config.save();
+    return this.getUtilityConfig();
   }
 
   /**
@@ -851,6 +987,8 @@ export class InvoicesService {
         previousWater = (lastInvoice as any).water.current_reading;
       }
 
+      const effectiveTariffs = this.resolveEffectiveTariff(config, roomIdStr);
+
       roomsData.push({
         room_id: roomIdStr,
         room: room,
@@ -874,6 +1012,7 @@ export class InvoicesService {
         notes: currentInvoice?.notes,
         payment_start_date: currentInvoice?.payment_start_date,
         due_date: currentInvoice?.due_date,
+        effective_tariffs: effectiveTariffs,
       });
     }
 
@@ -1003,14 +1142,15 @@ export class InvoicesService {
           ).exec();
         }
 
+        const effectiveTariffs = this.resolveEffectiveTariff(config, item.room_id);
         const isExempt = Boolean(item.is_exempt);
         const electricity = this.calculateUtility(
           occupantCount,
           {
             previous_reading: prevElec,
             current_reading: currElec,
-            quota_per_person: config.electricity.quota_per_person,
-            unit_price: config.electricity.unit_price,
+            quota_per_person: effectiveTariffs.electricity.quota_per_person,
+            unit_price: effectiveTariffs.electricity.unit_price,
           },
           isExempt,
         );
@@ -1020,8 +1160,8 @@ export class InvoicesService {
           {
             previous_reading: prevWater,
             current_reading: currWater,
-            quota_per_person: config.water.quota_per_person,
-            unit_price: config.water.unit_price,
+            quota_per_person: effectiveTariffs.water.quota_per_person,
+            unit_price: effectiveTariffs.water.unit_price,
           },
           isExempt,
         );

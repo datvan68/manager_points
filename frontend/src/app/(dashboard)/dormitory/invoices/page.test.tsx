@@ -277,6 +277,81 @@ describe('Dormitory Invoices Page', () => {
     });
   });
 
+  it('config modal allows adding room-specific quota overrides for electricity and water (AC-01, AC-02)', async () => {
+    render(<InvoicesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Cấu hình định mức & đơn giá/i }));
+    await screen.findByText('Cấu hình định mức & đơn giá điện - nước');
+
+    // Add electricity room override
+    const elecSelects = screen.getAllByLabelText(/Chọn phòng để thêm định mức riêng/i);
+    fireEvent.change(elecSelects[0], { target: { value: 'room-1' } });
+    const addButtons = screen.getAllByRole('button', { name: /Thêm phòng/i });
+    fireEvent.click(addButtons[0]);
+
+    // Check that room override input is rendered and editable
+    const quotaInput = await screen.findByLabelText(/Định mức phòng Phòng 101/i);
+    expect(quotaInput).toBeDefined();
+    fireEvent.change(quotaInput, { target: { value: '25' } });
+
+    fireEvent.change(screen.getByLabelText(/Hạn thanh toán/i), { target: { value: '2030-03-31' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+
+    await waitFor(() =>
+      expect(dormitoryApi.invoices.updateConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          electricity: expect.objectContaining({
+            room_quota_overrides: [{ room_id: 'room-1', quota_per_person: 25 }],
+          }),
+        }),
+      ),
+    );
+  });
+
+  it('config modal allows removing a room quota override (AC-07)', async () => {
+    (dormitoryApi.invoices.getConfig as any).mockResolvedValue({
+      electricity: {
+        quota_per_person: 15,
+        unit_price: 2500,
+        unit: 'kWh',
+        room_quota_overrides: [{ room_id: 'room-1', quota_per_person: 25 }],
+      },
+      water: {
+        quota_per_person: 4,
+        unit_price: 10000,
+        unit: 'm³',
+        room_quota_overrides: [],
+      },
+      payment_deadline: '2030-03-31',
+    });
+
+    render(<InvoicesPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Cấu hình định mức & đơn giá/i }));
+    await screen.findByText('Cấu hình định mức & đơn giá điện - nước');
+
+    // Verify existing override is shown
+    expect(await screen.findByLabelText(/Định mức phòng Phòng 101/i)).toBeDefined();
+
+    // Click remove button
+    const removeBtn = screen.getByLabelText(/Xóa định mức riêng của Phòng 101/i);
+    fireEvent.click(removeBtn);
+
+    // Verify it is removed from UI
+    expect(screen.queryByLabelText(/Định mức phòng Phòng 101/i)).toBeNull();
+
+    // Save
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+
+    await waitFor(() =>
+      expect(dormitoryApi.invoices.updateConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          electricity: expect.objectContaining({
+            room_quota_overrides: [],
+          }),
+        }),
+      ),
+    );
+  });
+
   it('uploads and persists the default transfer QR from invoice configuration (AC-17)', async () => {
     (dormitoryApi.invoices.uploadTransferQr as any).mockResolvedValue({
       url: '/uploads/transfer-qr.webp', file_name: 'transfer-qr.webp', mime_type: 'image/webp', size: 1024,

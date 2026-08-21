@@ -66,6 +66,36 @@ describe('InvoicesController', () => {
     expect(result.configured_collection_days).toBe(15);
   });
 
+  it('validates UpdateUtilityConfigDto with room_quota_overrides', async () => {
+    const validDto = plainToInstance(UpdateUtilityConfigDto, {
+      electricity: {
+        quota_per_person: 20,
+        unit_price: 3000,
+        room_quota_overrides: [{ room_id: '507f1f77bcf86cd799439011', quota_per_person: 25 }],
+      },
+      water: {
+        quota_per_person: 5,
+        unit_price: 12000,
+        room_quota_overrides: [{ room_id: '507f1f77bcf86cd799439011', quota_per_person: 6 }],
+      },
+      payment_deadline: '2026-04-10',
+    });
+    const errors = await validate(validDto);
+    expect(errors.length).toBe(0);
+
+    const invalidDto = plainToInstance(UpdateUtilityConfigDto, {
+      electricity: {
+        quota_per_person: 20,
+        unit_price: 3000,
+        room_quota_overrides: [{ room_id: '', quota_per_person: -1 }],
+      },
+      water: { quota_per_person: 5, unit_price: 12000 },
+      payment_deadline: '2026-04-10',
+    });
+    const invalidErrors = await validate(invalidDto);
+    expect(invalidErrors.length).toBeGreaterThan(0);
+  });
+
   it('rejects QR metadata that did not come from the dedicated image upload convention', async () => {
     const dto = plainToInstance(UpdateUtilityConfigDto, {
       electricity: { quota_per_person: 20, unit_price: 3000 },

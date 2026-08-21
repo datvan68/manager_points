@@ -4,6 +4,17 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 export type UtilityConfigDocument = UtilityConfig & Document;
 
 @Schema({ _id: false })
+export class RoomQuotaOverride {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
+  room_id: Types.ObjectId;
+
+  @Prop({ default: 0, required: true })
+  quota_per_person: number;
+}
+
+export const RoomQuotaOverrideSchema = SchemaFactory.createForClass(RoomQuotaOverride);
+
+@Schema({ _id: false })
 export class UtilityTariff {
   @Prop({ default: 0, required: true })
   quota_per_person: number;
@@ -13,6 +24,9 @@ export class UtilityTariff {
 
   @Prop({ default: '' })
   unit: string;
+
+  @Prop({ type: [RoomQuotaOverrideSchema], default: [] })
+  room_quota_overrides?: RoomQuotaOverride[];
 }
 
 export const UtilityTariffSchema = SchemaFactory.createForClass(UtilityTariff);

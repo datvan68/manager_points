@@ -103,6 +103,38 @@ describe('Dormitory Meter Readings Page (AC-10)', () => {
     });
   });
 
+  it('calculates from room-specific effective_tariffs and displays Riêng badge (AC-04, AC-05)', async () => {
+    const roomWithOverride = {
+      ...mockMeterReadingsData.rooms[0],
+      effective_tariffs: {
+        electricity: { quota_per_person: 20, unit_price: 2500, unit: 'kWh', source: 'room_override' as const },
+        water: { quota_per_person: 5, unit_price: 10000, unit: 'm³', source: 'room_override' as const },
+      },
+    };
+    (dormitoryApi.invoices.getMeterReadings as any).mockResolvedValue({
+      ...mockMeterReadingsData,
+      rooms: [roomWithOverride],
+    });
+
+    render(<MeterReadingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Phòng 101')).toBeDefined();
+      expect(screen.getAllByText('Riêng').length).toBeGreaterThanOrEqual(1);
+    });
+
+    // 2 occupants, room quota = 20 kWh. Previous = 100, New = 160 => Consumption = 60.
+    // Quota total = 2 * 20 = 40. Excess = 20 => 20 * 2500 = 50,000
+    const elecInput = screen.getByLabelText(/Số điện mới/i);
+    await act(async () => {
+      fireEvent.change(elecInput, { target: { value: '160' } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Thành tiền: 50\.000/i)).toBeDefined();
+    });
+  });
+
   it('has consistent outer spacing class on root main element', async () => {
     const { container } = render(<MeterReadingsPage />);
 

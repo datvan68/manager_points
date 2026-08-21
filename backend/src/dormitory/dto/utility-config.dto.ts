@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -11,6 +12,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export class RoomQuotaOverrideDto {
+  @IsNotEmpty()
+  @IsString()
+  room_id: string;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  quota_per_person: number;
+}
 
 export class UtilityTariffDto {
   @IsNotEmpty()
@@ -26,6 +38,12 @@ export class UtilityTariffDto {
   @IsOptional()
   @IsString()
   unit?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RoomQuotaOverrideDto)
+  room_quota_overrides?: RoomQuotaOverrideDto[];
 }
 
 export class TransferQrImageDto {
