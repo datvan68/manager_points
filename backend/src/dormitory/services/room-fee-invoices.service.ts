@@ -30,6 +30,7 @@ import {
   UpdateRoomFeeProofDto,
   QueryRoomFeeInvoiceDto,
 } from '../dto/room-fee-invoice.dto';
+import { dormitoryInvoiceEventEmitter } from '../dormitory-invoice-event-emitter';
 
 @Injectable()
 export class RoomFeeInvoicesService {
@@ -116,7 +117,12 @@ export class RoomFeeInvoicesService {
       config.updated_by_id = user._id || user.userId;
     }
 
-    return config.save();
+    const saved = await config.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'room_fee',
+      action: 'updated',
+    });
+    return saved;
   }
 
   /**
@@ -281,6 +287,14 @@ export class RoomFeeInvoicesService {
           throw err;
         }
       }
+    }
+
+    if (createdIds.length > 0) {
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'room_fee',
+        action: 'created',
+        ids: createdIds,
+      });
     }
 
     return {
@@ -477,6 +491,11 @@ export class RoomFeeInvoicesService {
 
     try {
       await invoice.save();
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'room_fee',
+        action: 'created',
+        id: invoice._id ? invoice._id.toString() : undefined,
+      });
     } catch (err: any) {
       if (err.code === 11000) {
         throw new ConflictException(
@@ -644,7 +663,13 @@ export class RoomFeeInvoicesService {
       };
     }
 
-    return invoice.save();
+    const saved = await invoice.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'room_fee',
+      action: 'updated',
+      id: saved?._id ? saved._id.toString() : (id ? id.toString() : undefined),
+    });
+    return saved;
   }
 
   /**
@@ -735,6 +760,12 @@ export class RoomFeeInvoicesService {
       );
     }
 
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'room_fee',
+      action: 'updated',
+      id: id,
+    });
+
     return invoice;
   }
 
@@ -801,6 +832,11 @@ export class RoomFeeInvoicesService {
       invoice.status = 'Chưa thu';
       invoice.paid_at = undefined;
       invoice.confirmed_by_id = undefined;
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'room_fee',
+        action: 'updated',
+        id: id,
+      });
       return invoice;
     }
 
@@ -884,6 +920,12 @@ export class RoomFeeInvoicesService {
       invoice.paid_at = undefined;
       invoice.confirmed_by_id = undefined;
     }
+
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'room_fee',
+      action: 'updated',
+      id: id,
+    });
 
     return invoice;
   }
@@ -981,6 +1023,14 @@ export class RoomFeeInvoicesService {
 
       await this.roomFeeInvoiceModel.deleteOne({ _id: id }).exec();
       deleted.push(id);
+    }
+
+    if (deleted.length > 0) {
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'room_fee',
+        action: 'deleted',
+        ids: deleted,
+      });
     }
 
     return {

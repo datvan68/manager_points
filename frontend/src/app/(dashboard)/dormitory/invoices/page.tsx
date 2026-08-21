@@ -14,7 +14,6 @@ import {
   Droplets,
   Calendar as CalendarIcon,
   DollarSign,
-  RefreshCw,
   Home,
   ListFilter,
   Check,
@@ -29,6 +28,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDormitoryInvoicesRealtime } from '@/hooks/useDormitoryInvoicesRealtime';
 import RoomFeeCollection from '@/components/dormitory/invoices/RoomFeeCollection';
 import RoomQuotaOverridesEditor from '@/components/dormitory/invoices/RoomQuotaOverridesEditor';
 import RoomUnitPriceOverridesEditor from '@/components/dormitory/invoices/RoomUnitPriceOverridesEditor';
@@ -146,6 +146,14 @@ export function getDisplayStatus(status?: string, reviewStatus?: string): 'Chưa
 export default function InvoicesPage() {
   const router = useRouter();
   const { hasPermission } = useAuth();
+  const canReadInvoice =
+    hasPermission('DORM_INVOICE_READ') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
+  const canCreateInvoice =
+    hasPermission('DORM_INVOICE_CREATE') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
   const canConfirmInvoice =
     hasPermission('DORM_INVOICE_CONFIRM') ||
     hasPermission('admin') ||
@@ -177,7 +185,6 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<DormInvoice[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'Tất cả' | 'Chưa thu' | 'Đã thu'>('Tất cả');
   const [filterMonth, setFilterMonth] = useState('');
   const [search, setSearch] = useState('');
@@ -463,11 +470,11 @@ export default function InvoicesPage() {
   // Load danh sách hóa đơn
   const load = useCallback(
     async (background = false, requestedPage = page) => {
+      if (!canReadInvoice) return;
       const requestId = ++invoiceRequestRef.current;
       const requested = isCompact ? 1 : requestedPage;
       try {
-        if (background) setRefreshing(true);
-        else setLoading(true);
+        if (!background) setLoading(true);
         const params: any = { page: requested, limit: pageSize };
         if (filterStatus === 'Chưa thu') params.status = 'Chưa thu';
         else if (filterStatus === 'Đã thu') params.status = 'Đã thu';
@@ -485,17 +492,27 @@ export default function InvoicesPage() {
         setMobileLoadError(false);
       } catch (err: any) {
         if (invoiceRequestRef.current === requestId) {
-          toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
+          if (!background) {
+            toast.error(err?.message || 'Lỗi tải danh sách hóa đơn');
+          }
         }
       } finally {
         if (invoiceRequestRef.current === requestId) {
           setLoading(false);
-          setRefreshing(false);
         }
       }
     },
-    [isCompact, filterStatus, filterMonth, search, page, pageSize],
+    [canReadInvoice, isCompact, filterStatus, filterMonth, search, page, pageSize],
   );
+
+  // Realtime updates
+  useDormitoryInvoicesRealtime({
+    kind: 'utility',
+    enabled: canReadInvoice && activeSubView === 'utility',
+    onInvalidate: () => {
+      void load(true);
+    },
+  });
 
   // Reset pagination on filter or breakpoint changes
   useEffect(() => {
@@ -1137,6 +1154,20 @@ export default function InvoicesPage() {
     </div>
   );
 
+  if (!canReadInvoice) {
+    return (
+      <main className="flex h-full min-h-0 flex-col items-center justify-center gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6 text-center">
+        <div className="flex flex-col items-center justify-center p-8 bg-white/60 backdrop-blur-md rounded-2xl border border-white/80 max-w-md shadow-xs">
+          <AlertCircle className="w-12 h-12 text-slate-300 mb-3" />
+          <h3 className="text-base font-semibold text-slate-700">Bạn không có quyền truy cập trang này</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Tài khoản của bạn chưa được cấp quyền xem hóa đơn ký túc xá (DORM_INVOICE_READ).
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
       {activeSubView === 'room_fee' ? (
@@ -1297,38 +1328,31 @@ export default function InvoicesPage() {
               {/* Cụm nút thao tác bên phải */}
               <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
                 {/* Nút Cấu hình định mức & đơn giá */}
-                <Button
-                  variant="outline"
-                  aria-label="Cấu hình định mức & đơn giá"
-                  title="Cấu hình định mức & đơn giá"
-                  onClick={openConfigModal}
-                  className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-                >
-                  <SlidersHorizontal size={15} />
-                </Button>
+                {canCreateInvoice && (
+                  <Button
+                    variant="outline"
+                    aria-label="Cấu hình định mức & đơn giá"
+                    title="Cấu hình định mức & đơn giá"
+                    onClick={openConfigModal}
+                    className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
+                  >
+                    <SlidersHorizontal size={15} />
+                  </Button>
+                )}
 
                 {/* Nút Ghi điện nước */}
-                <Button
-                  variant="outline"
-                  aria-label="Ghi điện nước"
-                  title="Ghi chỉ số điện - nước"
-                  onClick={() => router.push('/dormitory/invoices/meter-readings')}
-                  className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
-                >
-                  <Zap size={14} />
-                  <span className="hidden sm:inline">Ghi điện nước</span>
-                </Button>
-
-                {/* Nút Tải lại */}
-                <Button
-                  variant="outline"
-                  aria-label="Tải lại danh sách"
-                  title="Tải lại"
-                  onClick={() => void load(true)}
-                  className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-                >
-                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                </Button>
+                {canCreateInvoice && (
+                  <Button
+                    variant="outline"
+                    aria-label="Ghi điện nước"
+                    title="Ghi chỉ số điện - nước"
+                    onClick={() => router.push('/dormitory/invoices/meter-readings')}
+                    className="h-9 w-9 sm:w-auto rounded-xl border border-white/80 bg-white/50 p-0 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-white/80 shrink-0 gap-1.5 cursor-pointer"
+                  >
+                    <Zap size={14} />
+                    <span className="hidden sm:inline">Ghi điện nước</span>
+                  </Button>
+                )}
               </div>
             </div>
           )}

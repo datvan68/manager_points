@@ -19,6 +19,7 @@ import {
   RoomMeterReadingItem,
 } from '@/api/dormitory-api';
 import { toast } from 'sonner';
+import { useAuth } from '@/providers/auth-provider';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -47,6 +48,15 @@ interface CardState {
 
 export default function MeterReadingsPage() {
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canReadInvoice =
+    hasPermission('DORM_INVOICE_READ') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
+  const canCreateInvoice =
+    hasPermission('DORM_INVOICE_CREATE') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
 
   const defaultMonth = useMemo(() => {
     const now = new Date();
@@ -74,6 +84,7 @@ export default function MeterReadingsPage() {
 
   // Tải danh sách phòng và cấu hình cho kỳ thu
   const loadData = useCallback(async () => {
+    if (!canReadInvoice) return;
     try {
       setLoading(true);
       const res = await dormitoryApi.invoices.getMeterReadings(billingMonth);
@@ -103,7 +114,7 @@ export default function MeterReadingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [billingMonth]);
+  }, [canReadInvoice, billingMonth]);
 
   useEffect(() => {
     loadData();
@@ -319,6 +330,7 @@ export default function MeterReadingsPage() {
     field: 'electricity_reading' | 'water_reading' | 'notes' | 'is_exempt',
     value: any,
   ) {
+    if (!canCreateInvoice) return;
     setCardsState((prev) => {
       const current = prev[roomId] || {
         electricity_reading: '',
@@ -369,6 +381,7 @@ export default function MeterReadingsPage() {
 
   // Kích hoạt auto-save ngay khi rời ô nhập (onBlur)
   function handleInputBlur(roomId: string) {
+    if (!canCreateInvoice) return;
     const room = rooms.find((r) => r.room_id === roomId);
     const state = cardsState[roomId];
     if (!room || !state || !state.dirty) return;
@@ -404,6 +417,20 @@ export default function MeterReadingsPage() {
 
   const totalCount = rooms.length;
   const progressPercent = totalCount > 0 ? Math.round((recordedCount / totalCount) * 100) : 0;
+
+  if (!canReadInvoice) {
+    return (
+      <main className="flex h-full min-h-0 flex-col items-center justify-center gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6 text-center">
+        <div className="flex flex-col items-center justify-center p-8 bg-white/60 backdrop-blur-md rounded-2xl border border-white/80 max-w-md shadow-xs">
+          <AlertCircle className="w-12 h-12 text-slate-300 mb-3" />
+          <h3 className="text-base font-semibold text-slate-700">Bạn không có quyền truy cập trang này</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Tài khoản của bạn chưa được cấp quyền xem hóa đơn ký túc xá (DORM_INVOICE_READ).
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6 pb-16">
@@ -608,6 +635,7 @@ export default function MeterReadingsPage() {
                         <input
                           type="number"
                           min="0"
+                          disabled={!canCreateInvoice}
                           aria-label={`Số điện mới ${roomName}`}
                           placeholder="Nhập số mới"
                           value={cardState.electricity_reading}
@@ -617,7 +645,7 @@ export default function MeterReadingsPage() {
                           onBlur={() => handleInputBlur(room.room_id)}
                           className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 font-medium focus:outline-none transition-all duration-150 ${
                             preview.elecInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
-                          }`}
+                          } ${!canCreateInvoice ? 'cursor-not-allowed opacity-60' : ''}`}
                         />
                       </div>
                     </div>
@@ -679,6 +707,7 @@ export default function MeterReadingsPage() {
                         <input
                           type="number"
                           min="0"
+                          disabled={!canCreateInvoice}
                           aria-label={`Số nước mới ${roomName}`}
                           placeholder="Nhập số mới"
                           value={cardState.water_reading}
@@ -688,7 +717,7 @@ export default function MeterReadingsPage() {
                           onBlur={() => handleInputBlur(room.room_id)}
                           className={`w-full px-2.5 py-1.5 rounded-xl border text-sm text-[#1E293B] bg-white/80 font-medium focus:outline-none transition-all duration-150 ${
                             preview.waterInvalid ? 'border-red-500 ring-1 ring-red-400' : 'border-slate-200/80 focus:ring-2 focus:ring-[#1A73E8]/30'
-                          }`}
+                          } ${!canCreateInvoice ? 'cursor-not-allowed opacity-60' : ''}`}
                         />
                       </div>
                     </div>

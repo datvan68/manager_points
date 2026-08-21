@@ -165,14 +165,14 @@ export class RoomFeeInvoicesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
   @ApiOperation({ summary: 'Danh sách hóa đơn phí phòng' })
   findAll(@Query() query: QueryRoomFeeInvoiceDto) {
     return this.roomFeeInvoicesService.findAll(query);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
   @ApiOperation({ summary: 'Chi tiết hóa đơn phí phòng' })
   findOne(@Param('id') id: string) {
     return this.roomFeeInvoicesService.findOne(id);

@@ -40,6 +40,7 @@ import { MaintenanceService } from './services/maintenance.service';
 import { DormitoryReportsService } from './services/dormitory-reports.service';
 import { DormitoryRosterService } from './services/dormitory-roster.service';
 import { DormitoryRosterIdentityService } from './services/dormitory-roster-identity.service';
+import { DormitoryInvoiceRealtimeService } from './dormitory-invoice-realtime.service';
 
 // Controllers
 import { BuildingsController } from './controllers/buildings.controller';
@@ -119,6 +120,7 @@ import {
     DormitoryReportsService,
     DormitoryRosterService,
     DormitoryRosterIdentityService,
+    DormitoryInvoiceRealtimeService,
   ],
   exports: [
     BuildingsService,
@@ -127,6 +129,7 @@ import {
     ContractsService,
     InvoicesService,
     RoomFeeInvoicesService,
+    DormitoryInvoiceRealtimeService,
   ],
 })
 export class DormitoryModule {}

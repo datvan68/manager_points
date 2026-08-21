@@ -8,6 +8,7 @@ import { ReviewPaymentProofDto } from '../dto/create-invoice.dto';
 describe('InvoicesController', () => {
   let controller: InvoicesController;
   let service: any;
+  let realtimeService: any;
 
   beforeEach(() => {
     service = {
@@ -44,7 +45,11 @@ describe('InvoicesController', () => {
       }),
     };
 
-    controller = new InvoicesController(service);
+    realtimeService = {
+      getStream: jest.fn().mockReturnValue('mock-stream'),
+    };
+
+    controller = new InvoicesController(service, realtimeService);
   });
 
   it('getUtilityConfig delegates to service.getUtilityConfig (AC-01)', async () => {
@@ -230,5 +235,12 @@ describe('InvoicesController', () => {
     const result = await controller.bulkDelete(dto, req);
     expect(service.bulkDelete).toHaveBeenCalledWith(dto.ids, req.user);
     expect(result).toEqual(expectedResult);
+  });
+
+  it('realtime delegates to realtimeService.getStream', () => {
+    const req = { user: { userId: 'u-1' } };
+    const stream = controller.realtime('utility', req);
+    expect(realtimeService.getStream).toHaveBeenCalledWith(req.user, 'utility');
+    expect(stream).toBe('mock-stream');
   });
 });

@@ -17,12 +17,25 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { hasPermission } = useAuth();
 
+  const canReadInvoices =
+    hasPermission('DORM_INVOICE_READ') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
+
   const tabs = useMemo(() => {
-    if (hasPermission('PDF_TEMPLATE_READ')) {
-      return [...baseDormitoryTabs, { id: 'pdf-template', href: '/dormitory/pdf-template', label: 'PDF' }];
+    const list = [
+      { id: 'overview', href: '/dormitory/overview', label: 'Tổng quan' },
+      { id: 'registrations', href: '/dormitory/roster', label: 'Danh sách' },
+      { id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' },
+    ];
+    if (canReadInvoices) {
+      list.push({ id: 'invoices', href: '/dormitory/invoices', label: 'Hóa đơn' });
     }
-    return baseDormitoryTabs;
-  }, [hasPermission]);
+    if (hasPermission('PDF_TEMPLATE_READ') || hasPermission('admin') || hasPermission('ADMIN_FULL')) {
+      list.push({ id: 'pdf-template', href: '/dormitory/pdf-template', label: 'PDF' });
+    }
+    return list;
+  }, [canReadInvoices, hasPermission]);
 
   const activeTab = pathname?.startsWith('/dormitory/roster')
     ? 'registrations'

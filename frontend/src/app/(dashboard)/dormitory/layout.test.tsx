@@ -37,6 +37,7 @@ describe('DormitoryLayout', () => {
   });
 
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
+    mockHasPermission = vi.fn((perm: string) => perm === 'DORM_INVOICE_READ');
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-responsive-scrollable', 'true');
@@ -52,6 +53,12 @@ describe('DormitoryLayout', () => {
 
     screen.getByRole('button', { name: 'Hóa đơn' }).click();
     expect(push).toHaveBeenCalledWith('/dormitory/invoices');
+  });
+
+  it('hides invoices tab when lacking DORM_INVOICE_READ permission', () => {
+    mockHasPermission = vi.fn((_perm: string) => false);
+    render(<DormitoryLayout><div>content</div></DormitoryLayout>);
+    expect(screen.queryByRole('button', { name: 'Hóa đơn' })).not.toBeInTheDocument();
   });
 
   it('verifies Contracts, Violations, Maintenance, and Reports tabs are absent for any permission set (AC-01, AC-08)', () => {

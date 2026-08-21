@@ -11,6 +11,13 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+vi.mock('@/providers/auth-provider', () => ({
+  useAuth: () => ({
+    user: { _id: 'user-1', name: 'Admin', role: 'admin' },
+    hasPermission: () => true,
+  }),
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),

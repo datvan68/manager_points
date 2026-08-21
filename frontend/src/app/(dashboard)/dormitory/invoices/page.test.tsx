@@ -11,10 +11,12 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+let mockHasPermission = vi.fn().mockReturnValue(true);
+
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: () => ({
     user: { _id: 'user-1', name: 'Admin', role: 'admin' },
-    hasPermission: () => true,
+    hasPermission: mockHasPermission,
   }),
 }));
 
@@ -85,6 +87,7 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHasPermission = vi.fn().mockReturnValue(true);
     vi.mocked(dormitoryApi.invoices.getAll).mockResolvedValue({
       data: [],
       meta: { total: 0, page: 1, limit: 20 },
@@ -168,5 +171,32 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
         }),
       );
     });
+  });
+
+  it('renders access denied message when lacking DORM_INVOICE_READ permission', () => {
+    mockHasPermission = vi.fn().mockReturnValue(false);
+    render(<InvoicesPage />);
+    expect(screen.getByText('Bạn không có quyền truy cập trang này')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Cấu hình định mức & đơn giá')).not.toBeInTheDocument();
+  });
+
+  it('does not render manual refresh button in toolbar', async () => {
+    mockHasPermission = vi.fn().mockReturnValue(true);
+    render(<InvoicesPage />);
+    await waitFor(() => {
+      expect(dormitoryApi.rooms.getAll).toHaveBeenCalled();
+    });
+    expect(screen.queryByLabelText('Tải lại danh sách')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tải lại')).not.toBeInTheDocument();
+  });
+
+  it('hides create/config buttons when user has READ but not CREATE permission', async () => {
+    mockHasPermission = vi.fn((perm: string) => perm === 'DORM_INVOICE_READ');
+    render(<InvoicesPage />);
+    await waitFor(() => {
+      expect(dormitoryApi.rooms.getAll).toHaveBeenCalled();
+    });
+    expect(screen.queryByLabelText('Cấu hình định mức & đơn giá')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Ghi điện nước')).not.toBeInTheDocument();
   });
 });

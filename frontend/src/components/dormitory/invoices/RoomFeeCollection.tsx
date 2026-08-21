@@ -11,7 +11,6 @@ import {
   Eye,
   Calendar as CalendarIcon,
   DollarSign,
-  RefreshCw,
   Plus,
   User,
   Home,
@@ -30,6 +29,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDormitoryInvoicesRealtime } from '@/hooks/useDormitoryInvoicesRealtime';
 import {
   dormitoryApi,
   RoomFeeInvoice,
@@ -78,6 +78,10 @@ export interface RoomFeeCollectionProps {
 
 export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollectionProps = {}) {
   const { hasPermission } = useAuth();
+  const canReadInvoice =
+    hasPermission('DORM_INVOICE_READ') ||
+    hasPermission('admin') ||
+    hasPermission('ADMIN_FULL');
   const canCreateInvoice =
     hasPermission('DORM_INVOICE_CREATE') ||
     hasPermission('admin') ||
@@ -95,7 +99,6 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   // Data & Filtering state
   const [invoices, setInvoices] = useState<RoomFeeInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'Tất cả' | 'Chưa thu' | 'Đã thu'>('Tất cả');
   const [filterMonth, setFilterMonth] = useState('');
   const [search, setSearch] = useState('');
@@ -257,11 +260,11 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
 
   // Load Invoices
   const loadInvoices = useCallback(async (isRefresh = false, requestedPage = page) => {
+    if (!canReadInvoice) return;
     const requestId = ++invoiceRequestRef.current;
     const requested = isCompact ? 1 : requestedPage;
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (!isRefresh) setLoading(true);
 
       const params: any = {
         page: requested,
@@ -283,15 +286,25 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       setMobileLoadError(false);
     } catch (err: any) {
       if (invoiceRequestRef.current === requestId) {
-        toast.error(err?.message || 'Lỗi tải danh sách phí phòng');
+        if (!isRefresh) {
+          toast.error(err?.message || 'Lỗi tải danh sách phí phòng');
+        }
       }
     } finally {
       if (invoiceRequestRef.current === requestId) {
         setLoading(false);
-        setRefreshing(false);
       }
     }
-  }, [isCompact, page, pageSize, search, filterStatus, filterMonth]);
+  }, [canReadInvoice, isCompact, page, pageSize, search, filterStatus, filterMonth]);
+
+  // Realtime updates
+  useDormitoryInvoicesRealtime({
+    kind: 'room_fee',
+    enabled: canReadInvoice,
+    onInvalidate: () => {
+      void loadInvoices(true);
+    },
+  });
 
   // Reset pagination on filter or breakpoint changes
   useEffect(() => {
@@ -1109,15 +1122,17 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
           {/* Nút hành động bên phải */}
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             {/* Nút Cấu hình đợt thu */}
-            <Button
-              variant="outline"
-              aria-label="Cấu hình đơn giá thu phí phòng"
-              title="Cấu hình đơn giá & QR thu phí phòng"
-              onClick={openConfigModal}
-              className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-            >
-              <SlidersHorizontal size={15} />
-            </Button>
+            {canCreateInvoice && (
+              <Button
+                variant="outline"
+                aria-label="Cấu hình đơn giá thu phí phòng"
+                title="Cấu hình đơn giá & QR thu phí phòng"
+                onClick={openConfigModal}
+                className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
+              >
+                <SlidersHorizontal size={15} />
+              </Button>
+            )}
 
             {/* Nút Lập đợt thu cá nhân */}
             {canCreateInvoice && (
@@ -1146,17 +1161,6 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                 <span className="hidden sm:inline">Lập đợt thu</span>
               </Button>
             )}
-
-            {/* Nút Tải lại */}
-            <Button
-              variant="outline"
-              aria-label="Tải lại danh sách phí phòng"
-              title="Tải lại"
-              onClick={() => void loadInvoices(true)}
-              className="h-9 w-9 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700 hover:bg-white/80 shrink-0 cursor-pointer"
-            >
-              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-            </Button>
           </div>
         </div>
       )}

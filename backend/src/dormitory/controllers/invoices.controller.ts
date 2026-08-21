@@ -12,14 +12,16 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Sse,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { randomUUID } from 'crypto';
 import { InvoicesService } from '../services/invoices.service';
+import { DormitoryInvoiceRealtimeService } from '../dormitory-invoice-realtime.service';
 import {
   CreateInvoiceDto,
   PayInvoiceDto,
@@ -40,7 +42,18 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 @ApiBearerAuth()
 @Controller('dormitory/invoices')
 export class InvoicesController {
-  constructor(private readonly invoicesService: InvoicesService) {}
+  constructor(
+    private readonly invoicesService: InvoicesService,
+    private readonly realtimeService: DormitoryInvoiceRealtimeService,
+  ) {}
+
+  @Sse('realtime')
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
+  @ApiOperation({ summary: 'Lắng nghe sự kiện realtime hóa đơn KTX' })
+  @ApiQuery({ name: 'kind', required: false, enum: ['utility', 'room_fee'] })
+  realtime(@Query('kind') kind: string, @Request() req: any) {
+    return this.realtimeService.getStream(req.user, kind);
+  }
 
   @Get('config')
   @UseGuards(checkPermission('DORM_INVOICE_READ'))
@@ -202,7 +215,7 @@ export class InvoicesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
   findAll(
     @Query('room_id') room_id?: string,
     @Query('billing_month') billing_month?: string,
@@ -234,7 +247,7 @@ export class InvoicesController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_INVOICE_READ'))
   findOne(@Param('id') id: string) {
     return this.invoicesService.findOne(id);
   }

@@ -31,6 +31,7 @@ import { UpdateUtilityConfigDto } from '../dto/utility-config.dto';
 import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
 import { randomUUID } from 'crypto';
 import { MeterReading, MeterReadingDocument } from '../schemas/meter-reading.schema';
+import { dormitoryInvoiceEventEmitter } from '../dormitory-invoice-event-emitter';
 
 @Injectable()
 export class InvoicesService {
@@ -200,7 +201,13 @@ export class InvoicesService {
       notes: dto.notes,
     });
 
-    return invoice.save();
+    const saved = await invoice.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'created',
+      id: saved?._id ? saved._id.toString() : undefined,
+    });
+    return saved;
   }
 
   /**
@@ -308,7 +315,13 @@ export class InvoicesService {
       invoice.notes = dto.notes;
     }
 
-    return invoice.save();
+    const saved = await invoice.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'updated',
+      id: saved?._id ? saved._id.toString() : (id ? id.toString() : undefined),
+    });
+    return saved;
   }
 
   /**
@@ -369,7 +382,13 @@ export class InvoicesService {
       status: 'Chưa thu',
     });
 
-    return invoice.save();
+    const saved = await invoice.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'created',
+      id: saved?._id ? saved._id.toString() : undefined,
+    });
+    return saved;
   }
 
   /**
@@ -419,6 +438,13 @@ export class InvoicesService {
 
       await invoice.save();
       created++;
+    }
+
+    if (created > 0) {
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'utility',
+        action: 'created',
+      });
     }
 
     return { created, skipped };
@@ -556,7 +582,13 @@ export class InvoicesService {
     }
     if (hasTransferProof) invoice.payment_review = { status: 'pending', submitted_at: new Date() };
 
-    return invoice.save();
+    const saved = await invoice.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'updated',
+      id: saved?._id ? saved._id.toString() : (id ? id.toString() : undefined),
+    });
+    return saved;
   }
 
   /**
@@ -616,6 +648,11 @@ export class InvoicesService {
       update,
     ).exec();
     if (updateResult.modifiedCount !== 1) throw new BadRequestException('Hóa đơn đã thay đổi, vui lòng tải lại trước khi cập nhật chứng từ');
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'updated',
+      id: id,
+    });
     return invoice;
   }
 
@@ -636,6 +673,11 @@ export class InvoicesService {
       invoice.status = 'Chưa thu';
       invoice.paid_at = undefined;
       invoice.confirmed_by_id = undefined;
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'utility',
+        action: 'updated',
+        id: id,
+      });
       return invoice;
     }
     if (invoice.payment_review?.status !== 'pending') throw new BadRequestException('Chứng từ không ở trạng thái chờ duyệt');
@@ -666,6 +708,11 @@ export class InvoicesService {
       };
       invoice.status = 'Chưa thu'; invoice.paid_at = undefined; invoice.confirmed_by_id = undefined;
     }
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'updated',
+      id: id,
+    });
     return invoice;
   }
 
@@ -1003,6 +1050,10 @@ export class InvoicesService {
       config.updated_by_id = user._id || user.userId;
     }
     await config.save();
+    dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+      kind: 'utility',
+      action: 'updated',
+    });
     return this.getUtilityConfig();
   }
 
@@ -1345,6 +1396,15 @@ export class InvoicesService {
       }
     }
 
+    const successfulIds = results.filter((r) => r.success && r.invoice?._id).map((r) => r.invoice._id.toString());
+    if (successfulIds.length > 0) {
+      dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+        kind: 'utility',
+        action: 'updated',
+        ids: successfulIds,
+      });
+    }
+
     return { results };
   }
 
@@ -1421,6 +1481,11 @@ export class InvoicesService {
         await this.invoiceModel
           .deleteMany({ _id: { $in: deletableIds } })
           .exec();
+        dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
+          kind: 'utility',
+          action: 'deleted',
+          ids: deletedIdStrings,
+        });
       }
     }
 
