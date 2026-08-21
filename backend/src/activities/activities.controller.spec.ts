@@ -4,10 +4,14 @@ import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ActivitiesRealtimeService } from './activities-realtime.service';
+import { StorageService } from '../core/storage/storage.service';
+import { ImageProcessorService } from '../core/storage/image-processor.service';
 
 describe('ActivitiesController', () => {
   let controller: ActivitiesController;
   let service: ActivitiesService;
+  let storageService: StorageService;
+  let imageProcessor: ImageProcessorService;
 
   const mockActivitiesService = {
     create: jest.fn(),
@@ -27,6 +31,27 @@ describe('ActivitiesController', () => {
     adminTransferActivity: jest.fn(),
   };
 
+  const mockStorageService = {
+    saveBuffer: jest.fn().mockResolvedValue({
+      key: 'public/activities/covers/cover-123.webp',
+      url: '/api/media/public/activities/covers/cover-123.webp',
+      filename: 'cover-123.webp',
+      mime_type: 'image/webp',
+      size: 1024,
+    }),
+  };
+
+  const mockImageProcessor = {
+    processImage: jest.fn().mockResolvedValue({
+      buffer: Buffer.from('processed-image-bytes'),
+      mime_type: 'image/webp',
+      extension: 'webp',
+      width: 1200,
+      height: 600,
+      size: 1024,
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ActivitiesController],
@@ -39,6 +64,14 @@ describe('ActivitiesController', () => {
           provide: ActivitiesRealtimeService,
           useValue: { connect: jest.fn() },
         },
+        {
+          provide: StorageService,
+          useValue: mockStorageService,
+        },
+        {
+          provide: ImageProcessorService,
+          useValue: mockImageProcessor,
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -49,6 +82,33 @@ describe('ActivitiesController', () => {
 
     controller = module.get<ActivitiesController>(ActivitiesController);
     service = module.get<ActivitiesService>(ActivitiesService);
+    storageService = module.get<StorageService>(StorageService);
+    imageProcessor = module.get<ImageProcessorService>(ImageProcessorService);
+  });
+
+  describe('uploadMedia', () => {
+    it('should process image through ImageProcessorService and save to StorageService', async () => {
+      const mockFile = {
+        buffer: Buffer.from('raw-image-bytes'),
+        originalname: 'test.jpg',
+        mimetype: 'image/jpeg',
+        size: 2048,
+      } as Express.Multer.File;
+
+      const result = await controller.uploadMedia(mockFile, 'cover');
+
+      expect(imageProcessor.processImage).toHaveBeenCalledWith(mockFile.buffer, 'activity_cover');
+      expect(storageService.saveBuffer).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        expect.objectContaining({
+          namespace: 'activities',
+          subfolder: 'covers',
+          visibility: 'public',
+        }),
+      );
+      expect(result.url).toBe('/api/media/public/activities/covers/cover-123.webp');
+      expect(result.kind).toBe('cover');
+    });
   });
 
   describe('route-to-service requester propagation', () => {

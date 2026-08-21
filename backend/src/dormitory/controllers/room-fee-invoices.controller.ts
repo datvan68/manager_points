@@ -12,14 +12,18 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { memoryStorage } from 'multer';
 import { randomUUID } from 'crypto';
+import type { Response } from 'express';
 import { RoomFeeInvoicesService } from '../services/room-fee-invoices.service';
+import { StorageService } from '../../core/storage/storage.service';
+import { ImageProcessorService } from '../../core/storage/image-processor.service';
 import {
   UpdateRoomFeeConfigDto,
   PreviewRoomFeePeriodDto,
@@ -42,6 +46,8 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 export class RoomFeeInvoicesController {
   constructor(
     private readonly roomFeeInvoicesService: RoomFeeInvoicesService,
+    private readonly storageService: StorageService,
+    private readonly imageProcessor: ImageProcessorService,
   ) {}
 
   @Get('config')
@@ -62,38 +68,29 @@ export class RoomFeeInvoicesController {
   @UseGuards(checkPermission('DORM_INVOICE_CREATE'))
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadPath = './uploads';
-          if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
-          cb(null, uploadPath);
-        },
-        filename: (req, file, cb) =>
-          cb(
-            null,
-            `invoice-transfer-qr-${randomUUID()}${extname(file.originalname).toLowerCase()}`,
-          ),
-      }),
-      fileFilter: (req, file, cb) =>
-        file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)
-          ? cb(null, true)
-          : cb(
-              new BadRequestException(
-                'Chỉ chấp nhận file ảnh hợp lệ (PNG, JPEG, WebP)',
-              ),
-              false,
-            ),
+      storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
   @ApiOperation({ summary: 'Upload mã QR chuyển khoản thu phí phòng' })
-  uploadTransferQr(@UploadedFile() file: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Vui lòng chọn file ảnh QR hợp lệ');
+  async uploadTransferQr(@UploadedFile() file: Express.Multer.File) {
+    if (!file || !file.buffer) throw new BadRequestException('Vui lòng chọn file ảnh QR hợp lệ');
+    const processed = await this.imageProcessor.processImage(file.buffer, 'transfer_qr');
+    const filename = `invoice-transfer-qr-${randomUUID()}.${processed.extension}`;
+    const meta = await this.storageService.saveBuffer(processed.buffer, {
+      namespace: 'dormitory-qr',
+      filename,
+      visibility: 'public',
+      contentType: processed.mime_type,
+      width: processed.width,
+      height: processed.height,
+    });
+
     return {
-      url: `/uploads/${file.filename}`,
-      file_name: file.filename,
-      mime_type: file.mimetype,
-      size: file.size,
+      url: meta.url,
+      file_name: meta.filename,
+      mime_type: meta.mime_type,
+      size: meta.size,
     };
   }
 
@@ -129,42 +126,87 @@ export class RoomFeeInvoicesController {
   @UseGuards(checkPermission('DORM_INVOICE_CONFIRM'))
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadPath = './uploads';
-          if (!existsSync(uploadPath)) mkdirSync(uploadPath, { recursive: true });
-          cb(null, uploadPath);
-        },
-        filename: (req, file, cb) =>
-          cb(
-            null,
-            `invoice-proof-${randomUUID()}${extname(file.originalname).toLowerCase()}`,
-          ),
-      }),
-      fileFilter: (req, file, cb) =>
-        file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)
-          ? cb(null, true)
-          : cb(
-              new BadRequestException(
-                'Chỉ chấp nhận file ảnh hợp lệ (PNG, JPEG, WebP)',
-              ),
-              false,
-            ),
+      storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
   @ApiOperation({ summary: 'Upload chứng từ thanh toán phí phòng' })
-  uploadProof(@UploadedFile() file: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Vui lòng chọn file ảnh chứng từ hợp lệ');
+  async uploadProof(@UploadedFile() file: Express.Multer.File) {
+    if (!file || !file.buffer) throw new BadRequestException('Vui lòng chọn file ảnh chứng từ hợp lệ');
+    const processed = await this.imageProcessor.processImage(file.buffer, 'invoice_proof');
+    const filename = `invoice-proof-${randomUUID()}.${processed.extension}`;
+    const meta = await this.storageService.saveBuffer(processed.buffer, {
+      namespace: 'room-fee-invoices',
+      subfolder: 'proofs',
+      filename,
+      visibility: 'private',
+      contentType: processed.mime_type,
+      width: processed.width,
+      height: processed.height,
+    });
+
     return {
-      url: `/uploads/${file.filename}`,
-      file_name: file.filename,
-      mime_type: file.mimetype,
-      size: file.size,
+      url: meta.url,
+      file_name: meta.filename,
+      mime_type: meta.mime_type,
+      size: meta.size,
     };
   }
 
+  @Get(':id/proof')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Xem/Tải ảnh chứng từ thanh toán phí phòng (Yêu cầu xác thực)' })
+  async getProof(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const invoice = await this.roomFeeInvoicesService.findOne(id);
+    if (!invoice || !invoice.payment_proof || !invoice.payment_proof.url) {
+      throw new NotFoundException('Không tìm thấy chứng từ thanh toán cho hóa đơn này');
+    }
+
+    const user = req.user;
+    const permissions = user?.permissions || [];
+    const hasPermission =
+      permissions.includes('DORM_INVOICE_READ') ||
+      permissions.includes('DORM_INVOICE_CONFIRM') ||
+      user?.roleCode === 'ADMIN' ||
+      user?.roleName === 'Admin';
+
+    const userIdStr = String(user?.userId || user?._id || user?.id || '');
+    const isOwner =
+      (invoice.student_id && String(invoice.student_id) === userIdStr) ||
+      (invoice.roster_entry_id && String(invoice.roster_entry_id) === userIdStr);
+
+    if (!hasPermission && !isOwner) {
+      throw new ForbiddenException('Bạn không có quyền xem chứng từ thanh toán này');
+    }
+
+    const storageKey = this.storageService.extractStorageKey(
+      invoice.payment_proof.url,
+      'private/room-fee-invoices/proofs',
+    );
+
+    const exists = await this.storageService.fileExists(storageKey);
+    if (!exists) {
+      throw new NotFoundException('Tệp tin chứng từ không tồn tại trên hệ thống lưu trữ');
+    }
+
+    const mimeType = invoice.payment_proof.mime_type || 'image/webp';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${invoice.payment_proof.file_name || 'proof.webp'}"`,
+    );
+
+    const stream = this.storageService.getFileStream(storageKey);
+    stream.pipe(res);
+  }
+
   @Get()
+
   @UseGuards(checkPermission('DORM_INVOICE_READ'))
   @ApiOperation({ summary: 'Danh sách hóa đơn phí phòng' })
   findAll(@Query() query: QueryRoomFeeInvoiceDto) {

@@ -103,7 +103,9 @@ services:
       SYSTEM_ADMIN_EMAIL: ${SYSTEM_ADMIN_EMAIL:-}
       SYSTEM_ADMIN_USERNAME: ${SYSTEM_ADMIN_USERNAME:-}
       SYSTEM_ADMIN_PASSWORD: ${SYSTEM_ADMIN_PASSWORD:-}
+      UPLOAD_STORAGE_ROOT: ${UPLOAD_STORAGE_ROOT:-/app/storage/uploads}
     expose:
+
       - "8000"
     volumes:
       - backend-storage:/app/storage

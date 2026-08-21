@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -31,6 +32,7 @@ import {
   QueryRoomFeeInvoiceDto,
 } from '../dto/room-fee-invoice.dto';
 import { dormitoryInvoiceEventEmitter } from '../dormitory-invoice-event-emitter';
+import { StorageService } from '../../core/storage/storage.service';
 
 @Injectable()
 export class RoomFeeInvoicesService {
@@ -43,7 +45,9 @@ export class RoomFeeInvoicesService {
     private rosterModel: Model<DormitoryRosterEntryDocument>,
     @InjectModel(Room.name)
     private roomModel: Model<RoomDocument>,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
+
 
   /**
    * Tính toán tháng kết thúc từ start_month ('YYYY-MM') và số tháng thu
@@ -743,6 +747,7 @@ export class RoomFeeInvoicesService {
       delete update.$unset;
     }
 
+    const oldProofUrl = invoice.payment_proof?.url;
     const updateResult = await this.roomFeeInvoiceModel
       .updateOne(
         {
@@ -760,11 +765,28 @@ export class RoomFeeInvoicesService {
       );
     }
 
+    // Reference-safe cleanup of old proof file if replaced
+    if (
+      this.storageService &&
+      oldProofUrl &&
+      (dto.payment_proof || dto.proof_url) &&
+      oldProofUrl !== (dto.payment_proof?.url || dto.proof_url)
+    ) {
+      const remainingCount = await this.roomFeeInvoiceModel.countDocuments({
+        'payment_proof.url': oldProofUrl,
+      });
+      if (remainingCount === 0) {
+        const storageKey = this.storageService.extractStorageKey(oldProofUrl, 'private/room-fee-invoices/proofs');
+        await this.storageService.deleteFile(storageKey).catch(() => {});
+      }
+    }
+
     dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
       kind: 'room_fee',
       action: 'updated',
       id: id,
     });
+
 
     return invoice;
   }
@@ -1023,7 +1045,23 @@ export class RoomFeeInvoicesService {
 
       await this.roomFeeInvoiceModel.deleteOne({ _id: id }).exec();
       deleted.push(id);
+
+      // Clean up proof if unreferenced
+      if (this.storageService && inv.payment_proof?.url) {
+        const proofUrl = inv.payment_proof.url;
+        const remainingCount = await this.roomFeeInvoiceModel.countDocuments({
+          'payment_proof.url': proofUrl,
+        });
+        if (remainingCount === 0) {
+          const storageKey = this.storageService.extractStorageKey(
+            proofUrl,
+            'private/room-fee-invoices/proofs',
+          );
+          await this.storageService.deleteFile(storageKey).catch(() => {});
+        }
+      }
     }
+
 
     if (deleted.length > 0) {
       dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {

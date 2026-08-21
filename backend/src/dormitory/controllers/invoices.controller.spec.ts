@@ -7,15 +7,25 @@ import { ReviewPaymentProofDto } from '../dto/create-invoice.dto';
 
 describe('InvoicesController', () => {
   let controller: InvoicesController;
-  let service: any;
-  let realtimeService: any;
+  let storageService: any;
+  let imageProcessor: any;
 
   beforeEach(() => {
     service = {
+      getConfig: jest.fn().mockResolvedValue({
+        electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
+        water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
+        configured_collection_days: 10,
+      }),
       getUtilityConfig: jest.fn().mockResolvedValue({
         electricity: { quota_per_person: 15, unit_price: 2500, unit: 'kWh' },
         water: { quota_per_person: 4, unit_price: 10000, unit: 'm³' },
         configured_collection_days: 10,
+      }),
+      updateConfig: jest.fn().mockResolvedValue({
+        electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
+        water: { quota_per_person: 5, unit_price: 12000, unit: 'm³' },
+        configured_collection_days: 15,
       }),
       updateUtilityConfig: jest.fn().mockResolvedValue({
         electricity: { quota_per_person: 20, unit_price: 3000, unit: 'kWh' },
@@ -34,7 +44,15 @@ describe('InvoicesController', () => {
       updateMonthly: jest.fn().mockResolvedValue({ _id: 'inv-1', invoice_code: 'INV-1' }),
       getRoomInfo: jest.fn().mockResolvedValue({ occupant_count: 2, last_readings: { electricity: 100, water: 20 } }),
       findAll: jest.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
-      findOne: jest.fn().mockResolvedValue({ _id: 'inv-1' }),
+      findOne: jest.fn().mockResolvedValue({
+        _id: 'inv-1',
+        student_id: 'u-1',
+        payment_proof: {
+          url: '/api/media/private/invoices/proofs/proof-123.webp',
+          file_name: 'proof-123.webp',
+          mime_type: 'image/webp',
+        },
+      }),
       pay: jest.fn().mockResolvedValue({ _id: 'inv-1', status: 'Đã thu' }),
       getOverdueSummary: jest.fn().mockResolvedValue({ total_overdue: 0, total_amount: 0 }),
       bulkDelete: jest.fn().mockResolvedValue({
@@ -49,8 +67,35 @@ describe('InvoicesController', () => {
       getStream: jest.fn().mockReturnValue('mock-stream'),
     };
 
-    controller = new InvoicesController(service, realtimeService);
+    storageService = {
+      saveBuffer: jest.fn().mockImplementation((buf, opts) =>
+        Promise.resolve({
+          key: `${opts.visibility}/${opts.namespace}/${opts.subfolder ? opts.subfolder + '/' : ''}${opts.filename || 'file.webp'}`,
+          url: `/api/media/${opts.visibility}/${opts.namespace}/${opts.subfolder ? opts.subfolder + '/' : ''}${opts.filename || 'file.webp'}`,
+          filename: opts.filename || 'file.webp',
+          mime_type: opts.contentType || 'image/webp',
+          size: buf.length,
+        }),
+      ),
+      extractStorageKey: jest.fn().mockReturnValue('private/invoices/proofs/proof-123.webp'),
+      fileExists: jest.fn().mockResolvedValue(true),
+      getFileStream: jest.fn().mockReturnValue({ pipe: jest.fn() }),
+    };
+
+    imageProcessor = {
+      processImage: jest.fn().mockResolvedValue({
+        buffer: Buffer.from('processed-bytes'),
+        mime_type: 'image/webp',
+        extension: 'webp',
+        width: 1000,
+        height: 1000,
+        size: 1024,
+      }),
+    };
+
+    controller = new InvoicesController(service, realtimeService, storageService, imageProcessor);
   });
+
 
   it('getUtilityConfig delegates to service.getUtilityConfig (AC-01)', async () => {
     const result = await controller.getUtilityConfig();
@@ -157,32 +202,51 @@ describe('InvoicesController', () => {
     expect(result.occupant_count).toBe(2);
   });
 
-  it('uploadProof returns file metadata for valid file (AC-07)', () => {
+  it('uploadProof returns file metadata for valid file (AC-07)', async () => {
     const mockFile: any = {
-      filename: 'invoice-proof-123.png',
+      buffer: Buffer.from('proof-data'),
+      originalname: 'invoice-proof-123.png',
       mimetype: 'image/png',
       size: 102400,
     };
 
-    const result = controller.uploadProof(mockFile);
-    expect(result.url).toBe('/uploads/invoice-proof-123.png');
-    expect(result.file_name).toBe('invoice-proof-123.png');
-    expect(result.mime_type).toBe('image/png');
-    expect(result.size).toBe(102400);
+    const result = await controller.uploadProof(mockFile);
+    expect(result.url).toContain('/api/media/private/invoices/proofs/');
+    expect(result.mime_type).toBe('image/webp');
   });
 
-  it('uploadProof throws BadRequestException if file is missing', () => {
-    expect(() => controller.uploadProof(undefined as any)).toThrow(BadRequestException);
+  it('uploadProof throws BadRequestException if file is missing', async () => {
+    await expect(controller.uploadProof(undefined as any)).rejects.toThrow(BadRequestException);
   });
 
-  it('uploadTransferQr returns persistent image metadata', () => {
-    const result = controller.uploadTransferQr({ filename: 'invoice-transfer-qr-1.webp', mimetype: 'image/webp', size: 2048 } as any);
-    expect(result).toEqual({ url: '/uploads/invoice-transfer-qr-1.webp', file_name: 'invoice-transfer-qr-1.webp', mime_type: 'image/webp', size: 2048 });
+  it('uploadTransferQr returns persistent image metadata', async () => {
+    const mockFile: any = {
+      buffer: Buffer.from('qr-data'),
+      originalname: 'invoice-transfer-qr-1.webp',
+      mimetype: 'image/webp',
+      size: 2048,
+    };
+    const result = await controller.uploadTransferQr(mockFile);
+    expect(result.url).toContain('/api/media/public/dormitory-qr/');
   });
 
-  it('uploadTransferQr rejects a missing file', () => {
-    expect(() => controller.uploadTransferQr(undefined as any)).toThrow(BadRequestException);
+  it('uploadTransferQr rejects a missing file', async () => {
+    await expect(controller.uploadTransferQr(undefined as any)).rejects.toThrow(BadRequestException);
   });
+
+  it('getProof streams payment proof when authorized', async () => {
+    const req = { user: { userId: 'u-1', permissions: ['DORM_INVOICE_READ'] } };
+    const res = {
+      setHeader: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+      end: jest.fn(),
+    } as any;
+
+    await controller.getProof('inv-1', req, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/webp');
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+  });
+
 
   it('pay delegates to service.pay (AC-07, AC-08)', async () => {
     const dto: any = { payment_method: 'Chuyển khoản' };

@@ -42,8 +42,28 @@ async function bootstrap() {
     : 0;
   app.getHttpAdapter().getInstance().set('trust proxy', trustedProxyHops);
 
-  // Serve static uploads
-  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+  // Bounded legacy compatibility middleware for /uploads
+  app.use('/uploads', (req: any, res: any, next: any) => {
+    const filename = req.path.replace(/^\/+/, '');
+    if (filename.startsWith('invoice-proof-')) {
+      return res.status(403).json({
+        statusCode: 403,
+        message: 'Truy cập ảnh chứng từ yêu cầu xác thực qua API',
+      });
+    }
+    if (filename.startsWith('invoice-transfer-qr-')) {
+      return res.redirect(301, `/api/media/public/dormitory-qr/${filename}`);
+    }
+    // Allow public activity assets during migration window if present
+    const legacyPath = join(__dirname, '..', 'uploads', filename);
+    res.sendFile(legacyPath, (err: any) => {
+      if (err) {
+        res.status(404).json({ statusCode: 404, message: 'Tệp tin không tồn tại' });
+      }
+    });
+  });
+
+
 
   app.use(
     helmet({

@@ -15,8 +15,11 @@ import {
 describe('RoomFeeInvoicesController', () => {
   let controller: RoomFeeInvoicesController;
   let service: any;
+  let storageService: any;
+  let imageProcessor: any;
 
   beforeEach(() => {
+
     service = {
       getConfig: jest.fn().mockResolvedValue({
         standard_monthly_rate: 500000,
@@ -58,26 +61,52 @@ describe('RoomFeeInvoicesController', () => {
         total_amount: 3000000,
       }),
       findAll: jest.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
-      findOne: jest.fn().mockResolvedValue({ _id: 'rfi-1' }),
-      pay: jest.fn().mockResolvedValue({ _id: 'rfi-1', status: 'Đã thu' }),
-      updatePaymentProof: jest.fn().mockResolvedValue({ _id: 'rfi-1' }),
-      reviewPaymentProof: jest.fn().mockResolvedValue({ _id: 'rfi-1' }),
-      bulkReviewPaymentProof: jest.fn().mockResolvedValue({
-        requested: 1,
-        results: [{ id: 'rfi-1', outcome: 'approved' }],
+      findOne: jest.fn().mockResolvedValue({
+        _id: 'rfi-1',
+        student_id: 'u-1',
+        payment_proof: {
+          url: '/api/media/private/room-fee-invoices/proofs/proof-rf-123.webp',
+          file_name: 'proof-rf-123.webp',
+          mime_type: 'image/webp',
+        },
       }),
-      bulkDelete: jest.fn().mockResolvedValue({
-        requested: 1,
-        deleted: ['rfi-1'],
-        not_found: [],
-        rejected: [],
+      pay: jest.fn().mockResolvedValue({ _id: 'rfi-1', status: 'Đã thu' }),
+      reviewPaymentProof: jest.fn().mockResolvedValue({ _id: 'rfi-1', status: 'Đã thu' }),
+      bulkReviewPaymentProof: jest.fn().mockResolvedValue({ requested: 1, results: [] }),
+      bulkDelete: jest.fn().mockResolvedValue({ requested: 1, deleted: ['rfi-1'], not_found: [], rejected: [] }),
+    };
+
+    storageService = {
+      saveBuffer: jest.fn().mockImplementation((buf, opts) =>
+        Promise.resolve({
+          key: `${opts.visibility}/${opts.namespace}/${opts.subfolder ? opts.subfolder + '/' : ''}${opts.filename || 'file.webp'}`,
+          url: `/api/media/${opts.visibility}/${opts.namespace}/${opts.subfolder ? opts.subfolder + '/' : ''}${opts.filename || 'file.webp'}`,
+          filename: opts.filename || 'file.webp',
+          mime_type: opts.contentType || 'image/webp',
+          size: buf.length,
+        }),
+      ),
+      extractStorageKey: jest.fn().mockReturnValue('private/room-fee-invoices/proofs/proof-rf-123.webp'),
+      fileExists: jest.fn().mockResolvedValue(true),
+      getFileStream: jest.fn().mockReturnValue({ pipe: jest.fn() }),
+    };
+
+    imageProcessor = {
+      processImage: jest.fn().mockResolvedValue({
+        buffer: Buffer.from('processed-bytes'),
+        mime_type: 'image/webp',
+        extension: 'webp',
+        width: 1000,
+        height: 1000,
+        size: 1024,
       }),
     };
 
-    controller = new RoomFeeInvoicesController(service);
+    controller = new RoomFeeInvoicesController(service, storageService, imageProcessor);
   });
 
   it('getConfig delegates to service.getConfig', async () => {
+
     const result = await controller.getConfig();
     expect(service.getConfig).toHaveBeenCalled();
     expect(result.standard_monthly_rate).toBe(500000);
@@ -136,32 +165,48 @@ describe('RoomFeeInvoicesController', () => {
     expect(result._id).toBe('rfi-ind-1');
   });
 
-  it('uploadProof returns metadata on valid image', () => {
+  it('uploadProof returns metadata on valid image', async () => {
     const mockFile: any = {
-      filename: 'invoice-proof-test.png',
+      buffer: Buffer.from('proof-data'),
+      originalname: 'invoice-proof-test.png',
       mimetype: 'image/png',
       size: 10240,
     };
-    const result = controller.uploadProof(mockFile);
-    expect(result.url).toBe('/uploads/invoice-proof-test.png');
-    expect(result.file_name).toBe('invoice-proof-test.png');
+    const result = await controller.uploadProof(mockFile);
+    expect(result.url).toContain('/api/media/private/room-fee-invoices/proofs/');
+    expect(result.mime_type).toBe('image/webp');
   });
 
-  it('uploadProof throws BadRequestException on missing file', () => {
-    expect(() => controller.uploadProof(undefined as any)).toThrow(
+  it('uploadProof throws BadRequestException on missing file', async () => {
+    await expect(controller.uploadProof(undefined as any)).rejects.toThrow(
       BadRequestException,
     );
   });
 
-  it('uploadTransferQr returns metadata on valid image', () => {
+  it('uploadTransferQr returns metadata on valid image', async () => {
     const mockFile: any = {
-      filename: 'invoice-transfer-qr-test.webp',
+      buffer: Buffer.from('qr-data'),
+      originalname: 'invoice-transfer-qr-test.webp',
       mimetype: 'image/webp',
       size: 2048,
     };
-    const result = controller.uploadTransferQr(mockFile);
-    expect(result.url).toBe('/uploads/invoice-transfer-qr-test.webp');
+    const result = await controller.uploadTransferQr(mockFile);
+    expect(result.url).toContain('/api/media/public/dormitory-qr/');
   });
+
+  it('getProof streams payment proof when authorized', async () => {
+    const req = { user: { userId: 'u-1', permissions: ['DORM_INVOICE_READ'] } };
+    const res = {
+      setHeader: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+      end: jest.fn(),
+    } as any;
+
+    await controller.getProof('rfi-1', req, res);
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/webp');
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+  });
+
 
   it('pay delegates to service.pay', async () => {
     const dto: any = { payment_method: 'Tiền mặt' };

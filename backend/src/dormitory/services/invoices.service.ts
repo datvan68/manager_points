@@ -32,6 +32,8 @@ import { BulkMeterReadingsDto } from '../dto/bulk-meter-readings.dto';
 import { randomUUID } from 'crypto';
 import { MeterReading, MeterReadingDocument } from '../schemas/meter-reading.schema';
 import { dormitoryInvoiceEventEmitter } from '../dormitory-invoice-event-emitter';
+import { StorageService } from '../../core/storage/storage.service';
+
 
 @Injectable()
 export class InvoicesService {
@@ -46,6 +48,7 @@ export class InvoicesService {
     private utilityConfigModel: Model<UtilityConfigDocument>,
     @Optional() @InjectModel(MeterReading.name)
     private meterReadingModel?: Model<MeterReadingDocument>,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   /**
@@ -643,17 +646,36 @@ export class InvoicesService {
       }
     }
     if (!Object.keys(update.$unset).length) delete update.$unset;
+    const oldProofUrl = invoice.payment_proof?.url;
     const updateResult = await this.invoiceModel.updateOne(
       { _id: id, status: originalStatus, 'payment_review.status': originalReviewStatus },
       update,
     ).exec();
     if (updateResult.modifiedCount !== 1) throw new BadRequestException('Hóa đơn đã thay đổi, vui lòng tải lại trước khi cập nhật chứng từ');
+
+    // Reference-safe cleanup of old proof file if replaced
+    if (
+      this.storageService &&
+      oldProofUrl &&
+      (dto.payment_proof || dto.proof_url) &&
+      oldProofUrl !== (dto.payment_proof?.url || dto.proof_url)
+    ) {
+      const remainingCount = await this.invoiceModel.countDocuments({
+        'payment_proof.url': oldProofUrl,
+      });
+      if (remainingCount === 0) {
+        const storageKey = this.storageService.extractStorageKey(oldProofUrl, 'private/invoices/proofs');
+        await this.storageService.deleteFile(storageKey).catch(() => {});
+      }
+    }
+
     dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
       kind: 'utility',
       action: 'updated',
       id: id,
     });
     return invoice;
+
   }
 
   async reviewPaymentProof(id: string, decision: 'approved' | 'rejected' | 'revoked', user: any, requestId = `${decision}-${id}-${Date.now()}`): Promise<Invoice> {
@@ -1478,15 +1500,38 @@ export class InvoicesService {
       }
 
       if (deletableIds.length > 0) {
+        const proofUrlsToCheck: string[] = [];
+        for (const objId of deletableIds) {
+          const inv = existingMap.get(String(objId));
+          if (inv?.payment_proof?.url) {
+            proofUrlsToCheck.push(inv.payment_proof.url);
+          }
+        }
+
         await this.invoiceModel
           .deleteMany({ _id: { $in: deletableIds } })
           .exec();
+
+        // Reference-safe storage cleanup after DB success
+        if (this.storageService && proofUrlsToCheck.length > 0) {
+          for (const proofUrl of proofUrlsToCheck) {
+            const remainingCount = await this.invoiceModel.countDocuments({
+              'payment_proof.url': proofUrl,
+            });
+            if (remainingCount === 0) {
+              const storageKey = this.storageService.extractStorageKey(proofUrl, 'private/invoices/proofs');
+              await this.storageService.deleteFile(storageKey).catch(() => {});
+            }
+          }
+        }
+
         dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
           kind: 'utility',
           action: 'deleted',
           ids: deletedIdStrings,
         });
       }
+
     }
 
     return {

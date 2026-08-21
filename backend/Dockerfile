@@ -35,7 +35,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Create storage directory and set correct owner for non-root app user
-RUN mkdir -p /app/storage && chown -R app:app /app/storage
+RUN mkdir -p /app/storage/uploads && chown -R app:app /app/storage
+
 
 # Use non-root user
 USER app

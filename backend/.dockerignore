@@ -11,3 +11,6 @@ Dockerfile
 README.md
 docker-compose*.yml
 test
+uploads
+storage
+

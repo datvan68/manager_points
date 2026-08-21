@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -15,10 +15,7 @@
   Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync } from 'fs';
+import { memoryStorage } from 'multer';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -32,6 +29,9 @@ import {
 } from '../auth/guards/check-permission.guard';
 import { ActivitiesService } from './activities.service';
 import { ActivitiesRealtimeService } from './activities-realtime.service';
+import { StorageService } from '../core/storage/storage.service';
+import { ImageProcessorService } from '../core/storage/image-processor.service';
+import { ImagePreset } from '../core/storage/storage.interface';
 import type { Response } from 'express';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
@@ -49,7 +49,12 @@ import {
 @ApiTags('Activities')
 @Controller('activities')
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService, private readonly realtime: ActivitiesRealtimeService) {}
+  constructor(
+    private readonly activitiesService: ActivitiesService,
+    private readonly realtime: ActivitiesRealtimeService,
+    private readonly storageService: StorageService,
+    private readonly imageProcessor: ImageProcessorService,
+  ) {}
 
   @Get('realtime')
   @UseGuards(checkPermission('ACTIVITY_READ'))
@@ -72,30 +77,7 @@ export class ActivitiesController {
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const uploadPath = './uploads';
-          if (!existsSync(uploadPath)) {
-            mkdirSync(uploadPath, { recursive: true });
-          }
-          cb(null, uploadPath);
-        },
-        filename: (req, file, cb) => {
-          const uniqueSuffix = randomUUID();
-          const ext = extname(file.originalname).toLowerCase();
-          cb(null, `${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-          cb(null, true);
-        } else {
-          cb(
-            new BadRequestException('Chỉ chấp nhận file ảnh (PNG, JPEG, WebP)'),
-            false,
-          );
-        }
-      },
+      storage: memoryStorage(),
       limits: {
         fileSize: 5 * 1024 * 1024, // 5MB
       },
@@ -103,20 +85,42 @@ export class ActivitiesController {
   )
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Upload cover, logo hoặc frame cho câu lạc bộ' })
-  uploadMedia(
+  async uploadMedia(
     @UploadedFile() file: Express.Multer.File,
     @Body('kind') bodyKind?: 'cover' | 'logo' | 'frame',
     @Query('kind') queryKind?: 'cover' | 'logo' | 'frame',
   ) {
-    if (!file) {
+    if (!file || !file.buffer) {
       throw new BadRequestException('Vui lòng chọn file hợp lệ');
     }
     const kind = bodyKind || queryKind || 'cover';
+
+    let preset: ImagePreset = 'activity_cover';
+    let subfolder = 'covers';
+
+    if (kind === 'logo') {
+      preset = 'activity_logo';
+      subfolder = 'logos';
+    } else if (kind === 'frame') {
+      preset = 'activity_frame';
+      subfolder = 'frames';
+    }
+
+    const processed = await this.imageProcessor.processImage(file.buffer, preset);
+    const meta = await this.storageService.saveBuffer(processed.buffer, {
+      namespace: 'activities',
+      subfolder,
+      visibility: 'public',
+      contentType: processed.mime_type,
+      width: processed.width,
+      height: processed.height,
+    });
+
     return {
-      url: `/uploads/${file.filename}`,
-      file_name: file.filename,
-      mime_type: file.mimetype,
-      size: file.size,
+      url: meta.url,
+      file_name: meta.filename,
+      mime_type: meta.mime_type,
+      size: meta.size,
       kind,
     };
   }

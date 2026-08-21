@@ -948,7 +948,17 @@ export const dormitoryApi = {
       });
       return handleResponse(res);
     },
+    async getProofBlob(id: string): Promise<Blob> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof`, {
+        method: 'GET',
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to load proof: ${res.statusText}`);
+      }
+      return res.blob();
+    },
     async reviewProof(id: string, decision: 'approved' | 'rejected' | 'revoked', requestId: string): Promise<DormInvoice> {
+
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof/review`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, request_id: requestId }),
       });
@@ -1123,7 +1133,20 @@ export const dormitoryApi = {
       );
       return handleResponse(res);
     },
+    async getProofBlob(id: string): Promise<Blob> {
+      const res = await httpClient(
+        `${API_BASE}/dormitory/room-fee-invoices/${id}/proof`,
+        {
+          method: 'GET',
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to load room fee proof: ${res.statusText}`);
+      }
+      return res.blob();
+    },
     async reviewProof(
+
       id: string,
       decision: 'approved' | 'rejected' | 'revoked',
       requestId: string,

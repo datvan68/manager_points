@@ -66,7 +66,7 @@ export class UtilityTariffDto {
 export class TransferQrImageDto {
   @IsNotEmpty()
   @IsString()
-  @Matches(/^\/uploads\/invoice-transfer-qr-[a-zA-Z0-9-]+\.(png|jpe?g|webp)$/i)
+  @Matches(/^(\/api\/media\/public\/|\/uploads\/|https?:\/\/|[a-zA-Z0-9_\-\/]+)[a-zA-Z0-9_\-\.\/]+$/i)
   url: string;
 
   @IsOptional()
