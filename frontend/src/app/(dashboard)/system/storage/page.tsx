@@ -189,50 +189,56 @@ export default function StorageManagementPage() {
   if (authLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+        <RefreshCw className="h-8 w-8 animate-spin text-[#1A73E8]" />
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="mx-auto max-w-4xl p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/50 dark:bg-red-950/30">
-          <ShieldAlert className="mx-auto mb-4 h-12 w-12 text-red-600 dark:text-red-400" />
-          <h2 className="text-xl font-bold text-red-900 dark:text-red-200">Truy cập bị từ chối</h2>
-          <p className="mt-2 text-sm text-red-700 dark:text-red-400">
+      <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-transparent custom-scrollbar animate-in fade-in duration-300">
+        <div className="mx-auto max-w-2xl rounded-2xl border border-rose-500/20 bg-rose-500/10 p-8 text-center backdrop-blur-md shadow-sm shadow-slate-300/40">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 shadow-sm">
+            <ShieldAlert className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold text-rose-900">Truy cập bị từ chối</h2>
+          <p className="mt-2 text-xs font-medium text-rose-700">
             Chức năng quản trị và đối soát lưu trữ chỉ dành riêng cho Quản trị viên hệ thống (SYSTEM_ADMIN).
           </p>
         </div>
-      </div>
+      </main>
     );
   }
 
   const capacity = summary?.capacity;
   const usagePercent = capacity?.usagePercent || 0;
   let usageColor = 'bg-emerald-500';
-  if (usagePercent >= 95 || capacity?.status === 'critical') usageColor = 'bg-red-600';
+  if (usagePercent >= 95 || capacity?.status === 'critical') usageColor = 'bg-rose-600';
   else if (usagePercent >= 85 || capacity?.status === 'warning') usageColor = 'bg-amber-500';
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-white">
-            <HardDrive className="h-7 w-7 text-blue-600 dark:text-blue-400" />
-            Quản trị & Đối soát Lưu trữ
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Theo dõi dung lượng, vòng đời tệp tin, quét đối soát tham chiếu và cách ly tệp tin rác
-          </p>
+    <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 lg:p-6 space-y-4 bg-transparent custom-scrollbar animate-in fade-in duration-300">
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl transition-all duration-150 ease-out">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+            <HardDrive className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-[#1E293B] tracking-tight">
+              Quản trị & Đối soát Lưu trữ
+            </h1>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Theo dõi dung lượng, vòng đời tệp tin, quét đối soát tham chiếu và cách ly tệp tin rác
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleViewAuditLogs}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="flex items-center gap-1.5 rounded-xl border border-white/70 bg-white/40 px-3.5 py-2 text-xs font-semibold text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.01]"
           >
-            <History className="h-4 w-4 text-slate-500" />
+            <History className="h-4 w-4 text-[#64748B]" />
             Nhật ký kiểm tra
           </button>
           <button
@@ -241,10 +247,10 @@ export default function StorageManagementPage() {
               loadInventory(currentPage);
             }}
             disabled={isLoadingSummary || isLoadingInventory || isReconciling}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="flex items-center gap-1.5 rounded-xl border border-white/70 bg-white/40 px-3.5 py-2 text-xs font-semibold text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.01] disabled:opacity-50"
           >
             <RefreshCw
-              className={`h-4 w-4 ${isLoadingSummary || isLoadingInventory ? 'animate-spin' : ''}`}
+              className={`h-3.5 w-3.5 ${isLoadingSummary || isLoadingInventory ? 'animate-spin' : ''}`}
             />
             Làm mới
           </button>
@@ -252,25 +258,25 @@ export default function StorageManagementPage() {
       </div>
 
       {/* Capacity & Health Banner */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-white/70 bg-white/40 p-5 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-base font-semibold text-[#1E293B]">
                 Dung lượng Ổ đĩa Lưu trữ
               </h2>
               {capacity?.degraded ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 backdrop-blur-sm">
                   <AlertTriangle className="h-3.5 w-3.5" /> Suy giảm (Degraded Telemetry)
                 </span>
               ) : (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold backdrop-blur-sm ${
                     capacity?.status === 'healthy'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
                       : capacity?.status === 'warning'
-                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                        : 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300'
+                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-700'
+                        : 'border-rose-500/20 bg-rose-500/10 text-rose-700'
                   }`}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -283,108 +289,108 @@ export default function StorageManagementPage() {
               )}
             </div>
             {capacity?.degraded ? (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              <p className="mt-1.5 text-xs text-amber-700">
                 Lưu ý: Môi trường hiện tại không hỗ trợ truy xuất statfs thực tế. Số liệu dung lượng ổ đĩa khả dụng tạm thời bị suy giảm.
               </p>
             ) : (
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-1.5 text-xs text-[#64748B]">
                 Đã sử dụng {formatBytes(capacity?.usedBytes || 0)} / {formatBytes(capacity?.totalBytes || 0)} (Trống: {formatBytes(capacity?.freeBytes || 0)})
               </p>
             )}
           </div>
           <div className="text-right">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
+            <span className="text-3xl font-extrabold text-[#1E293B] tracking-tight">
               {usagePercent}%
             </span>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="mt-3.5 h-2.5 w-full overflow-hidden rounded-xl bg-slate-200/50 backdrop-blur-xs">
           <div
-            className={`h-full transition-all duration-500 ${usageColor}`}
+            className={`h-full rounded-xl transition-all duration-500 ${usageColor}`}
             style={{ width: `${Math.min(100, Math.max(0, usagePercent))}%` }}
           />
         </div>
       </div>
 
-      {/* Summary Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Summary Metric Bento Grid Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Live files */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-white/70 bg-white/40 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out hover:scale-[1.01]">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#64748B]">
               Tệp tin Hoạt động (Live)
             </span>
-            <div className="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-              <FileText className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-[#1A73E8] shadow-sm">
+              <FileText className="h-4.5 w-4.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold text-slate-900 dark:text-white">
+          <div className="mt-2.5">
+            <div className="text-2xl font-bold text-[#1E293B]">
               {summary?.live_files_count ?? 0}
             </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-[11px] text-[#64748B]">
               Tổng kích thước: {formatBytes(summary?.live_bytes ?? 0)}
             </div>
           </div>
         </div>
 
         {/* Quarantined files */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-white/70 bg-white/40 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out hover:scale-[1.01]">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#64748B]">
               Vùng Cách ly (Quarantine)
             </span>
-            <div className="rounded-lg bg-purple-50 p-2 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
-              <FolderArchive className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10 text-purple-700 shadow-sm">
+              <FolderArchive className="h-4.5 w-4.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+          <div className="mt-2.5">
+            <div className="text-2xl font-bold text-purple-700">
               {summary?.quarantined_files_count ?? 0}
             </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-[11px] text-[#64748B]">
               Dung lượng cách ly: {formatBytes(summary?.quarantined_bytes ?? 0)}
             </div>
           </div>
         </div>
 
         {/* Orphan Candidates */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-white/70 bg-white/40 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out hover:scale-[1.01]">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#64748B]">
               Tệp tin Rác (Orphan)
             </span>
-            <div className="rounded-lg bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
-              <AlertCircle className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-700 shadow-sm">
+              <AlertCircle className="h-4.5 w-4.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+          <div className="mt-2.5">
+            <div className="text-2xl font-bold text-amber-700">
               {summary?.orphan_candidates_count ?? 0}
             </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-[11px] text-[#64748B]">
               Không có tham chiếu DB (&gt;24h)
             </div>
           </div>
         </div>
 
         {/* Missing References */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-white/70 bg-white/40 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out hover:scale-[1.01]">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold text-[#64748B]">
               Tham chiếu Thiếu (Missing)
             </span>
-            <div className="rounded-lg bg-rose-50 p-2 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
-              <ShieldAlert className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-700 shadow-sm">
+              <ShieldAlert className="h-4.5 w-4.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+          <div className="mt-2.5">
+            <div className="text-2xl font-bold text-rose-700">
               {summary?.missing_references_count ?? 0}
             </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-1 text-[11px] text-[#64748B]">
               Có trong DB nhưng thiếu trên đĩa
             </div>
           </div>
@@ -392,21 +398,21 @@ export default function StorageManagementPage() {
       </div>
 
       {/* Reconciliation Actions & Last Scan Report */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-white/70 bg-white/40 p-5 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-base font-semibold text-[#1E293B]">
               Tiến trình Đối soát & Cách ly Tệp tin Rác
             </h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-xs text-[#64748B]">
               Đối soát toàn diện giữa 5 bộ sưu tập MongoDB và hệ thống tệp tin vật lý. Áp dụng thời gian ân hạn 24 giờ cho tệp mới tải lên.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={handlePreviewReconciliation}
               disabled={isReconciling}
-              className="flex items-center gap-2 rounded-lg border border-blue-600 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/40"
+              className="flex items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2 text-xs font-semibold text-[#1A73E8] transition-all duration-150 ease-out hover:bg-blue-500/20 hover:scale-[1.01] disabled:opacity-50 shadow-sm"
             >
               <Search className="h-4 w-4" />
               Quét kiểm tra (Preview)
@@ -419,7 +425,7 @@ export default function StorageManagementPage() {
                   ? 'Chức năng thực thi cách ly bị vô hiệu hóa bởi cấu hình hệ thống'
                   : 'Cách ly tệp rác'
               }
-              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:opacity-50 dark:bg-purple-700 dark:hover:bg-purple-600"
+              className="flex items-center gap-1.5 rounded-xl border border-purple-600/30 bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-150 ease-out hover:bg-purple-700 hover:scale-[1.01] disabled:opacity-50"
             >
               <FolderArchive className="h-4 w-4" />
               Cách ly tệp rác (Execute)
@@ -428,18 +434,18 @@ export default function StorageManagementPage() {
         </div>
 
         {reconcileResult && (
-          <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+          <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 backdrop-blur-sm p-4">
             <div className="flex items-start gap-3">
-              <Info className="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <Info className="mt-0.5 h-5 w-5 text-[#1A73E8] shrink-0" />
               <div className="flex-1 text-xs">
-                <div className="font-semibold text-blue-900 dark:text-blue-200">
+                <div className="font-semibold text-blue-950">
                   Kết quả đợt đối soát gần nhất ({reconcileResult.mode === 'preview' ? 'Chế độ xem trước - Không di chuyển file' : 'Đã thực thi cách ly'})
                 </div>
-                <div className="mt-1 grid grid-cols-2 gap-2 text-slate-600 sm:grid-cols-4 dark:text-slate-300">
-                  <div>Tệp đã quét: <span className="font-medium">{reconcileResult.scanned_files_count}</span></div>
-                  <div>Hợp lệ (Active): <span className="font-medium">{reconcileResult.referenced_files_count}</span></div>
-                  <div>Tệp rác phát hiện: <span className="font-medium text-amber-600">{reconcileResult.orphan_files_count}</span></div>
-                  <div>Đã chuyển cách ly: <span className="font-medium text-purple-600">{reconcileResult.quarantined_count} ({formatBytes(reconcileResult.quarantined_bytes)})</span></div>
+                <div className="mt-1.5 grid grid-cols-2 gap-2 text-slate-700 sm:grid-cols-4 font-medium">
+                  <div>Tệp đã quét: <span className="font-bold text-[#1E293B]">{reconcileResult.scanned_files_count}</span></div>
+                  <div>Hợp lệ (Active): <span className="font-bold text-[#1A73E8]">{reconcileResult.referenced_files_count}</span></div>
+                  <div>Tệp rác phát hiện: <span className="font-bold text-amber-700">{reconcileResult.orphan_files_count}</span></div>
+                  <div>Đã chuyển cách ly: <span className="font-bold text-purple-700">{reconcileResult.quarantined_count} ({formatBytes(reconcileResult.quarantined_bytes)})</span></div>
                 </div>
               </div>
             </div>
@@ -448,13 +454,13 @@ export default function StorageManagementPage() {
       </div>
 
       {/* Inventory Management Table */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-4 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+      <div className="rounded-2xl border border-white/70 bg-white/40 p-5 shadow-sm shadow-slate-300/40 backdrop-blur-md transition-all duration-150 ease-out space-y-4">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-base font-semibold text-[#1E293B]">
               Danh mục Tệp tin & Trạng thái Vòng đời
             </h3>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 text-xs text-[#64748B]">
               Tổng cộng {totalItems} tệp tin được quản lý
             </p>
           </div>
@@ -463,13 +469,13 @@ export default function StorageManagementPage() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Search */}
             <div className="relative min-w-[200px]">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Tìm kiếm file, token, id..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-9 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="w-full rounded-xl border border-white/70 bg-white/50 py-1.5 pl-8.5 pr-3 text-xs text-[#1E293B] placeholder-slate-400 backdrop-blur-sm transition-all duration-150 focus:border-white/90 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
               />
             </div>
 
@@ -478,7 +484,7 @@ export default function StorageManagementPage() {
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value as any)}
               aria-label="Lọc theo trạng thái"
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="rounded-xl border border-white/70 bg-white/50 px-3 py-1.5 text-xs font-medium text-[#1E293B] backdrop-blur-sm transition-all duration-150 focus:border-white/90 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="active">Hoạt động (Active)</option>
@@ -492,7 +498,7 @@ export default function StorageManagementPage() {
               value={selectedNamespace}
               onChange={(e) => setSelectedNamespace(e.target.value as any)}
               aria-label="Lọc theo phân vùng"
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="rounded-xl border border-white/70 bg-white/50 px-3 py-1.5 text-xs font-medium text-[#1E293B] backdrop-blur-sm transition-all duration-150 focus:border-white/90 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
             >
               <option value="all">Tất cả phân vùng</option>
               <option value="activities">Hoạt động (activities)</option>
@@ -506,7 +512,7 @@ export default function StorageManagementPage() {
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as any)}
               aria-label="Lọc theo nghiệp vụ"
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="rounded-xl border border-white/70 bg-white/50 px-3 py-1.5 text-xs font-medium text-[#1E293B] backdrop-blur-sm transition-all duration-150 focus:border-white/90 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
             >
               <option value="all">Tất cả nghiệp vụ</option>
               <option value="activities">Hoạt động</option>
@@ -516,9 +522,9 @@ export default function StorageManagementPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-          <table className="min-w-full divide-y divide-slate-200 text-left text-xs dark:divide-slate-800">
-            <thead className="bg-slate-50 font-semibold text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+        <div className="overflow-x-auto rounded-xl border border-white/70 bg-white/30 backdrop-blur-sm">
+          <table className="min-w-full divide-y divide-white/60 text-left text-xs">
+            <thead className="bg-white/50 font-semibold text-[#64748B] backdrop-blur-sm">
               <tr>
                 <th className="px-3.5 py-3">Token / Opaque ID</th>
                 <th className="px-3.5 py-3">Tên tệp</th>
@@ -530,81 +536,81 @@ export default function StorageManagementPage() {
                 <th className="px-3.5 py-3 text-right">Hành động</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 bg-white dark:divide-slate-800 dark:bg-slate-900">
+            <tbody className="divide-y divide-white/40 bg-transparent">
               {isLoadingInventory ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
-                    <RefreshCw className="mx-auto h-6 w-6 animate-spin text-blue-600" />
-                    <span className="mt-2 block text-xs">Đang tải danh mục tệp tin...</span>
+                  <td colSpan={8} className="py-8 text-center text-[#64748B]">
+                    <RefreshCw className="mx-auto h-6 w-6 animate-spin text-[#1A73E8]" />
+                    <span className="mt-2 block text-xs font-medium">Đang tải danh mục tệp tin...</span>
                   </td>
                 </tr>
               ) : inventory.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-xs font-medium text-[#64748B]">
                     Không tìm thấy tệp tin nào phù hợp với bộ lọc.
                   </td>
                 </tr>
               ) : (
                 inventory.map((item) => {
                   let statusBadge = (
-                    <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                    <span className="inline-flex items-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
                       Hoạt động
                     </span>
                   );
                   if (item.status === 'staged') {
                     statusBadge = (
-                      <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+                      <span className="inline-flex items-center rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-[#1A73E8]">
                         Ân hạn (&lt;24h)
                       </span>
                     );
                   } else if (item.status === 'orphan_candidate') {
                     statusBadge = (
-                      <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                      <span className="inline-flex items-center rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
                         Tệp rác
                       </span>
                     );
                   } else if (item.status === 'quarantined') {
                     statusBadge = (
-                      <span className="inline-flex rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-800 dark:bg-purple-950/50 dark:text-purple-300">
+                      <span className="inline-flex items-center rounded-xl border border-purple-500/20 bg-purple-500/10 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
                         Đã cách ly
                       </span>
                     );
                   }
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
-                      <td className="whitespace-nowrap px-3.5 py-2.5 font-mono text-slate-500 dark:text-slate-400">
+                    <tr key={item.id} className="transition-colors duration-150 hover:bg-white/40">
+                      <td className="whitespace-nowrap px-3.5 py-2.5 font-mono text-[#64748B]">
                         {item.id.slice(0, 10)}...
                       </td>
-                      <td className="max-w-[180px] truncate px-3.5 py-2.5 font-medium text-slate-900 dark:text-white" title={item.filename}>
+                      <td className="max-w-[180px] truncate px-3.5 py-2.5 font-semibold text-[#1E293B]" title={item.filename}>
                         {item.filename}
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-2.5">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <span className="rounded-xl border border-white/70 bg-white/60 px-2 py-0.5 text-[11px] font-medium text-[#1E293B] shadow-xs">
                           {item.namespace}
                         </span>
                       </td>
-                      <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-300">
+                      <td className="px-3.5 py-2.5 text-slate-700">
                         {item.domain_ref ? (
                           <div>
-                            <span className="font-medium text-slate-900 dark:text-white">
+                            <span className="font-semibold text-[#1E293B]">
                               {item.domain_ref.display_title || item.domain_ref.owner_id}
                             </span>
-                            <span className="ml-1 text-[11px] text-slate-400">
+                            <span className="ml-1 text-[11px] text-[#64748B]">
                               ({item.domain_ref.field})
                             </span>
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic">Không có tham chiếu</span>
+                          <span className="text-[#64748B] italic">Không có tham chiếu</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3.5 py-2.5 text-slate-600 dark:text-slate-400">
+                      <td className="whitespace-nowrap px-3.5 py-2.5 font-medium text-slate-700">
                         {formatBytes(item.size)}
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-2.5">
                         {statusBadge}
                       </td>
-                      <td className="whitespace-nowrap px-3.5 py-2.5 text-slate-500 dark:text-slate-400">
+                      <td className="whitespace-nowrap px-3.5 py-2.5 text-[#64748B]">
                         {new Date(item.modified_at).toLocaleDateString('vi-VN')} {new Date(item.modified_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-2.5 text-right">
@@ -620,13 +626,13 @@ export default function StorageManagementPage() {
                                 ? 'Chức năng khôi phục bị vô hiệu hóa bởi cấu hình hệ thống'
                                 : 'Khôi phục tệp tin'
                             }
-                            className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950/40 dark:text-blue-300"
+                            className="inline-flex items-center gap-1 rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-[#1A73E8] transition-all duration-150 hover:bg-blue-500/20 hover:scale-[1.01] disabled:opacity-50"
                           >
                             <RotateCcw className={`h-3.5 w-3.5 ${restoringAssetId === item.id ? 'animate-spin' : ''}`} />
                             Khôi phục
                           </button>
                         ) : (
-                          <span className="text-slate-400 text-[11px]">Được bảo vệ</span>
+                          <span className="text-[#64748B] text-[11px] font-medium">Được bảo vệ</span>
                         )}
                       </td>
                     </tr>
@@ -638,7 +644,7 @@ export default function StorageManagementPage() {
         </div>
 
         {/* Pagination */}
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+        <div className="flex items-center justify-between text-xs text-[#64748B] pt-1">
           <div>
             Trang {currentPage} / {totalPages} (Tổng {totalItems} mục)
           </div>
@@ -646,14 +652,14 @@ export default function StorageManagementPage() {
             <button
               onClick={() => loadInventory(currentPage - 1)}
               disabled={currentPage <= 1 || isLoadingInventory}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-1.5 font-semibold text-[#1E293B] shadow-xs transition-all duration-150 hover:bg-white/80 disabled:opacity-50 cursor-pointer"
             >
               Trang trước
             </button>
             <button
               onClick={() => loadInventory(currentPage + 1)}
               disabled={currentPage >= totalPages || isLoadingInventory}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="rounded-xl border border-white/70 bg-white/50 backdrop-blur-sm px-3 py-1.5 font-semibold text-[#1E293B] shadow-xs transition-all duration-150 hover:bg-white/80 disabled:opacity-50 cursor-pointer"
             >
               Trang sau
             </button>
@@ -663,37 +669,39 @@ export default function StorageManagementPage() {
 
       {/* Confirmation Modal for Execute Reconciliation */}
       {showExecuteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
-            <div className="flex items-center gap-3 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-6 w-6" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl bg-white/95 backdrop-blur-md border border-white/80 p-6 shadow-xl shadow-slate-400/20 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-amber-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-[#1E293B]">
                 Xác nhận Cách ly Tệp tin Rác
               </h3>
             </div>
-            <div className="mt-3 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+            <div className="mt-4 space-y-3 text-xs text-slate-700">
               <p>
-                Hệ thống sẽ tiến hành di chuyển toàn bộ các tệp tin không còn được tham chiếu vào vùng cách ly an toàn (<code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.quarantine</code>) kèm mã checksum SHA-256.
+                Hệ thống sẽ tiến hành di chuyển toàn bộ các tệp tin không còn được tham chiếu vào vùng cách ly an toàn (<code className="rounded-md bg-slate-100 px-1 py-0.5 text-xs font-mono">.quarantine</code>) kèm mã checksum SHA-256.
               </p>
-              <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-                <div className="font-semibold flex items-center gap-1.5">
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 backdrop-blur-sm p-3 text-blue-950">
+                <div className="font-semibold flex items-center gap-1.5 text-xs text-[#1A73E8]">
                   <ShieldCheck className="h-4 w-4" /> Chính sách Ân hạn 24 giờ
                 </div>
-                <p className="mt-1">
+                <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
                   Các tệp tin vừa tải lên trong vòng 24 giờ qua sẽ được bảo vệ an toàn và không bị cách ly ngay cả khi chưa gắn vào bản ghi nào.
                 </p>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex justify-end gap-2.5">
               <button
                 onClick={() => setShowExecuteModal(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="rounded-xl border border-white/70 bg-white/60 backdrop-blur-sm px-4 py-2 text-xs font-semibold text-[#1E293B] shadow-xs transition-all duration-150 hover:bg-white/90 cursor-pointer"
               >
                 Hủy bỏ
               </button>
               <button
                 onClick={handleExecuteReconciliation}
-                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                className="rounded-xl border border-purple-600/30 bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-150 hover:bg-purple-700 cursor-pointer"
               >
                 Bắt đầu Cách ly
               </button>
@@ -704,61 +712,63 @@ export default function StorageManagementPage() {
 
       {/* Audit Logs Modal */}
       {showAuditLogsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
-              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                <History className="h-5 w-5 text-blue-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-3xl rounded-2xl bg-white/95 backdrop-blur-md border border-white/80 p-6 shadow-xl shadow-slate-400/20 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-white/80 pb-3">
+              <h3 className="flex items-center gap-2 text-base font-bold text-[#1E293B]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-[#1A73E8]">
+                  <History className="h-4 w-4" />
+                </div>
                 Nhật ký Kiểm tra & Đối soát Lưu trữ
               </h3>
               <button
                 onClick={() => setShowAuditLogsModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748B] hover:bg-slate-100 hover:text-[#1E293B] transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            <div className="mt-4 max-h-[450px] overflow-y-auto">
+            <div className="mt-4 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
               {isLoadingLogs ? (
-                <div className="py-8 text-center text-slate-500">
-                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-blue-600" />
-                  <span className="mt-2 block text-xs">Đang tải nhật ký...</span>
+                <div className="py-8 text-center text-[#64748B]">
+                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-[#1A73E8]" />
+                  <span className="mt-2 block text-xs font-medium">Đang tải nhật ký...</span>
                 </div>
               ) : auditLogs.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500">
+                <div className="py-8 text-center text-xs font-medium text-[#64748B]">
                   Chưa có nhật ký đối soát nào được ghi nhận.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {auditLogs.map((log) => (
                     <div
                       key={log._id}
-                      className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/40"
+                      className="rounded-xl border border-white/70 bg-white/60 backdrop-blur-sm p-3 text-xs shadow-xs"
                     >
                       <div className="flex items-center justify-between font-semibold">
                         <span
-                          className={`rounded px-2 py-0.5 text-[11px] ${
+                          className={`rounded-xl border px-2.5 py-0.5 text-[11px] font-semibold ${
                             log.action === 'quarantine'
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                              ? 'border-purple-500/20 bg-purple-500/10 text-purple-700'
                               : log.action === 'restore'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
                                 : log.action === 'purge'
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-700'
+                                  : 'border-blue-500/20 bg-blue-500/10 text-[#1A73E8]'
                           }`}
                         >
                           {log.action.toUpperCase()} ({log.mode})
                         </span>
-                        <span className="text-slate-400">
+                        <span className="text-[#64748B]">
                           {new Date(log.createdAt).toLocaleString('vi-VN')}
                         </span>
                       </div>
-                      <div className="mt-1 text-slate-600 dark:text-slate-300">
-                        Thực hiện bởi: <span className="font-medium">{log.actor}</span> | Trạng thái: <span className="font-medium text-emerald-600">{log.status}</span>
+                      <div className="mt-1.5 text-slate-700 font-medium">
+                        Thực hiện bởi: <span className="font-bold text-[#1E293B]">{log.actor}</span> | Trạng thái: <span className="font-bold text-emerald-700">{log.status}</span>
                       </div>
                       {log.details && (
-                        <div className="mt-2 rounded bg-white p-2 font-mono text-[11px] text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        <div className="mt-2 rounded-xl border border-slate-200/60 bg-slate-50/80 p-2 font-mono text-[11px] text-slate-800">
                           {JSON.stringify(log.details, null, 2)}
                         </div>
                       )}
@@ -771,7 +781,7 @@ export default function StorageManagementPage() {
             <div className="mt-5 text-right">
               <button
                 onClick={() => setShowAuditLogsModal(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="rounded-xl border border-white/70 bg-white/60 backdrop-blur-sm px-4 py-2 text-xs font-semibold text-[#1E293B] shadow-xs transition-all duration-150 hover:bg-white/90 cursor-pointer"
               >
                 Đóng
               </button>
@@ -779,6 +789,6 @@ export default function StorageManagementPage() {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
