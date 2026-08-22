@@ -225,4 +225,122 @@ describe('Core Storage & Image Processing', () => {
       await expect(mediaController.getPublicMedia(mockReq, mockRes)).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('StorageService Quarantine, Restore & Purge Lifecycle', () => {
+    it('should quarantine a file and write manifest with SHA256', async () => {
+      const buffer = Buffer.from('quarantinable content');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'covers',
+        filename: 'old-cover.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'orphan_cleanup', 'tester');
+      expect(manifest.asset_id).toBeDefined();
+      expect(manifest.sha256).toBe(meta.sha256);
+      expect(await storageService.fileExists(meta.key)).toBe(false);
+
+      const quarantineList = await storageService.listQuarantinedFiles();
+      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(true);
+    });
+
+    it('should restore a quarantined file back to its original location after checksum verification', async () => {
+      const buffer = Buffer.from('restorable content');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'logos',
+        filename: 'restore-target.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      expect(await storageService.fileExists(meta.key)).toBe(false);
+
+      const restored = await storageService.restoreFile(manifest.asset_id, 'tester');
+      expect(restored.asset_id).toBe(manifest.asset_id);
+      expect(await storageService.fileExists(meta.key)).toBe(true);
+
+      const restoredContent = await storageService.getFileBuffer(meta.key);
+      expect(restoredContent.toString()).toBe(buffer.toString());
+    });
+
+    it('should throw ConflictException on restore if target path already exists (collision)', async () => {
+      const buffer = Buffer.from('file 1');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'logos',
+        filename: 'collision.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+
+      // Create another file at the original target location
+      await storageService.saveBuffer(Buffer.from('collision newcomer'), {
+        namespace: 'activities',
+        subfolder: 'logos',
+        filename: 'collision.webp',
+        visibility: 'public',
+      });
+
+      await expect(storageService.restoreFile(manifest.asset_id)).rejects.toThrow(
+        'Tệp tin đích đã tồn tại trên hệ thống, không thể ghi đè khi khôi phục',
+      );
+    });
+
+    it('should throw BadRequestException on restore if checksum is corrupted', async () => {
+      const buffer = Buffer.from('tamper test');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'covers',
+        filename: 'tampered.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+
+      // Tamper quarantine file binary
+      const quarantineFilePath = path.join(tempStorageRoot, manifest.quarantine_key);
+      await fs.promises.writeFile(quarantineFilePath, 'corrupted data');
+
+      await expect(storageService.restoreFile(manifest.asset_id)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should reject purge before retention expires', async () => {
+      const buffer = Buffer.from('early purge test');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'covers',
+        filename: 'early-purge.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+
+      // Attempt to purge without bypassing retention
+      await expect(storageService.purgeQuarantinedFile(manifest.asset_id, false)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should purge quarantined file when retention is bypassed or expired', async () => {
+      const buffer = Buffer.from('purgeable content');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'covers',
+        filename: 'purgeable.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      const purged = await storageService.purgeQuarantinedFile(manifest.asset_id, true);
+      expect(purged.asset_id).toBe(manifest.asset_id);
+
+      const quarantineList = await storageService.listQuarantinedFiles();
+      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(false);
+    });
+  });
 });

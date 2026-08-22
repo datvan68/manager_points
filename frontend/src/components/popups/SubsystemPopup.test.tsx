@@ -149,4 +149,37 @@ describe('SubsystemPopup', () => {
 
     expect(mockPush).toHaveBeenCalledWith('/activities');
   });
+
+  it('shows storage management to an admin and navigates to its route', async () => {
+    vi.mocked(isAdminUser).mockReturnValue(true);
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    const onClose = vi.fn();
+    render(<SubsystemPopup isOpen={true} onClose={onClose} />);
+
+    const storageCard = await screen.findByText('Quản lý lưu trữ');
+    fireEvent.click(storageCard);
+
+    expect(mockPush).toHaveBeenCalledWith('/system/storage');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('hides storage management from a non-admin despite a permissive dynamic mapping', async () => {
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
+      {
+        route_path: '/system/storage',
+        is_active: true,
+        permissions: ['STORAGE_MANAGE'],
+        check_type: 'any',
+      },
+    ]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    await waitFor(() => {
+      expect(authApi.getRoutePermissionsPublic).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText('Quản lý lưu trữ')).not.toBeInTheDocument();
+  });
 });

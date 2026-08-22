@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Search, LayoutGrid, Users, ArrowUpRight, 
-  ShieldAlert, Settings, Calendar, Play, Building2, BarChart3, Compass, Shield, Bell
+  ShieldAlert, Settings, Calendar, Play, Building2, BarChart3, Compass, Shield, Bell, HardDrive
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -110,6 +110,16 @@ const INITIAL_MODULES = [
     stat: { type: 'progress', percent: 65, label: '65%' },
     href: '/system',
     icon: Settings
+  },
+  {
+    id: 'storage',
+    group: 'Hệ thống',
+    name: 'Quản lý lưu trữ',
+    desc: 'Theo dõi dung lượng và quản lý tài nguyên lưu trữ của hệ thống.',
+    status: 'ACTIVE',
+    stat: { type: 'event', label: 'Chỉ dành cho quản trị viên' },
+    href: '/system/storage',
+    icon: HardDrive
   },
   {
     id: 'events',
@@ -281,6 +291,9 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
 
 
   const checkModulePermission = (mod: typeof INITIAL_MODULES[0]) => {
+    // Storage management must remain admin-only regardless of dynamic mappings.
+    if (mod.id === 'storage') return isAdmin;
+
     // 1. Admin always has full access
     if (isAdmin) return true;
 

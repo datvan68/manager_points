@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -13,6 +14,7 @@ import { StorageService, DEFAULT_UNATTACHED_GRACE_HOURS } from './storage.servic
 import {
   AssetLifecycleState,
   ReconciliationResult,
+  StorageCapabilities,
   StorageInventoryItem,
   StorageNamespace,
   StorageSummaryMetrics,
@@ -22,6 +24,8 @@ import {
   StorageAuditLogDocument,
   StorageReconciliationRun,
   StorageReconciliationRunDocument,
+  StorageLock,
+  StorageLockDocument,
 } from './schemas/storage-audit.schema';
 import { Activity, ActivityDocument } from '../../activities/schemas/activity.schema';
 import { Invoice, InvoiceDocument } from '../../dormitory/schemas/invoice.schema';
@@ -66,6 +70,8 @@ export class StorageOrphanReconciliationService {
     private readonly auditLogModel: Model<StorageAuditLogDocument>,
     @InjectModel(StorageReconciliationRun.name)
     private readonly reconciliationRunModel: Model<StorageReconciliationRunDocument>,
+    @InjectModel(StorageLock.name)
+    private readonly storageLockModel: Model<StorageLockDocument>,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
@@ -278,6 +284,67 @@ export class StorageOrphanReconciliationService {
     return refMap;
   }
 
+  getCapabilities(): StorageCapabilities {
+    return this.storageService.getCapabilities();
+  }
+
+  /**
+   * Distributed lease lock via MongoDB to prevent cross-instance concurrent reconciliation runs
+   */
+  async acquireReconciliationLock(
+    runId: string,
+    actor: string,
+    leaseDurationMs = 15 * 60 * 1000,
+  ): Promise<boolean> {
+    const now = new Date();
+    const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
+
+    try {
+      const existing = await this.storageLockModel.findOne({ resource: 'reconciliation' }).exec();
+      if (existing) {
+        if (existing.lease_expires_at > now) {
+          return false; // Active lock held
+        }
+        // Stale lease: take over
+        const updated = await this.storageLockModel
+          .findOneAndUpdate(
+            {
+              resource: 'reconciliation',
+              lease_expires_at: existing.lease_expires_at,
+            },
+            {
+              $set: {
+                owner: actor,
+                run_id: runId,
+                lease_expires_at: leaseExpiresAt,
+              },
+            },
+            { new: true },
+          )
+          .exec();
+        return Boolean(updated);
+      } else {
+        await this.storageLockModel.create({
+          resource: 'reconciliation',
+          owner: actor,
+          run_id: runId,
+          lease_expires_at: leaseExpiresAt,
+        });
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  async releaseReconciliationLock(runId: string): Promise<void> {
+    try {
+      await this.storageLockModel.deleteOne({ resource: 'reconciliation', run_id: runId }).exec();
+    } catch (err) {
+      this.logger.warn(`Lỗi khi giải phóng khóa đối soát: ${(err as Error).message}`);
+    }
+  }
+
   /**
    * Performs storage reconciliation (either preview or execute mode)
    */
@@ -291,8 +358,15 @@ export class StorageOrphanReconciliationService {
       );
     }
 
-    this.isReconciling = true;
     const runId = crypto.randomUUID();
+    const lockAcquired = await this.acquireReconciliationLock(runId, actor);
+    if (!lockAcquired) {
+      throw new ConflictException(
+        'Một tiến trình đối soát lưu trữ đang chạy trên hệ thống (Cross-Instance Lock). Vui lòng chờ hoàn tất.',
+      );
+    }
+
+    this.isReconciling = true;
     const startedAt = new Date();
 
     const runRecord = new this.reconciliationRunModel({
@@ -358,10 +432,21 @@ export class StorageOrphanReconciliationService {
 
       let quarantinedCount = 0;
       let quarantinedBytes = 0;
+      let failedQuarantineCount = 0;
 
-      // 3. If execute mode, move orphan candidates to quarantine
+      // 3. If execute mode, move orphan candidates to quarantine with TOCTOU check
       if (mode === 'execute') {
         for (const orphan of orphanCandidates) {
+          // Recheck DB references immediately before moving file
+          const freshRefMap = await this.collectDatabaseReferences();
+          const freshRefs = freshRefMap.get(orphan.key);
+          if (freshRefs && freshRefs.length > 0) {
+            this.logger.warn(
+              `Bỏ qua cách ly ${orphan.key} do vừa phát sinh tham chiếu mới trong DB.`,
+            );
+            continue;
+          }
+
           try {
             await this.storageService.quarantineFile(
               orphan.key,
@@ -371,15 +456,20 @@ export class StorageOrphanReconciliationService {
             quarantinedCount++;
             quarantinedBytes += orphan.size;
           } catch (qErr) {
+            failedQuarantineCount++;
             this.logger.warn(`Không thể cách ly ${orphan.key}: ${(qErr as Error).message}`);
           }
         }
       }
 
       const completedAt = new Date();
+      let runStatus: 'completed' | 'partial' | 'failed' = 'completed';
+      if (mode === 'execute' && failedQuarantineCount > 0) {
+        runStatus = quarantinedCount > 0 ? 'partial' : 'failed';
+      }
 
       // Update run record
-      runRecord.status = 'completed';
+      runRecord.status = runStatus;
       runRecord.scanned_files_count = managedFiles.length;
       runRecord.scanned_bytes = scannedBytes;
       runRecord.referenced_files_count = referencedCount;
@@ -396,7 +486,7 @@ export class StorageOrphanReconciliationService {
         action: mode === 'execute' ? 'quarantine' : 'preview',
         actor,
         mode: 'manual',
-        status: 'success',
+        status: runStatus === 'completed' ? 'success' : runStatus,
         details: {
           mode,
           scanned_files_count: managedFiles.length,
@@ -406,6 +496,7 @@ export class StorageOrphanReconciliationService {
           missing_references_count: missingList.length,
           quarantined_count: quarantinedCount,
           quarantined_bytes: quarantinedBytes,
+          failed_quarantine_count: failedQuarantineCount,
         },
       });
 
@@ -435,12 +526,13 @@ export class StorageOrphanReconciliationService {
         actor,
         mode: 'manual',
         status: 'failed',
-        details: { error: (err as Error).message },
+        details: { error_category: 'RECONCILIATION_EXECUTION_FAILURE' },
       });
 
       throw err;
     } finally {
       this.isReconciling = false;
+      await this.releaseReconciliationLock(runId);
     }
   }
 
@@ -449,6 +541,7 @@ export class StorageOrphanReconciliationService {
    */
   async getSummary(): Promise<StorageSummaryMetrics> {
     const capacity = await this.storageService.getCapacityMetrics();
+    const capabilities = this.getCapabilities();
     const managedFiles = await this.storageService.listManagedFiles();
     const quarantinedFiles = await this.storageService.listQuarantinedFiles();
 
@@ -470,6 +563,7 @@ export class StorageOrphanReconciliationService {
 
     return {
       capacity,
+      capabilities,
       live_files_count: managedFiles.length,
       live_bytes: liveBytes,
       quarantined_files_count: quarantinedFiles.length,
@@ -631,6 +725,12 @@ export class StorageOrphanReconciliationService {
    * Restores a quarantined asset
    */
   async restoreAsset(assetId: string, actor = 'system') {
+    if (!this.storageService.getCapabilities().canRestore) {
+      throw new ForbiddenException(
+        'Thao tác khôi phục tệp tin hiện đang bị vô hiệu hóa bởi cấu hình hệ thống',
+      );
+    }
+
     const manifest = await this.storageService.restoreFile(assetId, actor);
 
     await this.auditLogModel.create({
@@ -641,7 +741,6 @@ export class StorageOrphanReconciliationService {
       status: 'success',
       details: {
         asset_id: assetId,
-        original_key: manifest.original_key,
         size: manifest.size,
       },
     });
@@ -650,13 +749,30 @@ export class StorageOrphanReconciliationService {
   }
 
   /**
-   * Purges a quarantined asset (permanent unlink, gated)
+   * Purges a quarantined asset (permanent unlink, retention and capability gated)
    */
-  async purgeAsset(assetId: string, actor = 'system') {
-    const success = await this.storageService.purgeQuarantinedFile(assetId);
-    if (!success) {
+  async purgeAsset(assetId: string, actor = 'system', bypassRetention = false) {
+    if (!this.storageService.getCapabilities().canPurge) {
+      throw new ForbiddenException(
+        'Thao tác xóa vĩnh viễn tệp tin hiện đang bị vô hiệu hóa bởi cấu hình hệ thống',
+      );
+    }
+
+    // Fresh zero-reference check
+    const quarantinedList = await this.storageService.listQuarantinedFiles();
+    const targetManifest = quarantinedList.find((q) => q.asset_id === assetId);
+    if (!targetManifest) {
       throw new NotFoundException(`Không tìm thấy tệp tin cách ly với ID: ${assetId}`);
     }
+
+    const refMap = await this.collectDatabaseReferences();
+    if (refMap.has(targetManifest.original_key)) {
+      throw new ConflictException(
+        'Tệp tin đang được tham chiếu trong cơ sở dữ liệu, không thể xóa vĩnh viễn',
+      );
+    }
+
+    const manifest = await this.storageService.purgeQuarantinedFile(assetId, bypassRetention);
 
     await this.auditLogModel.create({
       run_id: crypto.randomUUID(),
@@ -666,6 +782,7 @@ export class StorageOrphanReconciliationService {
       status: 'success',
       details: {
         asset_id: assetId,
+        size: manifest.size,
       },
     });
 

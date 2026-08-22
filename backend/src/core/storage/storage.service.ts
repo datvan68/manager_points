@@ -4,6 +4,7 @@ import {
   OnModuleInit,
   BadRequestException,
   NotFoundException,
+  ConflictException,
   ServiceUnavailableException,
   Optional,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
   QuarantineManifest,
   SaveFileOptions,
   StorageCapacityInfo,
+  StorageCapabilities,
   StorageNamespace,
   StorageVisibility,
   StoredFileMetadata,
@@ -36,6 +38,10 @@ export class StorageService implements OnModuleInit {
   private storageRoot: string;
   private readonly warningThresholdPercent = 85;
   private readonly criticalThresholdPercent = 95;
+  private canExecuteReconciliation = false;
+  private canRestore = false;
+  private canPurge = false;
+  private quarantineRetentionDays = DEFAULT_QUARANTINE_RETENTION_DAYS;
 
   constructor(@Optional() private readonly configService?: ConfigService) {
     const configuredRoot =
@@ -46,6 +52,55 @@ export class StorageService implements OnModuleInit {
       this.storageRoot = path.resolve(configuredRoot);
     } else {
       this.storageRoot = path.resolve(process.cwd(), 'storage', 'uploads');
+    }
+
+    const envExecute =
+      this.configService?.get<string>('STORAGE_ENABLE_RECONCILE_EXECUTE') ??
+      process.env.STORAGE_ENABLE_RECONCILE_EXECUTE;
+    this.canExecuteReconciliation = envExecute === 'true' || envExecute === '1';
+
+    const envRestore =
+      this.configService?.get<string>('STORAGE_ENABLE_RESTORE') ??
+      process.env.STORAGE_ENABLE_RESTORE;
+    this.canRestore = envRestore === 'true' || envRestore === '1';
+
+    const envPurge =
+      this.configService?.get<string>('STORAGE_ENABLE_PURGE') ??
+      process.env.STORAGE_ENABLE_PURGE;
+    this.canPurge = envPurge === 'true' || envPurge === '1';
+
+    const envRetention =
+      this.configService?.get<number | string>('STORAGE_QUARANTINE_RETENTION_DAYS') ??
+      process.env.STORAGE_QUARANTINE_RETENTION_DAYS;
+    if (envRetention) {
+      const parsed = Number(envRetention);
+      if (!isNaN(parsed) && parsed > 0) {
+        this.quarantineRetentionDays = parsed;
+      }
+    }
+  }
+
+  getCapabilities(): StorageCapabilities {
+    return {
+      canExecuteReconciliation: this.canExecuteReconciliation,
+      canRestore: this.canRestore,
+      canPurge: this.canPurge,
+      quarantineRetentionDays: this.quarantineRetentionDays,
+    };
+  }
+
+  setCapabilities(caps: Partial<StorageCapabilities>) {
+    if (caps.canExecuteReconciliation !== undefined) {
+      this.canExecuteReconciliation = caps.canExecuteReconciliation;
+    }
+    if (caps.canRestore !== undefined) {
+      this.canRestore = caps.canRestore;
+    }
+    if (caps.canPurge !== undefined) {
+      this.canPurge = caps.canPurge;
+    }
+    if (caps.quarantineRetentionDays !== undefined) {
+      this.quarantineRetentionDays = caps.quarantineRetentionDays;
     }
   }
 
@@ -350,7 +405,9 @@ export class StorageService implements OnModuleInit {
     else if (ext === '.svg') mimeType = 'image/svg+xml';
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + DEFAULT_QUARANTINE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      now.getTime() + this.quarantineRetentionDays * 24 * 60 * 60 * 1000,
+    );
 
     const manifest: QuarantineManifest = {
       asset_id: assetId,
@@ -388,7 +445,7 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
-   * Restores a quarantined file back to its original location after checksum verification
+   * Restores a quarantined file back to its original location after checksum verification and collision check
    */
   async restoreFile(assetId: string, actor = 'system'): Promise<QuarantineManifest> {
     const quarantineDir = path.join(this.storageRoot, '.quarantine');
@@ -423,6 +480,14 @@ export class StorageService implements OnModuleInit {
     }
 
     const targetPath = this.resolvePath(manifest.original_key);
+
+    // Collision check: do not overwrite existing target file
+    if (fs.existsSync(targetPath)) {
+      throw new ConflictException(
+        'Tệp tin đích đã tồn tại trên hệ thống, không thể ghi đè khi khôi phục',
+      );
+    }
+
     await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
 
     // Atomic move back to original target
@@ -447,33 +512,53 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
-   * Permanently deletes a quarantined file and its manifest (gated operation)
+   * Permanently deletes a quarantined file and its manifest (retention-gated operation)
    */
-  async purgeQuarantinedFile(assetId: string): Promise<boolean> {
+  async purgeQuarantinedFile(
+    assetId: string,
+    bypassRetention = false,
+  ): Promise<QuarantineManifest> {
     const quarantineDir = path.join(this.storageRoot, '.quarantine');
     const manifestPath = path.join(quarantineDir, `${assetId}.json`);
 
     if (!fs.existsSync(manifestPath)) {
-      return false;
+      throw new NotFoundException(`Không tìm thấy thông tin cách ly cho Asset ID: ${assetId}`);
     }
 
-    try {
-      const manifestRaw = await fs.promises.readFile(manifestPath, 'utf-8');
-      const manifest: QuarantineManifest = JSON.parse(manifestRaw);
-      const quarantineFilePath = path.join(
-        this.storageRoot,
-        manifest.quarantine_key.replace(/\\/g, '/'),
-      );
+    const manifestRaw = await fs.promises.readFile(manifestPath, 'utf-8');
+    const manifest: QuarantineManifest = JSON.parse(manifestRaw);
 
-      if (fs.existsSync(quarantineFilePath)) {
-        await fs.promises.unlink(quarantineFilePath);
+    // Enforce retention check unless explicitly bypassed by gate
+    if (!bypassRetention) {
+      const now = Date.now();
+      const expiresAt = new Date(manifest.expires_at).getTime();
+      if (now < expiresAt) {
+        throw new BadRequestException(
+          `Tệp tin chưa hết thời hạn lưu trữ cách ly (${this.quarantineRetentionDays} ngày)`,
+        );
       }
-      await fs.promises.unlink(manifestPath);
-      return true;
-    } catch (err) {
-      this.logger.error(`Lỗi khi purge tệp tin cách ly ${assetId}: ${(err as Error).message}`);
-      return false;
     }
+
+    const quarantineFilePath = path.join(
+      this.storageRoot,
+      manifest.quarantine_key.replace(/\\/g, '/'),
+    );
+
+    if (fs.existsSync(quarantineFilePath)) {
+      const buffer = await fs.promises.readFile(quarantineFilePath);
+      const currentHash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+      if (currentHash !== manifest.sha256) {
+        throw new BadRequestException(
+          'Tính toàn vẹn của tệp tin cách ly bị vi phạm (Checksum SHA-256 không khớp)',
+        );
+      }
+
+      await fs.promises.unlink(quarantineFilePath);
+    }
+
+    await fs.promises.unlink(manifestPath);
+    return manifest;
   }
 
   /**

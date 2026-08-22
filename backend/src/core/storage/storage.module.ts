@@ -11,6 +11,8 @@ import {
   StorageAuditLogSchema,
   StorageReconciliationRun,
   StorageReconciliationRunSchema,
+  StorageLock,
+  StorageLockSchema,
 } from './schemas/storage-audit.schema';
 import { Activity, ActivitySchema } from '../../activities/schemas/activity.schema';
 import { Invoice, InvoiceSchema } from '../../dormitory/schemas/invoice.schema';
@@ -34,6 +36,7 @@ import {
     MongooseModule.forFeature([
       { name: StorageAuditLog.name, schema: StorageAuditLogSchema },
       { name: StorageReconciliationRun.name, schema: StorageReconciliationRunSchema },
+      { name: StorageLock.name, schema: StorageLockSchema },
       { name: Activity.name, schema: ActivitySchema },
       { name: Invoice.name, schema: InvoiceSchema },
       { name: RoomFeeInvoice.name, schema: RoomFeeInvoiceSchema },

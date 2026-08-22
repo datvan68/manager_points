@@ -413,7 +413,12 @@ export default function StorageManagementPage() {
             </button>
             <button
               onClick={() => setShowExecuteModal(true)}
-              disabled={isReconciling}
+              disabled={isReconciling || summary?.capabilities?.canExecuteReconciliation === false}
+              title={
+                summary?.capabilities?.canExecuteReconciliation === false
+                  ? 'Chức năng thực thi cách ly bị vô hiệu hóa bởi cấu hình hệ thống'
+                  : 'Cách ly tệp rác'
+              }
               className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-purple-700 disabled:opacity-50 dark:bg-purple-700 dark:hover:bg-purple-600"
             >
               <FolderArchive className="h-4 w-4" />
@@ -606,7 +611,15 @@ export default function StorageManagementPage() {
                         {item.status === 'quarantined' ? (
                           <button
                             onClick={() => handleRestoreAsset(item.id)}
-                            disabled={restoringAssetId === item.id}
+                            disabled={
+                              restoringAssetId === item.id ||
+                              summary?.capabilities?.canRestore === false
+                            }
+                            title={
+                              summary?.capabilities?.canRestore === false
+                                ? 'Chức năng khôi phục bị vô hiệu hóa bởi cấu hình hệ thống'
+                                : 'Khôi phục tệp tin'
+                            }
                             className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950/40 dark:text-blue-300"
                           >
                             <RotateCcw className={`h-3.5 w-3.5 ${restoringAssetId === item.id ? 'animate-spin' : ''}`} />

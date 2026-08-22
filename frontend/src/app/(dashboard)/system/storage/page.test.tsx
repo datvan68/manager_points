@@ -247,4 +247,28 @@ describe('StorageManagementPage', () => {
       expect(systemApi.restoreStorageAsset).toHaveBeenCalledWith('token-quarantine987654');
     });
   });
+
+  it('disables execute and restore buttons when capabilities are disabled by configuration', async () => {
+    vi.mocked(systemApi.getStorageSummary).mockResolvedValueOnce({
+      ...mockSummary,
+      capabilities: {
+        canExecuteReconciliation: false,
+        canRestore: false,
+        canPurge: false,
+        quarantineRetentionDays: 30,
+      },
+    });
+
+    render(<StorageManagementPage />);
+
+    await waitFor(() => {
+      const executeBtn = screen.getByText('Cách ly tệp rác (Execute)').closest('button');
+      expect(executeBtn?.disabled).toBe(true);
+      expect(executeBtn?.title).toContain('bị vô hiệu hóa');
+
+      const restoreBtn = screen.getByText('Khôi phục').closest('button');
+      expect(restoreBtn?.disabled).toBe(true);
+      expect(restoreBtn?.title).toContain('bị vô hiệu hóa');
+    });
+  });
 });

@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 
 export type StorageAuditLogDocument = StorageAuditLog & Document;
 export type StorageReconciliationRunDocument = StorageReconciliationRun & Document;
+export type StorageLockDocument = StorageLock & Document;
 
 @Schema({ timestamps: true, collection: 'storage_audit_logs' })
 export class StorageAuditLog {
@@ -39,7 +40,7 @@ export class StorageReconciliationRun {
 
   @Prop({
     required: true,
-    enum: ['running', 'completed', 'failed'],
+    enum: ['running', 'completed', 'failed', 'partial'],
     default: 'running',
     index: true,
   })
@@ -84,3 +85,21 @@ export class StorageReconciliationRun {
 
 export const StorageReconciliationRunSchema = SchemaFactory.createForClass(StorageReconciliationRun);
 StorageReconciliationRunSchema.index({ started_at: -1 });
+
+@Schema({ timestamps: true, collection: 'storage_locks' })
+export class StorageLock {
+  @Prop({ required: true, unique: true, index: true })
+  resource: string;
+
+  @Prop({ required: true })
+  owner: string;
+
+  @Prop({ required: true })
+  run_id: string;
+
+  @Prop({ required: true, index: true })
+  lease_expires_at: Date;
+}
+
+export const StorageLockSchema = SchemaFactory.createForClass(StorageLock);
+StorageLockSchema.index({ lease_expires_at: 1 });

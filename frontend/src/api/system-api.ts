@@ -637,6 +637,13 @@ export const systemApi = {
 export type StorageLifecycleState = 'staged' | 'active' | 'orphan_candidate' | 'quarantined' | 'purged';
 export type StorageNamespace = 'activities' | 'dormitory-qr' | 'invoices' | 'room-fee-invoices';
 
+export interface StorageCapabilities {
+  canExecuteReconciliation: boolean;
+  canRestore: boolean;
+  canPurge: boolean;
+  quarantineRetentionDays: number;
+}
+
 export interface StorageCapacityInfo {
   status: 'healthy' | 'warning' | 'critical' | 'degraded';
   usedBytes: number;
@@ -648,6 +655,7 @@ export interface StorageCapacityInfo {
 
 export interface StorageSummaryMetrics {
   capacity: StorageCapacityInfo;
+  capabilities?: StorageCapabilities;
   live_files_count: number;
   live_bytes: number;
   quarantined_files_count: number;

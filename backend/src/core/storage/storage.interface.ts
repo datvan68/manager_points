@@ -107,8 +107,16 @@ export interface StorageInventoryItem {
   quarantine_manifest?: QuarantineManifest;
 }
 
+export interface StorageCapabilities {
+  canExecuteReconciliation: boolean;
+  canRestore: boolean;
+  canPurge: boolean;
+  quarantineRetentionDays: number;
+}
+
 export interface StorageSummaryMetrics {
   capacity: StorageCapacityInfo;
+  capabilities: StorageCapabilities;
   live_files_count: number;
   live_bytes: number;
   quarantined_files_count: number;
