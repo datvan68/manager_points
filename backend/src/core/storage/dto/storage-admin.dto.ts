@@ -1,7 +1,19 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsEnum, Matches, MaxLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsEnum,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import type { AssetLifecycleState, StorageNamespace } from '../storage.interface';
+import type {
+  AssetLifecycleState,
+  StorageNamespace,
+} from '../storage.interface';
 
 export class StorageInventoryQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -19,7 +31,9 @@ export class StorageInventoryQueryDto {
   @Max(100)
   limit?: number = 20;
 
-  @ApiPropertyOptional({ enum: ['staged', 'active', 'orphan_candidate', 'quarantined', 'purged'] })
+  @ApiPropertyOptional({
+    enum: ['staged', 'active', 'orphan_candidate', 'quarantined', 'purged'],
+  })
   @IsOptional()
   @IsEnum(['staged', 'active', 'orphan_candidate', 'quarantined', 'purged'])
   status?: AssetLifecycleState;
@@ -29,7 +43,9 @@ export class StorageInventoryQueryDto {
   @IsEnum(['activities', 'dormitory'])
   domain?: 'activities' | 'dormitory';
 
-  @ApiPropertyOptional({ enum: ['activities', 'invoices', 'dormitory-qr', 'room-fee-invoices'] })
+  @ApiPropertyOptional({
+    enum: ['activities', 'invoices', 'dormitory-qr', 'room-fee-invoices'],
+  })
   @IsOptional()
   @IsEnum(['activities', 'invoices', 'dormitory-qr', 'room-fee-invoices'])
   namespace?: StorageNamespace;
@@ -52,7 +68,9 @@ export class StorageAuditLogQueryDto {
 }
 
 export class StorageAssetParamDto {
-  @ApiProperty({ description: 'Opaque asset identifier (UUID or SHA1/SHA256 hex string)' })
+  @ApiProperty({
+    description: 'Opaque asset identifier (UUID or SHA1/SHA256 hex string)',
+  })
   @IsString()
   @Matches(/^[a-zA-Z0-9_-]{1,128}$/, {
     message: 'Asset ID không hợp lệ',
@@ -61,8 +79,25 @@ export class StorageAssetParamDto {
 }
 
 export class StoragePurgeDto {
-  @ApiPropertyOptional({ description: 'Confirmation token for permanent purge' })
+  @ApiProperty({
+    description: 'Mã xác nhận xóa vĩnh viễn (server-issued confirmation token)',
+  })
+  @IsString()
+  @Matches(/^[a-fA-F0-9]{32,128}$/, {
+    message: 'Mã xác nhận xóa không hợp lệ',
+  })
+  confirmationToken: string;
+
+  @ApiProperty({
+    description: 'Cụm từ xác nhận thao tác (XÓA VĨNH VIỄN hoặc PURGE)',
+  })
+  @IsString()
+  @MaxLength(50)
+  confirmationPhrase: string;
+
+  @ApiPropertyOptional({ description: 'Lý do xóa vĩnh viễn (tùy chọn)' })
   @IsOptional()
   @IsString()
-  confirmationToken?: string;
+  @MaxLength(200)
+  reason?: string;
 }

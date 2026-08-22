@@ -27,13 +27,15 @@ export interface StoredFileMetadata {
 }
 
 export interface StorageCapacityInfo {
+  source: 'filesystem_containing_media_root';
+  measuredAt: Date;
   totalBytes: number;
   usedBytes: number;
   freeBytes: number;
   usagePercent: number;
   warningThresholdPercent: number;
   criticalThresholdPercent: number;
-  status: 'normal' | 'warning' | 'critical' | 'degraded';
+  status: 'healthy' | 'warning' | 'critical' | 'degraded';
   degraded?: boolean;
 }
 
@@ -73,6 +75,11 @@ export interface QuarantineManifest {
   expires_at: Date;
   reason?: string;
   actor?: string;
+  is_purge_eligible?: boolean;
+  purge_eligible_at?: Date;
+  retention_remaining_days?: number;
+  sha256_suffix?: string;
+  purge_confirmation_token?: string;
 }
 
 export interface ManagedFileInfo {
@@ -119,8 +126,12 @@ export interface StorageSummaryMetrics {
   capabilities: StorageCapabilities;
   live_files_count: number;
   live_bytes: number;
+  staging_files_count?: number;
+  staging_bytes?: number;
   quarantined_files_count: number;
   quarantined_bytes: number;
+  reclaimable_files_count: number;
+  reclaimable_bytes: number;
   orphan_candidates_count: number;
   missing_references_count: number;
   last_scan?: {

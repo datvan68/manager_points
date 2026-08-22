@@ -618,11 +618,16 @@ export const systemApi = {
     return handleResponse<any>(res);
   },
 
-  async purgeStorageAsset(assetId: string): Promise<any> {
+  async purgeStorageAsset(
+    assetId: string,
+    payload: StoragePurgePayload,
+  ): Promise<{ message: string; asset_id: string; reclaimed_bytes: number }> {
     const res = await httpClient(`${API_BASE}/system/storage/purge/${encodeURIComponent(assetId)}`, {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
-    return handleResponse<any>(res);
+    return handleResponse<{ message: string; asset_id: string; reclaimed_bytes: number }>(res);
   },
 
   async getStorageAuditLogs(limit?: number): Promise<StorageAuditLogEntry[]> {
@@ -644,12 +649,22 @@ export interface StorageCapabilities {
   quarantineRetentionDays: number;
 }
 
+export interface StoragePurgePayload {
+  confirmationToken: string;
+  confirmationPhrase: string;
+  reason?: string;
+}
+
 export interface StorageCapacityInfo {
+  source: 'filesystem_containing_media_root';
+  measuredAt: string;
   status: 'healthy' | 'warning' | 'critical' | 'degraded';
   usedBytes: number;
   totalBytes: number;
   freeBytes: number;
   usagePercent: number;
+  warningThresholdPercent?: number;
+  criticalThresholdPercent?: number;
   degraded?: boolean;
 }
 
@@ -660,13 +675,15 @@ export interface StorageSummaryMetrics {
   live_bytes: number;
   quarantined_files_count: number;
   quarantined_bytes: number;
+  reclaimable_files_count: number;
+  reclaimable_bytes: number;
   orphan_candidates_count: number;
   missing_references_count: number;
   last_scan?: {
     run_id: string;
     started_at: string;
     completed_at?: string;
-    status: 'running' | 'completed' | 'failed';
+    status: 'running' | 'completed' | 'failed' | 'partial';
     mode: 'preview' | 'execute';
   };
 }
@@ -696,8 +713,14 @@ export interface StorageInventoryItem {
     mime_type: string;
     sha256: string;
     quarantined_at: string;
+    expires_at: string;
     actor: string;
     reason: string;
+    is_purge_eligible?: boolean;
+    purge_eligible_at?: string;
+    retention_remaining_days?: number;
+    sha256_suffix?: string;
+    purge_confirmation_token?: string;
   };
 }
 
@@ -722,7 +745,7 @@ export interface StorageAuditLogEntry {
   action: 'preview' | 'quarantine' | 'restore' | 'purge';
   actor: string;
   mode: 'scheduled' | 'manual';
-  status: 'success' | 'failed';
+  status: 'success' | 'failed' | 'attempt';
   details?: Record<string, any>;
   createdAt: string;
 }

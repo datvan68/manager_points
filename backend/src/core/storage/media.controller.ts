@@ -30,7 +30,11 @@ export class MediaController {
     const decodedPath = decodeURIComponent(rawPath);
 
     // Verify key doesn't attempt path traversal or private access
-    if (!decodedPath || decodedPath.includes('..') || decodedPath.includes('\0')) {
+    if (
+      !decodedPath ||
+      decodedPath.includes('..') ||
+      decodedPath.includes('\0')
+    ) {
       throw new ForbiddenException('Đường dẫn không hợp lệ');
     }
 
@@ -38,7 +42,9 @@ export class MediaController {
     const namespace = segments[0];
 
     if (!namespace || !ALLOWED_PUBLIC_NAMESPACES.includes(namespace)) {
-      throw new ForbiddenException('Không có quyền truy cập không gian media này');
+      throw new ForbiddenException(
+        'Không có quyền truy cập không gian media này',
+      );
     }
 
     const storageKey = `public/${decodedPath}`;

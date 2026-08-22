@@ -16,7 +16,9 @@ export class ImageProcessorService {
     }
 
     if (buffer.length > this.maxFileSize) {
-      throw new BadRequestException('Kích thước ảnh vượt quá giới hạn cho phép (tối đa 5MB)');
+      throw new BadRequestException(
+        'Kích thước ảnh vượt quá giới hạn cho phép (tối đa 5MB)',
+      );
     }
 
     // JPEG signature: FF D8 FF
@@ -52,20 +54,24 @@ export class ImageProcessorService {
       return 'webp';
     }
 
-    throw new BadRequestException('Định dạng tệp không được hỗ trợ. Chỉ chấp nhận JPEG, PNG, WebP');
+    throw new BadRequestException(
+      'Định dạng tệp không được hỗ trợ. Chỉ chấp nhận JPEG, PNG, WebP',
+    );
   }
 
   /**
    * Processes, strips metadata, auto-orients, and resizes an image based on preset.
    */
-  async processImage(buffer: Buffer, preset: ImagePreset): Promise<ProcessedImageResult> {
+  async processImage(
+    buffer: Buffer,
+    preset: ImagePreset,
+  ): Promise<ProcessedImageResult> {
     // 1. Verify content signature
     this.validateImageSignature(buffer);
 
     // 2. Initialize sharp instance with auto-rotation (EXIF orientation)
     const pipeline = sharp(buffer, { failOn: 'truncated' }).rotate();
 
-    let outputBuffer: Buffer;
     let mimeType: string;
     let extension: string;
 
@@ -125,7 +131,9 @@ export class ImageProcessorService {
     }
 
     try {
-      const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+      const { data, info } = await pipeline.toBuffer({
+        resolveWithObject: true,
+      });
       return {
         buffer: data,
         mime_type: mimeType,
@@ -136,7 +144,9 @@ export class ImageProcessorService {
       };
     } catch (err) {
       this.logger.error(`Lỗi xử lý ảnh với sharp: ${(err as Error).message}`);
-      throw new BadRequestException('Không thể xử lý tệp ảnh. Vui lòng tải lên tệp hợp lệ');
+      throw new BadRequestException(
+        'Không thể xử lý tệp ảnh. Vui lòng tải lên tệp hợp lệ',
+      );
     }
   }
 }

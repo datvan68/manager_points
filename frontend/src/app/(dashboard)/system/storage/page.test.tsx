@@ -34,6 +34,8 @@ vi.mock('sonner', () => ({
 describe('StorageManagementPage', () => {
   const mockSummary = {
     capacity: {
+      source: 'filesystem_containing_media_root' as const,
+      measuredAt: new Date().toISOString(),
       status: 'healthy' as const,
       usedBytes: 35000000,
       totalBytes: 100000000,
@@ -45,6 +47,8 @@ describe('StorageManagementPage', () => {
     live_bytes: 32000000,
     quarantined_files_count: 5,
     quarantined_bytes: 3000000,
+    reclaimable_files_count: 2,
+    reclaimable_bytes: 1200000,
     orphan_candidates_count: 3,
     missing_references_count: 1,
   };
@@ -71,19 +75,59 @@ describe('StorageManagementPage', () => {
         },
       },
       {
-        id: 'token-quarantine987654',
+        id: 'token-quarantine-eligible',
         namespace: 'invoices' as const,
-        filename: 'quarantined_token-quarantine987654',
-        relative_key: 'private/invoices/proofs/old-proof.jpg',
+        filename: 'quarantined_token-eligible.jpg',
+        relative_key: 'private/invoices/proofs/eligible.jpg',
         size: 520000,
         mime_type: 'image/jpeg',
         created_at: new Date().toISOString(),
         modified_at: new Date().toISOString(),
         status: 'quarantined' as const,
         referenced: false,
+        quarantine_manifest: {
+          asset_id: 'token-quarantine-eligible',
+          original_key: 'private/invoices/proofs/eligible.jpg',
+          size: 520000,
+          mime_type: 'image/jpeg',
+          sha256: 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+          sha256_suffix: '567890',
+          quarantined_at: new Date(Date.now() - 35 * 24 * 3600 * 1000).toISOString(),
+          expires_at: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+          actor: 'system',
+          reason: 'orphan_reconciliation',
+          is_purge_eligible: true,
+          purge_confirmation_token: 'valid-confirmation-token-123',
+        },
+      },
+      {
+        id: 'token-quarantine-locked',
+        namespace: 'room-fee-invoices' as const,
+        filename: 'quarantined_token-locked.jpg',
+        relative_key: 'private/room-fee-invoices/locked.jpg',
+        size: 680000,
+        mime_type: 'image/jpeg',
+        created_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
+        status: 'quarantined' as const,
+        referenced: false,
+        quarantine_manifest: {
+          asset_id: 'token-quarantine-locked',
+          original_key: 'private/room-fee-invoices/locked.jpg',
+          size: 680000,
+          mime_type: 'image/jpeg',
+          sha256: '9876543210abcdef9876543210abcdef9876543210abcdef9876543210abcdef',
+          sha256_suffix: '0abcdef',
+          quarantined_at: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString(),
+          expires_at: new Date(Date.now() + 25 * 24 * 3600 * 1000).toISOString(),
+          actor: 'system',
+          reason: 'orphan_reconciliation',
+          is_purge_eligible: false,
+          retention_remaining_days: 25,
+        },
       },
     ],
-    total: 2,
+    total: 3,
     page: 1,
     limit: 15,
     totalPages: 1,
@@ -116,15 +160,17 @@ describe('StorageManagementPage', () => {
     expect(screen.getByText(/Chức năng quản trị và đối soát lưu trữ chỉ dành riêng cho Quản trị viên/)).toBeDefined();
   });
 
-  it('renders summary cards and capacity for admin users', async () => {
+  it('renders summary cards and capacity with volume source for admin users', async () => {
     render(<StorageManagementPage />);
 
     await waitFor(() => {
       expect(screen.getByText('Quản trị & Đối soát Lưu trữ')).toBeDefined();
-      expect(screen.getByText('Dung lượng Ổ đĩa Lưu trữ')).toBeDefined();
+      expect(screen.getByText('Dung lượng Volume Chứa Media')).toBeDefined();
+      expect(screen.getByText(/filesystem_containing_media_root/)).toBeDefined();
       expect(screen.getByText('35%')).toBeDefined();
       expect(screen.getByText('42')).toBeDefined(); // live files count
       expect(screen.getByText('5')).toBeDefined(); // quarantined count
+      expect(screen.getByText('2')).toBeDefined(); // reclaimable count
       expect(screen.getByText('3')).toBeDefined(); // orphan candidates count
       expect(screen.getByText('1')).toBeDefined(); // missing references count
     });
@@ -153,8 +199,9 @@ describe('StorageManagementPage', () => {
     await waitFor(() => {
       expect(screen.getByText('club-logo.png')).toBeDefined();
       expect(screen.getByText('CLB Tin Học')).toBeDefined();
-      expect(screen.getByText('quarantined_token-quarantine987654')).toBeDefined();
-      expect(screen.getByText('Khôi phục')).toBeDefined();
+      expect(screen.getByText('quarantined_token-eligible.jpg')).toBeDefined();
+      expect(screen.getByText('Xóa vĩnh viễn')).toBeDefined();
+      expect(screen.getByText('Còn 25 ngày')).toBeDefined();
     });
 
     // Verify privacy safety: no <img> tag exists rendering payment proof or QR
@@ -228,27 +275,82 @@ describe('StorageManagementPage', () => {
     });
   });
 
-  it('restores quarantined asset on restore button click', async () => {
+  it('opens restore confirmation modal and restores quarantined asset on confirm', async () => {
     vi.mocked(systemApi.restoreStorageAsset).mockResolvedValueOnce({
-      asset_id: 'token-quarantine987654',
-      original_key: 'private/invoices/proofs/old-proof.jpg',
+      asset_id: 'token-quarantine-eligible',
+      original_key: 'private/invoices/proofs/eligible.jpg',
       size: 520000,
     });
 
     render(<StorageManagementPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Khôi phục')).toBeDefined();
+      expect(screen.getAllByText('Khôi phục').length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getByText('Khôi phục'));
+    // Click first Khôi phục button
+    fireEvent.click(screen.getAllByText('Khôi phục')[0]);
+
+    // Check modal appears
+    expect(screen.getByText('Xác nhận Khôi phục Tệp tin')).toBeDefined();
+    expect(screen.getByText('Khôi phục ngay')).toBeDefined();
+
+    // Confirm restore
+    fireEvent.click(screen.getByText('Khôi phục ngay'));
 
     await waitFor(() => {
-      expect(systemApi.restoreStorageAsset).toHaveBeenCalledWith('token-quarantine987654');
+      expect(systemApi.restoreStorageAsset).toHaveBeenCalledWith('token-quarantine-eligible');
     });
   });
 
-  it('disables execute and restore buttons when capabilities are disabled by configuration', async () => {
+  it('opens purge modal, requires confirmation phrase, and executes purge on confirm', async () => {
+    vi.mocked(systemApi.purgeStorageAsset).mockResolvedValueOnce({
+      message: 'Purged',
+      asset_id: 'token-quarantine-eligible',
+      reclaimed_bytes: 520000,
+    });
+
+    render(<StorageManagementPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Xóa vĩnh viễn')).toBeDefined();
+    });
+
+    // Click Xóa vĩnh viễn button
+    fireEvent.click(screen.getByText('Xóa vĩnh viễn'));
+
+    // Purge modal appears
+    expect(screen.getByText('Xác nhận Xóa Vĩnh Viễn Tệp Tin')).toBeDefined();
+    expect(screen.getByText(/CẢNH BÁO NGUY HIỂM/)).toBeDefined();
+
+    // Find submit button in modal
+    const purgeSubmitBtn = screen.getByRole('button', { name: /Xác nhận Xóa Vĩnh Viễn/i });
+    expect(purgeSubmitBtn.hasAttribute('disabled')).toBe(true);
+
+    // Type phrase into input
+    const phraseInput = screen.getByPlaceholderText('XÓA VĨNH VIỄN');
+    fireEvent.change(phraseInput, { target: { value: 'XÓA VĨNH VIỄN' } });
+
+    // Now button should be enabled
+    expect(purgeSubmitBtn.hasAttribute('disabled')).toBe(false);
+
+    // Add reason
+    const reasonInput = screen.getByPlaceholderText(/Lý do xóa/i);
+    fireEvent.change(reasonInput, { target: { value: 'Manual test cleanup' } });
+
+    // Submit purge
+    fireEvent.click(purgeSubmitBtn);
+
+    await waitFor(() => {
+      expect(systemApi.purgeStorageAsset).toHaveBeenCalledWith('token-quarantine-eligible', {
+        confirmationToken: 'valid-confirmation-token-123',
+        confirmationPhrase: 'XÓA VĨNH VIỄN',
+        reason: 'Manual test cleanup',
+      });
+    });
+  });
+
+  it('disables execute, restore, and purge buttons when capabilities are disabled by configuration', async () => {
     vi.mocked(systemApi.getStorageSummary).mockResolvedValueOnce({
       ...mockSummary,
       capabilities: {
@@ -266,9 +368,13 @@ describe('StorageManagementPage', () => {
       expect(executeBtn?.disabled).toBe(true);
       expect(executeBtn?.title).toContain('bị vô hiệu hóa');
 
-      const restoreBtn = screen.getByText('Khôi phục').closest('button');
+      const restoreBtn = screen.getAllByText('Khôi phục')[0].closest('button');
       expect(restoreBtn?.disabled).toBe(true);
       expect(restoreBtn?.title).toContain('bị vô hiệu hóa');
+
+      const purgeBtn = screen.getByText('Xóa vĩnh viễn').closest('button');
+      expect(purgeBtn?.disabled).toBe(true);
+      expect(purgeBtn?.title).toContain('bị vô hiệu hóa');
     });
   });
 });

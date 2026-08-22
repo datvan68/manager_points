@@ -2,7 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 
 export type StorageAuditLogDocument = StorageAuditLog & Document;
-export type StorageReconciliationRunDocument = StorageReconciliationRun & Document;
+export type StorageReconciliationRunDocument = StorageReconciliationRun &
+  Document;
 export type StorageLockDocument = StorageLock & Document;
 
 @Schema({ timestamps: true, collection: 'storage_audit_logs' })
@@ -20,17 +21,26 @@ export class StorageAuditLog {
   @Prop({ required: true, default: 'system' })
   actor: string;
 
-  @Prop({ required: true, enum: ['manual', 'scheduled', 'domain'], default: 'manual' })
+  @Prop({
+    required: true,
+    enum: ['manual', 'scheduled', 'domain'],
+    default: 'manual',
+  })
   mode: string;
 
-  @Prop({ required: true, enum: ['success', 'failed', 'partial'], default: 'success' })
+  @Prop({
+    required: true,
+    enum: ['success', 'failed', 'partial'],
+    default: 'success',
+  })
   status: string;
 
   @Prop({ type: MongooseSchema.Types.Mixed, default: () => ({}) })
   details: Record<string, any>;
 }
 
-export const StorageAuditLogSchema = SchemaFactory.createForClass(StorageAuditLog);
+export const StorageAuditLogSchema =
+  SchemaFactory.createForClass(StorageAuditLog);
 StorageAuditLogSchema.index({ createdAt: -1 });
 
 @Schema({ timestamps: true, collection: 'storage_reconciliation_runs' })
@@ -83,7 +93,9 @@ export class StorageReconciliationRun {
   error?: string;
 }
 
-export const StorageReconciliationRunSchema = SchemaFactory.createForClass(StorageReconciliationRun);
+export const StorageReconciliationRunSchema = SchemaFactory.createForClass(
+  StorageReconciliationRun,
+);
 StorageReconciliationRunSchema.index({ started_at: -1 });
 
 @Schema({ timestamps: true, collection: 'storage_locks' })

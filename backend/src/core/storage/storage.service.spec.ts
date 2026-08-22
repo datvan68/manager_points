@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { StorageService } from './storage.service';
 import { ImageProcessorService } from './image-processor.service';
 import { MediaController } from './media.controller';
-import { BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -56,18 +56,36 @@ describe('Core Storage & Image Processing', () => {
 
   describe('StorageService Path Isolation & Traversal Defense', () => {
     it('should resolve safe relative paths within storage root', () => {
-      const resolved = storageService.resolvePath('public/activities/covers/test.webp');
-      expect(resolved).toBe(path.join(tempStorageRoot, 'public', 'activities', 'covers', 'test.webp'));
+      const resolved = storageService.resolvePath(
+        'public/activities/covers/test.webp',
+      );
+      expect(resolved).toBe(
+        path.join(
+          tempStorageRoot,
+          'public',
+          'activities',
+          'covers',
+          'test.webp',
+        ),
+      );
     });
 
     it('should throw BadRequestException on path traversal attempts', () => {
-      expect(() => storageService.resolvePath('../secret.txt')).toThrow(BadRequestException);
-      expect(() => storageService.resolvePath('public/../../../etc/passwd')).toThrow(BadRequestException);
-      expect(() => storageService.resolvePath('public/activities/../../..')).toThrow(BadRequestException);
+      expect(() => storageService.resolvePath('../secret.txt')).toThrow(
+        BadRequestException,
+      );
+      expect(() =>
+        storageService.resolvePath('public/../../../etc/passwd'),
+      ).toThrow(BadRequestException);
+      expect(() =>
+        storageService.resolvePath('public/activities/../../..'),
+      ).toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException on null byte injection', () => {
-      expect(() => storageService.resolvePath('public/test\0.png')).toThrow(BadRequestException);
+      expect(() => storageService.resolvePath('public/test\0.png')).toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -116,9 +134,15 @@ describe('Core Storage & Image Processing', () => {
 
       // Set mtime to 2 hours ago
       const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-      await fs.promises.utimes(oldStagingFile, twoHoursAgo / 1000, twoHoursAgo / 1000);
+      await fs.promises.utimes(
+        oldStagingFile,
+        twoHoursAgo / 1000,
+        twoHoursAgo / 1000,
+      );
 
-      const cleanedCount = await storageService.cleanStagingFiles(60 * 60 * 1000);
+      const cleanedCount = await storageService.cleanStagingFiles(
+        60 * 60 * 1000,
+      );
       expect(cleanedCount).toBe(1);
       expect(fs.existsSync(oldStagingFile)).toBe(false);
     });
@@ -141,8 +165,12 @@ describe('Core Storage & Image Processing', () => {
     });
 
     it('should reject non-image buffers', () => {
-      const invalidBuffer = Buffer.from('this is just a text file with no magic bytes');
-      expect(() => imageProcessor.validateImageSignature(invalidBuffer)).toThrow(BadRequestException);
+      const invalidBuffer = Buffer.from(
+        'this is just a text file with no magic bytes',
+      );
+      expect(() =>
+        imageProcessor.validateImageSignature(invalidBuffer),
+      ).toThrow(BadRequestException);
     });
 
     it('should process and resize activity cover to webp', async () => {
@@ -157,7 +185,10 @@ describe('Core Storage & Image Processing', () => {
         .jpeg()
         .toBuffer();
 
-      const result = await imageProcessor.processImage(largeImage, 'activity_cover');
+      const result = await imageProcessor.processImage(
+        largeImage,
+        'activity_cover',
+      );
       expect(result.mime_type).toBe('image/webp');
       expect(result.extension).toBe('webp');
       expect(result.width).toBeLessThanOrEqual(1920);
@@ -206,11 +237,19 @@ describe('Core Storage & Image Processing', () => {
         pipe: jest.fn(),
       } as any;
 
-      const pipeSpy = jest.spyOn(fs.ReadStream.prototype, 'pipe').mockImplementation(() => mockRes);
+      const pipeSpy = jest
+        .spyOn(fs.ReadStream.prototype, 'pipe')
+        .mockImplementation(() => mockRes);
 
       await mediaController.getPublicMedia(mockReq, mockRes);
-      expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'image/webp');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=86400');
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'image/webp',
+      );
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Cache-Control',
+        'public, max-age=86400',
+      );
 
       pipeSpy.mockRestore();
     });
@@ -220,9 +259,15 @@ describe('Core Storage & Image Processing', () => {
         path: '/api/media/public/invoices/proofs/secret.webp',
         headers: {},
       } as any;
-      const mockRes = { setHeader: jest.fn(), status: jest.fn().mockReturnThis(), end: jest.fn() } as any;
+      const mockRes = {
+        setHeader: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+        end: jest.fn(),
+      } as any;
 
-      await expect(mediaController.getPublicMedia(mockReq, mockRes)).rejects.toThrow(ForbiddenException);
+      await expect(
+        mediaController.getPublicMedia(mockReq, mockRes),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -236,13 +281,19 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'orphan_cleanup', 'tester');
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'orphan_cleanup',
+        'tester',
+      );
       expect(manifest.asset_id).toBeDefined();
       expect(manifest.sha256).toBe(meta.sha256);
       expect(await storageService.fileExists(meta.key)).toBe(false);
 
       const quarantineList = await storageService.listQuarantinedFiles();
-      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(true);
+      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(
+        true,
+      );
     });
 
     it('should restore a quarantined file back to its original location after checksum verification', async () => {
@@ -254,10 +305,17 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
       expect(await storageService.fileExists(meta.key)).toBe(false);
 
-      const restored = await storageService.restoreFile(manifest.asset_id, 'tester');
+      const restored = await storageService.restoreFile(
+        manifest.asset_id,
+        'tester',
+      );
       expect(restored.asset_id).toBe(manifest.asset_id);
       expect(await storageService.fileExists(meta.key)).toBe(true);
 
@@ -274,7 +332,11 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
 
       // Create another file at the original target location
       await storageService.saveBuffer(Buffer.from('collision newcomer'), {
@@ -284,7 +346,9 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      await expect(storageService.restoreFile(manifest.asset_id)).rejects.toThrow(
+      await expect(
+        storageService.restoreFile(manifest.asset_id),
+      ).rejects.toThrow(
         'Tệp tin đích đã tồn tại trên hệ thống, không thể ghi đè khi khôi phục',
       );
     });
@@ -298,15 +362,22 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
 
       // Tamper quarantine file binary
-      const quarantineFilePath = path.join(tempStorageRoot, manifest.quarantine_key);
+      const quarantineFilePath = path.join(
+        tempStorageRoot,
+        manifest.quarantine_key,
+      );
       await fs.promises.writeFile(quarantineFilePath, 'corrupted data');
 
-      await expect(storageService.restoreFile(manifest.asset_id)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        storageService.restoreFile(manifest.asset_id),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject purge before retention expires', async () => {
@@ -318,12 +389,16 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
 
       // Attempt to purge without bypassing retention
-      await expect(storageService.purgeQuarantinedFile(manifest.asset_id, false)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        storageService.purgeQuarantinedFile(manifest.asset_id, false),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should purge quarantined file when retention is bypassed or expired', async () => {
@@ -335,12 +410,103 @@ describe('Core Storage & Image Processing', () => {
         visibility: 'public',
       });
 
-      const manifest = await storageService.quarantineFile(meta.key, 'test', 'tester');
-      const purged = await storageService.purgeQuarantinedFile(manifest.asset_id, true);
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
+      const purged = await storageService.purgeQuarantinedFile(
+        manifest.asset_id,
+        true,
+      );
       expect(purged.asset_id).toBe(manifest.asset_id);
 
       const quarantineList = await storageService.listQuarantinedFiles();
-      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(false);
+      expect(quarantineList.some((q) => q.asset_id === manifest.asset_id)).toBe(
+        false,
+      );
+    });
+
+    it('should reject quarantine on symlink files to prevent traversal', async () => {
+      const targetFile = path.join(tempStorageRoot, 'target.txt');
+      await fs.promises.writeFile(targetFile, 'symlink target content');
+
+      const symlinkPath = path.join(
+        tempStorageRoot,
+        'public',
+        'activities',
+        'symlink-cover.webp',
+      );
+      try {
+        await fs.promises.symlink(targetFile, symlinkPath);
+        await expect(
+          storageService.quarantineFile('public/activities/symlink-cover.webp'),
+        ).rejects.toThrow(BadRequestException);
+      } catch (err: any) {
+        // On Windows if symlink privilege is not enabled, skip test gracefully
+        if (err.code === 'EPERM') {
+          return;
+        }
+        throw err;
+      }
+    });
+
+    it('should return capacity metrics with source filesystem_containing_media_root and measuredAt', async () => {
+      const metrics = await storageService.getCapacityMetrics();
+      expect(metrics.source).toBe('filesystem_containing_media_root');
+      expect(metrics.measuredAt).toBeInstanceOf(Date);
+      expect(metrics.totalBytes).toBeGreaterThanOrEqual(0);
+      expect(metrics.freeBytes).toBeGreaterThanOrEqual(0);
+      expect((metrics as any).storageRoot).toBeUndefined();
+      expect((metrics as any).mountPath).toBeUndefined();
+    });
+
+    it('extractStorageKey should sanitize URLs, query params, external URLs, and prevent traversal', () => {
+      expect(
+        storageService.extractStorageKey(
+          'https://example.com/api/media/public/activities/covers/cover-1.webp?v=123#test',
+        ),
+      ).toBe('public/activities/covers/cover-1.webp');
+
+      expect(
+        storageService.extractStorageKey(
+          '/api/media/private/invoices/proofs/proof-1.jpg?token=abc',
+        ),
+      ).toBe('private/invoices/proofs/proof-1.jpg');
+
+      expect(
+        storageService.extractStorageKey(
+          'https://external-cdn.com/images/malicious.jpg',
+        ),
+      ).toBe('');
+
+      expect(storageService.extractStorageKey('../../../etc/passwd')).toBe('');
+      expect(
+        storageService.extractStorageKey('public/activities/../../secret.txt'),
+      ).toBe('');
+    });
+
+    it('listQuarantinedFiles should calculate is_purge_eligible, retention_remaining_days, and sha256_suffix', async () => {
+      const buffer = Buffer.from('eligibility test content');
+      const meta = await storageService.saveBuffer(buffer, {
+        namespace: 'activities',
+        subfolder: 'covers',
+        filename: 'eligibility-cover.webp',
+        visibility: 'public',
+      });
+
+      const manifest = await storageService.quarantineFile(
+        meta.key,
+        'test',
+        'tester',
+      );
+      const list = await storageService.listQuarantinedFiles();
+      const item = list.find((q) => q.asset_id === manifest.asset_id);
+
+      expect(item).toBeDefined();
+      expect(item?.is_purge_eligible).toBe(false);
+      expect(item?.retention_remaining_days).toBeGreaterThanOrEqual(1);
+      expect(item?.sha256_suffix).toBe(meta.sha256.slice(-8));
     });
   });
 });

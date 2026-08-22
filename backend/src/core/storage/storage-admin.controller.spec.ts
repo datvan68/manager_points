@@ -91,7 +91,9 @@ describe('StorageAdminController', () => {
       };
 
       await controller.getInventory(query);
-      expect(reconciliationServiceMock.getInventory).toHaveBeenCalledWith(query);
+      expect(reconciliationServiceMock.getInventory).toHaveBeenCalledWith(
+        query,
+      );
     });
   });
 
@@ -117,8 +119,12 @@ describe('StorageAdminController', () => {
       });
 
       const req = { user: { email: 'admin@system.local' } };
-      await expect(controller.executeReconciliation(req)).rejects.toThrow(ForbiddenException);
-      expect(reconciliationServiceMock.runReconciliation).not.toHaveBeenCalled();
+      await expect(controller.executeReconciliation(req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(
+        reconciliationServiceMock.runReconciliation,
+      ).not.toHaveBeenCalled();
     });
 
     it('should execute reconciliation when capability is explicitly enabled', async () => {
@@ -155,7 +161,9 @@ describe('StorageAdminController', () => {
 
       const params: StorageAssetParamDto = { assetId: 'asset-123' };
       const req = { user: { email: 'admin@system.local' } };
-      await expect(controller.restoreAsset(params, req)).rejects.toThrow(ForbiddenException);
+      await expect(controller.restoreAsset(params, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(reconciliationServiceMock.restoreAsset).not.toHaveBeenCalled();
     });
 
@@ -188,9 +196,15 @@ describe('StorageAdminController', () => {
       });
 
       const params: StorageAssetParamDto = { assetId: 'asset-123' };
-      const body: StoragePurgeDto = { confirmationToken: 'CONFIRM' };
+      const body: StoragePurgeDto = {
+        confirmationToken: 'CONFIRM',
+        confirmationPhrase: 'XÓA VĨNH VIỄN',
+        reason: 'test',
+      };
       const req = { user: { email: 'admin@system.local' } };
-      await expect(controller.purgeAsset(params, body, req)).rejects.toThrow(ForbiddenException);
+      await expect(controller.purgeAsset(params, body, req)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(reconciliationServiceMock.purgeAsset).not.toHaveBeenCalled();
     });
 
@@ -203,13 +217,20 @@ describe('StorageAdminController', () => {
       });
 
       const params: StorageAssetParamDto = { assetId: 'asset-123' };
-      const body: StoragePurgeDto = { confirmationToken: 'CONFIRM' };
+      const body: StoragePurgeDto = {
+        confirmationToken: 'CONFIRM',
+        confirmationPhrase: 'XÓA VĨNH VIỄN',
+        reason: 'test reason',
+      };
       const req = { user: { email: 'admin@system.local' } };
       const res = await controller.purgeAsset(params, body, req);
       expect(res.asset_id).toBe('asset-123');
       expect(reconciliationServiceMock.purgeAsset).toHaveBeenCalledWith(
         'asset-123',
         'admin@system.local',
+        'CONFIRM',
+        'XÓA VĨNH VIỄN',
+        'test reason',
       );
     });
   });

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { StorageOrphanReconciliationService } from './storage-orphan-reconciliation.service';
 import { StorageService } from './storage.service';
 import { Activity } from '../../activities/schemas/activity.schema';
@@ -30,9 +30,12 @@ describe('StorageOrphanReconciliationService', () => {
     storageServiceMock = {
       extractStorageKey: jest.fn((url: string) => {
         if (!url) return null;
-        if (url.startsWith('/api/media/public/')) return `public/${url.replace('/api/media/public/', '')}`;
-        if (url.startsWith('/api/media/private/')) return `private/${url.replace('/api/media/private/', '')}`;
-        if (url.startsWith('/uploads/')) return `public/activities/${url.replace('/uploads/', '')}`;
+        if (url.startsWith('/api/media/public/'))
+          return `public/${url.replace('/api/media/public/', '')}`;
+        if (url.startsWith('/api/media/private/'))
+          return `private/${url.replace('/api/media/private/', '')}`;
+        if (url.startsWith('/uploads/'))
+          return `public/activities/${url.replace('/uploads/', '')}`;
         return url;
       }),
       listManagedFiles: jest.fn(),
@@ -43,7 +46,9 @@ describe('StorageOrphanReconciliationService', () => {
           size: 15000,
           sha256: 'hash123',
           quarantined_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+          expires_at: new Date(
+            Date.now() + 30 * 24 * 3600 * 1000,
+          ).toISOString(),
         },
       ]),
       quarantineFile: jest.fn(),
@@ -202,16 +207,36 @@ describe('StorageOrphanReconciliationService', () => {
         { provide: StorageService, useValue: storageServiceMock },
         { provide: getModelToken(Activity.name), useValue: activityModelMock },
         { provide: getModelToken(Invoice.name), useValue: invoiceModelMock },
-        { provide: getModelToken(RoomFeeInvoice.name), useValue: roomFeeInvoiceModelMock },
-        { provide: getModelToken(UtilityConfig.name), useValue: utilityConfigModelMock },
-        { provide: getModelToken(RoomFeeConfig.name), useValue: roomFeeConfigModelMock },
-        { provide: getModelToken(StorageAuditLog.name), useValue: auditLogModelMock },
-        { provide: getModelToken(StorageReconciliationRun.name), useValue: reconciliationRunModelMock },
-        { provide: getModelToken(StorageLock.name), useValue: storageLockModelMock },
+        {
+          provide: getModelToken(RoomFeeInvoice.name),
+          useValue: roomFeeInvoiceModelMock,
+        },
+        {
+          provide: getModelToken(UtilityConfig.name),
+          useValue: utilityConfigModelMock,
+        },
+        {
+          provide: getModelToken(RoomFeeConfig.name),
+          useValue: roomFeeConfigModelMock,
+        },
+        {
+          provide: getModelToken(StorageAuditLog.name),
+          useValue: auditLogModelMock,
+        },
+        {
+          provide: getModelToken(StorageReconciliationRun.name),
+          useValue: reconciliationRunModelMock,
+        },
+        {
+          provide: getModelToken(StorageLock.name),
+          useValue: storageLockModelMock,
+        },
       ],
     }).compile();
 
-    service = module.get<StorageOrphanReconciliationService>(StorageOrphanReconciliationService);
+    service = module.get<StorageOrphanReconciliationService>(
+      StorageOrphanReconciliationService,
+    );
   });
 
   describe('collectDatabaseReferences', () => {
@@ -223,7 +248,9 @@ describe('StorageOrphanReconciliationService', () => {
       expect(refMap.has('public/activities/bg1.png')).toBe(true);
       expect(refMap.has('public/activities/frame1.png')).toBe(true);
       expect(refMap.has('private/invoices/proofs/proof1.jpg')).toBe(true);
-      expect(refMap.has('private/room-fee-invoices/proofs/proof2.jpg')).toBe(true);
+      expect(refMap.has('private/room-fee-invoices/proofs/proof2.jpg')).toBe(
+        true,
+      );
       expect(refMap.has('public/dormitory-qr/utility-qr.png')).toBe(true);
       expect(refMap.has('public/dormitory-qr/room-fee-qr.png')).toBe(true);
     });
@@ -268,13 +295,18 @@ describe('StorageOrphanReconciliationService', () => {
         },
       ]);
 
-      const result = await service.runReconciliation('preview', 'admin@example.com');
+      const result = await service.runReconciliation(
+        'preview',
+        'admin@example.com',
+      );
 
       expect(result.mode).toBe('preview');
       expect(result.scanned_files_count).toBe(3);
       expect(result.referenced_files_count).toBe(1);
       expect(result.orphan_files_count).toBe(1);
-      expect(result.orphans[0].key).toBe('public/activities/old-unreferenced.png');
+      expect(result.orphans[0].key).toBe(
+        'public/activities/old-unreferenced.png',
+      );
       expect(result.quarantined_count).toBe(0);
       expect(storageServiceMock.quarantineFile).not.toHaveBeenCalled();
       expect(auditLogModelMock.create).toHaveBeenCalled();
@@ -331,7 +363,10 @@ describe('StorageOrphanReconciliationService', () => {
         reason: 'reconciliation_orphan_run',
       });
 
-      const result = await service.runReconciliation('execute', 'admin@example.com');
+      const result = await service.runReconciliation(
+        'execute',
+        'admin@example.com',
+      );
 
       expect(result.mode).toBe('execute');
       expect(result.orphan_files_count).toBe(1);
@@ -354,7 +389,9 @@ describe('StorageOrphanReconciliationService', () => {
         }),
       });
 
-      await expect(service.runReconciliation('preview')).rejects.toThrow(ConflictException);
+      await expect(service.runReconciliation('preview')).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should recover and take over stale lease when previous run crashed/expired', async () => {
@@ -419,7 +456,10 @@ describe('StorageOrphanReconciliationService', () => {
         })
         .mockRejectedValueOnce(new Error('EACCES: permission denied'));
 
-      const result = await service.runReconciliation('execute', 'admin@example.com');
+      const result = await service.runReconciliation(
+        'execute',
+        'admin@example.com',
+      );
       expect(result.quarantined_count).toBe(1);
       expect(auditLogModelMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -444,7 +484,10 @@ describe('StorageOrphanReconciliationService', () => {
 
       const res = await service.restoreAsset('asset-123', 'admin@example.com');
       expect(res.asset_id).toBe('asset-123');
-      expect(storageServiceMock.restoreFile).toHaveBeenCalledWith('asset-123', 'admin@example.com');
+      expect(storageServiceMock.restoreFile).toHaveBeenCalledWith(
+        'asset-123',
+        'admin@example.com',
+      );
       expect(auditLogModelMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'restore',
@@ -453,43 +496,151 @@ describe('StorageOrphanReconciliationService', () => {
       );
     });
 
-    it('purgeAsset should purge file when zero referenced and record audit log', async () => {
-      storageServiceMock.purgeQuarantinedFile.mockResolvedValue({
+    it('purgeAsset should purge file when eligible, retention expired, phrase and token valid', async () => {
+      const pastDate = new Date(Date.now() - 31 * 24 * 3600 * 1000);
+      const manifest = {
         asset_id: 'asset-123',
         original_key: 'public/activities/unreferenced-old.png',
         size: 15000,
         sha256: 'hash123',
-      });
+        quarantined_at: pastDate,
+        expires_at: pastDate,
+        is_purge_eligible: true,
+        sha256_suffix: 'hash123',
+      };
 
-      const res = await service.purgeAsset('asset-123', 'admin@example.com', true);
+      storageServiceMock.listQuarantinedFiles.mockResolvedValue([manifest]);
+      storageServiceMock.purgeQuarantinedFile.mockResolvedValue(manifest);
+
+      const validToken = (service as any).generatePurgeConfirmationToken(
+        manifest.asset_id,
+        manifest.sha256,
+        manifest.expires_at,
+      );
+
+      const res = await service.purgeAsset(
+        'asset-123',
+        'admin@example.com',
+        validToken,
+        'XÓA VĨNH VIỄN',
+        'Manual clean test',
+      );
+
       expect(res.asset_id).toBe('asset-123');
-      expect(storageServiceMock.purgeQuarantinedFile).toHaveBeenCalledWith('asset-123', true);
+      expect(res.reclaimed_bytes).toBe(15000);
+      expect(storageServiceMock.purgeQuarantinedFile).toHaveBeenCalledWith(
+        'asset-123',
+        false,
+      );
       expect(auditLogModelMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'purge',
           actor: 'admin@example.com',
+          status: 'success',
         }),
       );
     });
 
-    it('purgeAsset should throw ConflictException if asset is currently referenced in DB', async () => {
+    it('purgeAsset should reject if confirmation phrase is incorrect', async () => {
+      await expect(
+        service.purgeAsset(
+          'asset-123',
+          'admin@example.com',
+          'token',
+          'WRONG PHRASE',
+        ),
+      ).rejects.toThrow(
+        'Cụm từ xác nhận không chính xác. Vui lòng nhập đúng: XÓA VĨNH VIỄN',
+      );
+    });
+
+    it('purgeAsset should reject if retention has not expired yet', async () => {
+      const futureDate = new Date(Date.now() + 10 * 24 * 3600 * 1000);
       storageServiceMock.listQuarantinedFiles.mockResolvedValue([
         {
-          asset_id: 'referenced-asset',
-          original_key: 'public/activities/logo1.png', // referenced in act-1
+          asset_id: 'asset-fresh',
+          original_key: 'public/activities/fresh.png',
           size: 5000,
+          sha256: 'hashfresh',
+          expires_at: futureDate,
+          is_purge_eligible: false,
+          retention_remaining_days: 10,
         },
       ]);
 
-      await expect(service.purgeAsset('referenced-asset', 'admin@example.com')).rejects.toThrow(
-        ConflictException,
+      await expect(
+        service.purgeAsset(
+          'asset-fresh',
+          'admin@example.com',
+          'token',
+          'XÓA VĨNH VIỄN',
+        ),
+      ).rejects.toThrow(/Tệp tin chưa hết thời hạn lưu trữ cách ly/);
+    });
+
+    it('purgeAsset should reject if confirmation token does not match', async () => {
+      const pastDate = new Date(Date.now() - 31 * 24 * 3600 * 1000);
+      storageServiceMock.listQuarantinedFiles.mockResolvedValue([
+        {
+          asset_id: 'asset-123',
+          original_key: 'public/activities/unreferenced-old.png',
+          size: 15000,
+          sha256: 'hash123',
+          expires_at: pastDate,
+          is_purge_eligible: true,
+        },
+      ]);
+
+      await expect(
+        service.purgeAsset(
+          'asset-123',
+          'admin@example.com',
+          'invalid-token',
+          'XÓA VĨNH VIỄN',
+        ),
+      ).rejects.toThrow(/Mã xác nhận xóa vĩnh viễn/);
+    });
+
+    it('purgeAsset should throw ConflictException if asset is currently referenced in DB', async () => {
+      const pastDate = new Date(Date.now() - 31 * 24 * 3600 * 1000);
+      const manifest = {
+        asset_id: 'referenced-asset',
+        original_key: 'public/activities/logo1.png', // referenced in act-1
+        size: 5000,
+        sha256: 'hashlogo',
+        expires_at: pastDate,
+        is_purge_eligible: true,
+      };
+
+      storageServiceMock.listQuarantinedFiles.mockResolvedValue([manifest]);
+
+      const validToken = (service as any).generatePurgeConfirmationToken(
+        manifest.asset_id,
+        manifest.sha256,
+        manifest.expires_at,
       );
+
+      await expect(
+        service.purgeAsset(
+          'referenced-asset',
+          'admin@example.com',
+          validToken,
+          'XÓA VĨNH VIỄN',
+        ),
+      ).rejects.toThrow(ConflictException);
       expect(storageServiceMock.purgeQuarantinedFile).not.toHaveBeenCalled();
     });
 
     it('purgeAsset should throw NotFoundException if asset manifest does not exist', async () => {
       storageServiceMock.listQuarantinedFiles.mockResolvedValue([]);
-      await expect(service.purgeAsset('non-existent')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.purgeAsset(
+          'non-existent',
+          'admin@example.com',
+          'token',
+          'XÓA VĨNH VIỄN',
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

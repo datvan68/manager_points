@@ -1,119 +1,104 @@
 # Task Identity and Pipeline
 
-- Task ID: `stabilize-storage-admin-backend-and-safety-gates`
-- Pipeline: `bug_fix`
-- Profile: Full, planning-only
-- Protocol/rules version: 3.2.0
+- Task: `storage-garbage-purge-and-capacity-source`
+- Pipeline: `feature_development`
+- Profile: Full, protocol/rules `3.2.0`
 - Repository: `D:\PROJECT\manager_points`
-- Base/current commit: `04c85ad3a417315c1124b69ac4a81ffe3ce77228`
-- Effective Rules Manifest (SHA-256): `safety.md=6A3F283B835394B1AF1F6380D94CBA260ACBED8A60D3065DD5365BB15806A772`, `global.md=67806F70A5F89ADF42E3BE88413CC76CC27A02C90FAD0609AE71DE34D046A43F`, `antigravity-operating-contract.md=51F3677C7E44121529CC0A4B17E5667BCBD2147EE63C6F30207C10D5DEB51790`, `orchestrator.md=B782109E896B2FA48A6523358A788A9DB9B81B72F3D8FC66F70019395738D716`, `pipeline.md=0419C072380887F96B37FE4EB48DAE764306F46FB03190B176A43EBCEA3F41F3`.
-- Base state: clean worktree before this planning artifact is written.
+- Base/current commit at planning: `401217172b230f34e0cc61d25ee47621ad13c2cb`; relevant worktree was clean.
+- Environment: development planning only. This taskscope does not authorize reconciliation execution, file quarantine/purge, persistent-data mutation, deployment, or production configuration changes.
 
 # Risk Level
 
 - Risk: critical.
-- Evidence: the current backend does not compile and exposes storage reconciliation, restore, and permanent purge operations over persistent payment-proof, QR, and activity media. Correctness depends on authorization, retention, fresh database references, filesystem confinement, concurrency, and auditable failure handling.
-- Environment: development planning only. No database/schema mutation, filesystem reconciliation, quarantine, restore, purge, deployment, or production action is authorized by this taskscope.
-- Reversibility: source fixes are Git-reversible. Execute/quarantine is recoverable only while manifests and bytes remain; purge is destructive and separately gated.
-- Blast radius: `backend/src/core/storage/**`, five referenced Mongo collections, storage Admin API consumers, and files beneath `UPLOAD_STORAGE_ROOT`.
+- Evidence: permanent purge deletes persistent invoice proofs, QR images, or activity media; a stale reference, unsafe path, invalid confirmation, or partial filesystem failure can cause privacy exposure or irreversible data loss.
+- Reversibility: source changes are Git-reversible. Quarantine is recoverable only while its binary and manifest remain valid. Permanent purge is not recoverable without a verified backup.
+- Blast radius: local persistent media volume, five Mongo collections used for reference discovery, admin storage APIs, and `/system/storage`.
 
 # Objective
 
-Restore a passing backend build and make the storage administration backend conform to the approved lifecycle contract: preview is safe by default, persistent mutations are capability-gated, concurrency is cross-instance safe, purge cannot bypass retention/reference checks, and API/audit outputs do not expose sensitive storage details.
+Allow `SYSTEM_ADMIN` users to safely reclaim disk space from server-confirmed garbage files through a two-stage quarantine-then-purge workflow, while clearly explaining that disk capacity is measured from the filesystem containing the configured media root and is distinct from application-managed media usage.
 
 # Scope Boundaries
 
-- Backend storage implementation and tests:
-  - `backend/src/core/storage/storage-admin.controller.ts`
-  - `backend/src/core/storage/storage-admin.controller.spec.ts` (new)
-  - `backend/src/core/storage/storage-orphan-reconciliation.service.ts`
-  - `backend/src/core/storage/storage-orphan-reconciliation.service.spec.ts`
-  - `backend/src/core/storage/storage.service.ts`
-  - `backend/src/core/storage/storage.service.spec.ts`
-  - `backend/src/core/storage/storage.interface.ts`
-  - `backend/src/core/storage/schemas/storage-audit.schema.ts`
-  - `backend/src/core/storage/storage.module.ts`
-- Typed configuration may be added under the existing backend configuration owner and versioned environment template only when verified during implementation.
-- Frontend compatibility is limited to `frontend/src/api/system-api.ts` and `/system/storage` tests/UI if capability fields or protected-operation error contracts require adjustment. No visual redesign.
-- Managed references remain the four Activity media fields, two invoice proof fields, and two transfer-QR fields across the five existing collections.
-- Filesystem operations remain confined to allowlisted descendants of `UPLOAD_STORAGE_ROOT`; `/app/storage` siblings are excluded.
-- Write boundary for this planning turn: `docs/taskscope.md` only.
+- Approved/write boundaries:
+  - `backend/src/core/storage/**`
+  - `frontend/src/api/system-api.ts`
+  - `frontend/src/api/system-api.test.ts`
+  - `frontend/src/app/(dashboard)/system/storage/page.tsx`
+  - `frontend/src/app/(dashboard)/system/storage/page.test.tsx`
+  - versioned, non-secret storage configuration documentation only if required by the implemented contract.
+- Known backend targets: `StorageService.getCapacityMetrics`, quarantine/restore/purge primitives, `StorageOrphanReconciliationService.runReconciliation`, `getSummary`, `getInventory`, `purgeAsset`, storage DTOs/controller, audit/run schemas and focused specs.
+- Known frontend targets: storage summary/types/API methods, capacity banner, inventory actions, confirmation dialogs, action state/refetch, and focused tests.
+- Access remains fail-closed and restricted to `SYSTEM_ADMIN` in both frontend route/page behavior and backend guards.
 
 # Out of Scope
 
-- Running reconciliation, quarantine, restore, migration, or purge against development data, staging, or production.
-- Deployment, schema/index application outside disposable tests, backup mutation, Git history rewrite, secrets, IAM, or permission-code changes.
-- New storage providers, CDN, Drive, S3, or a generic filesystem manager.
-- Changing invoice approval/accounting retention rules, making proofs public, or deleting activity media on soft delete.
-- Reworking domain-owned replace/delete UI beyond compatibility with the corrected backend contract.
+- Direct deletion of active, staged, merely suspected, externally hosted, or database-referenced media.
+- One-click deletion directly from the managed live folders.
+- Bulk purge, automatic permanent purge, invoice retention-policy changes, backup deletion, database migration, Git history rewrite, cloud/Drive/S3 integration, deployment, and capability enablement outside disposable development.
+- Displaying private proof/QR thumbnails, raw storage keys, absolute filesystem paths, private URLs, or arbitrary audit payloads.
 
 # Context and Dependencies
 
-- Reproduced on commit `04c85ad3`: `backend :: npm run build` fails with two `TS1272` errors at `storage-admin.controller.ts:39` and `:41`. `AssetLifecycleState` and `StorageNamespace` are used in decorated signatures but imported as runtime values under `isolatedModules` plus `emitDecoratorMetadata`.
-- The focused backend suite passes: 5 suites and 133 tests. It does not compile the failing controller path and has no focused controller regression test.
-- `DELETE /api/system/storage/purge/:assetId` and `POST /api/system/storage/reconcile/execute` are currently registered and callable by any `SYSTEM_ADMIN`; there is no disabled-by-default capability gate matching the approved Human Gates.
-- `purgeAsset` immediately unlinks a quarantined asset without enforcing the configured 30-day retention, fresh zero-reference verification, immutable eligibility/run approval, or backup evidence.
-- Reconciliation uses an in-process boolean lock. It does not serialize multiple backend processes/hosts and can race after restart.
-- Per-file quarantine failures are logged and the run is still recorded as `success`; `deleteFile` and purge convert filesystem errors to `false`. This violates observable failure/audit requirements.
-- Reconciliation responses include logical storage keys in orphan/missing samples, and audit/run errors may persist raw exception messages. These values can reveal internal paths or sensitive identifiers.
-- Query parameters are converted with `Number(...)` without DTO validation, bounds, or enum validation.
-- Existing path confinement, atomic write/quarantine primitives, 24-hour managed-file grace classification, checksum restore, degraded `statfs`, reference catalog, and 133 passing focused tests should be preserved.
+- `UPLOAD_STORAGE_ROOT` selects the managed media root; without configuration the backend uses `<backend cwd>/storage/uploads`.
+- `getCapacityMetrics()` calls `fs.promises.statfs(storageRoot)`. Therefore `totalBytes`, `usedBytes`, and `freeBytes` describe the complete filesystem/volume containing that root, including unrelated files. Thresholds are warning at 85% and critical at 95%; unsupported/failed `statfs` returns explicit degraded telemetry with zero values.
+- `getSummary()` separately sums managed live media and quarantined media bytes. These values are application-owned usage, not partition usage.
+- A file is currently an orphan candidate only when it is under an allowlisted managed namespace, has no recognized database reference, and is older than the 24-hour unattached-file grace period.
+- Execute moves candidates to `.quarantine` with SHA-256 metadata; it does not free meaningful filesystem space because the bytes remain on the same volume. Space is reclaimed only after retention-gated permanent purge.
+- Execute/restore/purge capabilities default off. The purge API exists, but the page does not call it; its DTO confirmation is not currently enforced by the controller/service.
+- The Vercel React guidance applies to client data flow: avoid duplicate requests, guard duplicate mutations, and refetch independent summary/inventory/audit data in parallel after a completed action.
 
 # Steps
 
-1. **Compile regression — code/test:** change storage interface symbols used only as types to `import type` (or an equivalent decorator-safe DTO design), add a controller compile/route test, and establish `npm run build` as a mandatory regression check.
-2. **Validated Admin contract — code/test:** introduce DTOs for inventory filters and mutation requests; validate/coerce bounded page/limit, enums, asset IDs, and optional confirmation tokens without accepting filesystem paths. Return controlled 400/409/423/503 responses.
-3. **Capability gates — code/test:** expose read-only summary, inventory, audit, and preview by default. Register or reject execute, restore, and purge according to explicit typed configuration whose default is disabled. Return capability metadata so the UI never presents unavailable destructive actions. Configuration changes outside disposable development remain gated.
-4. **Cross-instance reconciliation lock — code/test:** replace the process-local boolean as the authority with an atomic Mongo lease/run lock containing owner, expiry, and idempotent run ID. Support stale-lease recovery, reject concurrent execute/preview mutations deterministically, and retain the local guard only as an optimization.
-5. **Safe reconciliation outcome — code/test:** recheck the asset reference immediately before each quarantine move, record every attempted item and sanitized error category, and mark a run `partial` or `failed` when any required item fails. Never report successful quarantine counts for failed moves.
-6. **Restore protection — code/test:** validate opaque asset ID, manifest checksum, confined original key, target collision, and current reference state before restore. Record sanitized success and failure audit entries; do not return absolute paths or raw logical keys.
-7. **Purge eligibility — code/test/review:** keep purge disabled by default. When explicitly enabled after Human Gate G-03, require quarantine age at or beyond configured retention (default 30 days), an immutable approved run/asset identifier, fresh zero-reference verification across all managed fields/collections, valid checksum/manifest, and an explicit confirmation contract. Reject otherwise without unlinking either bytes or manifest.
-8. **Privacy-safe API and audit — code/test:** replace raw keys, filenames tied to people/payments, owner IDs, and exception strings with opaque IDs, domain/type, bounded counts, and allowlisted error categories. Sanitize logger/audit/run-record data while retaining correlation IDs useful for operations.
-9. **Error propagation and atomicity — code/test:** stop swallowing deletion/purge/quarantine errors. Preserve bytes and manifest consistently on partial filesystem failure, expose a controlled failure, and audit it. Make repeated execute/restore/purge requests idempotent or conflict-safe.
-10. **Frontend compatibility — frontend/test, conditional:** consume capability metadata, hide disabled execute/restore/purge controls, handle protected-operation errors, and preserve fail-closed `SYSTEM_ADMIN` access and privacy-safe inventory. Do not add proof/QR previews.
-11. **Independent review and verification — review/test:** review authorization, persistence gates, lease behavior, TOCTOU reference checks, retention, path/symlink confinement, response/audit privacy, and final diff; run focused tests, backend build, conditional frontend checks, and disposable-root failure drills.
+1. **Backend contract and capacity semantics — code/test:** return a typed capacity source such as `filesystem_containing_media_root`, `measuredAt`, thresholds, and explicit degraded state; keep partition totals separate from managed live, staging, quarantine, and server-calculated reclaimable bytes. Never return an absolute path or mount secret.
+2. **Safe garbage eligibility — code/test/review:** preserve allowlisted namespaces and 24-hour grace; correct legacy/local URL normalization; reject external URLs; perform a targeted or bounded fresh reference check immediately before quarantine and purge across all verified activity, proof, and QR fields.
+3. **Recoverable quarantine — code/test:** make binary plus manifest publication failure-atomic, validate asset/manifest schema and checksum, reject symlink/reparse/path escape, surface corrupt or manifestless quarantine artifacts, and keep execute disabled by default.
+4. **Purge eligibility contract — code/test/review:** expose per-quarantined-item `purgeEligibleAt`, retention remaining, byte size, safe checksum suffix, and immutable eligibility/confirmation token bound to asset, checksum, actor/session, and expiry. Active, staged, and orphan-candidate rows must never receive a purge token.
+5. **Permanent purge endpoint — code/test:** require `SYSTEM_ADMIN`, enabled purge capability, expired retention (default 30 days), valid asset-bound confirmation, fresh zero references, valid manifest/checksum, current operation lease, and explicit confirmation phrase/reason. Remove or keep internal-only every retention bypass. Persist sanitized immutable attempt and success/failure audit records around the unlink; repeated requests are idempotent or return a controlled conflict.
+6. **Lock and error safety — code/test:** always release the local/distributed lock after setup failures, renew/verify lease ownership for long scans, report partial operations accurately, and leave a recoverable pair on filesystem/audit failure where possible.
+7. **Admin UI — frontend/test:** distinguish “Dung lượng volume chứa media” from “Dung lượng media ứng dụng”; show loading, error, degraded, measurement time, managed/quarantine/reclaimable bytes, and explanatory help text. Missing capabilities must fail closed.
+8. **Garbage interaction — frontend/test:** keep “Cách ly” bound to a fresh reviewed preview; add “Xóa vĩnh viễn” only on server-eligible quarantined rows. Show exact bytes reclaimed, retention/checksum suffix, irreversible warning, typed phrase plus reason, double-submit protection, 409/412 stale-reference handling, and parallel refresh of summary/inventory/audit after completion. Restore also requires confirmation.
+9. **Privacy and regression review:** use explicit safe view models for inventory/audit. Verify the DOM and API responses never expose paths, raw keys/private URLs, proof/QR content, or unsanitized exceptions.
 
 # Acceptance Criteria
 
-- **AC-01:** `npm run build` succeeds, and a regression test covers the decorated controller signature/routes so the reproduced `TS1272` failure cannot recur unnoticed.
-- **AC-02:** Read-only storage endpoints remain `SYSTEM_ADMIN`-guarded; execute, restore, and purge are disabled by default and return a controlled protected result when unavailable.
-- **AC-03:** Admin query/mutation input is DTO-validated and bounded; no endpoint accepts an absolute/relative filesystem path or unknown namespace/status.
-- **AC-04:** An atomic expiring lease prevents overlapping reconciliation across processes; stale leases recover safely and duplicate run IDs are idempotent/conflict-safe.
-- **AC-05:** Every quarantine candidate receives a fresh reference check immediately before its move. Any item failure produces an accurate partial/failed run and sanitized audit rather than a success-only record.
-- **AC-06:** Restore verifies ID, confined manifest/key, checksum, collision, and reference state and records both success and failure without exposing raw keys or paths.
-- **AC-07:** Purge cannot unlink before the configured retention period, while referenced, without an approved immutable eligibility token/run, when disabled, or after a stale eligibility decision. Failed purge leaves recoverable bytes/manifest intact.
-- **AC-08:** API responses, logs, audit records, and reconciliation run records contain no absolute paths, raw private URLs, logical storage keys, payment/person filenames, owner identifiers, or unclassified raw exceptions.
-- **AC-09:** Filesystem failures are observable and categorized; code never converts a failed persistent mutation into a successful response or audit.
-- **AC-10:** Existing path confinement, symlink rejection, 24-hour unattached-media grace, five-collection reference coverage, checksum behavior, degraded capacity reporting, and all existing focused tests remain passing.
-- **AC-11:** If capability metadata changes the frontend contract, `/system/storage` hides disabled actions, remains fail-closed for non-Admins, and its focused tests/typecheck pass.
-- **AC-12:** Final diff is scoped, contains no generated/uploaded media, and introduces no unrelated changes.
+- **AC-01:** Only `SYSTEM_ADMIN` can load storage data or invoke preview/quarantine/restore/purge; missing capability data disables every mutation control.
+- **AC-02:** Capacity UI/API states that totals come from `statfs` on the filesystem containing `UPLOAD_STORAGE_ROOT`; partition totals and managed live/staging/quarantine/reclaimable media bytes are separately labeled and arithmetically consistent.
+- **AC-03:** Loading/error/degraded telemetry never renders fabricated `0%` healthy/critical capacity, and no server path/mount identifier is exposed.
+- **AC-04:** A live file is eligible for quarantine only after grace expiry and zero recognized references; a fresh reference or external/ambiguous origin blocks mutation.
+- **AC-05:** Quarantine failure leaves either the original intact or a complete restorable binary/manifest pair; corrupt/manifestless artifacts are reported, not silently ignored.
+- **AC-06:** Permanent purge is available only for an expired, valid quarantined asset and requires capability, fresh zero references, checksum, current lease, asset-bound confirmation, reason, and typed phrase. No HTTP retention bypass exists.
+- **AC-07:** Successful purge removes only the exact quarantined binary and manifest, reports exact reclaimed bytes, creates sanitized attempt/outcome audit entries, and refreshes UI metrics. Failure does not falsely report reclaimed space.
+- **AC-08:** Active/staged/orphan-candidate/referenced files never show a direct-delete action. Execute, restore, and purge prevent duplicate submission and handle stale/conflict responses without optimistic removal.
+- **AC-09:** Inventory, confirmations, audit, logs, DOM, and API samples contain no absolute paths, raw private URLs/keys, proof or QR thumbnails, or arbitrary unsanitized details.
+- **AC-10:** Existing 24-hour grace, 30-day default quarantine retention, four managed namespaces, five-collection reference coverage, capability defaults-off, and focused storage regressions remain passing.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand src/core/storage/storage-admin.controller.spec.ts src/core/storage/storage.service.spec.ts src/core/storage/storage-orphan-reconciliation.service.spec.ts src/activities/activities.service.spec.ts src/dormitory/services/invoices.service.spec.ts src/dormitory/services/room-fee-invoices.service.spec.ts` => controller compile/guards/validation plus storage lifecycle and domain regressions pass.
-- `D:\PROJECT\manager_points\backend :: npm run build` => exits 0 with no `TS1272` or other TypeScript/Nest compilation error.
-- Disposable Mongo/temp `UPLOAD_STORAGE_ROOT` tests => second process cannot acquire an active lease; stale lease recovers; fresh DB reference blocks quarantine/purge; retention blocks early purge; checksum/path/symlink/collision failures preserve recoverable state; partial moves produce partial/failed audit.
-- Privacy inspection of API DTO fixtures, logs, audit documents, and run documents => no prohibited raw key/path/private/person/payment data.
-- Conditional frontend: `D:\PROJECT\manager_points\frontend :: npm test -- --run "src/api/system-api.test.ts" "src/app/(dashboard)/system/storage/page.test.tsx"` and `npm run typecheck` => capability/error handling and fail-closed UI pass.
-- `D:\PROJECT\manager_points :: git diff --check` and `git status --short` => no whitespace errors or unintended paths.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand src/core/storage/storage.service.spec.ts src/core/storage/storage-orphan-reconciliation.service.spec.ts src/core/storage/storage-admin.controller.spec.ts` => capacity source, eligibility, atomic quarantine, lock, confirmation, retention, reference, purge, audit, privacy, and failure cases pass using temp storage and disposable mocked/test databases only.
+- `D:\PROJECT\manager_points\backend :: npm exec eslint -- "src/core/storage/**/*.ts"` => affected backend files pass lint.
+- `D:\PROJECT\manager_points\backend :: npm run build` => Nest backend compiles.
+- `D:\PROJECT\manager_points\frontend :: npm exec vitest -- run "src/app/(dashboard)/system/storage/page.test.tsx" "src/api/system-api.test.ts"` => admin access, capacity source states, capability fail-closed, quarantine/restore/purge confirmations, conflicts, refresh, and redaction pass.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => frontend types compile.
+- `D:\PROJECT\manager_points :: git diff --check; git status --short` => no whitespace errors; all changed paths are intentional and inside the approved boundary.
+- No verification command may invoke live reconcile execute, restore, purge, migration, deployment, or a non-disposable database/volume.
 
 # Safety Gates
 
-- **G-01 — Persistent audit/lease schema:** before applying new or changed indexes/documents outside disposable tests, approve schema/index review, lease TTL/expiry behavior, compatibility, backup, rollback, and operator. Rollback: disable mutation capabilities and run preview/read-only only. Resume: Steps 4-5 enablement.
-- **G-02 — Execute/restore enablement:** before enabling quarantine or restore in staging/production, approve redacted preview, capability configuration, reference coverage, backup/checksums, concurrency plan, and restore rehearsal. Rollback: disable capabilities and restore only from verified manifests under an approved operation. Resume: Steps 5-6 operational enablement.
-- **G-03 — Permanent purge:** before enabling or invoking purge, approve exact immutable eligible IDs/counts/bytes, retention expiry, fresh zero-reference evidence, backup, audit artifact, operator, and the limitation that rollback requires backup restore. Resume: Step 7 operational enablement.
-- **G-04 — Deployment:** before staging/production deployment, approve backend/frontend verification, access review, capability defaults, volume/capacity/backup evidence, and rollback version. Resume: deploy and post-deploy smoke checks.
+- **G-01 — Capability/configuration enablement:** before enabling execute, restore, or purge outside disposable development, approve environment, exact capability values, retention, admin access review, backup/checksum evidence, monitoring, and rollback to disabled defaults. Resume: configuration-only enablement.
+- **G-02 — Quarantine execution:** before executing against any persistent volume, approve a fresh redacted preview with immutable candidate IDs/count/bytes, reference coverage, backup, operator, and restore rehearsal. Rollback: restore from verified manifests. Resume: one bounded execute run.
+- **G-03 — Permanent purge:** before any real purge, approve exact eligible asset IDs/count/bytes, retention expiry, fresh zero-reference evidence, confirmation-token design, backup, audit evidence, operator, and acknowledgement that rollback requires backup restore. Resume: one bounded purge operation.
+- **G-04 — Deployment:** approve affected verification, independent security review, volume-capacity evidence, backup/restore result, configuration defaults, and rollback version before staging/production deployment.
 
 # Artifacts and Checkpoints
 
-- Planning artifact: `docs/taskscope.md`; record SHA-256 after validation.
-- Required execution evidence: reproduced build log, controller regression result, capability contract, lease/schema review, retention/reference test report, privacy review, focused test/build output, and final scoped diff.
-- Checkpoints: after compile/DTO fixes; after lease and reconciliation tests; after restore/purge security review; before any non-disposable capability enablement.
-- Artifacts must not include image bytes, absolute paths, raw storage keys/private URLs, payment details, personal identifiers, or secrets.
+- Effective Rules Manifest: versions `3.2.0`; canonical hashes recorded by the orchestrator for safety/global/contract/orchestrator/pipeline.
+- Required review artifacts: capacity-contract sample; redacted eligibility/preview sample; purge threat-model and confirmation contract; focused test output; privacy scan; final diff/status.
+- Material checkpoints: after backend capacity/eligibility contract; after atomic quarantine/lease tests; after purge security review; after frontend compatibility; before every gated persistent operation.
 
 # Execution Budgets
 
-- Default step deadline: 600 seconds; maximum 1,800 seconds for bounded build/test or disposable concurrency drills.
-- Concurrency: up to three non-overlapping workers; one writer per path. Storage interface/controller contract precedes service and conditional frontend work.
-- Retry: at most two safe idempotent tool/filesystem retries, three engineering loops, and two review remediation cycles.
-- Stop on persistent-data mutation without a gate, reference ambiguity, lease/index uncertainty, path/symlink escape, private-data exposure, checksum mismatch, destructive purge eligibility failure, unrelated dirty-path conflict, or scope expansion.
+- Step deadline: 600 seconds, maximum 1800 seconds where integration tests justify it.
+- Concurrency: specialized Full workers may run only on disjoint paths; one writer per path; serialize shared DTO/API contract changes before frontend integration.
+- Retries: at most 2 idempotent command retries; engineering loop `0..3`; independent-review remediation `0..2`.
+- Stop on dirty-path overlap, reference ambiguity, path/symlink escape, checksum mismatch, lock ownership loss, unsanitized private data, destructive operation without gate, non-disposable test target, scope expansion, or changed dependency/migration requirement.

@@ -10,7 +10,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as crypto from 'crypto';
-import { StorageService, DEFAULT_UNATTACHED_GRACE_HOURS } from './storage.service';
+import {
+  StorageService,
+  DEFAULT_UNATTACHED_GRACE_HOURS,
+} from './storage.service';
 import {
   AssetLifecycleState,
   ReconciliationResult,
@@ -27,8 +30,14 @@ import {
   StorageLock,
   StorageLockDocument,
 } from './schemas/storage-audit.schema';
-import { Activity, ActivityDocument } from '../../activities/schemas/activity.schema';
-import { Invoice, InvoiceDocument } from '../../dormitory/schemas/invoice.schema';
+import {
+  Activity,
+  ActivityDocument,
+} from '../../activities/schemas/activity.schema';
+import {
+  Invoice,
+  InvoiceDocument,
+} from '../../dormitory/schemas/invoice.schema';
 import {
   RoomFeeInvoice,
   RoomFeeInvoiceDocument,
@@ -80,7 +89,9 @@ export class StorageOrphanReconciliationService {
 
     try {
       // 1. Clean old staging files older than 1 hour
-      const stagingCleaned = await this.storageService.cleanStagingFiles(60 * 60 * 1000);
+      const stagingCleaned = await this.storageService.cleanStagingFiles(
+        60 * 60 * 1000,
+      );
 
       // 2. Read capacity metrics
       const capacity = await this.storageService.getCapacityMetrics();
@@ -125,7 +136,10 @@ export class StorageOrphanReconciliationService {
   async collectDatabaseReferences(): Promise<Map<string, DomainReference[]>> {
     const refMap = new Map<string, DomainReference[]>();
 
-    const addRef = (rawUrl: string | undefined | null, ref: DomainReference) => {
+    const addRef = (
+      rawUrl: string | undefined | null,
+      ref: DomainReference,
+    ) => {
       if (!rawUrl || typeof rawUrl !== 'string') return;
       const trimmed = rawUrl.trim();
       if (!trimmed) return;
@@ -300,7 +314,9 @@ export class StorageOrphanReconciliationService {
     const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
 
     try {
-      const existing = await this.storageLockModel.findOne({ resource: 'reconciliation' }).exec();
+      const existing = await this.storageLockModel
+        .findOne({ resource: 'reconciliation' })
+        .exec();
       if (existing) {
         if (existing.lease_expires_at > now) {
           return false; // Active lock held
@@ -339,9 +355,13 @@ export class StorageOrphanReconciliationService {
 
   async releaseReconciliationLock(runId: string): Promise<void> {
     try {
-      await this.storageLockModel.deleteOne({ resource: 'reconciliation', run_id: runId }).exec();
+      await this.storageLockModel
+        .deleteOne({ resource: 'reconciliation', run_id: runId })
+        .exec();
     } catch (err) {
-      this.logger.warn(`Lỗi khi giải phóng khóa đối soát: ${(err as Error).message}`);
+      this.logger.warn(
+        `Lỗi khi giải phóng khóa đối soát: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -388,8 +408,18 @@ export class StorageOrphanReconciliationService {
 
       let scannedBytes = 0;
       let referencedCount = 0;
-      const orphanCandidates: Array<{ id: string; key: string; size: number; mtime: Date }> = [];
-      const missingList: Array<{ key: string; domain: string; owner_id: string; field: string }> = [];
+      const orphanCandidates: Array<{
+        id: string;
+        key: string;
+        size: number;
+        mtime: Date;
+      }> = [];
+      const missingList: Array<{
+        key: string;
+        domain: string;
+        owner_id: string;
+        field: string;
+      }> = [];
 
       const now = Date.now();
       const graceMs = DEFAULT_UNATTACHED_GRACE_HOURS * 60 * 60 * 1000;
@@ -457,7 +487,9 @@ export class StorageOrphanReconciliationService {
             quarantinedBytes += orphan.size;
           } catch (qErr) {
             failedQuarantineCount++;
-            this.logger.warn(`Không thể cách ly ${orphan.key}: ${(qErr as Error).message}`);
+            this.logger.warn(
+              `Không thể cách ly ${orphan.key}: ${(qErr as Error).message}`,
+            );
           }
         }
       }
@@ -551,8 +583,15 @@ export class StorageOrphanReconciliationService {
     }
 
     let quarantinedBytes = 0;
+    let reclaimableBytes = 0;
+    let reclaimableCount = 0;
+
     for (const q of quarantinedFiles) {
       quarantinedBytes += q.size;
+      if (q.is_purge_eligible) {
+        reclaimableCount++;
+        reclaimableBytes += q.size;
+      }
     }
 
     const lastRun = await this.reconciliationRunModel
@@ -568,6 +607,8 @@ export class StorageOrphanReconciliationService {
       live_bytes: liveBytes,
       quarantined_files_count: quarantinedFiles.length,
       quarantined_bytes: quarantinedBytes,
+      reclaimable_files_count: reclaimableCount,
+      reclaimable_bytes: reclaimableBytes,
       orphan_candidates_count: lastRun?.orphan_files_count || 0,
       missing_references_count: lastRun?.missing_references_count || 0,
       last_scan: lastRun
@@ -580,6 +621,22 @@ export class StorageOrphanReconciliationService {
           }
         : undefined,
     };
+  }
+
+  /**
+   * Helper to compute safe cryptographic purge confirmation token for eligible assets
+   */
+  private generatePurgeConfirmationToken(
+    assetId: string,
+    sha256: string,
+    expiresAt: Date,
+  ): string {
+    return crypto
+      .createHash('sha256')
+      .update(
+        `${assetId}:${sha256}:${new Date(expiresAt).toISOString()}:STORAGE_PURGE_SALT_v1`,
+      )
+      .digest('hex');
   }
 
   /**
@@ -603,8 +660,11 @@ export class StorageOrphanReconciliationService {
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
 
     const refMap = await this.collectDatabaseReferences();
-    const managedFiles = await this.storageService.listManagedFiles(query.namespace);
-    const quarantinedManifests = await this.storageService.listQuarantinedFiles();
+    const managedFiles = await this.storageService.listManagedFiles(
+      query.namespace,
+    );
+    const quarantinedManifests =
+      await this.storageService.listQuarantinedFiles();
 
     const allItems: StorageInventoryItem[] = [];
     const now = Date.now();
@@ -661,10 +721,26 @@ export class StorageOrphanReconciliationService {
       // Derive namespace from original key
       let namespace: StorageNamespace = 'activities';
       if (q.original_key.includes('dormitory-qr')) namespace = 'dormitory-qr';
-      else if (q.original_key.includes('room-fee-invoices')) namespace = 'room-fee-invoices';
+      else if (q.original_key.includes('room-fee-invoices'))
+        namespace = 'room-fee-invoices';
       else if (q.original_key.includes('invoices')) namespace = 'invoices';
 
       if (query.namespace && namespace !== query.namespace) continue;
+
+      // Attach confirmation token ONLY if item is eligible for purge (retention expired)
+      const isEligible = Boolean(q.is_purge_eligible);
+      const confirmationToken = isEligible
+        ? this.generatePurgeConfirmationToken(
+            q.asset_id,
+            q.sha256,
+            q.expires_at,
+          )
+        : undefined;
+
+      const sanitizedManifest = {
+        ...q,
+        purge_confirmation_token: confirmationToken,
+      };
 
       allItems.push({
         id: q.asset_id,
@@ -678,7 +754,7 @@ export class StorageOrphanReconciliationService {
         modified_at: new Date(q.quarantined_at),
         status: 'quarantined',
         referenced: false,
-        quarantine_manifest: q,
+        quarantine_manifest: sanitizedManifest,
       });
     }
 
@@ -690,7 +766,9 @@ export class StorageOrphanReconciliationService {
     }
 
     if (query.domain) {
-      filtered = filtered.filter((item) => item.domain_ref?.domain === query.domain);
+      filtered = filtered.filter(
+        (item) => item.domain_ref?.domain === query.domain,
+      );
     }
 
     if (query.search) {
@@ -705,7 +783,10 @@ export class StorageOrphanReconciliationService {
     }
 
     // Sort by modified date descending
-    filtered.sort((a, b) => new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
+    filtered.sort(
+      (a, b) =>
+        new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime(),
+    );
 
     const total = filtered.length;
     const totalPages = Math.ceil(total / limit) || 1;
@@ -751,20 +832,58 @@ export class StorageOrphanReconciliationService {
   /**
    * Purges a quarantined asset (permanent unlink, retention and capability gated)
    */
-  async purgeAsset(assetId: string, actor = 'system', bypassRetention = false) {
+  async purgeAsset(
+    assetId: string,
+    actor = 'system',
+    confirmationToken?: string,
+    confirmationPhrase?: string,
+    reason?: string,
+  ) {
     if (!this.storageService.getCapabilities().canPurge) {
       throw new ForbiddenException(
         'Thao tác xóa vĩnh viễn tệp tin hiện đang bị vô hiệu hóa bởi cấu hình hệ thống',
       );
     }
 
-    // Fresh zero-reference check
+    const phrase = confirmationPhrase?.trim().toUpperCase();
+    if (!phrase || (phrase !== 'XÓA VĨNH VIỄN' && phrase !== 'PURGE')) {
+      throw new BadRequestException(
+        'Cụm từ xác nhận không chính xác. Vui lòng nhập đúng: XÓA VĨNH VIỄN',
+      );
+    }
+
+    // Find quarantined manifest
     const quarantinedList = await this.storageService.listQuarantinedFiles();
     const targetManifest = quarantinedList.find((q) => q.asset_id === assetId);
     if (!targetManifest) {
-      throw new NotFoundException(`Không tìm thấy tệp tin cách ly với ID: ${assetId}`);
+      throw new NotFoundException(
+        `Không tìm thấy tệp tin cách ly với ID: ${assetId}`,
+      );
     }
 
+    // Enforce retention expiry
+    const now = Date.now();
+    const expiresAtTime = new Date(targetManifest.expires_at).getTime();
+    if (now < expiresAtTime) {
+      throw new BadRequestException(
+        `Tệp tin chưa hết thời hạn lưu trữ cách ly (${targetManifest.retention_remaining_days || 1} ngày còn lại)`,
+      );
+    }
+
+    // Verify confirmation token bound to asset and checksum
+    const expectedToken = this.generatePurgeConfirmationToken(
+      targetManifest.asset_id,
+      targetManifest.sha256,
+      targetManifest.expires_at,
+    );
+
+    if (!confirmationToken || confirmationToken !== expectedToken) {
+      throw new BadRequestException(
+        'Mã xác nhận xóa vĩnh viễn (confirmationToken) không hợp lệ hoặc đã hết hạn',
+      );
+    }
+
+    // Fresh zero-reference check
     const refMap = await this.collectDatabaseReferences();
     if (refMap.has(targetManifest.original_key)) {
       throw new ConflictException(
@@ -772,21 +891,62 @@ export class StorageOrphanReconciliationService {
       );
     }
 
-    const manifest = await this.storageService.purgeQuarantinedFile(assetId, bypassRetention);
+    const runId = crypto.randomUUID();
 
+    // Log purge attempt
     await this.auditLogModel.create({
-      run_id: crypto.randomUUID(),
+      run_id: runId,
       action: 'purge',
       actor,
       mode: 'manual',
-      status: 'success',
+      status: 'attempt',
       details: {
         asset_id: assetId,
-        size: manifest.size,
+        size: targetManifest.size,
+        sha256_suffix: targetManifest.sha256_suffix,
+        reason: reason || 'system_admin_purge',
       },
     });
 
-    return { message: 'Đã xóa vĩnh viễn tệp tin khỏi vùng cách ly', asset_id: assetId };
+    try {
+      const manifest = await this.storageService.purgeQuarantinedFile(
+        assetId,
+        false,
+      );
+
+      await this.auditLogModel.create({
+        run_id: runId,
+        action: 'purge',
+        actor,
+        mode: 'manual',
+        status: 'success',
+        details: {
+          asset_id: assetId,
+          reclaimed_bytes: manifest.size,
+          sha256_suffix: manifest.sha256_suffix,
+          reason: reason || 'system_admin_purge',
+        },
+      });
+
+      return {
+        message: 'Đã xóa vĩnh viễn tệp tin khỏi vùng cách ly',
+        asset_id: assetId,
+        reclaimed_bytes: manifest.size,
+      };
+    } catch (err) {
+      await this.auditLogModel.create({
+        run_id: runId,
+        action: 'purge',
+        actor,
+        mode: 'manual',
+        status: 'failed',
+        details: {
+          asset_id: assetId,
+          error: (err as Error).message,
+        },
+      });
+      throw err;
+    }
   }
 
   /**
