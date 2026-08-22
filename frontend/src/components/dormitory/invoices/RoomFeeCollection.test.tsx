@@ -40,6 +40,7 @@ vi.mock('@/api/dormitory-api', () => ({
       uploadProof: vi.fn(),
       pay: vi.fn(),
       updateProof: vi.fn(),
+      getProofBlob: vi.fn(),
       reviewProof: vi.fn(),
       bulkReviewProof: vi.fn(),
       bulkDelete: vi.fn(),
@@ -126,12 +127,23 @@ const mockConfig = {
 describe('RoomFeeCollection Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    let objectUrlId = 0;
+    const mockCreate = vi.fn((_b: Blob) => `blob:http://localhost/proof-blob-${++objectUrlId}`);
+    const mockRevoke = vi.fn();
+    window.URL.createObjectURL = mockCreate;
+    window.URL.revokeObjectURL = mockRevoke;
+    URL.createObjectURL = mockCreate;
+    URL.revokeObjectURL = mockRevoke;
+
     mockHasPermission.mockReturnValue(true);
     (dormitoryApi.roomFeeInvoices.getAll as any).mockResolvedValue({
       data: mockInvoices,
       meta: { total: 3, page: 1, limit: 20, totalPages: 1 },
     });
     (dormitoryApi.roomFeeInvoices.getConfig as any).mockResolvedValue(mockConfig);
+    (dormitoryApi.roomFeeInvoices.getProofBlob as any).mockResolvedValue(
+      new Blob(['dummy-blob-content'], { type: 'image/png' }),
+    );
     (dormitoryApi.roomFeeInvoices.updateConfig as any).mockImplementation(async (cfg: any) => ({ ...mockConfig, ...cfg }));
     (dormitoryApi.roomFeeInvoices.previewPeriod as any).mockResolvedValue({
       start_month: '2026-03',
@@ -516,6 +528,57 @@ describe('RoomFeeCollection Component', () => {
     await waitFor(() => {
       expect(dormitoryApi.roomFeeInvoices.uploadProof).toHaveBeenCalledWith(file);
     });
+  });
+
+  it('loads proof via getProofBlob and uses blob URL instead of raw private storage URL (AC-01, AC-02, AC-04)', async () => {
+    const mockBlob = new Blob(['proof-image-content'], { type: 'image/png' });
+    (dormitoryApi.roomFeeInvoices.getProofBlob as any).mockResolvedValue(mockBlob);
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+    });
+
+    // Click Kiểm tra on second invoice (rfi-pending which has proof)
+    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.getProofBlob).toHaveBeenCalledWith('rfi-pending');
+    });
+
+    // Wait for blob URL image to be rendered
+    const proofImg = await screen.findByAltText('Chứng từ thanh toán');
+    expect(proofImg).toBeInTheDocument();
+    expect(proofImg.getAttribute('src')).toMatch(/^blob:/);
+    expect(proofImg.getAttribute('src')).not.toContain('/uploads/proof-pending.png');
+    expect(proofImg.getAttribute('src')).not.toContain('/api/media/private');
+
+    // Check "Mở ảnh gốc" link uses blob URL
+    const openLink = screen.getByRole('link', { name: /Mở ảnh gốc/i });
+    expect(openLink.getAttribute('href')).toMatch(/^blob:/);
+    expect(openLink.getAttribute('href')).not.toContain('/uploads/proof-pending.png');
+  });
+
+  it('displays Vietnamese error and retry button when getProofBlob fails (AC-03)', async () => {
+    (dormitoryApi.roomFeeInvoices.getProofBlob as any).mockRejectedValue(
+      new Error('404 Not Found'),
+    );
+
+    render(<RoomFeeCollection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+    });
+
+    // Click Kiểm tra on second invoice (rfi-pending)
+    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Không tìm thấy ảnh chứng từ thanh toán.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Thử lại/i })).toBeInTheDocument();
   });
 });
 

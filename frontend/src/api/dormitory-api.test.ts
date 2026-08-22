@@ -227,4 +227,64 @@ describe('dormitoryApi.roomFeeInvoices', () => {
     expect(result.invoice_code).toBe('RFI-IND-001');
     expect(result.total_amount).toBe(3900000);
   });
+
+  it('getProofBlob calls GET /dormitory/room-fee-invoices/:id/proof and returns blob', async () => {
+    const mockBlob = new Blob(['proof-data'], { type: 'image/png' });
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: true,
+      blob: async () => mockBlob,
+    } as any);
+
+    const result = await dormitoryApi.roomFeeInvoices.getProofBlob('rfi-123');
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/room-fee-invoices/rfi-123/proof'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toBe(mockBlob);
+  });
+
+  it('getProofBlob throws error when room fee invoice proof response is not ok', async () => {
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    } as any);
+
+    await expect(dormitoryApi.roomFeeInvoices.getProofBlob('rfi-missing')).rejects.toThrow(
+      'Failed to load room fee proof: Not Found',
+    );
+  });
+});
+
+describe('dormitoryApi.invoices', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('getProofBlob calls GET /dormitory/invoices/:id/proof and returns blob', async () => {
+    const mockBlob = new Blob(['invoice-proof-data'], { type: 'image/png' });
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: true,
+      blob: async () => mockBlob,
+    } as any);
+
+    const result = await dormitoryApi.invoices.getProofBlob('inv-123');
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/invoices/inv-123/proof'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result).toBe(mockBlob);
+  });
+
+  it('getProofBlob throws error when invoice proof response is not ok', async () => {
+    vi.mocked(httpClient).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+    } as any);
+
+    await expect(dormitoryApi.invoices.getProofBlob('inv-forbidden')).rejects.toThrow(
+      'Failed to load proof: Forbidden',
+    );
+  });
 });

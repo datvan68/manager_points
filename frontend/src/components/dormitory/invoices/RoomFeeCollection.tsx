@@ -27,9 +27,12 @@ import {
   XCircle,
   Send,
   Download,
+  Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDormitoryInvoicesRealtime } from '@/hooks/useDormitoryInvoicesRealtime';
+import { useInvoiceProofPreview } from './useInvoiceProofPreview';
 import {
   dormitoryApi,
   RoomFeeInvoice,
@@ -198,12 +201,23 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   const [payProofPreview, setPayProofPreview] = useState<string | null>(null);
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [proofImageFailed, setProofImageFailed] = useState(false);
   const [transferQrImageFailed, setTransferQrImageFailed] = useState(false);
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
   const [deleteProofConfirmOpen, setDeleteProofConfirmOpen] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const reviewRequestIdsRef = useRef<Partial<Record<'approved' | 'rejected' | 'revoked', string>>>({});
+
+  const {
+    blobUrl: proofBlobUrl,
+    loading: proofLoading,
+    error: proofError,
+    retry: retryProof,
+  } = useInvoiceProofPreview({
+    invoiceId: payingInvoice?._id,
+    hasProof: Boolean(payingInvoice?.payment_proof?.url),
+    isOpen: payModalOpen,
+    fetchProofBlob: dormitoryApi.roomFeeInvoices.getProofBlob,
+  });
 
   const handleDownloadQr = async (url?: string) => {
     if (!url) return;
@@ -224,10 +238,6 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       window.open(getImageUrl(url), '_blank');
     }
   };
-
-  useEffect(() => {
-    setProofImageFailed(false);
-  }, [payingInvoice?._id, payingInvoice?.payment_proof?.url]);
 
   // Debounced search for assigned roster members
   useEffect(() => {
@@ -666,7 +676,6 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
     setPayingInvoice(inv);
     setPayProofFile(null);
     setPayProofPreview(null);
-    setProofImageFailed(false);
     setTransferQrImageFailed(false);
     setShowQrCode(false);
     setPayModalOpen(true);
@@ -2020,24 +2029,42 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                         </button>
                       </div>
 
-                      <div className="border border-white/70 rounded-xl overflow-hidden bg-white/30 backdrop-blur-sm flex items-center justify-center p-2">
-                        {proofImageFailed ? (
-                          <a
-                            className="inline-flex items-center justify-center p-4 text-xs text-blue-600 hover:underline font-medium"
-                            href={getImageUrl(payingInvoice.payment_proof?.url)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Mở ảnh gốc
-                          </a>
-                        ) : (
-                          <img
-                            src={getImageUrl(payingInvoice.payment_proof?.url)}
-                            alt="Chứng từ thanh toán"
-                            onError={() => setProofImageFailed(true)}
-                            className="max-h-44 w-auto object-contain rounded-lg shadow-sm"
-                          />
-                        )}
+                      <div className="border border-white/70 rounded-xl overflow-hidden bg-white/30 backdrop-blur-sm flex flex-col items-center justify-center p-2 min-h-32">
+                        {proofLoading ? (
+                          <div className="flex items-center justify-center p-6 text-xs text-slate-500 gap-2">
+                            <Loader2 className="animate-spin text-[#1A73E8]" size={16} />
+                            <span>Đang tải ảnh chứng từ...</span>
+                          </div>
+                        ) : proofError ? (
+                          <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                            <AlertCircle size={20} className="text-rose-500" />
+                            <span className="text-xs text-rose-600 font-medium">{proofError}</span>
+                            <button
+                              type="button"
+                              onClick={retryProof}
+                              className="text-xs text-[#1A73E8] hover:underline font-semibold cursor-pointer"
+                            >
+                              Thử lại
+                            </button>
+                          </div>
+                        ) : proofBlobUrl ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <img
+                              src={proofBlobUrl}
+                              alt="Chứng từ thanh toán"
+                              className="max-h-44 w-auto object-contain rounded-lg shadow-sm"
+                            />
+                            <a
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium cursor-pointer"
+                              href={proofBlobUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink size={12} />
+                              Mở ảnh gốc
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ) : (

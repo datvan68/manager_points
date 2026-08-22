@@ -40,6 +40,7 @@ vi.mock('@/api/dormitory-api', async () => {
         createMonthly: vi.fn(),
         updateMonthly: vi.fn(),
         pay: vi.fn(),
+        getProofBlob: vi.fn(),
         deleteInvoice: vi.fn(),
         bulkDelete: vi.fn(),
       },
@@ -87,6 +88,14 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
 
   beforeEach(() => {
     vi.clearAllMocks();
+    let objectUrlId = 0;
+    const mockCreate = vi.fn((_b: Blob) => `blob:http://localhost/invoice-blob-${++objectUrlId}`);
+    const mockRevoke = vi.fn();
+    window.URL.createObjectURL = mockCreate;
+    window.URL.revokeObjectURL = mockRevoke;
+    URL.createObjectURL = mockCreate;
+    URL.revokeObjectURL = mockRevoke;
+
     mockHasPermission = vi.fn().mockReturnValue(true);
     vi.mocked(dormitoryApi.invoices.getAll).mockResolvedValue({
       data: [],
@@ -95,6 +104,9 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
     vi.mocked(dormitoryApi.rooms.getAll).mockResolvedValue({ data: mockRooms } as any);
     vi.mocked(dormitoryApi.invoices.getConfig).mockResolvedValue(mockConfig as any);
     vi.mocked(dormitoryApi.invoices.updateConfig).mockResolvedValue(mockConfig as any);
+    vi.mocked(dormitoryApi.invoices.getProofBlob).mockResolvedValue(
+      new Blob(['dummy-proof-content'], { type: 'image/png' }),
+    );
   });
 
   it('renders invoice page and opens wide configuration modal with room quota & price overrides (AC-01, AC-09)', async () => {
@@ -198,5 +210,93 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
     });
     expect(screen.queryByLabelText('Cấu hình định mức & đơn giá')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Ghi điện nước')).not.toBeInTheDocument();
+  });
+
+  it('loads proof via getProofBlob and uses blob URL instead of raw private storage URL (AC-01, AC-02, AC-04)', async () => {
+    const mockInvoiceWithProof = {
+      _id: 'inv-util-1',
+      room_id: { _id: 'room-1', room_code: 'P101', room_name: 'Phòng 101' },
+      billing_month: '2026-03',
+      total_amount: 150000,
+      status: 'Chưa thu',
+      payment_method: 'Chuyển khoản',
+      payment_proof: {
+        url: '/uploads/private/proof-util.png',
+        file_name: 'proof-util.png',
+      },
+      payment_review: {
+        status: 'pending',
+        submitted_at: '2026-03-25T10:00:00.000Z',
+      },
+    };
+
+    vi.mocked(dormitoryApi.invoices.getAll).mockResolvedValue({
+      data: [mockInvoiceWithProof],
+      meta: { total: 1, page: 1, limit: 20 },
+    } as any);
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Kiểm tra/i }));
+
+    await waitFor(() => {
+      expect(dormitoryApi.invoices.getProofBlob).toHaveBeenCalledWith('inv-util-1');
+    });
+
+    const proofImg = await screen.findByAltText('Chứng từ thanh toán');
+    expect(proofImg).toBeInTheDocument();
+    expect(proofImg.getAttribute('src')).toMatch(/^blob:/);
+    expect(proofImg.getAttribute('src')).not.toContain('/uploads/private/proof-util.png');
+    expect(proofImg.getAttribute('src')).not.toContain('/api/media/private');
+
+    const openLink = screen.getByRole('link', { name: /Mở ảnh gốc/i });
+    expect(openLink.getAttribute('href')).toMatch(/^blob:/);
+    expect(openLink.getAttribute('href')).not.toContain('/uploads/private/proof-util.png');
+  });
+
+  it('displays Vietnamese error and retry button when getProofBlob fails (AC-03)', async () => {
+    const mockInvoiceWithProof = {
+      _id: 'inv-util-2',
+      room_id: { _id: 'room-1', room_code: 'P101', room_name: 'Phòng 101' },
+      billing_month: '2026-03',
+      total_amount: 150000,
+      status: 'Chưa thu',
+      payment_method: 'Chuyển khoản',
+      payment_proof: {
+        url: '/uploads/private/proof-util.png',
+        file_name: 'proof-util.png',
+      },
+      payment_review: {
+        status: 'pending',
+        submitted_at: '2026-03-25T10:00:00.000Z',
+      },
+    };
+
+    vi.mocked(dormitoryApi.invoices.getAll).mockResolvedValue({
+      data: [mockInvoiceWithProof],
+      meta: { total: 1, page: 1, limit: 20 },
+    } as any);
+
+    vi.mocked(dormitoryApi.invoices.getProofBlob).mockRejectedValueOnce(
+      new Error('404 Not Found'),
+    );
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Kiểm tra/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Không tìm thấy ảnh chứng từ thanh toán.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Thử lại/i })).toBeInTheDocument();
   });
 });
