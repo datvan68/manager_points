@@ -17,6 +17,8 @@ import { Class } from '../../classes/schemas/class.schema';
 import { TokenService } from '../services/token.service';
 import { PasswordService } from '../services/password.service';
 import { RbacService } from '../services/rbac.service';
+import { ImpersonationService } from '../services/impersonation.service';
+import { Types } from 'mongoose';
 
 jest.mock('uuid', () => ({
   v4: () => 'mocked-uuid',
@@ -52,6 +54,8 @@ describe('AuthService', () => {
     refreshToken: jest.fn(),
     revokeToken: jest.fn(),
     revokeAllUserTokens: jest.fn(),
+    findToken: jest.fn(),
+    revokeAllImpersonationTokens: jest.fn(),
   };
 
   const mockPasswordService = {
@@ -62,6 +66,12 @@ describe('AuthService', () => {
   const mockRbacService = {
     getRoles: jest.fn(),
     getPermissions: jest.fn(),
+  };
+
+  const mockImpersonationService = {
+    acquire: jest.fn(),
+    recordStarted: jest.fn(),
+    release: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -135,6 +145,10 @@ describe('AuthService', () => {
           provide: RbacService,
           useValue: mockRbacService,
         },
+        {
+          provide: ImpersonationService,
+          useValue: mockImpersonationService,
+        },
       ],
     }).compile();
 
@@ -148,6 +162,70 @@ describe('AuthService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('releases a lease and revokes every linked refresh token on logout', async () => {
+    const sessionId = new Types.ObjectId();
+    mockTokenService.findToken.mockResolvedValue({
+      user_id: new Types.ObjectId(),
+      impersonation_session_id: sessionId,
+    });
+    mockImpersonationService.release.mockResolvedValue({});
+
+    await service.revokeToken('child-refresh', '127.0.0.1');
+
+    expect(mockImpersonationService.release).toHaveBeenCalledWith(
+      sessionId.toString(),
+      'logout',
+      '127.0.0.1',
+    );
+    expect(mockTokenService.revokeAllImpersonationTokens).toHaveBeenCalledWith(
+      sessionId.toString(),
+    );
+    expect(mockTokenService.revokeToken).not.toHaveBeenCalledWith(
+      'child-refresh',
+    );
+  });
+
+  it('compensates the lease and minted refresh token when start audit fails', async () => {
+    const subjectId = new Types.ObjectId();
+    const sessionId = new Types.ObjectId();
+    mockImpersonationService.acquire.mockResolvedValueOnce({
+      subject: {
+        _id: subjectId,
+        user_name: 'subject',
+        role: { name: 'Student', role_code: 'STUDENT' },
+      },
+      session: {
+        _id: sessionId,
+        actor_user_id: new Types.ObjectId(),
+        subject_user_id: subjectId,
+        browser_session_id: 'browser_session_audit',
+        ip_address: '127.0.0.1',
+        expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000),
+      },
+    });
+    mockImpersonationService.recordStarted.mockRejectedValueOnce(
+      new Error('audit unavailable'),
+    );
+    mockTokenService.createRefreshToken.mockResolvedValueOnce('child-refresh');
+    mockTokenService.revokeToken.mockResolvedValueOnce(undefined);
+
+    await expect(
+      service.createImpersonation(
+        '507f1f77bcf86cd799439013',
+        subjectId.toString(),
+        'browser_session_audit',
+        '127.0.0.1',
+      ),
+    ).rejects.toThrow('audit unavailable');
+
+    expect(mockTokenService.revokeToken).toHaveBeenCalledWith('child-refresh');
+    expect(mockImpersonationService.release).toHaveBeenCalledWith(
+      sessionId.toString(),
+      'startup_failure',
+      '127.0.0.1',
+    );
   });
 
   describe('login status transitions', () => {
@@ -579,16 +657,16 @@ describe('AuthService', () => {
       expect(systemOpsPerms).not.toContain('id-ADMIN_FULL');
 
       // 5. Verify PDF template permissions are all available to the dormitory group
-      const dormitoryCall = groupCalls.find(
-        (c) => c[0].code === 'G_DORMITORY',
-      );
+      const dormitoryCall = groupCalls.find((c) => c[0].code === 'G_DORMITORY');
       expect(dormitoryCall).toBeDefined();
       const dormitoryPerms = dormitoryCall[1].$addToSet.permissions.$each;
-      expect(dormitoryPerms).toEqual(expect.arrayContaining([
-        'id-PDF_TEMPLATE_READ',
-        'id-PDF_TEMPLATE_MANAGE',
-        'id-PDF_TEMPLATE_DELETE',
-      ]));
+      expect(dormitoryPerms).toEqual(
+        expect.arrayContaining([
+          'id-PDF_TEMPLATE_READ',
+          'id-PDF_TEMPLATE_MANAGE',
+          'id-PDF_TEMPLATE_DELETE',
+        ]),
+      );
     });
   });
 

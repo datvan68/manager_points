@@ -19,6 +19,29 @@ export interface RefreshResponse {
   access_token: string;
 }
 
+export interface ImpersonationInfo {
+  id: string;
+  expires_at: string;
+}
+
+export interface ImpersonationUser {
+  id: string;
+  user_name?: string;
+  username?: string;
+  display_name?: string;
+  role?: string | { name?: string; role_code?: string };
+  roleName?: string;
+  roleCode?: string;
+  permissions?: string[];
+  [key: string]: unknown;
+}
+
+export interface ImpersonationResponse {
+  access_token: string;
+  user: ImpersonationUser;
+  impersonation: ImpersonationInfo;
+}
+
 class AuthApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -165,6 +188,24 @@ export const authApi = {
       credentials: 'include',
     });
     return handleResponse<RefreshResponse>(res);
+  },
+
+  async createImpersonation(
+    targetUserId: string,
+    childSessionId: string,
+    accessToken: string,
+  ): Promise<ImpersonationResponse> {
+    const res = await fetch(`${API_BASE}/auth/impersonations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Auth-Session-Id': childSessionId,
+      },
+      body: JSON.stringify({ target_user_id: targetUserId, session_id: childSessionId }),
+      credentials: 'include',
+    });
+    return handleResponse<ImpersonationResponse>(res);
   },
   
   // RBAC Management
@@ -456,6 +497,9 @@ export const tokenStorage = {
     sessionStorage.setItem('auth_session_id', value);
     localStorage.setItem('auth_session_id', value);
   },
+  setTabSessionId(value: string) {
+    sessionStorage.setItem('auth_session_id', value);
+  },
   getSessionId(): string {
     const key = 'auth_session_id';
     let value = sessionStorage.getItem(key);
@@ -510,6 +554,12 @@ export const tokenStorage = {
     } catch (e) {
       console.error('Failed to clear congrats storage keys:', e);
     }
+  },
+  clearTabAuth() {
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('remember_login');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('auth_session_id');
   },
 
   // ─── Saved Email (for pre-fill on login page) ────

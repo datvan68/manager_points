@@ -1,14 +1,15 @@
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { push, refresh } = vi.hoisted(() => ({
+const { push, refresh, pathnameState } = vi.hoisted(() => ({
   push: vi.fn(),
   refresh: vi.fn(),
+  pathnameState: { current: '/students/tasks' },
 }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
-  usePathname: () => '/students/tasks',
+  usePathname: () => pathnameState.current,
 }));
 
 vi.mock('./../api/http-client', () => ({
@@ -28,6 +29,7 @@ describe('AuthProvider session rehydration', () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     localStorage.clear();
+    pathnameState.current = '/students/tasks';
     refresh.mockResolvedValue({ access_token: 'fresh-access-token' });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 'user-1',
@@ -52,5 +54,20 @@ describe('AuthProvider session rehydration', () => {
     expect(tokenStorage.getAccessToken()).toBe('fresh-access-token');
     expect(tokenStorage.getUser()).toEqual(expect.objectContaining({ id: 'user-1' }));
     expect(push).not.toHaveBeenCalledWith('/login');
+  });
+
+  it('does not refresh or hydrate the normal session on the access bootstrap route', async () => {
+    pathnameState.current = '/access';
+
+    const { getByText } = render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(getByText(/"isLoading":false/)).toBeInTheDocument());
+    expect(refresh).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 });

@@ -47,9 +47,11 @@ import {
   PasswordResetResendDto,
   PasswordResetVerifyDto,
   PasswordResetCompleteDto,
+  CreateImpersonationDto,
 } from '../dto/auth.dto';
 
 import { isAdminUser } from '../utils/role.util';
+import { StrictAdminGuard } from '../guards/strict-admin.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const SESSION_ID_HEADER = 'x-auth-session-id';
@@ -64,7 +66,9 @@ function getSessionId(req: Request): string | undefined {
 }
 
 function getRefreshCookieName(sessionId?: string): string {
-  return sessionId ? `${REFRESH_COOKIE_NAME}_${sessionId}` : REFRESH_COOKIE_NAME;
+  return sessionId
+    ? `${REFRESH_COOKIE_NAME}_${sessionId}`
+    : REFRESH_COOKIE_NAME;
 }
 
 function getRefreshCookieOptions(maxAge?: number): CookieOptions {
@@ -111,9 +115,10 @@ export class AuthController {
     const result = await this.authService.login(dto, ip);
 
     // The service owns the session policy; the cookie mirrors its result.
-    const cookieMaxAge = result.remember && result.expires_at
-      ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
-      : undefined;
+    const cookieMaxAge =
+      result.remember && result.expires_at
+        ? Math.max(0, new Date(result.expires_at).getTime() - Date.now())
+        : undefined;
 
     res.cookie(
       getRefreshCookieName(getSessionId(req)),
@@ -234,6 +239,11 @@ export class AuthController {
     @Body() body: { session_id?: string; remember?: boolean },
     @Res({ passthrough: true }) res: Response,
   ) {
+    if (req.user.impersonationSessionId) {
+      throw new UnauthorizedException(
+        'Không thể nhân bản một phiên truy cập quản trị',
+      );
+    }
     const sessionId = body?.session_id;
     if (!sessionId || !/^[A-Za-z0-9_-]{16,64}$/.test(sessionId)) {
       throw new UnauthorizedException('Invalid auth session id');
@@ -251,6 +261,38 @@ export class AuthController {
       getRefreshCookieOptions(maxAge),
     );
     return { access_token: result.access_token, remember: result.remember };
+  }
+
+  @Post('impersonations')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StrictAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Access an active non-admin user as an admin' })
+  async createImpersonation(
+    @Req() req: any,
+    @Body() dto: CreateImpersonationDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
+    const result = await this.authService.createImpersonation(
+      req.user.userId,
+      dto.target_user_id,
+      dto.session_id,
+      ip,
+    );
+    const maxAge = Math.max(
+      0,
+      new Date(result.impersonation.expires_at).getTime() - Date.now(),
+    );
+    res.cookie(
+      getRefreshCookieName(dto.session_id),
+      result.refresh_token,
+      getRefreshCookieOptions(maxAge),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { refresh_token, ...response } = result;
+    return response;
   }
 
   @Post('logout')

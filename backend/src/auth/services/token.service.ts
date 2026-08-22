@@ -8,6 +8,7 @@ import {
   RefreshTokenDocument,
 } from '../schemas/refresh-token.schema';
 import { User, UserDocument } from '../schemas/user.schema';
+import { ImpersonationService } from './impersonation.service';
 
 const REMEMBERED_REFRESH_DAYS = 30;
 
@@ -19,19 +20,29 @@ export class TokenService {
     @InjectModel(User.name)
     private userModel: Model<UserDocument>,
     private jwtService: JwtService,
+    private impersonationService: ImpersonationService,
   ) {}
 
   async createRefreshToken(
     userId: Types.ObjectId,
     expirationDays: number,
     remember: boolean = false,
+    impersonation?: {
+      sessionId: Types.ObjectId;
+      actorUserId: Types.ObjectId;
+      expiresAt: Date;
+    },
   ) {
     const token = uuidv4();
     await this.refreshTokenModel.create({
       user_id: userId,
       token,
-      expires_at: new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000),
+      expires_at:
+        impersonation?.expiresAt ||
+        new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000),
       remember,
+      impersonation_session_id: impersonation?.sessionId || null,
+      actor_user_id: impersonation?.actorUserId || null,
     });
     return token;
   }
@@ -63,7 +74,7 @@ export class TokenService {
           !replacedToken.is_revoked &&
           new Date() <= new Date(replacedToken.expires_at)
         ) {
-          const payload = { user_id: replacedToken.user_id.toString() };
+          const payload = await this.accessPayloadForToken(replacedToken);
           const access_token = this.jwtService.sign(payload);
           return {
             access_token,
@@ -74,7 +85,15 @@ export class TokenService {
         }
       }
 
-      await this.revokeAllUserTokens(storedToken.user_id.toString());
+      if (storedToken.impersonation_session_id) {
+        const sessionId = storedToken.impersonation_session_id.toString();
+        await this.impersonationService
+          .release(sessionId, 'refresh_token_reuse')
+          .catch(() => undefined);
+        await this.revokeAllImpersonationTokens(sessionId);
+      } else {
+        await this.revokeAllUserTokens(storedToken.user_id.toString());
+      }
       throw new UnauthorizedException(
         'Cảnh báo bảo mật: Token đã được sử dụng. Vui lòng đăng nhập lại.',
       );
@@ -85,7 +104,7 @@ export class TokenService {
       throw new UnauthorizedException('Phiên làm việc đã hết hạn');
     }
 
-    const payload = { user_id: storedToken.user_id.toString() };
+    const payload = await this.accessPayloadForToken(storedToken);
     const access_token = this.jwtService.sign(payload);
     const new_refresh_token = uuidv4();
 
@@ -102,6 +121,8 @@ export class TokenService {
       token: new_refresh_token,
       expires_at: nextExpiresAt,
       remember: storedToken.remember, // Inherit from old token
+      impersonation_session_id: storedToken.impersonation_session_id || null,
+      actor_user_id: storedToken.actor_user_id || null,
     });
 
     return {
@@ -126,11 +147,43 @@ export class TokenService {
     );
   }
 
+  async revokeAllImpersonationTokens(sessionId: string) {
+    if (!Types.ObjectId.isValid(sessionId)) return;
+    await this.refreshTokenModel.updateMany(
+      { impersonation_session_id: new Types.ObjectId(sessionId) },
+      { $set: { is_revoked: true } },
+    );
+  }
+
   async findToken(token: string) {
     return this.refreshTokenModel.findOne({ token });
   }
 
   generateAccessToken(payload: any) {
     return this.jwtService.sign(payload);
+  }
+
+  private async accessPayloadForToken(token: RefreshTokenDocument) {
+    const payload: {
+      user_id: string;
+      actor_user_id?: string;
+      impersonation_session_id?: string;
+    } = { user_id: token.user_id.toString() };
+
+    if (token.impersonation_session_id) {
+      const actorUserId = token.actor_user_id?.toString();
+      if (!actorUserId) {
+        throw new UnauthorizedException('Phiên truy cập không hợp lệ');
+      }
+      await this.impersonationService.validateSession(
+        token.impersonation_session_id.toString(),
+        token.user_id.toString(),
+        actorUserId,
+      );
+      payload.actor_user_id = actorUserId;
+      payload.impersonation_session_id =
+        token.impersonation_session_id.toString();
+    }
+    return payload;
   }
 }

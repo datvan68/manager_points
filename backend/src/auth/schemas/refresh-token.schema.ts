@@ -26,6 +26,14 @@ export class RefreshToken {
 
   @Prop({ type: String, default: null })
   replaced_by: string | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'ImpersonationSession', default: null })
+  impersonation_session_id: Types.ObjectId | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  actor_user_id: Types.ObjectId | null;
 }
 
 export const RefreshTokenSchema = SchemaFactory.createForClass(RefreshToken);
+
+RefreshTokenSchema.index({ impersonation_session_id: 1, is_revoked: 1 });

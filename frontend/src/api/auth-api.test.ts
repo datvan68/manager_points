@@ -35,6 +35,16 @@ describe('authApi', () => {
       expect(tokenStorage.getUser()).toBeNull();
       expect(sessionStorage.getItem('user')).toBeNull();
     });
+
+    it('keeps an impersonated tab session id out of shared localStorage', async () => {
+      const { tokenStorage } = await import('./auth-api');
+      localStorage.setItem('auth_session_id', 'admin-session');
+
+      tokenStorage.setTabSessionId('child-session');
+
+      expect(sessionStorage.getItem('auth_session_id')).toBe('child-session');
+      expect(localStorage.getItem('auth_session_id')).toBe('admin-session');
+    });
   });
 
   describe('login', () => {
@@ -64,6 +74,47 @@ describe('authApi', () => {
       const [url] = mockFetch.mock.calls[0];
       expect(url).not.toContain('/api/api/');
       expect(url).toContain('/api/auth/users');
+    });
+  });
+
+  describe('createImpersonation', () => {
+    it('creates an isolated child session with the admin bearer token', async () => {
+      const payload = {
+        access_token: 'child-token',
+        user: { id: 'user-2', username: 'student-2' },
+        impersonation: { id: 'imp-1', expires_at: '2026-08-22T12:00:00.000Z' },
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify(payload)),
+      });
+
+      const result = await authApi.createImpersonation('user-2', 'child-session', 'admin-token');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/impersonations'),
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer admin-token',
+            'X-Auth-Session-Id': 'child-session',
+          }),
+          body: JSON.stringify({ target_user_id: 'user-2', session_id: 'child-session' }),
+        }),
+      );
+      expect(result).toEqual(payload);
+    });
+
+    it('preserves status 409 for the authoritative concurrency limit', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'Maximum impersonations reached' })),
+      });
+
+      await expect(authApi.createImpersonation('user-2', 'child-session', 'admin-token'))
+        .rejects.toMatchObject({ status: 409 });
     });
   });
 });

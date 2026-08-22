@@ -23,6 +23,15 @@ import { Class } from '../../classes/schemas/class.schema';
 import { PermissionGroup } from '../schemas/permission-group.schema';
 import { RoutePermission } from '../schemas/route-permission.schema';
 import { AuthController } from '../controllers/auth.controller';
+import { ImpersonationService } from '../services/impersonation.service';
+
+const mockImpersonationService = {
+  validateSession: jest.fn(),
+  acquire: jest.fn(),
+  recordStarted: jest.fn(),
+  release: jest.fn(),
+  recordGuardDenied: jest.fn(),
+};
 
 describe('Auth Security (Student Account Policies)', () => {
   // Test JwtStrategy
@@ -45,6 +54,10 @@ describe('Auth Security (Student Account Policies)', () => {
             useValue: {
               findById: jest.fn(),
             },
+          },
+          {
+            provide: ImpersonationService,
+            useValue: mockImpersonationService,
           },
         ],
       }).compile();
@@ -127,6 +140,44 @@ describe('Auth Security (Student Account Policies)', () => {
         jwtStrategy.validate({ user_id: 'user-id' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('validates the impersonation lease and exposes only subject permissions', async () => {
+      const subject = {
+        _id: 'subject-id',
+        user_name: 'subject',
+        email: 'subject@example.com',
+        status: UserStatus.ACTIVE,
+        role: {
+          name: 'Student',
+          role_code: 'STUDENT',
+          permissions: [{ code: 'STUDENT_ACCOUNT_VIEW' }],
+        },
+      };
+      userModel.findById.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        select: jest.fn().mockResolvedValue(subject),
+      });
+      mockImpersonationService.validateSession.mockResolvedValue({});
+
+      const result = await jwtStrategy.validate({
+        user_id: 'subject-id',
+        actor_user_id: 'actor-id',
+        impersonation_session_id: 'session-id',
+      });
+
+      expect(mockImpersonationService.validateSession).toHaveBeenCalledWith(
+        'session-id',
+        'subject-id',
+        'actor-id',
+      );
+      expect(result.permissions).toEqual(['STUDENT_ACCOUNT_VIEW']);
+      expect(result.permissions).not.toContain('ADMIN_FULL');
+      expect(result).toMatchObject({
+        userId: 'subject-id',
+        actorUserId: 'actor-id',
+        impersonationSessionId: 'session-id',
+      });
+    });
   });
 
   // Test TokenService
@@ -159,6 +210,10 @@ describe('Auth Security (Student Account Policies)', () => {
             useValue: {
               sign: jest.fn().mockReturnValue('mock-new-access-token'),
             },
+          },
+          {
+            provide: ImpersonationService,
+            useValue: mockImpersonationService,
           },
         ],
       }).compile();
@@ -280,6 +335,75 @@ describe('Auth Security (Student Account Policies)', () => {
       expect(result.access_token).toBe('mock-new-access-token');
       expect(result.refresh_token).toBe('replaced-refresh-token');
     });
+
+    it('preserves impersonation linkage during refresh rotation', async () => {
+      const userId = new Types.ObjectId();
+      const actorId = new Types.ObjectId();
+      const sessionId = new Types.ObjectId();
+      const mockToken = {
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        actor_user_id: actorId,
+        impersonation_session_id: sessionId,
+        token: 'impersonated-refresh',
+        expires_at: new Date(Date.now() + 60_000),
+        is_revoked: false,
+        remember: false,
+        save: jest.fn().mockResolvedValue(true),
+      };
+      refreshTokenModel.findOne.mockResolvedValue(mockToken);
+      userModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: userId, status: UserStatus.ACTIVE }),
+      });
+      mockImpersonationService.validateSession.mockResolvedValue({});
+
+      await tokenService.refreshToken('impersonated-refresh');
+
+      expect(mockImpersonationService.validateSession).toHaveBeenCalledWith(
+        sessionId.toString(),
+        userId.toString(),
+        actorId.toString(),
+      );
+      expect(refreshTokenModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          impersonation_session_id: sessionId,
+          actor_user_id: actorId,
+        }),
+      );
+    });
+
+    it('does not rotate an impersonated refresh token after actor demotion', async () => {
+      const userId = new Types.ObjectId();
+      const actorId = new Types.ObjectId();
+      const sessionId = new Types.ObjectId();
+      refreshTokenModel.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        actor_user_id: actorId,
+        impersonation_session_id: sessionId,
+        token: 'invalid-actor-refresh',
+        expires_at: new Date(Date.now() + 60_000),
+        is_revoked: false,
+        remember: false,
+        save: jest.fn(),
+      });
+      userModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: userId, status: UserStatus.ACTIVE }),
+      });
+      mockImpersonationService.validateSession.mockRejectedValueOnce(
+        new UnauthorizedException('actor demoted'),
+      );
+      refreshTokenModel.create.mockClear();
+
+      await expect(
+        tokenService.refreshToken('invalid-actor-refresh'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(refreshTokenModel.create).not.toHaveBeenCalled();
+    });
   });
 
   // Test AuthService Lock logic & updateUser token revocation
@@ -375,6 +499,10 @@ describe('Auth Security (Student Account Policies)', () => {
               getRoles: jest.fn(),
               getPermissions: jest.fn(),
             },
+          },
+          {
+            provide: ImpersonationService,
+            useValue: mockImpersonationService,
           },
         ],
       }).compile();
@@ -797,6 +925,10 @@ describe('Auth Security (Student Account Policies)', () => {
             useValue: {
               login: jest.fn(),
             },
+          },
+          {
+            provide: ImpersonationService,
+            useValue: mockImpersonationService,
           },
         ],
       }).compile();

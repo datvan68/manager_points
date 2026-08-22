@@ -88,6 +88,10 @@ interface UserInfo {
   permissions?: string[];
   studentId?: string;
   classId?: string;
+  impersonation?: {
+    id: string;
+    expires_at: string;
+  };
 }
 
 interface AuthContextType {
@@ -116,12 +120,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const isAccessBootstrapRoute = pathname === "/access";
 
   const isPublicRoute = [
     "/login",
     "/register",
     "/forgot-password",
     "/reset-password",
+    "/access",
   ].includes(pathname) || pathname.startsWith("/public");
 
   // Permission checking utilities
@@ -260,6 +266,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkAuth = async () => {
+    if (isAccessBootstrapRoute) {
+      setUser(null);
+      setPermissions([]);
+      setIsLoading(false);
+      return;
+    }
     try {
       await isolateDuplicatedTab();
     } catch (error) {
@@ -374,12 +386,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, isLoading, pathname, isPublicRoute, router]);
 
   const logout = async () => {
+    const isImpersonatedSession = Boolean(user?.impersonation?.id);
     try {
       await authApi.logout();
     } catch (e) {
       // Ignore logout errors
     } finally {
-      tokenStorage.clearTokens();
+      if (isImpersonatedSession) {
+        tokenStorage.clearTabAuth();
+      } else {
+        tokenStorage.clearTokens();
+      }
       setUser(null);
       setPermissions([]);
       toast.success("Đã đăng xuất thành công");

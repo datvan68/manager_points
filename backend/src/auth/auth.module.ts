@@ -35,6 +35,12 @@ import {
   RoutePermission,
   RoutePermissionSchema,
 } from './schemas/route-permission.schema';
+import {
+  ImpersonationSession,
+  ImpersonationSessionSchema,
+} from './schemas/impersonation-session.schema';
+import { ImpersonationService } from './services/impersonation.service';
+import { StrictAdminGuard } from './guards/strict-admin.guard';
 
 @Module({
   imports: [
@@ -58,6 +64,10 @@ import {
       { name: Permission.name, schema: PermissionSchema },
       { name: PermissionGroup.name, schema: PermissionGroupSchema },
       { name: RoutePermission.name, schema: RoutePermissionSchema },
+      {
+        name: ImpersonationSession.name,
+        schema: ImpersonationSessionSchema,
+      },
       { name: Student.name, schema: StudentSchema },
       { name: Class.name, schema: ClassSchema },
     ]),
@@ -68,13 +78,16 @@ import {
     TokenService,
     PasswordService,
     RbacService,
+    ImpersonationService,
     JwtStrategy,
+    StrictAdminGuard,
   ],
   exports: [
     AuthService,
     TokenService,
     PasswordService,
     RbacService,
+    ImpersonationService,
     JwtStrategy,
     PassportModule,
     MongooseModule,

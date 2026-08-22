@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from '../controllers/auth.controller';
 import { AuthService } from '../services/auth.service';
+import { ImpersonationService } from '../services/impersonation.service';
 
 jest.mock('uuid', () => ({
   v4: () => 'mocked-uuid',
@@ -13,6 +14,7 @@ describe('AuthController', () => {
   const mockAuthService = {
     createUser: jest.fn(),
     createUsersBulk: jest.fn(),
+    createImpersonation: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -22,6 +24,10 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: ImpersonationService,
+          useValue: { recordGuardDenied: jest.fn() },
         },
       ],
     }).compile();
@@ -102,6 +108,63 @@ describe('AuthController', () => {
       await controller.createUsersBulk(dto, req);
 
       expect(authService.createUsersBulk).toHaveBeenCalledWith(dto, '10.0.0.1');
+    });
+  });
+
+  describe('createImpersonation', () => {
+    it('uses the exact child session cookie contract and never returns the refresh token', async () => {
+      const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+      mockAuthService.createImpersonation.mockResolvedValue({
+        access_token: 'child-access',
+        refresh_token: 'child-refresh',
+        user: { id: 'target-id', username: 'target', role: 'User' },
+        impersonation: { id: 'lease-id', expires_at: expiresAt },
+      });
+      const response = { cookie: jest.fn() } as any;
+      const result = await controller.createImpersonation(
+        {
+          user: { userId: 'admin-id' },
+          ip: '127.0.0.1',
+          headers: {},
+        },
+        {
+          target_user_id: '507f1f77bcf86cd799439011',
+          session_id: 'browser_session_01',
+        },
+        response,
+      );
+
+      expect(mockAuthService.createImpersonation).toHaveBeenCalledWith(
+        'admin-id',
+        '507f1f77bcf86cd799439011',
+        'browser_session_01',
+        '127.0.0.1',
+      );
+      expect(response.cookie).toHaveBeenCalledWith(
+        'refresh_token_browser_session_01',
+        'child-refresh',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
+      );
+      expect(result).toEqual({
+        access_token: 'child-access',
+        user: { id: 'target-id', username: 'target', role: 'User' },
+        impersonation: { id: 'lease-id', expires_at: expiresAt },
+      });
+    });
+
+    it('cannot turn an impersonated access token into an ordinary forked session', async () => {
+      await expect(
+        controller.forkSession(
+          {
+            user: {
+              userId: 'target-id',
+              impersonationSessionId: 'lease-id',
+            },
+          },
+          { session_id: 'browser_session_fork' },
+          { cookie: jest.fn() } as any,
+        ),
+      ).rejects.toThrow('Không thể nhân bản một phiên truy cập quản trị');
     });
   });
 });

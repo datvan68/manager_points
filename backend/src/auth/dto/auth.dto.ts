@@ -50,6 +50,20 @@ export class LoginDto {
   remember?: boolean;
 }
 
+export class CreateImpersonationDto {
+  @ApiProperty({ example: '65f1c2d3e4f5678901234567' })
+  @IsMongoId({ message: 'ID người dùng không hợp lệ' })
+  @IsNotEmpty({ message: 'ID người dùng không được để trống' })
+  target_user_id: string;
+
+  @ApiProperty({ example: 'account_tab_01_abcd' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{16,64}$/, {
+    message: 'ID phiên đăng nhập không hợp lệ',
+  })
+  session_id: string;
+}
+
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail({}, { message: 'Email không đúng định dạng' })

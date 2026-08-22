@@ -55,6 +55,7 @@ import {
   PROPOSED_PERMISSION_GROUP,
 } from '../permissions.registry';
 import { maskLoginKey } from '../utils/mask.util';
+import { ImpersonationService } from './impersonation.service';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
@@ -79,6 +80,7 @@ export class AuthService implements OnModuleInit {
     private tokenService: TokenService,
     private passwordService: PasswordService,
     private rbacService: RbacService,
+    private impersonationService: ImpersonationService,
   ) {}
 
   async onModuleInit() {
@@ -362,17 +364,96 @@ export class AuthService implements OnModuleInit {
     };
   }
 
-  async revokeToken(token: string, ip?: string) {
-    if (ip) {
-      const storedToken = await this.tokenService.findToken(token);
-      if (storedToken) {
-        await this.logAction(
-          storedToken.user_id,
-          ip,
-          'logout',
-          'Logged out by user',
-        );
+  async createImpersonation(
+    actorUserId: string,
+    subjectUserId: string,
+    browserSessionId: string,
+    ip: string,
+  ) {
+    let session: any;
+    let refreshToken: string | undefined;
+    try {
+      const acquired = await this.impersonationService.acquire(
+        actorUserId,
+        subjectUserId,
+        browserSessionId,
+        ip,
+      );
+      session = acquired.session;
+
+      const payload = {
+        user_id: acquired.subject._id.toString(),
+        actor_user_id: actorUserId,
+        impersonation_session_id: session._id.toString(),
+      };
+      const accessToken = this.tokenService.generateAccessToken(payload);
+      refreshToken = await this.tokenService.createRefreshToken(
+        acquired.subject._id,
+        1 / 6,
+        false,
+        {
+          sessionId: session._id,
+          actorUserId: new Types.ObjectId(actorUserId),
+          expiresAt: session.expires_at,
+        },
+      );
+      await this.impersonationService.recordStarted(session);
+
+      const student = await this.studentModel
+        .findOne({ user_id: acquired.subject._id })
+        .exec();
+      const role = acquired.subject.role as any;
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        user: {
+          id: acquired.subject._id.toString(),
+          username: acquired.subject.user_name,
+          display_name: student?.full_name || acquired.subject.user_name,
+          role: role?.name || 'User',
+        },
+        impersonation: {
+          id: session._id.toString(),
+          expires_at: session.expires_at,
+        },
+      };
+    } catch (error) {
+      if (refreshToken) {
+        await this.tokenService
+          .revokeToken(refreshToken)
+          .catch(() => undefined);
       }
+      if (session) {
+        await this.impersonationService
+          .release(session._id.toString(), 'startup_failure', ip)
+          .catch(() => undefined);
+      }
+      throw error;
+    }
+  }
+
+  async revokeToken(token: string, ip?: string) {
+    const storedToken = await this.tokenService.findToken(token);
+    if (storedToken?.impersonation_session_id) {
+      const sessionId = storedToken.impersonation_session_id.toString();
+      try {
+        await this.impersonationService.release(
+          sessionId,
+          'logout',
+          ip || '0.0.0.0',
+        );
+      } finally {
+        await this.tokenService.revokeAllImpersonationTokens(sessionId);
+      }
+      return;
+    }
+    if (ip && storedToken) {
+      await this.logAction(
+        storedToken.user_id,
+        ip,
+        'logout',
+        'Logged out by user',
+      );
     }
     return this.tokenService.revokeToken(token);
   }

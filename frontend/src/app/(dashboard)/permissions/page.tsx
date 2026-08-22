@@ -8,7 +8,7 @@ import GroupModal from '@/components/modals/GroupModal';
 import PermissionModal from '@/components/modals/PermissionModal';
 import RoleModal from '@/components/modals/RoleModal';
 import RoutePermissionModal from '@/components/modals/RoutePermissionModal';
-import { Search, Filter, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check } from 'lucide-react';
+import { Search, Filter, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,10 +22,17 @@ import { systemApi } from '@/api/system-api';
 import { classApi } from '@/api/class-api';
 import { synchronizedRefreshToken } from '@/api/http-client';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/providers/auth-provider';
+import { isAdminUser, useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { RouteGuard, invalidateRoutePermissionCache } from '@/components/guards/RouteGuard';
 import dynamic from 'next/dynamic';
+import {
+  createSecureNonce,
+  getImpersonationChannelName,
+  IMPERSONATION_HANDOFF_TIMEOUT_MS,
+  isValidImpersonationNonce,
+  type ImpersonationChannelMessage,
+} from '@/lib/impersonation-channel';
 
 const PermissionFlowDiagram = dynamic(() => import('@/components/permissions/PermissionFlowDiagram'), {
   loading: () => (
@@ -90,6 +97,8 @@ function PermissionsPageContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
+  const [accessingUserId, setAccessingUserId] = useState<string | null>(null);
+  const handoffCleanupRef = useRef<(() => void) | null>(null);
 
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -407,6 +416,100 @@ function PermissionsPageContent() {
 
   const router = useRouter();
   const { user: authUser, isLoading: isAuthLoading, logout } = useAuth();
+
+  useEffect(() => () => handoffCleanupRef.current?.(), []);
+
+  const handleAccessUser = (targetUser: any) => {
+    if (!isAdminUser(authUser) || accessingUserId) return;
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
+      toast.error('Trình duyệt không hỗ trợ mở phiên truy cập an toàn.');
+      return;
+    }
+
+    const targetUserId = targetUser?._id || targetUser?.id;
+    if (!targetUserId) {
+      toast.error('Không xác định được tài khoản cần truy cập.');
+      return;
+    }
+
+    let nonce: string;
+    try {
+      nonce = createSecureNonce();
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể tạo phiên truy cập an toàn.');
+      return;
+    }
+
+    const channel = new BroadcastChannel(getImpersonationChannelName(nonce));
+    let requestStarted = false;
+    let closed = false;
+    let timeoutId: number | undefined;
+
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      channel.close();
+      handoffCleanupRef.current = null;
+      setAccessingUserId(null);
+    };
+
+    const sendError = (message: string) => {
+      if (closed) return;
+      channel.postMessage({ type: 'ERROR', message } satisfies ImpersonationChannelMessage);
+      toast.error(message);
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(cleanup, 1_000);
+    };
+
+    channel.onmessage = async (event: MessageEvent<ImpersonationChannelMessage>) => {
+      const message = event.data;
+      if (message?.type === 'ACK') {
+        cleanup();
+        return;
+      }
+      if (message?.type !== 'READY' || requestStarted) return;
+      if (!isValidImpersonationNonce(message.sessionId)) {
+        sendError('Cửa sổ truy cập gửi thông tin phiên không hợp lệ.');
+        return;
+      }
+
+      requestStarted = true;
+      const accessToken = tokenStorage.getAccessToken();
+      if (!accessToken) {
+        sendError('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      try {
+        const result = await authApi.createImpersonation(targetUserId, message.sessionId, accessToken);
+        if (closed) return;
+        channel.postMessage({ type: 'SUCCESS', payload: result } satisfies ImpersonationChannelMessage);
+        toast.success(`Đã mở phiên truy cập cho ${getUserDisplayName(targetUser)}.`);
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(cleanup, 2_000);
+      } catch (error: any) {
+        if (closed) return;
+        const errorMessage = error?.status === 409
+          ? 'Bạn đang truy cập tối đa 5 tài khoản. Hãy kết thúc một phiên trước khi tiếp tục.'
+          : error?.message || 'Không thể mở phiên truy cập tài khoản.';
+        sendError(errorMessage);
+      }
+    };
+
+    handoffCleanupRef.current?.();
+    handoffCleanupRef.current = cleanup;
+    setAccessingUserId(targetUserId);
+    timeoutId = window.setTimeout(() => {
+      sendError('Không thể kết nối cửa sổ truy cập. Hãy cho phép cửa sổ bật lên và thử lại.');
+    }, IMPERSONATION_HANDOFF_TIMEOUT_MS);
+
+    try {
+      window.open(`/access#channel=${encodeURIComponent(nonce)}`, '_blank', 'noopener,noreferrer');
+    } catch {
+      sendError('Không thể mở cửa sổ truy cập. Hãy cho phép cửa sổ bật lên và thử lại.');
+    }
+  };
 
   const fetchData = async (options?: { silent?: boolean }) => {
     // Wait for auth to be determined
@@ -1068,6 +1171,22 @@ function PermissionsPageContent() {
       className: 'text-right',
       render: (_, u) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {isAdminUser(authUser) ? (
+            <button
+              type="button"
+              onClick={() => handleAccessUser(u)}
+              disabled={accessingUserId !== null}
+              className="h-8 px-2.5 inline-flex items-center gap-1 rounded-xl border border-blue-200/70 bg-blue-50/70 text-[11px] font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`Truy cập tài khoản ${getUserDisplayName(u)}`}
+            >
+              {accessingUserId === (u._id || u.id) ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogIn className="h-3.5 w-3.5" />
+              )}
+              Truy cập
+            </button>
+          ) : null}
           <Action
             onView={() => router.push(`/permissions/${u._id || u.id}`)}
             onEdit={() => handleOpenEditModal(u)}
