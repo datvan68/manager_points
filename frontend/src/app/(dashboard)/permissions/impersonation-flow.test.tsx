@@ -10,6 +10,8 @@ const { apiMocks, authState, push, toastMocks } = vi.hoisted(() => ({
     getRoutePermissions: vi.fn(),
     getPagePermissionScopes: vi.fn(),
     createImpersonation: vi.fn(),
+    cancelImpersonation: vi.fn(),
+    logout: vi.fn(),
     getClasses: vi.fn(),
     getAccessToken: vi.fn(),
   },
@@ -31,7 +33,6 @@ vi.mock('@/providers/auth-provider', () => ({
     isLoading: false,
     logout: vi.fn(),
   }),
-  isAdminUser: (user: any) => user?.roleCode === 'ADMIN' || user?.permissions?.includes('ADMIN_FULL'),
 }));
 
 vi.mock('@/components/guards/RouteGuard', () => ({
@@ -95,6 +96,8 @@ describe('permissions user impersonation action', () => {
       user: { id: 'target-1', username: 'student-1' },
       impersonation: { id: 'imp-1', expires_at: '2026-08-22T12:00:00.000Z' },
     });
+    apiMocks.cancelImpersonation.mockResolvedValue({ cancelled: true });
+    apiMocks.logout.mockResolvedValue({ message: 'ok' });
     FakeBroadcastChannel.instances = [];
     vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
     vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue('handoff-nonce-1234567890') });
@@ -114,6 +117,14 @@ describe('permissions user impersonation action', () => {
 
     authState.current = { id: 'teacher-1', roleCode: 'TEACHER', permissions: [] };
     render(<PermissionsPage />);
+    await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalled());
+    expect(screen.queryAllByRole('button', { name: 'Truy cập' })).toHaveLength(0);
+  });
+
+  it('hides the action when ADMIN_FULL is present without the persisted ADMIN role code', async () => {
+    authState.current = { id: 'permission-only', permissions: ['ADMIN_FULL'] };
+    render(<PermissionsPage />);
+
     await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalled());
     expect(screen.queryAllByRole('button', { name: 'Truy cập' })).toHaveLength(0);
   });
@@ -141,5 +152,80 @@ describe('permissions user impersonation action', () => {
     ));
     expect(channel.posted).toContainEqual(expect.objectContaining({ type: 'SUCCESS' }));
     act(() => channel.emit({ type: 'ACK' }));
+    expect(apiMocks.cancelImpersonation).not.toHaveBeenCalled();
+  });
+
+  it('best-effort cancels a child session when the create response arrives after timeout', async () => {
+    render(<PermissionsPage />);
+    const button = (await screen.findAllByRole('button', { name: 'Truy cập' }))[0];
+    let resolveCreate: (value: unknown) => void = () => undefined;
+    apiMocks.createImpersonation.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveCreate = resolve;
+    }));
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(button);
+      const channel = FakeBroadcastChannel.instances[0];
+      await act(async () => {
+        channel.emit({ type: 'READY', sessionId: 'child-session-1234567890' });
+        await Promise.resolve();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Không thể kết nối cửa sổ truy cập. Hãy cho phép cửa sổ bật lên và thử lại.',
+      );
+      expect(apiMocks.cancelImpersonation).toHaveBeenCalledWith(
+        'child-session-1234567890',
+        'admin-token',
+      );
+
+      await act(async () => {
+        resolveCreate({
+          access_token: 'late-child-token',
+          user: { id: 'target-1', username: 'student-1' },
+          impersonation: { id: 'late-imp-1', expires_at: '2026-08-22T12:00:00.000Z' },
+        });
+        await Promise.resolve();
+      });
+
+      expect(apiMocks.cancelImpersonation).toHaveBeenCalledWith(
+        'child-session-1234567890',
+        'admin-token',
+      );
+      expect(channel.posted).not.toContainEqual(expect.objectContaining({ type: 'SUCCESS' }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ['limit', { status: 409, code: 'IMPERSONATION_LIMIT_REACHED', message: 'internal limit' }, 'Bạn đang truy cập tối đa 5 tài khoản. Hãy kết thúc một phiên trước khi tiếp tục.'],
+    ['duplicate target', { status: 409, code: 'IMPERSONATION_TARGET_ALREADY_ACTIVE', message: 'internal duplicate' }, 'Tài khoản này đang có một phiên truy cập khác.'],
+    ['inactive target', { status: 409, code: 'IMPERSONATION_TARGET_INACTIVE', message: 'internal inactive' }, 'Tài khoản đích hiện không hoạt động.'],
+    ['self target', { status: 400, code: 'IMPERSONATION_SELF_NOT_ALLOWED', message: 'internal self' }, 'Bạn không thể truy cập chính tài khoản của mình.'],
+    ['admin target', { status: 403, code: 'IMPERSONATION_ADMIN_TARGET_NOT_ALLOWED', message: 'internal admin' }, 'Không thể mở phiên truy cập vào tài khoản quản trị.'],
+    ['missing target', { status: 400, code: 'IMPERSONATION_TARGET_NOT_FOUND', message: 'internal missing' }, 'Tài khoản đích không tồn tại.'],
+    ['expired admin auth', { status: 401, message: 'internal auth' }, 'Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'],
+    ['unknown error', { status: 500, message: 'database stack trace' }, 'Không thể mở phiên truy cập tài khoản.'],
+  ] as const)('maps %s to safe user-facing copy', async (_name, error, expectedMessage) => {
+    render(<PermissionsPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Truy cập' }))[0]);
+    const channel = FakeBroadcastChannel.instances[0];
+    apiMocks.createImpersonation.mockRejectedValueOnce(error);
+
+    await act(async () => {
+      channel.emit({ type: 'READY', sessionId: 'child-session-1234567890' });
+    });
+
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(expectedMessage));
+    expect(apiMocks.cancelImpersonation).toHaveBeenCalledWith(
+      'child-session-1234567890',
+      'admin-token',
+    );
+    expect(toastMocks.error).not.toHaveBeenCalledWith(expect.stringContaining('internal'));
   });
 });

@@ -194,6 +194,7 @@ describe('Auth Security (Student Account Policies)', () => {
             provide: getModelToken(RefreshToken.name),
             useValue: {
               findOne: jest.fn(),
+              findOneAndUpdate: jest.fn(),
               deleteOne: jest.fn(),
               create: jest.fn(),
               updateMany: jest.fn(),
@@ -240,6 +241,7 @@ describe('Auth Security (Student Account Policies)', () => {
       };
 
       refreshTokenModel.findOne.mockResolvedValue(mockToken);
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue(mockToken);
       userModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockActiveUser),
       });
@@ -247,7 +249,107 @@ describe('Auth Security (Student Account Policies)', () => {
       const result = await tokenService.refreshToken('valid-refresh-token');
       expect(result).toBeDefined();
       expect(result.access_token).toBe('mock-new-access-token');
-      expect(mockToken.is_revoked).toBe(true);
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          _id: mockToken._id,
+          token: 'valid-refresh-token',
+          is_revoked: false,
+        },
+        { $set: { is_revoked: true, replaced_by: 'mocked-uuid' } },
+        { new: true },
+      );
+    });
+
+    it('returns one authoritative replacement when two refresh callers race to claim a token', async () => {
+      const userId = new Types.ObjectId();
+      const tokenId = new Types.ObjectId();
+      const expiresAt = new Date(Date.now() + 60_000);
+      const originalToken = {
+        _id: tokenId,
+        user_id: userId,
+        token: 'racing-refresh-token',
+        expires_at: expiresAt,
+        is_revoked: false,
+        remember: false,
+      };
+      const replacementToken = {
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        token: 'mocked-uuid',
+        expires_at: expiresAt,
+        is_revoked: false,
+        remember: false,
+      };
+      let originalReads = 0;
+      let claims = 0;
+
+      refreshTokenModel.findOne.mockImplementation(async (filter: any) => {
+        if (filter.token === replacementToken.token) {
+          return replacementToken;
+        }
+
+        originalReads += 1;
+        if (originalReads <= 2) {
+          return { ...originalToken };
+        }
+
+        return {
+          ...originalToken,
+          is_revoked: true,
+          replaced_by: replacementToken.token,
+          updatedAt: new Date(),
+        };
+      });
+      refreshTokenModel.findOneAndUpdate.mockImplementation(
+        (_filter: any, update: any) => {
+          claims += 1;
+          if (claims === 1) {
+            return Promise.resolve({
+              ...originalToken,
+              is_revoked: true,
+              replaced_by: update.$set.replaced_by,
+              updatedAt: new Date(),
+            });
+          }
+          return Promise.resolve(null);
+        },
+      );
+      refreshTokenModel.create.mockResolvedValue(replacementToken);
+      userModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: userId, status: UserStatus.ACTIVE }),
+      });
+
+      const results = await Promise.all([
+        tokenService.refreshToken('racing-refresh-token'),
+        tokenService.refreshToken('racing-refresh-token'),
+      ]);
+
+      expect(results[0].refresh_token).toBe('mocked-uuid');
+      expect(results[1].refresh_token).toBe('mocked-uuid');
+      expect(refreshTokenModel.create).toHaveBeenCalledTimes(1);
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenCalledTimes(2);
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenNthCalledWith(
+        1,
+        {
+          _id: tokenId,
+          token: 'racing-refresh-token',
+          is_revoked: false,
+        },
+        { $set: { is_revoked: true, replaced_by: 'mocked-uuid' } },
+        { new: true },
+      );
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenNthCalledWith(
+        2,
+        {
+          _id: tokenId,
+          token: 'racing-refresh-token',
+          is_revoked: false,
+        },
+        { $set: { is_revoked: true, replaced_by: 'mocked-uuid' } },
+        { new: true },
+      );
     });
 
     it('should throw UnauthorizedException when refreshing token of an inactive user', async () => {
@@ -336,6 +438,68 @@ describe('Auth Security (Student Account Policies)', () => {
       expect(result.refresh_token).toBe('replaced-refresh-token');
     });
 
+    it('rejects an atomic-claim loser for an impersonated refresh token and revokes its session family', async () => {
+      const userId = new Types.ObjectId();
+      const actorId = new Types.ObjectId();
+      const sessionId = new Types.ObjectId();
+      const now = new Date();
+      const mockToken = {
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        actor_user_id: actorId,
+        impersonation_session_id: sessionId,
+        token: 'revoked-impersonated-refresh',
+        expires_at: new Date(now.getTime() + 10_000),
+        is_revoked: true,
+        replaced_by: 'replacement-impersonated-refresh',
+        updatedAt: now,
+        remember: false,
+      };
+      const replacementToken = {
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        actor_user_id: actorId,
+        impersonation_session_id: sessionId,
+        token: 'replacement-impersonated-refresh',
+        expires_at: new Date(now.getTime() + 10_000),
+        is_revoked: false,
+        remember: false,
+      };
+      const initialToken = {
+        ...mockToken,
+        is_revoked: false,
+        replaced_by: undefined,
+      };
+
+      mockImpersonationService.release.mockClear();
+      mockImpersonationService.release.mockResolvedValue(undefined);
+      mockImpersonationService.validateSession.mockResolvedValue({});
+      refreshTokenModel.updateMany.mockClear();
+      refreshTokenModel.findOne
+        .mockResolvedValueOnce(initialToken)
+        .mockResolvedValueOnce(mockToken)
+        .mockResolvedValueOnce(replacementToken);
+      refreshTokenModel.findOneAndUpdate.mockResolvedValueOnce(null);
+      userModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: userId,
+          status: UserStatus.ACTIVE,
+        }),
+      });
+
+      await expect(
+        tokenService.refreshToken('revoked-impersonated-refresh'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mockImpersonationService.release).toHaveBeenCalledWith(
+        sessionId.toString(),
+        'refresh_token_reuse',
+      );
+      expect(refreshTokenModel.updateMany).toHaveBeenCalledWith(
+        { impersonation_session_id: sessionId },
+        { $set: { is_revoked: true } },
+      );
+    });
+
     it('preserves impersonation linkage during refresh rotation', async () => {
       const userId = new Types.ObjectId();
       const actorId = new Types.ObjectId();
@@ -352,6 +516,7 @@ describe('Auth Security (Student Account Policies)', () => {
         save: jest.fn().mockResolvedValue(true),
       };
       refreshTokenModel.findOne.mockResolvedValue(mockToken);
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue(mockToken);
       userModel.findById.mockReturnValue({
         exec: jest
           .fn()
@@ -372,6 +537,32 @@ describe('Auth Security (Student Account Policies)', () => {
           actor_user_id: actorId,
         }),
       );
+    });
+
+    it('fails closed when replacement token creation fails after the atomic claim', async () => {
+      const userId = new Types.ObjectId();
+      const mockToken = {
+        _id: new Types.ObjectId(),
+        user_id: userId,
+        token: 'creation-failure-refresh',
+        expires_at: new Date(Date.now() + 60_000),
+        is_revoked: false,
+        remember: false,
+      };
+
+      refreshTokenModel.findOne.mockResolvedValue(mockToken);
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue(mockToken);
+      refreshTokenModel.create.mockRejectedValue(new Error('write failed'));
+      userModel.findById.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ _id: userId, status: UserStatus.ACTIVE }),
+      });
+
+      await expect(
+        tokenService.refreshToken('creation-failure-refresh'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(refreshTokenModel.create).toHaveBeenCalledTimes(1);
     });
 
     it('does not rotate an impersonated refresh token after actor demotion', async () => {

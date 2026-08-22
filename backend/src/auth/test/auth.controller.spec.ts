@@ -15,6 +15,7 @@ describe('AuthController', () => {
     createUser: jest.fn(),
     createUsersBulk: jest.fn(),
     createImpersonation: jest.fn(),
+    cancelImpersonation: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -150,6 +151,35 @@ describe('AuthController', () => {
         user: { id: 'target-id', username: 'target', role: 'User' },
         impersonation: { id: 'lease-id', expires_at: expiresAt },
       });
+    });
+
+    it('cancels a timed-out handoff and clears its refresh cookie', async () => {
+      mockAuthService.cancelImpersonation.mockResolvedValue({
+        cancelled: true,
+      });
+      const response = { clearCookie: jest.fn() } as any;
+
+      await expect(
+        controller.cancelImpersonation(
+          {
+            user: { userId: 'admin-id' },
+            ip: '127.0.0.1',
+            headers: {},
+          },
+          { session_id: 'browser_session_01' },
+          response,
+        ),
+      ).resolves.toEqual({ cancelled: true });
+
+      expect(mockAuthService.cancelImpersonation).toHaveBeenCalledWith(
+        'admin-id',
+        'browser_session_01',
+        '127.0.0.1',
+      );
+      expect(response.clearCookie).toHaveBeenCalledWith(
+        'refresh_token_browser_session_01',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
+      );
     });
 
     it('cannot turn an impersonated access token into an ordinary forked session', async () => {

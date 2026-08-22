@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { authApi } from './auth-api';
+import { authApi, AuthApiError } from './auth-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -110,11 +110,60 @@ describe('authApi', () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 409,
-        text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'Maximum impersonations reached' })),
+        text: vi.fn().mockResolvedValue(JSON.stringify({
+          code: 'IMPERSONATION_LIMIT_REACHED',
+          message: 'Maximum impersonations reached',
+        })),
       });
 
       await expect(authApi.createImpersonation('user-2', 'child-session', 'admin-token'))
-        .rejects.toMatchObject({ status: 409 });
+        .rejects.toMatchObject({
+          status: 409,
+          code: 'IMPERSONATION_LIMIT_REACHED',
+          name: 'AuthApiError',
+        });
+      await expect(authApi.createImpersonation('user-2', 'child-session', 'admin-token'))
+        .rejects.toBeInstanceOf(AuthApiError);
+    });
+  });
+
+  describe('cancelImpersonation', () => {
+    it('cancels an in-flight child handoff with the parent bearer token', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ cancelled: true })),
+      });
+
+      const result = await authApi.cancelImpersonation('child-session', 'admin-token');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/impersonations/cancel'),
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer admin-token',
+          },
+          body: JSON.stringify({ session_id: 'child-session' }),
+        }),
+      );
+      expect(mockFetch.mock.calls[0][0]).not.toContain('admin-token');
+      expect(result).toEqual({ cancelled: true });
+    });
+
+    it('keeps ordinary logout on the logout endpoint', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ message: 'ok' })),
+      });
+
+      await authApi.logout();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/logout'),
+        expect.objectContaining({ method: 'POST' }),
+      );
     });
   });
 });

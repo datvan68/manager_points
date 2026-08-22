@@ -48,7 +48,7 @@ export class TokenService {
   }
 
   async refreshToken(token: string) {
-    const storedToken = await this.refreshTokenModel.findOne({ token });
+    let storedToken = await this.refreshTokenModel.findOne({ token });
     if (!storedToken) {
       throw new UnauthorizedException('Phiên làm việc không tồn tại');
     }
@@ -61,27 +61,10 @@ export class TokenService {
     }
 
     if (storedToken.is_revoked) {
-      const gracePeriodMs = 60000; // 60s grace period
-      const timeSinceRevocation =
-        Date.now() - new Date(storedToken.updatedAt).getTime();
-
-      if (timeSinceRevocation < gracePeriodMs && storedToken.replaced_by) {
-        const replacedToken = await this.refreshTokenModel.findOne({
-          token: storedToken.replaced_by,
-        });
-        if (
-          replacedToken &&
-          !replacedToken.is_revoked &&
-          new Date() <= new Date(replacedToken.expires_at)
-        ) {
-          const payload = await this.accessPayloadForToken(replacedToken);
-          const access_token = this.jwtService.sign(payload);
-          return {
-            access_token,
-            refresh_token: replacedToken.token,
-            expires_at: replacedToken.expires_at,
-            remember: replacedToken.remember,
-          };
+      if (!storedToken.impersonation_session_id) {
+        const graceResult = await this.graceRefreshResult(storedToken);
+        if (graceResult) {
+          return graceResult;
         }
       }
 
@@ -105,31 +88,96 @@ export class TokenService {
     }
 
     const payload = await this.accessPayloadForToken(storedToken);
-    const access_token = this.jwtService.sign(payload);
     const new_refresh_token = uuidv4();
-
-    storedToken.is_revoked = true;
-    storedToken.replaced_by = new_refresh_token;
-    await storedToken.save();
 
     const nextExpiresAt = storedToken.remember
       ? new Date(Date.now() + REMEMBERED_REFRESH_DAYS * 24 * 60 * 60 * 1000)
       : storedToken.expires_at;
 
-    await this.refreshTokenModel.create({
-      user_id: storedToken.user_id,
-      token: new_refresh_token,
-      expires_at: nextExpiresAt,
-      remember: storedToken.remember, // Inherit from old token
-      impersonation_session_id: storedToken.impersonation_session_id || null,
-      actor_user_id: storedToken.actor_user_id || null,
-    });
+    const claimedToken = await this.refreshTokenModel.findOneAndUpdate(
+      { _id: storedToken._id, token, is_revoked: false },
+      { $set: { is_revoked: true, replaced_by: new_refresh_token } },
+      { new: true },
+    );
 
+    if (!claimedToken) {
+      const latestToken = await this.refreshTokenModel.findOne({
+        _id: storedToken._id,
+        token,
+      });
+      if (latestToken?.is_revoked && !latestToken.impersonation_session_id) {
+        const graceResult = await this.graceRefreshResult(latestToken);
+        if (graceResult) {
+          return graceResult;
+        }
+      }
+      if (latestToken?.is_revoked) {
+        storedToken = latestToken;
+      }
+
+      if (storedToken.impersonation_session_id) {
+        const sessionId = storedToken.impersonation_session_id.toString();
+        await this.impersonationService
+          .release(sessionId, 'refresh_token_reuse')
+          .catch(() => undefined);
+        await this.revokeAllImpersonationTokens(sessionId);
+      } else {
+        await this.revokeAllUserTokens(storedToken.user_id.toString());
+      }
+      throw new UnauthorizedException(
+        'Cảnh báo bảo mật: Token đã được sử dụng. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    try {
+      await this.refreshTokenModel.create({
+        user_id: storedToken.user_id,
+        token: new_refresh_token,
+        expires_at: nextExpiresAt,
+        remember: storedToken.remember, // Inherit from old token
+        impersonation_session_id: storedToken.impersonation_session_id || null,
+        actor_user_id: storedToken.actor_user_id || null,
+      });
+    } catch {
+      throw new UnauthorizedException('Phiên làm việc không thể được gia hạn');
+    }
+
+    const access_token = this.jwtService.sign(payload);
     return {
       access_token,
       refresh_token: new_refresh_token,
       expires_at: nextExpiresAt,
       remember: storedToken.remember,
+    };
+  }
+
+  private async graceRefreshResult(storedToken: RefreshTokenDocument) {
+    const gracePeriodMs = 60000; // 60s grace period
+    const timeSinceRevocation =
+      Date.now() - new Date(storedToken.updatedAt).getTime();
+
+    if (timeSinceRevocation >= gracePeriodMs || !storedToken.replaced_by) {
+      return null;
+    }
+
+    const replacedToken = await this.refreshTokenModel.findOne({
+      token: storedToken.replaced_by,
+    });
+    if (
+      !replacedToken ||
+      replacedToken.is_revoked ||
+      new Date() > new Date(replacedToken.expires_at)
+    ) {
+      return null;
+    }
+
+    const payload = await this.accessPayloadForToken(replacedToken);
+    const access_token = this.jwtService.sign(payload);
+    return {
+      access_token,
+      refresh_token: replacedToken.token,
+      expires_at: replacedToken.expires_at,
+      remember: replacedToken.remember,
     };
   }
 

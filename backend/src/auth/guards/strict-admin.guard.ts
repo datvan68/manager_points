@@ -1,5 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { ImpersonationService } from '../services/impersonation.service';
+import {
+  IMPERSONATION_CHAINING_DENIAL_REASON,
+  ImpersonationService,
+} from '../services/impersonation.service';
 
 @Injectable()
 export class StrictAdminGuard implements CanActivate {
@@ -7,11 +10,22 @@ export class StrictAdminGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    if (request.user?.roleCode === 'ADMIN') return true;
-
     const rawIp =
       request.ip || request.headers?.['x-forwarded-for'] || '0.0.0.0';
     const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
+
+    if (request.user?.impersonationSessionId) {
+      await this.impersonationService.recordGuardDenied(
+        request.user?.userId,
+        request.body?.target_user_id,
+        ip,
+        IMPERSONATION_CHAINING_DENIAL_REASON,
+      );
+      return false;
+    }
+
+    if (request.user?.roleCode === 'ADMIN') return true;
+
     await this.impersonationService.recordGuardDenied(
       request.user?.userId,
       request.body?.target_user_id,

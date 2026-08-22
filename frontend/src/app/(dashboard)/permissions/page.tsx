@@ -22,7 +22,7 @@ import { systemApi } from '@/api/system-api';
 import { classApi } from '@/api/class-api';
 import { synchronizedRefreshToken } from '@/api/http-client';
 import { useRouter } from 'next/navigation';
-import { isAdminUser, useAuth } from '@/providers/auth-provider';
+import { useAuth } from '@/providers/auth-provider';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { RouteGuard, invalidateRoutePermissionCache } from '@/components/guards/RouteGuard';
 import dynamic from 'next/dynamic';
@@ -53,6 +53,39 @@ import {
 
 const getUserDisplayName = (user: any) =>
   user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
+
+function hasPersistedAdminRole(user: any): boolean {
+  return [
+    user?.roleCode,
+    user?.role_code,
+    user?.role?.role_code,
+    user?.role?.roleCode,
+  ].includes('ADMIN');
+}
+
+function getImpersonationErrorMessage(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  switch (code) {
+    case 'IMPERSONATION_LIMIT_REACHED':
+      return 'Bạn đang truy cập tối đa 5 tài khoản. Hãy kết thúc một phiên trước khi tiếp tục.';
+    case 'IMPERSONATION_TARGET_ALREADY_ACTIVE':
+      return 'Tài khoản này đang có một phiên truy cập khác.';
+    case 'IMPERSONATION_TARGET_INACTIVE':
+      return 'Tài khoản đích hiện không hoạt động.';
+    case 'IMPERSONATION_SELF_NOT_ALLOWED':
+      return 'Bạn không thể truy cập chính tài khoản của mình.';
+    case 'IMPERSONATION_ADMIN_TARGET_NOT_ALLOWED':
+      return 'Không thể mở phiên truy cập vào tài khoản quản trị.';
+    case 'IMPERSONATION_TARGET_NOT_FOUND':
+      return 'Tài khoản đích không tồn tại.';
+    case 'IMPERSONATION_ADMIN_REQUIRED':
+      return 'Phiên quản trị không còn hợp lệ. Vui lòng đăng nhập lại.';
+    default:
+      return (error as { status?: unknown } | null)?.status === 401
+        ? 'Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'
+        : 'Không thể mở phiên truy cập tài khoản.';
+  }
+}
 
 function PermissionsPageContent() {
   const [activeTab, setActiveTab] = useState('Người dùng');
@@ -420,7 +453,7 @@ function PermissionsPageContent() {
   useEffect(() => () => handoffCleanupRef.current?.(), []);
 
   const handleAccessUser = (targetUser: any) => {
-    if (!isAdminUser(authUser) || accessingUserId) return;
+    if (!hasPersistedAdminRole(authUser) || accessingUserId) return;
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
       toast.error('Trình duyệt không hỗ trợ mở phiên truy cập an toàn.');
       return;
@@ -435,15 +468,25 @@ function PermissionsPageContent() {
     let nonce: string;
     try {
       nonce = createSecureNonce();
-    } catch (error: any) {
-      toast.error(error?.message || 'Không thể tạo phiên truy cập an toàn.');
+    } catch {
+      toast.error('Không thể tạo phiên truy cập an toàn.');
       return;
     }
 
     const channel = new BroadcastChannel(getImpersonationChannelName(nonce));
     let requestStarted = false;
     let closed = false;
+    let terminal = false;
+    let childSessionId: string | null = null;
+    let cancellationRequested = false;
     let timeoutId: number | undefined;
+
+    const cancelChildSession = () => {
+      const accessToken = tokenStorage.getAccessToken();
+      if (!childSessionId || !accessToken || cancellationRequested) return;
+      cancellationRequested = true;
+      void authApi.cancelImpersonation(childSessionId, accessToken).catch(() => undefined);
+    };
 
     const cleanup = () => {
       if (closed) return;
@@ -455,7 +498,9 @@ function PermissionsPageContent() {
     };
 
     const sendError = (message: string) => {
-      if (closed) return;
+      if (closed || terminal) return;
+      terminal = true;
+      cancelChildSession();
       channel.postMessage({ type: 'ERROR', message } satisfies ImpersonationChannelMessage);
       toast.error(message);
       window.clearTimeout(timeoutId);
@@ -468,6 +513,7 @@ function PermissionsPageContent() {
         cleanup();
         return;
       }
+      if (terminal || closed) return;
       if (message?.type !== 'READY' || requestStarted) return;
       if (!isValidImpersonationNonce(message.sessionId)) {
         sendError('Cửa sổ truy cập gửi thông tin phiên không hợp lệ.');
@@ -475,6 +521,7 @@ function PermissionsPageContent() {
       }
 
       requestStarted = true;
+      childSessionId = message.sessionId;
       const accessToken = tokenStorage.getAccessToken();
       if (!accessToken) {
         sendError('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.');
@@ -483,17 +530,20 @@ function PermissionsPageContent() {
 
       try {
         const result = await authApi.createImpersonation(targetUserId, message.sessionId, accessToken);
-        if (closed) return;
+        if (terminal || closed) {
+          cancelChildSession();
+          return;
+        }
         channel.postMessage({ type: 'SUCCESS', payload: result } satisfies ImpersonationChannelMessage);
         toast.success(`Đã mở phiên truy cập cho ${getUserDisplayName(targetUser)}.`);
         window.clearTimeout(timeoutId);
         timeoutId = window.setTimeout(cleanup, 2_000);
-      } catch (error: any) {
-        if (closed) return;
-        const errorMessage = error?.status === 409
-          ? 'Bạn đang truy cập tối đa 5 tài khoản. Hãy kết thúc một phiên trước khi tiếp tục.'
-          : error?.message || 'Không thể mở phiên truy cập tài khoản.';
-        sendError(errorMessage);
+      } catch (error) {
+        if (terminal || closed) {
+          cancelChildSession();
+          return;
+        }
+        sendError(getImpersonationErrorMessage(error));
       }
     };
 
@@ -1171,7 +1221,7 @@ function PermissionsPageContent() {
       className: 'text-right',
       render: (_, u) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {isAdminUser(authUser) ? (
+          {hasPersistedAdminRole(authUser) ? (
             <button
               type="button"
               onClick={() => handleAccessUser(u)}

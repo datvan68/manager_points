@@ -1,104 +1,105 @@
 # Task Identity and Pipeline
 
-- Task: `storage-garbage-purge-and-capacity-source`
+- Task: `admin-account-impersonation-review-and-hardening`
 - Pipeline: `feature_development`
 - Profile: Full, protocol/rules `3.2.0`
 - Repository: `D:\PROJECT\manager_points`
-- Base/current commit at planning: `401217172b230f34e0cc61d25ee47621ad13c2cb`; relevant worktree was clean.
-- Environment: development planning only. This taskscope does not authorize reconciliation execution, file quarantine/purge, persistent-data mutation, deployment, or production configuration changes.
+- Base/current HEAD: `a6492af1665db21a4abebbdbcf9d1afa9a278ee7` on `main`.
+- State at handoff: implementation is present as uncommitted changes under `backend/src/auth/**` and `frontend/**`; the independent security review was interrupted before a verdict.
+- Environment: development. This scope is planning-only and does not independently authorize further mutation, deployment, production startup, or database/index changes.
 
 # Risk Level
 
-- Risk: critical.
-- Evidence: permanent purge deletes persistent invoice proofs, QR images, or activity media; a stale reference, unsafe path, invalid confirmation, or partial filesystem failure can cause privacy exposure or irreversible data loss.
-- Reversibility: source changes are Git-reversible. Quarantine is recoverable only while its binary and manifest remain valid. Permanent purge is not recoverable without a verified backup.
-- Blast radius: local persistent media volume, five Mongo collections used for reference discovery, admin storage APIs, and `/system/storage`.
+- Risk: high.
+- Evidence: the change creates admin impersonation credentials, modifies JWT and refresh-token behavior, adds global concurrency enforcement, and relies on MongoDB partial-unique indexes.
+- Reversibility: source changes are Git-reversible. Starting the changed backend can create indexes in MongoDB and therefore requires an explicit environment check outside disposable development.
+- Blast radius: authentication, authorization, refresh/logout behavior, admin account management UI, and application startup if required indexes cannot be created.
 
 # Objective
 
-Allow `SYSTEM_ADMIN` users to safely reclaim disk space from server-confirmed garbage files through a two-stage quarantine-then-purge workflow, while clearly explaining that disk capacity is measured from the filesystem containing the configured media root and is distinct from application-managed media usage.
+Complete the interrupted independent review, remediate confirmed findings, and prove that only strict `ADMIN` users can open passwordless isolated sessions for at most five distinct active non-admin accounts without weakening ordinary authentication.
 
 # Scope Boundaries
 
-- Approved/write boundaries:
-  - `backend/src/core/storage/**`
-  - `frontend/src/api/system-api.ts`
-  - `frontend/src/api/system-api.test.ts`
-  - `frontend/src/app/(dashboard)/system/storage/page.tsx`
-  - `frontend/src/app/(dashboard)/system/storage/page.test.tsx`
-  - versioned, non-secret storage configuration documentation only if required by the implemented contract.
-- Known backend targets: `StorageService.getCapacityMetrics`, quarantine/restore/purge primitives, `StorageOrphanReconciliationService.runReconciliation`, `getSummary`, `getInventory`, `purgeAsset`, storage DTOs/controller, audit/run schemas and focused specs.
-- Known frontend targets: storage summary/types/API methods, capacity banner, inventory actions, confirmation dialogs, action state/refetch, and focused tests.
-- Access remains fail-closed and restricted to `SYSTEM_ADMIN` in both frontend route/page behavior and backend guards.
+- Approved review boundary:
+  - `backend/src/auth/**`
+  - `backend/test/auth*.e2e-spec.ts` or a new focused impersonation e2e test using a disposable database only
+  - `frontend/src/api/auth-api.ts` and its tests
+  - `frontend/src/providers/auth-provider.tsx` and its tests
+  - `frontend/src/app/(dashboard)/permissions/**`
+  - `frontend/src/app/(auth)/access/**`
+  - `frontend/src/components/layout/Header.tsx` and a focused test if changed
+  - `frontend/src/lib/impersonation-channel.ts`
+- Write boundary after explicit continuation authority: only the paths above and this taskscope.
+- Known implementation: strict backend admin guard; four-hour impersonation leases; five partial-unique MongoDB slots; subject-unique active lease; JWT/refresh linkage; logout release/revocation; audit events; `/auth/impersonations`; isolated `/access` bootstrap; nonce-scoped `BroadcastChannel`; session-only token storage; impersonation banner/exit action.
 
 # Out of Scope
 
-- Direct deletion of active, staged, merely suspected, externally hosted, or database-referenced media.
-- One-click deletion directly from the managed live folders.
-- Bulk purge, automatic permanent purge, invoice retention-policy changes, backup deletion, database migration, Git history rewrite, cloud/Drive/S3 integration, deployment, and capability enablement outside disposable development.
-- Displaying private proof/QR thumbnails, raw storage keys, absolute filesystem paths, private URLs, or arbitrary audit payloads.
+- Deployment, production startup, persistent database mutation, manual index creation, credential/secret changes, role or user data changes, migrations against existing data, changing the global limit from five, changing the four-hour lease policy, allowing admin targets, broad auth refactors, dependency upgrades, or unrelated lint cleanup.
+- Bypassing user permissions while impersonating: authorization must continue to use the target account's current role and permissions.
 
 # Context and Dependencies
 
-- `UPLOAD_STORAGE_ROOT` selects the managed media root; without configuration the backend uses `<backend cwd>/storage/uploads`.
-- `getCapacityMetrics()` calls `fs.promises.statfs(storageRoot)`. Therefore `totalBytes`, `usedBytes`, and `freeBytes` describe the complete filesystem/volume containing that root, including unrelated files. Thresholds are warning at 85% and critical at 95%; unsupported/failed `statfs` returns explicit degraded telemetry with zero values.
-- `getSummary()` separately sums managed live media and quarantined media bytes. These values are application-owned usage, not partition usage.
-- A file is currently an orphan candidate only when it is under an allowlisted managed namespace, has no recognized database reference, and is older than the 24-hour unattached-file grace period.
-- Execute moves candidates to `.quarantine` with SHA-256 metadata; it does not free meaningful filesystem space because the bytes remain on the same volume. Space is reclaimed only after retention-gated permanent purge.
-- Execute/restore/purge capabilities default off. The purge API exists, but the page does not call it; its DTO confirmation is not currently enforced by the controller/service.
-- The Vercel React guidance applies to client data flow: avoid duplicate requests, guard duplicate mutations, and refetch independent summary/inventory/audit data in parallel after a completed action.
+- Backend verification already reported: focused auth tests `55 passed`; full backend suite `68 suites / 926 passed / 2 todo`; TypeScript no-emit passed; touched-feature formatting/lint checks passed.
+- Frontend verification already reported: focused Vitest `6 files / 20 tests passed`; TypeScript typecheck passed; frontend diff check passed.
+- No live-Mongo e2e or real-browser integration test has run.
+- The cap is safe only if MongoDB successfully creates both partial-unique active indexes. `ImpersonationService.onModuleInit()` currently fails startup when index creation fails.
+- Current frontend row gating calls the broad `isAdminUser()` helper, which also accepts `ADMIN_FULL`. Backend enforcement is strict, but the UI does not yet match the "only admin" requirement and needs review/remediation.
+- The parent window currently maps every HTTP 409 to the five-account-limit message, including duplicate-target or inactive-target conflicts; error-code-specific UX remains to be reviewed.
+- Access and refresh tokens must remain absent from URLs, `localStorage`, logs, toast messages, and cross-origin messaging. The channel nonce alone may appear in the URL fragment.
 
 # Steps
 
-1. **Backend contract and capacity semantics — code/test:** return a typed capacity source such as `filesystem_containing_media_root`, `measuredAt`, thresholds, and explicit degraded state; keep partition totals separate from managed live, staging, quarantine, and server-calculated reclaimable bytes. Never return an absolute path or mount secret.
-2. **Safe garbage eligibility — code/test/review:** preserve allowlisted namespaces and 24-hour grace; correct legacy/local URL normalization; reject external URLs; perform a targeted or bounded fresh reference check immediately before quarantine and purge across all verified activity, proof, and QR fields.
-3. **Recoverable quarantine — code/test:** make binary plus manifest publication failure-atomic, validate asset/manifest schema and checksum, reject symlink/reparse/path escape, surface corrupt or manifestless quarantine artifacts, and keep execute disabled by default.
-4. **Purge eligibility contract — code/test/review:** expose per-quarantined-item `purgeEligibleAt`, retention remaining, byte size, safe checksum suffix, and immutable eligibility/confirmation token bound to asset, checksum, actor/session, and expiry. Active, staged, and orphan-candidate rows must never receive a purge token.
-5. **Permanent purge endpoint — code/test:** require `SYSTEM_ADMIN`, enabled purge capability, expired retention (default 30 days), valid asset-bound confirmation, fresh zero references, valid manifest/checksum, current operation lease, and explicit confirmation phrase/reason. Remove or keep internal-only every retention bypass. Persist sanitized immutable attempt and success/failure audit records around the unlink; repeated requests are idempotent or return a controlled conflict.
-6. **Lock and error safety — code/test:** always release the local/distributed lock after setup failures, renew/verify lease ownership for long scans, report partial operations accurately, and leave a recoverable pair on filesystem/audit failure where possible.
-7. **Admin UI — frontend/test:** distinguish “Dung lượng volume chứa media” from “Dung lượng media ứng dụng”; show loading, error, degraded, measurement time, managed/quarantine/reclaimable bytes, and explanatory help text. Missing capabilities must fail closed.
-8. **Garbage interaction — frontend/test:** keep “Cách ly” bound to a fresh reviewed preview; add “Xóa vĩnh viễn” only on server-eligible quarantined rows. Show exact bytes reclaimed, retention/checksum suffix, irreversible warning, typed phrase plus reason, double-submit protection, 409/412 stale-reference handling, and parallel refresh of summary/inventory/audit after completion. Restore also requires confirmation.
-9. **Privacy and regression review:** use explicit safe view models for inventory/audit. Verify the DOM and API responses never expose paths, raw keys/private URLs, proof/QR content, or unsanitized exceptions.
+1. **Resume independent review (read-only):** review the complete diff from the pinned base. Check strict actor/target rules, lease/index race safety, expiry reclaim, compensation, actor demotion, target status changes, JWT/refresh rotation and replay, fork prevention, logout/revocation, audit content, cookie/session scoping, channel replay/confusion, bootstrap cleanup, and ordinary-auth regressions.
+2. **Reconcile strict-admin UI:** replace feature-specific use of broad `isAdminUser()` with a strict `roleCode === 'ADMIN'` predicate that tolerates the actual user response shape without accepting `ADMIN_FULL` alone. Add a regression test proving the button is hidden for a non-ADMIN user with `ADMIN_FULL`.
+3. **Review conflict handling:** preserve stable backend error codes in the frontend API error type and show distinct messages for `IMPERSONATION_LIMIT_REACHED`, `IMPERSONATION_TARGET_ALREADY_ACTIVE`, inactive/admin/self targets, and expired admin auth. Do not expose internal errors.
+4. **Disposable Mongo integration:** run or add a focused e2e test against an explicitly disposable MongoDB instance. Assert the named partial-unique indexes exist; ten concurrent requests for ten targets yield exactly five successes; duplicate subjects cannot consume multiple slots; release/expiry permits replacement; startup fails closed when index creation is impossible.
+5. **Real-browser flow check:** in local development only, verify popup allowed/blocked states, separate session IDs/cookies, simultaneous independent target tabs, no admin-tab token overwrite, refresh after access-token expiry, banner visibility, exit release, duplicate target handling, and the sixth target rejection.
+6. **Regression and final review:** run focused and affected full tests/typechecks/builds, inspect the final diff for unintended changes, and repeat independent security review after remediation. Stop on any unresolved P0/P1 or authorization/concurrency bypass.
 
 # Acceptance Criteria
 
-- **AC-01:** Only `SYSTEM_ADMIN` can load storage data or invoke preview/quarantine/restore/purge; missing capability data disables every mutation control.
-- **AC-02:** Capacity UI/API states that totals come from `statfs` on the filesystem containing `UPLOAD_STORAGE_ROOT`; partition totals and managed live/staging/quarantine/reclaimable media bytes are separately labeled and arithmetically consistent.
-- **AC-03:** Loading/error/degraded telemetry never renders fabricated `0%` healthy/critical capacity, and no server path/mount identifier is exposed.
-- **AC-04:** A live file is eligible for quarantine only after grace expiry and zero recognized references; a fresh reference or external/ambiguous origin blocks mutation.
-- **AC-05:** Quarantine failure leaves either the original intact or a complete restorable binary/manifest pair; corrupt/manifestless artifacts are reported, not silently ignored.
-- **AC-06:** Permanent purge is available only for an expired, valid quarantined asset and requires capability, fresh zero references, checksum, current lease, asset-bound confirmation, reason, and typed phrase. No HTTP retention bypass exists.
-- **AC-07:** Successful purge removes only the exact quarantined binary and manifest, reports exact reclaimed bytes, creates sanitized attempt/outcome audit entries, and refreshes UI metrics. Failure does not falsely report reclaimed space.
-- **AC-08:** Active/staged/orphan-candidate/referenced files never show a direct-delete action. Execute, restore, and purge prevent duplicate submission and handle stale/conflict responses without optimistic removal.
-- **AC-09:** Inventory, confirmations, audit, logs, DOM, and API samples contain no absolute paths, raw private URLs/keys, proof or QR thumbnails, or arbitrary unsanitized details.
-- **AC-10:** Existing 24-hour grace, 30-day default quarantine retention, four managed namespaces, five-collection reference coverage, capability defaults-off, and focused storage regressions remain passing.
+- **AC-01:** Backend accepts impersonation creation only when the actor's current persisted `role_code` is exactly `ADMIN`; `ADMIN_FULL` without that role is denied, and the frontend does not show the action.
+- **AC-02:** Self, inactive/nonexistent, and `ADMIN` targets are denied without creating credentials or consuming a slot; no target password, OTP, or confirmation is requested.
+- **AC-03:** At most five distinct active subject accounts exist globally under concurrent multi-process requests, proven by live partial-unique indexes and a disposable-database concurrency test.
+- **AC-04:** Active access and refresh requests revalidate the lease and current actor. Actor demotion/deactivation, lease release/expiry, or target deactivation invalidates the impersonated session.
+- **AC-05:** Refresh rotation preserves actor/lease linkage; replay, fork, logout, startup failure, and audit failure cannot create an ordinary or untracked target session.
+- **AC-06:** Impersonated requests receive only the target's current role and permissions. The actor's admin permissions are never merged into the subject session.
+- **AC-07:** Each child window has a distinct session-only ID and token state. No access/refresh token appears in URL fragments, `localStorage`, logs, or wildcard/cross-origin messages, and the original admin tab remains authenticated as the admin.
+- **AC-08:** The `/access` bootstrap is fail-closed for invalid/expired handoffs and does not run normal auth hydration before isolation. Popup, timeout, malformed payload, API error, ACK, and cleanup paths are controlled.
+- **AC-09:** A visible impersonation banner identifies the target; ending access releases the lease and revokes its refresh-token family without logging out or overwriting the admin's original session.
+- **AC-10:** Stable conflict codes produce accurate Vietnamese messages, including a limit message only for `IMPERSONATION_LIMIT_REACHED`.
+- **AC-11:** Existing ordinary login, refresh, session fork, logout, RBAC, permissions page behavior, backend full tests, frontend affected tests, and builds remain passing.
+- **AC-12:** Independent review reports no unresolved P0/P1 and the final diff contains only intentional files inside the approved boundary.
 
 # Verification
 
-- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand src/core/storage/storage.service.spec.ts src/core/storage/storage-orphan-reconciliation.service.spec.ts src/core/storage/storage-admin.controller.spec.ts` => capacity source, eligibility, atomic quarantine, lock, confirmation, retention, reference, purge, audit, privacy, and failure cases pass using temp storage and disposable mocked/test databases only.
-- `D:\PROJECT\manager_points\backend :: npm exec eslint -- "src/core/storage/**/*.ts"` => affected backend files pass lint.
-- `D:\PROJECT\manager_points\backend :: npm run build` => Nest backend compiles.
-- `D:\PROJECT\manager_points\frontend :: npm exec vitest -- run "src/app/(dashboard)/system/storage/page.test.tsx" "src/api/system-api.test.ts"` => admin access, capacity source states, capability fail-closed, quarantine/restore/purge confirmations, conflicts, refresh, and redaction pass.
-- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => frontend types compile.
-- `D:\PROJECT\manager_points :: git diff --check; git status --short` => no whitespace errors; all changed paths are intentional and inside the approved boundary.
-- No verification command may invoke live reconcile execute, restore, purge, migration, deployment, or a non-disposable database/volume.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand auth/test/impersonation.service.spec.ts auth/test/auth.service.spec.ts auth/test/auth-security.spec.ts auth/test/auth.controller.spec.ts` => focused auth/impersonation tests pass.
+- `D:\PROJECT\manager_points\backend :: npm test -- --runInBand` => all backend suites pass, excluding only documented pre-existing todos.
+- `D:\PROJECT\manager_points\backend :: npx tsc -p tsconfig.build.json --noEmit` => backend types pass.
+- `D:\PROJECT\manager_points\backend :: npm run build` => Nest production compilation passes without starting the app or connecting to a persistent database.
+- `D:\PROJECT\manager_points\backend :: <repository-native disposable-Mongo e2e command established during continuation>` => named indexes and live concurrency/lifecycle criteria pass. Do not invent or run this command until the test database URI is proven disposable.
+- `D:\PROJECT\manager_points\frontend :: npm test -- --run src/api/auth-api.test.ts src/providers/auth-provider.test.tsx "src/app/(dashboard)/permissions/__tests__/page.test.tsx" "src/app/(dashboard)/permissions/impersonation-flow.test.tsx" "src/app/(auth)/access/page.test.tsx"` => API/storage/bootstrap/admin gating/handoff tests pass.
+- `D:\PROJECT\manager_points\frontend :: npm run typecheck` => frontend types pass.
+- `D:\PROJECT\manager_points\frontend :: npm run build` => Next production compilation passes without deployment.
+- `D:\PROJECT\manager_points :: git diff --check; git status --short` => no whitespace errors and every changed file is intentional.
+- Manual local browser evidence must record six-target behavior, isolated tokens/session IDs, refresh, banner, exit/release, popup denial, and absence of tokens in URL/localStorage.
 
 # Safety Gates
 
-- **G-01 — Capability/configuration enablement:** before enabling execute, restore, or purge outside disposable development, approve environment, exact capability values, retention, admin access review, backup/checksum evidence, monitoring, and rollback to disabled defaults. Resume: configuration-only enablement.
-- **G-02 — Quarantine execution:** before executing against any persistent volume, approve a fresh redacted preview with immutable candidate IDs/count/bytes, reference coverage, backup, operator, and restore rehearsal. Rollback: restore from verified manifests. Resume: one bounded execute run.
-- **G-03 — Permanent purge:** before any real purge, approve exact eligible asset IDs/count/bytes, retention expiry, fresh zero-reference evidence, confirmation-token design, backup, audit evidence, operator, and acknowledgement that rollback requires backup restore. Resume: one bounded purge operation.
-- **G-04 — Deployment:** approve affected verification, independent security review, volume-capacity evidence, backup/restore result, configuration defaults, and rollback version before staging/production deployment.
+- **G-01 — Disposable database proof:** before any e2e command that connects to MongoDB, verify the exact URI/database is disposable and contains no user or production data. Resume: one bounded test run.
+- **G-02 — Index/database mutation:** before starting this backend against staging/production or any persistent shared database, approve the target environment, exact index definitions, duplicate-data preflight, backup/rollback, startup failure behavior, and operator. Resume: controlled startup/index creation only.
+- **G-03 — Deployment:** require affected test/build evidence, disposable-Mongo concurrency results, real-browser evidence, independent security approval, monitoring/audit review, and rollback version before staging or production deployment.
 
 # Artifacts and Checkpoints
 
-- Effective Rules Manifest: versions `3.2.0`; canonical hashes recorded by the orchestrator for safety/global/contract/orchestrator/pipeline.
-- Required review artifacts: capacity-contract sample; redacted eligibility/preview sample; purge threat-model and confirmation contract; focused test output; privacy scan; final diff/status.
-- Material checkpoints: after backend capacity/eligibility contract; after atomic quarantine/lease tests; after purge security review; after frontend compatibility; before every gated persistent operation.
+- Preserve the current uncommitted implementation and base commit in Git; do not create or switch branches/worktrees unless explicitly requested.
+- Required continuation artifacts: independent review findings, remediation diff, focused/full test outputs, disposable-Mongo index/concurrency evidence, local browser checklist, and final status/diff.
+- Material checkpoints: after review findings; after strict-admin/error remediation; after disposable-Mongo tests; after browser verification; after final independent review.
 
 # Execution Budgets
 
-- Step deadline: 600 seconds, maximum 1800 seconds where integration tests justify it.
-- Concurrency: specialized Full workers may run only on disjoint paths; one writer per path; serialize shared DTO/API contract changes before frontend integration.
-- Retries: at most 2 idempotent command retries; engineering loop `0..3`; independent-review remediation `0..2`.
-- Stop on dirty-path overlap, reference ambiguity, path/symlink escape, checksum mismatch, lock ownership loss, unsanitized private data, destructive operation without gate, non-disposable test target, scope expansion, or changed dependency/migration requirement.
+- Step deadline: 600 seconds; maximum 1800 seconds for disposable integration/build verification.
+- One writer per path. Serialize frontend API/error-contract edits with UI/test edits; do not edit the same path concurrently.
+- Retry limits: at most 2 idempotent command retries; engineering loop `0..3`; independent-review remediation `0..2`.
+- Stop on dirty-path overlap from a new source, unproven database disposability, index mismatch, sixth active lease, strict-admin bypass, token leakage, ordinary-auth regression, new dependency/migration requirement, production effect, or scope expansion.

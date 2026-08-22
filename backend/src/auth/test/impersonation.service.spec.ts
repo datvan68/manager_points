@@ -61,6 +61,11 @@ describe('ImpersonationService', () => {
       )
         return false;
       if (
+        filter.browser_session_id &&
+        session.browser_session_id !== filter.browser_session_id
+      )
+        return false;
+      if (
         filter.actor_user_id &&
         session.actor_user_id.toString() !== filter.actor_user_id.toString()
       )
@@ -234,6 +239,34 @@ describe('ImpersonationService', () => {
         code: 'IMPERSONATION_TARGET_ALREADY_ACTIVE',
       }),
     });
+  });
+
+  it('only releases an active handoff lease owned by the current actor and browser session', async () => {
+    const targetId = [...users.keys()][1];
+    const { session } = await service.acquire(
+      actorId.toString(),
+      targetId,
+      'browser_session_cancel',
+      '127.0.0.1',
+    );
+
+    await expect(
+      service.releaseActiveForActorBrowserSession(
+        new Types.ObjectId().toString(),
+        'browser_session_cancel',
+      ),
+    ).resolves.toBeNull();
+    expect(session.status).toBe(ImpersonationSessionStatus.ACTIVE);
+
+    await expect(
+      service.releaseActiveForActorBrowserSession(
+        actorId.toString(),
+        'browser_session_cancel',
+        '127.0.0.1',
+      ),
+    ).resolves.toBe(session);
+    expect(session.status).toBe(ImpersonationSessionStatus.ENDED);
+    expect(session.ended_reason).toBe('handoff_timeout');
   });
 
   it('requires the current actor role_code ADMIN even with other admin signals', async () => {

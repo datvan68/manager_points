@@ -432,6 +432,25 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  async cancelImpersonation(
+    actorUserId: string,
+    browserSessionId: string,
+    ip: string,
+  ): Promise<{ cancelled: boolean }> {
+    const session =
+      await this.impersonationService.releaseActiveForActorBrowserSession(
+        actorUserId,
+        browserSessionId,
+        ip,
+      );
+    if (!session) return { cancelled: false };
+
+    await this.tokenService.revokeAllImpersonationTokens(
+      session._id.toString(),
+    );
+    return { cancelled: true };
+  }
+
   async revokeToken(token: string, ip?: string) {
     const storedToken = await this.tokenService.findToken(token);
     if (storedToken?.impersonation_session_id) {

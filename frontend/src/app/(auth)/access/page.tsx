@@ -26,6 +26,9 @@ export default function AccessPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // Clear copied credentials before any bootstrap validation can return.
+    tokenStorage.clearTabAuth();
+
     if (typeof BroadcastChannel === 'undefined') {
       setErrorMessage('Trình duyệt không hỗ trợ mở phiên truy cập an toàn.');
       return;
@@ -47,20 +50,29 @@ export default function AccessPage() {
 
     // Defensive cleanup for browsers that copied sessionStorage despite noopener.
     // This never touches the administrator's shared localStorage session ID.
-    tokenStorage.clearTabAuth();
     tokenStorage.setTabSessionId(childSessionId);
 
     const channel = new BroadcastChannel(getImpersonationChannelName(channelNonce));
-    const timeoutId = window.setTimeout(() => {
-      tokenStorage.clearTabAuth();
+    let terminal = false;
+    let timeoutId: number | undefined;
+    const terminateHandoff = (clearAuth: boolean): boolean => {
+      if (terminal) return false;
+      terminal = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      if (clearAuth) tokenStorage.clearTabAuth();
+      return true;
+    };
+
+    timeoutId = window.setTimeout(() => {
+      if (!terminateHandoff(true)) return;
       setErrorMessage('Phiên kết nối đã hết thời gian chờ. Vui lòng đóng cửa sổ và thử lại.');
     }, IMPERSONATION_HANDOFF_TIMEOUT_MS + 1_000);
 
     channel.onmessage = (event: MessageEvent<ImpersonationChannelMessage>) => {
+      if (terminal) return;
       const message = event.data;
       if (message?.type === 'ERROR') {
-        window.clearTimeout(timeoutId);
-        tokenStorage.clearTabAuth();
+        if (!terminateHandoff(true)) return;
         setErrorMessage(message.message);
         channel.postMessage({ type: 'ACK' } satisfies ImpersonationChannelMessage);
         return;
@@ -68,14 +80,13 @@ export default function AccessPage() {
       if (message?.type !== 'SUCCESS') return;
 
       if (!isValidPayload(message.payload)) {
-        window.clearTimeout(timeoutId);
-        tokenStorage.clearTabAuth();
+        if (!terminateHandoff(true)) return;
         setErrorMessage('Dữ liệu phiên truy cập không hợp lệ.');
         channel.postMessage({ type: 'ACK' } satisfies ImpersonationChannelMessage);
         return;
       }
 
-      window.clearTimeout(timeoutId);
+      if (!terminateHandoff(false)) return;
       tokenStorage.setAccessToken(message.payload.access_token);
       tokenStorage.setUser({
         ...message.payload.user,

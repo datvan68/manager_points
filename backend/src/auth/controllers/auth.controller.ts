@@ -48,6 +48,7 @@ import {
   PasswordResetVerifyDto,
   PasswordResetCompleteDto,
   CreateImpersonationDto,
+  CancelImpersonationDto,
 } from '../dto/auth.dto';
 
 import { isAdminUser } from '../utils/role.util';
@@ -293,6 +294,30 @@ export class AuthController {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { refresh_token, ...response } = result;
     return response;
+  }
+
+  @Post('impersonations/cancel')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StrictAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel an impersonation handoff' })
+  async cancelImpersonation(
+    @Req() req: any,
+    @Body() dto: CancelImpersonationDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
+    const result = await this.authService.cancelImpersonation(
+      req.user.userId,
+      dto.session_id,
+      ip,
+    );
+    res.clearCookie(
+      getRefreshCookieName(dto.session_id),
+      getRefreshCookieOptions(),
+    );
+    return result;
   }
 
   @Post('logout')

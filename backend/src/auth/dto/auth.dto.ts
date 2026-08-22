@@ -64,6 +64,15 @@ export class CreateImpersonationDto {
   session_id: string;
 }
 
+export class CancelImpersonationDto {
+  @ApiProperty({ example: 'account_tab_01_abcd' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{16,64}$/, {
+    message: 'ID phiên đăng nhập không hợp lệ',
+  })
+  session_id: string;
+}
+
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail({}, { message: 'Email không đúng định dạng' })

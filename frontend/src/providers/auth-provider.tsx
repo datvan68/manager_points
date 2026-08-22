@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { tokenStorage, authApi } from "@/api/auth-api";
@@ -121,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const isAccessBootstrapRoute = pathname === "/access";
+  const previousPathnameRef = useRef<string | null>(null);
 
   const isPublicRoute = [
     "/login",
@@ -321,8 +323,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    const previousPathname = previousPathnameRef.current;
+    previousPathnameRef.current = pathname;
+
+    if (previousPathname === null || (previousPathname === "/access" && pathname !== "/access")) {
+      checkAuth();
+    }
+  }, [pathname]);
 
   // Tự động làm mới token định kỳ mỗi 5 phút để duy trì phiên làm việc khi đang hoạt động
   useEffect(() => {
@@ -387,6 +394,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     const isImpersonatedSession = Boolean(user?.impersonation?.id);
+    const childSessionId = isImpersonatedSession ? tokenStorage.getTabSessionId() : null;
     try {
       await authApi.logout();
     } catch (e) {
@@ -394,6 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (isImpersonatedSession) {
         tokenStorage.clearTabAuth();
+        if (childSessionId) tokenStorage.setTabSessionId(childSessionId);
       } else {
         tokenStorage.clearTokens();
       }

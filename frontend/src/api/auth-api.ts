@@ -15,6 +15,10 @@ export interface MessageResponse {
   message: string;
 }
 
+export interface CancelImpersonationResponse {
+  cancelled: boolean;
+}
+
 export interface RefreshResponse {
   access_token: string;
 }
@@ -42,11 +46,14 @@ export interface ImpersonationResponse {
   impersonation: ImpersonationInfo;
 }
 
-class AuthApiError extends Error {
+export class AuthApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
     this.name = 'AuthApiError';
   }
 }
@@ -64,7 +71,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
     const message = Array.isArray(data.message)
       ? data.message.join(', ')
       : data.message || data.error || 'Đã xảy ra lỗi';
-    throw new AuthApiError(message, res.status);
+    const code = typeof data.code === 'string' ? data.code : undefined;
+    throw new AuthApiError(message, res.status, code);
   }
   return data as T;
 }
@@ -174,6 +182,22 @@ export const authApi = {
       headers: { 'X-Auth-Session-Id': tokenStorage.getSessionId() },
     });
     return handleResponse<MessageResponse>(res);
+  },
+
+  async cancelImpersonation(
+    browserSessionId: string,
+    accessToken: string,
+  ): Promise<CancelImpersonationResponse> {
+    const res = await fetch(`${API_BASE}/auth/impersonations/cancel`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ session_id: browserSessionId }),
+    });
+    return handleResponse<CancelImpersonationResponse>(res);
   },
 
   async forkSession(sessionId: string, remember: boolean): Promise<RefreshResponse> {
@@ -499,6 +523,9 @@ export const tokenStorage = {
   },
   setTabSessionId(value: string) {
     sessionStorage.setItem('auth_session_id', value);
+  },
+  getTabSessionId(): string | null {
+    return sessionStorage.getItem('auth_session_id');
   },
   getSessionId(): string {
     const key = 'auth_session_id';

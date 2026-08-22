@@ -72,6 +72,7 @@ describe('AuthService', () => {
     acquire: jest.fn(),
     recordStarted: jest.fn(),
     release: jest.fn(),
+    releaseActiveForActorBrowserSession: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -184,6 +185,32 @@ describe('AuthService', () => {
     );
     expect(mockTokenService.revokeToken).not.toHaveBeenCalledWith(
       'child-refresh',
+    );
+  });
+
+  it('releases the actor-owned handoff lease and revokes its linked refresh tokens', async () => {
+    const sessionId = new Types.ObjectId();
+    mockImpersonationService.releaseActiveForActorBrowserSession.mockResolvedValue(
+      { _id: sessionId },
+    );
+
+    await expect(
+      service.cancelImpersonation(
+        '507f1f77bcf86cd799439013',
+        'browser_session_timeout',
+        '127.0.0.1',
+      ),
+    ).resolves.toEqual({ cancelled: true });
+
+    expect(
+      mockImpersonationService.releaseActiveForActorBrowserSession,
+    ).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439013',
+      'browser_session_timeout',
+      '127.0.0.1',
+    );
+    expect(mockTokenService.revokeAllImpersonationTokens).toHaveBeenCalledWith(
+      sessionId.toString(),
     );
   });
 

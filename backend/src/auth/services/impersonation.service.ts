@@ -18,6 +18,8 @@ import { User, UserDocument, UserStatus } from '../schemas/user.schema';
 import { systemEventEmitter } from '../../system/system-event-emitter';
 
 export const IMPERSONATION_LEASE_MS = 4 * 60 * 60 * 1000;
+export const IMPERSONATION_CHAINING_DENIAL_REASON =
+  'IMPERSONATION_CHAINING_NOT_ALLOWED';
 
 type AuditContext = {
   actorUserId?: string;
@@ -254,15 +256,41 @@ export class ImpersonationService implements OnModuleInit {
     });
   }
 
+  async releaseActiveForActorBrowserSession(
+    actorUserId: string,
+    browserSessionId: string,
+    ip = '0.0.0.0',
+  ): Promise<ImpersonationSessionDocument | null> {
+    if (
+      !Types.ObjectId.isValid(actorUserId) ||
+      !/^[A-Za-z0-9_-]{16,64}$/.test(browserSessionId)
+    ) {
+      return null;
+    }
+
+    const session = await this.sessionModel
+      .findOne({
+        actor_user_id: new Types.ObjectId(actorUserId),
+        browser_session_id: browserSessionId,
+        status: ImpersonationSessionStatus.ACTIVE,
+      })
+      .exec();
+    if (!session) return null;
+
+    await this.release(session._id.toString(), 'handoff_timeout', ip);
+    return session;
+  }
+
   async recordGuardDenied(
     actorUserId: string | undefined,
     subjectUserId: string | undefined,
     ip: string,
+    reason = 'IMPERSONATION_ADMIN_REQUIRED',
   ): Promise<void> {
     await this.auditBestEffort('impersonation_denied', ip, {
       actorUserId,
       subjectUserId,
-      reason: 'IMPERSONATION_ADMIN_REQUIRED',
+      reason,
     });
   }
 
