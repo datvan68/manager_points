@@ -177,6 +177,10 @@ export class UpdatePaymentProofDto {
   @IsOptional()
   @IsString()
   proof_url?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  clear_proof?: boolean;
 }
 
 export class ReviewPaymentProofDto {

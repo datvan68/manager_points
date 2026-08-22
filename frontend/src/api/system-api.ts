@@ -251,7 +251,6 @@ export const systemApi = {
     return handleResponse<ModuleMaintenanceResponse>(res);
   },
 
-
   async getDashboardMetrics(semesterId?: string): Promise<any> {
     const params = new URLSearchParams();
     if (semesterId) {
@@ -432,9 +431,6 @@ export const systemApi = {
     const formData = new FormData();
     formData.append('file', file);
     
-    // For FormData, we let the browser set the Content-Type header with the correct boundary
-    // httpClient might be setting application/json by default if we don't pass headers properly,
-    // assuming httpClient works well with FormData if body is FormData
     const res = await httpClient(`${API_BASE}/system/backups/import/preview`, {
       method: 'POST',
       body: formData,
@@ -574,4 +570,151 @@ export const systemApi = {
     });
     return handleResponse<MessageResponse>(res);
   },
+
+  // ─── STORAGE MANAGEMENT ───────────────────────────────────────────────────
+  async getStorageSummary(): Promise<StorageSummaryMetrics> {
+    const res = await httpClient(`${API_BASE}/system/storage/summary`);
+    return handleResponse<StorageSummaryMetrics>(res);
+  },
+
+  async getStorageInventory(query?: {
+    page?: number;
+    limit?: number;
+    status?: StorageLifecycleState;
+    domain?: 'activities' | 'dormitory';
+    namespace?: StorageNamespace;
+    search?: string;
+  }): Promise<PaginatedResponse<StorageInventoryItem>> {
+    const params = new URLSearchParams();
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const res = await httpClient(`${API_BASE}/system/storage/inventory?${params.toString()}`);
+    return handleResponse<PaginatedResponse<StorageInventoryItem>>(res);
+  },
+
+  async previewStorageReconciliation(): Promise<StorageReconciliationResult> {
+    const res = await httpClient(`${API_BASE}/system/storage/reconcile/preview`, {
+      method: 'POST',
+    });
+    return handleResponse<StorageReconciliationResult>(res);
+  },
+
+  async executeStorageReconciliation(): Promise<StorageReconciliationResult> {
+    const res = await httpClient(`${API_BASE}/system/storage/reconcile/execute`, {
+      method: 'POST',
+    });
+    return handleResponse<StorageReconciliationResult>(res);
+  },
+
+  async restoreStorageAsset(assetId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/system/storage/restore/${encodeURIComponent(assetId)}`, {
+      method: 'POST',
+    });
+    return handleResponse<any>(res);
+  },
+
+  async purgeStorageAsset(assetId: string): Promise<any> {
+    const res = await httpClient(`${API_BASE}/system/storage/purge/${encodeURIComponent(assetId)}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<any>(res);
+  },
+
+  async getStorageAuditLogs(limit?: number): Promise<StorageAuditLogEntry[]> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', String(limit));
+    const res = await httpClient(`${API_BASE}/system/storage/audit-logs?${params.toString()}`);
+    return handleResponse<StorageAuditLogEntry[]>(res);
+  },
 };
+
+// ─── STORAGE TYPES ─────────────────────────────────────────────────────────
+export type StorageLifecycleState = 'staged' | 'active' | 'orphan_candidate' | 'quarantined' | 'purged';
+export type StorageNamespace = 'activities' | 'dormitory-qr' | 'invoices' | 'room-fee-invoices';
+
+export interface StorageCapacityInfo {
+  status: 'healthy' | 'warning' | 'critical' | 'degraded';
+  usedBytes: number;
+  totalBytes: number;
+  freeBytes: number;
+  usagePercent: number;
+  degraded?: boolean;
+}
+
+export interface StorageSummaryMetrics {
+  capacity: StorageCapacityInfo;
+  live_files_count: number;
+  live_bytes: number;
+  quarantined_files_count: number;
+  quarantined_bytes: number;
+  orphan_candidates_count: number;
+  missing_references_count: number;
+  last_scan?: {
+    run_id: string;
+    started_at: string;
+    completed_at?: string;
+    status: 'running' | 'completed' | 'failed';
+    mode: 'preview' | 'execute';
+  };
+}
+
+export interface StorageInventoryItem {
+  id: string;
+  namespace: StorageNamespace;
+  filename: string;
+  relative_key: string;
+  url?: string;
+  size: number;
+  mime_type: string;
+  created_at: string;
+  modified_at: string;
+  status: StorageLifecycleState;
+  referenced: boolean;
+  domain_ref?: {
+    domain: 'activities' | 'dormitory';
+    owner_id: string;
+    field: string;
+    display_title?: string;
+  };
+  quarantine_manifest?: {
+    asset_id: string;
+    original_key: string;
+    size: number;
+    mime_type: string;
+    sha256: string;
+    quarantined_at: string;
+    actor: string;
+    reason: string;
+  };
+}
+
+export interface StorageReconciliationResult {
+  run_id: string;
+  mode: 'preview' | 'execute';
+  scanned_files_count: number;
+  scanned_bytes: number;
+  referenced_files_count: number;
+  orphan_files_count: number;
+  missing_references_count: number;
+  quarantined_count: number;
+  quarantined_bytes: number;
+  orphans: Array<{ id: string; key: string; size: number; mtime: string }>;
+  missing: Array<{ key: string; domain: string; owner_id: string; field: string }>;
+  created_at: string;
+}
+
+export interface StorageAuditLogEntry {
+  _id: string;
+  run_id: string;
+  action: 'preview' | 'quarantine' | 'restore' | 'purge';
+  actor: string;
+  mode: 'scheduled' | 'manual';
+  status: 'success' | 'failed';
+  details?: Record<string, any>;
+  createdAt: string;
+}

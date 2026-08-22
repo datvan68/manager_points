@@ -145,6 +145,14 @@ describe('RoomFeeCollection Component', () => {
       new Blob(['dummy-blob-content'], { type: 'image/png' }),
     );
     (dormitoryApi.roomFeeInvoices.updateConfig as any).mockImplementation(async (cfg: any) => ({ ...mockConfig, ...cfg }));
+    (dormitoryApi.roomFeeInvoices.updateProof as any).mockImplementation(async (id: string, dto: any) => {
+      const target = mockInvoices.find((i) => i._id === id) || mockInvoices[1];
+      return {
+        ...target,
+        payment_method: dto.payment_method || target.payment_method,
+        payment_proof: dto.clear_proof ? undefined : (dto.payment_proof || target.payment_proof),
+      };
+    });
     (dormitoryApi.roomFeeInvoices.previewPeriod as any).mockResolvedValue({
       start_month: '2026-03',
       end_month: '2026-07',
@@ -480,9 +488,11 @@ describe('RoomFeeCollection Component', () => {
   it('supports deleting existing proof with confirmation and uploading new proof', async () => {
     const updatedProof = { url: '/uploads/replaced-proof.png', file_name: 'replaced.png' };
     (dormitoryApi.roomFeeInvoices.uploadProof as any).mockResolvedValue(updatedProof);
-    (dormitoryApi.roomFeeInvoices.updateProof as any).mockResolvedValue({
-      ...mockInvoices[1],
-      payment_proof: updatedProof,
+    (dormitoryApi.roomFeeInvoices.updateProof as any).mockImplementation(async (id: string, dto: any) => {
+      if (dto.clear_proof) {
+        return { ...mockInvoices[1], payment_proof: undefined };
+      }
+      return { ...mockInvoices[1], payment_proof: dto.payment_proof || updatedProof };
     });
 
     render(<RoomFeeCollection />);
@@ -508,14 +518,18 @@ describe('RoomFeeCollection Component', () => {
     });
 
     // Confirm delete
-    const confirmDeleteBtn = screen.getAllByRole('button', { name: 'Xóa ảnh' })[1] || screen.getAllByRole('button', { name: 'Xóa ảnh' })[0];
-    await act(async () => {
-      fireEvent.click(confirmDeleteBtn);
+    const confirmDeleteBtn = screen.getAllByRole('button', { name: 'Xóa ảnh' })[1];
+    fireEvent.click(confirmDeleteBtn);
+
+    await waitFor(() => {
+      expect(dormitoryApi.roomFeeInvoices.updateProof).toHaveBeenCalledWith('rfi-pending', {
+        clear_proof: true,
+      });
     });
 
     // Upload area should now be visible
     await waitFor(() => {
-      expect(screen.getByText('Ảnh xác nhận chuyển khoản')).toBeDefined();
+      expect(document.getElementById('room-fee-pay-proof-upload')).toBeTruthy();
     });
 
     const fileInput = document.getElementById('room-fee-pay-proof-upload') as HTMLInputElement;

@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsString,
   IsEnum,
+  IsBoolean,
   Matches,
   Max,
   Min,
@@ -109,4 +110,8 @@ export class UpdateUtilityConfigDto {
   @ValidateNested()
   @Type(() => TransferQrImageDto)
   transfer_qr_image?: TransferQrImageDto;
+
+  @IsOptional()
+  @IsBoolean()
+  clear_qr?: boolean;
 }

@@ -476,6 +476,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       const updated = await dormitoryApi.roomFeeInvoices.updateConfig({
         ...configForm,
         transfer_qr_image: transferQr,
+        clear_qr: (configForm as any).clear_qr || false,
       });
 
       setConfigData(updated);
@@ -731,12 +732,24 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
   }
 
   // Xác nhận xóa ảnh chứng từ hiện tại
-  function handleConfirmDeleteProof() {
-    setPayingInvoice((prev) => (prev ? { ...prev, payment_proof: undefined } : null));
-    setPayProofFile(null);
-    setPayProofPreview(null);
-    setDeleteProofConfirmOpen(false);
-    toast.info('Đã xóa ảnh chứng từ. Bạn có thể chọn ảnh mới để tải lên.');
+  async function handleConfirmDeleteProof() {
+    if (!payingInvoice) return;
+    try {
+      setPaySubmitting(true);
+      const updated = await dormitoryApi.roomFeeInvoices.updateProof(payingInvoice._id, {
+        clear_proof: true,
+      });
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
+      setDeleteProofConfirmOpen(false);
+      void loadInvoices(true);
+      toast.success('Đã xóa ảnh chứng từ thanh toán thành công.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi khi xóa chứng từ');
+    } finally {
+      setPaySubmitting(false);
+    }
   }
 
   // Cập nhật / thay thế ảnh chứng từ mới (backward compatibility)
@@ -1680,22 +1693,37 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
                     />
                   </div>
                 )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      if (file.size > 5 * 1024 * 1024) {
-                        toast.error('Dung lượng ảnh không được vượt quá 5MB');
-                        return;
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error('Dung lượng ảnh không được vượt quá 5MB');
+                          return;
+                        }
+                        setConfigQrFile(file);
+                        setConfigQrPreview(URL.createObjectURL(file));
                       }
-                      setConfigQrFile(file);
-                      setConfigQrPreview(URL.createObjectURL(file));
-                    }
-                  }}
-                  className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1A73E8]/10 file:text-[#1A73E8] hover:file:bg-[#1A73E8]/20"
-                />
+                    }}
+                    className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1A73E8]/10 file:text-[#1A73E8] hover:file:bg-[#1A73E8]/20"
+                  />
+                  {(configQrPreview || configForm.transfer_qr_image?.url) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfigQrFile(null);
+                        setConfigQrPreview(null);
+                        setConfigForm((prev: any) => ({ ...prev, transfer_qr_image: undefined, clear_qr: true }));
+                      }}
+                      className="inline-flex w-fit items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                    >
+                      <Trash2 size={13} /> Xóa ảnh QR
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-white/50">

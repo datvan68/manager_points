@@ -347,10 +347,11 @@ export default function InvoicesPage() {
         transfer_qr_image: configForm.transfer_qr_image
           ? (({ url, file_name, mime_type, size }) => ({ url, file_name, mime_type, size }))(configForm.transfer_qr_image)
           : undefined,
+        clear_qr: (configForm as any).clear_qr || false,
       };
       if (configQrFile) {
         const uploadedQr = await dormitoryApi.invoices.uploadTransferQr(configQrFile);
-        nextConfig = { ...nextConfig, transfer_qr_image: uploadedQr };
+        nextConfig = { ...nextConfig, transfer_qr_image: uploadedQr, clear_qr: false };
       }
       const saved = await dormitoryApi.invoices.updateConfig(nextConfig);
       setConfigForm({
@@ -883,12 +884,24 @@ export default function InvoicesPage() {
   }
 
   // Xác nhận xóa ảnh chứng từ hiện tại
-  function handleConfirmDeleteProof() {
-    setPayingInvoice((prev) => (prev ? { ...prev, payment_proof: undefined } : null));
-    setPayProofFile(null);
-    setPayProofPreview(null);
-    setDeleteProofConfirmOpen(false);
-    toast.info('Đã xóa ảnh chứng từ. Bạn có thể chọn ảnh mới để tải lên.');
+  async function handleConfirmDeleteProof() {
+    if (!payingInvoice) return;
+    try {
+      setPaySubmitting(true);
+      const updated = await dormitoryApi.invoices.updateProof(payingInvoice._id, {
+        clear_proof: true,
+      });
+      setPayingInvoice(updated);
+      setPayProofFile(null);
+      setPayProofPreview(null);
+      setDeleteProofConfirmOpen(false);
+      await load();
+      toast.success('Đã xóa ảnh chứng từ thanh toán thành công.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Lỗi khi xóa chứng từ');
+    } finally {
+      setPaySubmitting(false);
+    }
   }
 
   // Cập nhật / thay thế ảnh chứng từ mới (backward compatibility)
@@ -2434,9 +2447,24 @@ export default function InvoicesPage() {
                     ) : (
                       <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 px-2 text-center text-[11px] text-slate-500">Chưa có mã QR</div>
                     )}
-                    <label htmlFor="config-transfer-qr-upload" className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                      <Upload size={14} /> {configForm.transfer_qr_image?.url || configQrFile ? 'Thay ảnh QR' : 'Chọn ảnh QR'}
-                    </label>
+                    <div className="flex flex-col gap-2">
+                      <label htmlFor="config-transfer-qr-upload" className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        <Upload size={14} /> {configForm.transfer_qr_image?.url || configQrFile ? 'Thay ảnh QR' : 'Chọn ảnh QR'}
+                      </label>
+                      {(configQrPreview || configForm.transfer_qr_image?.url) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfigQrFile(null);
+                            setConfigQrPreview(null);
+                            setConfigForm((f: any) => ({ ...f, transfer_qr_image: undefined, clear_qr: true }));
+                          }}
+                          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                        >
+                          <Trash2 size={14} /> Xóa ảnh QR
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

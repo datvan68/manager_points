@@ -193,6 +193,7 @@ export interface UpdateUtilityConfigInput {
   configured_collection_days?: number;
   payment_deadline?: string;
   transfer_qr_image?: PaymentProof;
+  clear_qr?: boolean;
 }
 
 export interface RoomMeterReadingItem {
@@ -340,6 +341,7 @@ export interface UpdateRoomFeeConfigInput {
   air_conditioned_monthly_rate: number;
   months_to_collect: number;
   transfer_qr_image?: PaymentProof;
+  clear_qr?: boolean;
 }
 
 export interface PreviewRoomFeePeriodInput {
@@ -462,6 +464,7 @@ export interface UpdateRoomFeeProofInput {
   notes?: string;
   payment_proof?: PaymentProof;
   proof_url?: string;
+  clear_proof?: boolean;
 }
 
 export interface BulkDeleteRoomFeeInvoicesResponse {
@@ -939,6 +942,7 @@ export const dormitoryApi = {
         notes?: string;
         payment_proof?: PaymentProof;
         proof_url?: string;
+        clear_proof?: boolean;
       },
     ): Promise<DormInvoice> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices/${id}/proof`, {

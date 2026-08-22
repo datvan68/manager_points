@@ -163,7 +163,11 @@ export function RouteGuard({
     if (!useDynamicMapping || !user || isLoading) return;
 
     (async () => {
-      const isSensitive = ['/system', '/permissions'].includes(pathname);
+      const isSensitive =
+        pathname === '/system' ||
+        pathname.startsWith('/system/') ||
+        pathname === '/permissions' ||
+        pathname.startsWith('/permissions/');
       try {
         const { tokenStorage } = await import('@/api/auth-api');
         const token = tokenStorage.getAccessToken() || '';

@@ -12,10 +12,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import {
+  ManagedFileInfo,
+  QuarantineManifest,
   SaveFileOptions,
   StorageCapacityInfo,
+  StorageNamespace,
+  StorageVisibility,
   StoredFileMetadata,
 } from './storage.interface';
+
+export const DEFAULT_UNATTACHED_GRACE_HOURS = 24;
+export const DEFAULT_QUARANTINE_RETENTION_DAYS = 30;
+export const MANAGED_NAMESPACES: StorageNamespace[] = [
+  'activities',
+  'invoices',
+  'dormitory-qr',
+  'room-fee-invoices',
+];
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -25,7 +38,6 @@ export class StorageService implements OnModuleInit {
   private readonly criticalThresholdPercent = 95;
 
   constructor(@Optional() private readonly configService?: ConfigService) {
-
     const configuredRoot =
       this.configService?.get<string>('UPLOAD_STORAGE_ROOT') ||
       process.env.UPLOAD_STORAGE_ROOT;
@@ -59,6 +71,7 @@ export class StorageService implements OnModuleInit {
     const requiredDirs = [
       this.storageRoot,
       path.join(this.storageRoot, '.staging'),
+      path.join(this.storageRoot, '.quarantine'),
       path.join(this.storageRoot, 'public', 'activities', 'covers'),
       path.join(this.storageRoot, 'public', 'activities', 'logos'),
       path.join(this.storageRoot, 'public', 'activities', 'frames'),
@@ -102,7 +115,8 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
-   * Checks current storage capacity and thresholds
+   * Checks current storage capacity and thresholds.
+   * Reports degraded status when statfs is unavailable without fictitious defaults.
    */
   async getCapacityMetrics(): Promise<StorageCapacityInfo> {
     try {
@@ -129,21 +143,23 @@ export class StorageService implements OnModuleInit {
           warningThresholdPercent: this.warningThresholdPercent,
           criticalThresholdPercent: this.criticalThresholdPercent,
           status,
+          degraded: false,
         };
       }
     } catch (err) {
       this.logger.warn(`Không thể đọc statfs cho ${this.storageRoot}: ${(err as Error).message}`);
     }
 
-    // Fallback if statfs is unavailable
+    // Degraded reporting when statfs is unavailable
     return {
-      totalBytes: 100 * 1024 * 1024 * 1024, // 100 GB virtual default
+      totalBytes: 0,
       usedBytes: 0,
-      freeBytes: 100 * 1024 * 1024 * 1024,
+      freeBytes: 0,
       usagePercent: 0,
       warningThresholdPercent: this.warningThresholdPercent,
       criticalThresholdPercent: this.criticalThresholdPercent,
-      status: 'normal',
+      status: 'degraded',
+      degraded: true,
     };
   }
 
@@ -297,6 +313,262 @@ export class StorageService implements OnModuleInit {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Atomically quarantines a file into `.quarantine` with a manifest
+   */
+  async quarantineFile(
+    key: string,
+    reason = 'manual_quarantine',
+    actor = 'system',
+  ): Promise<QuarantineManifest> {
+    const fullPath = this.resolvePath(key);
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException(`Không tìm thấy tệp tin cần cách ly: ${key}`);
+    }
+
+    const stat = await fs.promises.stat(fullPath);
+    const buffer = await fs.promises.readFile(fullPath);
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+    const assetId = crypto.randomUUID();
+    const ext = path.extname(fullPath) || '.bin';
+    const quarantineFilename = `${assetId}${ext}`;
+    const quarantineKey = `.quarantine/${quarantineFilename}`;
+    const quarantineDir = path.join(this.storageRoot, '.quarantine');
+    const destinationPath = path.join(quarantineDir, quarantineFilename);
+    const manifestPath = path.join(quarantineDir, `${assetId}.json`);
+
+    await fs.promises.mkdir(quarantineDir, { recursive: true });
+
+    // Derive mime type
+    let mimeType = 'application/octet-stream';
+    if (ext === '.webp') mimeType = 'image/webp';
+    else if (ext === '.png') mimeType = 'image/png';
+    else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+    else if (ext === '.svg') mimeType = 'image/svg+xml';
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + DEFAULT_QUARANTINE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+    const manifest: QuarantineManifest = {
+      asset_id: assetId,
+      original_key: key.replace(/\\/g, '/').replace(/^\/+/, ''),
+      original_relative_path: path.relative(this.storageRoot, fullPath).replace(/\\/g, '/'),
+      quarantine_key: quarantineKey,
+      sha256: hash,
+      size: stat.size,
+      mime_type: mimeType,
+      quarantined_at: now,
+      expires_at: expiresAt,
+      reason,
+      actor,
+    };
+
+    // Atomic move into .quarantine
+    try {
+      await fs.promises.rename(fullPath, destinationPath);
+    } catch (err: any) {
+      if (err.code === 'EXDEV') {
+        await fs.promises.copyFile(fullPath, destinationPath);
+        await fs.promises.unlink(fullPath);
+      } else {
+        throw err;
+      }
+    }
+
+    // Write manifest JSON
+    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    this.logger.log(
+      `Đã đưa tệp tin ${key} vào vùng cách ly (Asset ID: ${assetId}, Size: ${stat.size}B)`,
+    );
+    return manifest;
+  }
+
+  /**
+   * Restores a quarantined file back to its original location after checksum verification
+   */
+  async restoreFile(assetId: string, actor = 'system'): Promise<QuarantineManifest> {
+    const quarantineDir = path.join(this.storageRoot, '.quarantine');
+    const manifestPath = path.join(quarantineDir, `${assetId}.json`);
+
+    if (!fs.existsSync(manifestPath)) {
+      throw new NotFoundException(`Không tìm thấy thông tin cách ly cho Asset ID: ${assetId}`);
+    }
+
+    const manifestRaw = await fs.promises.readFile(manifestPath, 'utf-8');
+    const manifest: QuarantineManifest = JSON.parse(manifestRaw);
+
+    const quarantineFilePath = path.join(
+      this.storageRoot,
+      manifest.quarantine_key.replace(/\\/g, '/'),
+    );
+
+    if (!fs.existsSync(quarantineFilePath)) {
+      throw new NotFoundException(
+        `Tệp tin nhị phân trong vùng cách ly không tồn tại (${manifest.quarantine_key})`,
+      );
+    }
+
+    // Verify sha256 checksum
+    const buffer = await fs.promises.readFile(quarantineFilePath);
+    const currentHash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+    if (currentHash !== manifest.sha256) {
+      throw new BadRequestException(
+        'Tính toàn vẹn của tệp tin cách ly bị vi phạm (Checksum SHA-256 không khớp)',
+      );
+    }
+
+    const targetPath = this.resolvePath(manifest.original_key);
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+
+    // Atomic move back to original target
+    try {
+      await fs.promises.rename(quarantineFilePath, targetPath);
+    } catch (err: any) {
+      if (err.code === 'EXDEV') {
+        await fs.promises.copyFile(quarantineFilePath, targetPath);
+        await fs.promises.unlink(quarantineFilePath);
+      } else {
+        throw err;
+      }
+    }
+
+    // Delete manifest
+    await fs.promises.unlink(manifestPath).catch(() => {});
+
+    this.logger.log(
+      `Đã khôi phục tệp tin Asset ID: ${assetId} về ${manifest.original_key} bởi ${actor}`,
+    );
+    return manifest;
+  }
+
+  /**
+   * Permanently deletes a quarantined file and its manifest (gated operation)
+   */
+  async purgeQuarantinedFile(assetId: string): Promise<boolean> {
+    const quarantineDir = path.join(this.storageRoot, '.quarantine');
+    const manifestPath = path.join(quarantineDir, `${assetId}.json`);
+
+    if (!fs.existsSync(manifestPath)) {
+      return false;
+    }
+
+    try {
+      const manifestRaw = await fs.promises.readFile(manifestPath, 'utf-8');
+      const manifest: QuarantineManifest = JSON.parse(manifestRaw);
+      const quarantineFilePath = path.join(
+        this.storageRoot,
+        manifest.quarantine_key.replace(/\\/g, '/'),
+      );
+
+      if (fs.existsSync(quarantineFilePath)) {
+        await fs.promises.unlink(quarantineFilePath);
+      }
+      await fs.promises.unlink(manifestPath);
+      return true;
+    } catch (err) {
+      this.logger.error(`Lỗi khi purge tệp tin cách ly ${assetId}: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Lists all quarantined files and manifests
+   */
+  async listQuarantinedFiles(): Promise<QuarantineManifest[]> {
+    const quarantineDir = path.join(this.storageRoot, '.quarantine');
+    if (!fs.existsSync(quarantineDir)) return [];
+
+    const entries = await fs.promises.readdir(quarantineDir, { withFileTypes: true });
+    const manifests: QuarantineManifest[] = [];
+
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.json')) {
+        try {
+          const filePath = path.join(quarantineDir, entry.name);
+          const raw = await fs.promises.readFile(filePath, 'utf-8');
+          const manifest: QuarantineManifest = JSON.parse(raw);
+          manifests.push(manifest);
+        } catch {
+          // Ignore corrupted manifest
+        }
+      }
+    }
+
+    return manifests.sort(
+      (a, b) => new Date(b.quarantined_at).getTime() - new Date(a.quarantined_at).getTime(),
+    );
+  }
+
+  /**
+   * Recursively scans and lists all managed files within allowlisted namespace roots
+   */
+  async listManagedFiles(namespaceFilter?: StorageNamespace): Promise<ManagedFileInfo[]> {
+    const rootsToScan: Array<{ prefix: string; visibility: StorageVisibility; namespace: StorageNamespace }> = [
+      { prefix: 'public/activities', visibility: 'public', namespace: 'activities' },
+      { prefix: 'public/dormitory-qr', visibility: 'public', namespace: 'dormitory-qr' },
+      { prefix: 'private/invoices', visibility: 'private', namespace: 'invoices' },
+      { prefix: 'private/room-fee-invoices', visibility: 'private', namespace: 'room-fee-invoices' },
+    ];
+
+    const results: ManagedFileInfo[] = [];
+
+    const scanDirectory = async (
+      dirPath: string,
+      visibility: StorageVisibility,
+      namespace: StorageNamespace,
+    ) => {
+      if (!fs.existsSync(dirPath)) return;
+
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullEntryPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          // Skip internal dirs
+          if (entry.name === '.staging' || entry.name === '.quarantine') continue;
+          await scanDirectory(fullEntryPath, visibility, namespace);
+        } else if (entry.isFile()) {
+          const relativeKey = path
+            .relative(this.storageRoot, fullEntryPath)
+            .replace(/\\/g, '/');
+
+          try {
+            const stat = await fs.promises.stat(fullEntryPath);
+            const ext = path.extname(entry.name).toLowerCase();
+            let mimeType = 'application/octet-stream';
+            if (ext === '.webp') mimeType = 'image/webp';
+            else if (ext === '.png') mimeType = 'image/png';
+            else if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+            else if (ext === '.svg') mimeType = 'image/svg+xml';
+
+            results.push({
+              key: relativeKey,
+              filename: entry.name,
+              size: stat.size,
+              mtime: stat.mtime,
+              ctime: stat.ctime,
+              mime_type: mimeType,
+              visibility,
+              namespace,
+            });
+          } catch {
+            // Ignore stat read failure
+          }
+        }
+      }
+    };
+
+    for (const item of rootsToScan) {
+      if (namespaceFilter && item.namespace !== namespaceFilter) continue;
+      const rootPath = path.join(this.storageRoot, item.prefix);
+      await scanDirectory(rootPath, item.visibility, item.namespace);
+    }
+
+    return results;
   }
 
   /**

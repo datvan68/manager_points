@@ -17,6 +17,10 @@ import {
   RoomFeeConfigDocument,
 } from '../schemas/room-fee-config.schema';
 import {
+  UtilityConfig,
+  UtilityConfigDocument,
+} from '../schemas/utility-config.schema';
+import {
   DormitoryRosterEntry,
   DormitoryRosterEntryDocument,
 } from '../schemas/dormitory-roster-entry.schema';
@@ -45,6 +49,9 @@ export class RoomFeeInvoicesService {
     private rosterModel: Model<DormitoryRosterEntryDocument>,
     @InjectModel(Room.name)
     private roomModel: Model<RoomDocument>,
+    @Optional()
+    @InjectModel(UtilityConfig.name)
+    private utilityConfigModel?: Model<UtilityConfigDocument>,
     @Optional() private readonly storageService?: StorageService,
   ) {}
 
@@ -107,7 +114,10 @@ export class RoomFeeInvoicesService {
     );
     config.months_to_collect = Number(dto.months_to_collect);
 
-    if (dto.transfer_qr_image) {
+    const oldQrUrl = config.transfer_qr_image?.url;
+    if (dto.clear_qr) {
+      config.transfer_qr_image = undefined;
+    } else if (dto.transfer_qr_image) {
       config.transfer_qr_image = {
         url: dto.transfer_qr_image.url,
         file_name: dto.transfer_qr_image.file_name,
@@ -122,6 +132,28 @@ export class RoomFeeInvoicesService {
     }
 
     const saved = await config.save();
+
+    const newQrUrl = config.transfer_qr_image?.url;
+    if (this.storageService && oldQrUrl && oldQrUrl !== newQrUrl) {
+      const roomFeeCount = await this.roomFeeConfigModel.countDocuments({
+        'transfer_qr_image.url': oldQrUrl,
+      });
+      let utilCount = 0;
+      if (this.utilityConfigModel) {
+        utilCount = await this.utilityConfigModel.countDocuments({
+          'transfer_qr_image.url': oldQrUrl,
+        });
+      }
+      if (roomFeeCount + utilCount === 0) {
+        const storageKey = this.storageService.extractStorageKey(oldQrUrl, 'public/dormitory-qr');
+        if (storageKey && storageKey.startsWith('public/dormitory-qr/')) {
+          await this.storageService
+            .quarantineFile(storageKey, 'room_fee_qr_replaced', user?.email || user?.username || 'user')
+            .catch(() => {});
+        }
+      }
+    }
+
     dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
       kind: 'room_fee',
       action: 'updated',
@@ -702,7 +734,20 @@ export class RoomFeeInvoicesService {
       invoice.notes = dto.notes;
     }
 
-    if (dto.payment_proof) {
+    const isExplicitClear = dto.clear_proof || dto.payment_proof === null;
+    if (isExplicitClear) {
+      if (originalReviewStatus === 'approved') {
+        throw new BadRequestException(
+          'Không thể xóa chứng từ đã được phê duyệt. Vui lòng thu hồi duyệt trước khi xóa.',
+        );
+      }
+      update.$unset.payment_proof = 1;
+      update.$unset['payment_review.status'] = 1;
+      update.$unset['payment_review.submitted_at'] = 1;
+      update.$unset['payment_review.reviewed_by_id'] = 1;
+      update.$unset['payment_review.reviewed_at'] = 1;
+      invoice.payment_proof = undefined;
+    } else if (dto.payment_proof) {
       invoice.payment_proof = {
         url: dto.payment_proof.url,
         file_name: dto.payment_proof.file_name,
@@ -719,7 +764,7 @@ export class RoomFeeInvoicesService {
       update.$set.payment_proof = invoice.payment_proof;
     }
 
-    if (dto.payment_proof || dto.proof_url) {
+    if (!isExplicitClear && (dto.payment_proof || dto.proof_url)) {
       const submittedAt = new Date();
       invoice.payment_review = {
         ...invoice.payment_review,
@@ -765,19 +810,23 @@ export class RoomFeeInvoicesService {
       );
     }
 
-    // Reference-safe cleanup of old proof file if replaced
+    // Reference-safe cleanup of old proof file if replaced or cleared
+    const isReplaced = (dto.payment_proof || dto.proof_url) && oldProofUrl !== (dto.payment_proof?.url || dto.proof_url);
     if (
       this.storageService &&
       oldProofUrl &&
-      (dto.payment_proof || dto.proof_url) &&
-      oldProofUrl !== (dto.payment_proof?.url || dto.proof_url)
+      (isExplicitClear || isReplaced)
     ) {
       const remainingCount = await this.roomFeeInvoiceModel.countDocuments({
         'payment_proof.url': oldProofUrl,
       });
       if (remainingCount === 0) {
         const storageKey = this.storageService.extractStorageKey(oldProofUrl, 'private/room-fee-invoices/proofs');
-        await this.storageService.deleteFile(storageKey).catch(() => {});
+        if (storageKey && storageKey.startsWith('private/room-fee-invoices/')) {
+          await this.storageService
+            .quarantineFile(storageKey, 'room_fee_proof_replaced', user?.email || user?.username || 'user')
+            .catch(() => {});
+        }
       }
     }
 
@@ -1057,7 +1106,11 @@ export class RoomFeeInvoicesService {
             proofUrl,
             'private/room-fee-invoices/proofs',
           );
-          await this.storageService.deleteFile(storageKey).catch(() => {});
+          if (storageKey && storageKey.startsWith('private/room-fee-invoices/')) {
+            await this.storageService
+              .quarantineFile(storageKey, 'room_fee_bulk_deleted', 'system')
+              .catch(() => {});
+          }
         }
       }
     }

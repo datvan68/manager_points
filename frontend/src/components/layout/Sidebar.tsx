@@ -204,7 +204,7 @@ const Sidebar = () => {
 
       try {
         if (isAdminUser(user)) {
-          setVisibleItems(allMenuItems.slice(0, 4));
+          setVisibleItems(allMenuItems);
           setIsSidebarLoading(false);
           return;
         }

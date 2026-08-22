@@ -19,6 +19,10 @@ import {
   UtilityConfigDocument,
 } from '../schemas/utility-config.schema';
 import {
+  RoomFeeConfig,
+  RoomFeeConfigDocument,
+} from '../schemas/room-fee-config.schema';
+import {
   CreateInvoiceDto,
   PayInvoiceDto,
   UpdatePaymentProofDto,
@@ -46,6 +50,9 @@ export class InvoicesService {
     private rosterModel: Model<DormitoryRosterEntryDocument>,
     @InjectModel(UtilityConfig.name)
     private utilityConfigModel: Model<UtilityConfigDocument>,
+    @Optional()
+    @InjectModel(RoomFeeConfig.name)
+    private roomFeeConfigModel?: Model<RoomFeeConfigDocument>,
     @Optional() @InjectModel(MeterReading.name)
     private meterReadingModel?: Model<MeterReadingDocument>,
     @Optional() private readonly storageService?: StorageService,
@@ -611,7 +618,19 @@ export class InvoicesService {
     const update: any = { $set: {}, $unset: {} };
     if (dto.payment_method) { update.$set.payment_method = dto.payment_method; invoice.payment_method = dto.payment_method; }
     if (dto.notes !== undefined) { update.$set.notes = dto.notes; invoice.notes = dto.notes; }
-    if (dto.payment_proof) {
+
+    const isExplicitClear = dto.clear_proof || dto.payment_proof === null;
+    if (isExplicitClear) {
+      if (originalReviewStatus === 'approved') {
+        throw new BadRequestException('Không thể xóa chứng từ đã được phê duyệt. Vui lòng thu hồi duyệt trước khi xóa.');
+      }
+      update.$unset.payment_proof = 1;
+      update.$unset['payment_review.status'] = 1;
+      update.$unset['payment_review.submitted_at'] = 1;
+      update.$unset['payment_review.reviewed_by_id'] = 1;
+      update.$unset['payment_review.reviewed_at'] = 1;
+      invoice.payment_proof = undefined;
+    } else if (dto.payment_proof) {
       invoice.payment_proof = {
         url: dto.payment_proof.url,
         file_name: dto.payment_proof.file_name,
@@ -627,7 +646,8 @@ export class InvoicesService {
       };
       update.$set.payment_proof = invoice.payment_proof;
     }
-    if (dto.payment_proof || dto.proof_url) {
+
+    if (!isExplicitClear && (dto.payment_proof || dto.proof_url)) {
       const submittedAt = new Date();
       invoice.payment_review = { ...invoice.payment_review, status: 'pending', submitted_at: submittedAt };
       update.$set['payment_review.status'] = 'pending';
@@ -653,19 +673,23 @@ export class InvoicesService {
     ).exec();
     if (updateResult.modifiedCount !== 1) throw new BadRequestException('Hóa đơn đã thay đổi, vui lòng tải lại trước khi cập nhật chứng từ');
 
-    // Reference-safe cleanup of old proof file if replaced
+    // Reference-safe cleanup of old proof file if replaced or cleared
+    const isReplaced = (dto.payment_proof || dto.proof_url) && oldProofUrl !== (dto.payment_proof?.url || dto.proof_url);
     if (
       this.storageService &&
       oldProofUrl &&
-      (dto.payment_proof || dto.proof_url) &&
-      oldProofUrl !== (dto.payment_proof?.url || dto.proof_url)
+      (isExplicitClear || isReplaced)
     ) {
       const remainingCount = await this.invoiceModel.countDocuments({
         'payment_proof.url': oldProofUrl,
       });
       if (remainingCount === 0) {
         const storageKey = this.storageService.extractStorageKey(oldProofUrl, 'private/invoices/proofs');
-        await this.storageService.deleteFile(storageKey).catch(() => {});
+        if (storageKey && storageKey.startsWith('private/invoices/')) {
+          await this.storageService
+            .quarantineFile(storageKey, 'invoice_proof_replaced', user?.email || user?.username || 'user')
+            .catch(() => {});
+        }
       }
     }
 
@@ -1059,7 +1083,10 @@ export class InvoicesService {
       config.payment_deadline = deadline;
     }
     if (dto.configured_collection_days !== undefined) config.configured_collection_days = Number(dto.configured_collection_days);
-    if (dto.transfer_qr_image) {
+    const oldQrUrl = config.transfer_qr_image?.url;
+    if (dto.clear_qr) {
+      config.transfer_qr_image = undefined;
+    } else if (dto.transfer_qr_image) {
       config.transfer_qr_image = {
         url: dto.transfer_qr_image.url,
         file_name: dto.transfer_qr_image.file_name,
@@ -1072,6 +1099,28 @@ export class InvoicesService {
       config.updated_by_id = user._id || user.userId;
     }
     await config.save();
+
+    const newQrUrl = config.transfer_qr_image?.url;
+    if (this.storageService && oldQrUrl && oldQrUrl !== newQrUrl) {
+      const utilCount = await this.utilityConfigModel.countDocuments({
+        'transfer_qr_image.url': oldQrUrl,
+      });
+      let roomFeeCount = 0;
+      if (this.roomFeeConfigModel) {
+        roomFeeCount = await this.roomFeeConfigModel.countDocuments({
+          'transfer_qr_image.url': oldQrUrl,
+        });
+      }
+      if (utilCount + roomFeeCount === 0) {
+        const storageKey = this.storageService.extractStorageKey(oldQrUrl, 'public/dormitory-qr');
+        if (storageKey && storageKey.startsWith('public/dormitory-qr/')) {
+          await this.storageService
+            .quarantineFile(storageKey, 'utility_qr_replaced', user?.email || user?.username || 'user')
+            .catch(() => {});
+        }
+      }
+    }
+
     dormitoryInvoiceEventEmitter.emit('dormitory_invoice_event', {
       kind: 'utility',
       action: 'updated',
@@ -1520,7 +1569,11 @@ export class InvoicesService {
             });
             if (remainingCount === 0) {
               const storageKey = this.storageService.extractStorageKey(proofUrl, 'private/invoices/proofs');
-              await this.storageService.deleteFile(storageKey).catch(() => {});
+              if (storageKey && storageKey.startsWith('private/invoices/')) {
+                await this.storageService
+                  .quarantineFile(storageKey, 'invoice_bulk_deleted', 'system')
+                  .catch(() => {});
+              }
             }
           }
         }

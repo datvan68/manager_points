@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsString,
   IsEnum,
+  IsBoolean,
   Matches,
   Max,
   Min,
@@ -38,6 +39,10 @@ export class UpdateRoomFeeConfigDto {
   @ValidateNested()
   @Type(() => TransferQrImageDto)
   transfer_qr_image?: TransferQrImageDto;
+
+  @IsOptional()
+  @IsBoolean()
+  clear_qr?: boolean;
 }
 
 export class PreviewRoomFeePeriodDto {
@@ -182,6 +187,10 @@ export class UpdateRoomFeeProofDto {
   @IsOptional()
   @IsString()
   proof_url?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  clear_proof?: boolean;
 }
 
 export class ReviewRoomFeeProofDto {

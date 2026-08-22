@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Types, Connection } from 'mongoose';
@@ -37,6 +38,7 @@ import {
   ActivityScheduleDocument,
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { ActivitiesRealtimeService } from './activities-realtime.service';
+import { StorageService } from '../core/storage/storage.service';
 
 @Injectable()
 export class ActivitiesService {
@@ -55,6 +57,7 @@ export class ActivitiesService {
     private scheduleModel: Model<ActivityScheduleDocument>,
     @InjectConnection() private readonly connection: Connection,
     private readonly realtime: ActivitiesRealtimeService,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   private async resolveStudentId(userId: string): Promise<string> {
@@ -82,6 +85,7 @@ export class ActivitiesService {
     studentId: string,
     semesterId: string,
   ): Promise<ActivityMemberDocument | null> {
+
     return this.memberModel
       .findOne({
         student_id: new Types.ObjectId(studentId),
@@ -455,6 +459,55 @@ export class ActivitiesService {
     if (!activity) {
       throw new NotFoundException(`Không tìm thấy Hoạt động với ID: ${id}`);
     }
+    // Reference-safe cleanup of replaced/removed media
+    if (this.storageService) {
+      const oldMediaUrls: string[] = [
+        currentActivity.logo_url,
+        currentActivity.cover_url,
+        currentActivity.background_config?.backgroundImageUrl,
+        currentActivity.background_config?.backgroundFrameUrl,
+        (currentActivity.settings as any)?.background?.backgroundImageUrl,
+        (currentActivity.settings as any)?.background?.backgroundFrameUrl,
+      ].filter(Boolean) as string[];
+
+      const newMediaUrls: string[] = [
+        activity.logo_url,
+        activity.cover_url,
+        activity.background_config?.backgroundImageUrl,
+        activity.background_config?.backgroundFrameUrl,
+        (activity.settings as any)?.background?.backgroundImageUrl,
+        (activity.settings as any)?.background?.backgroundFrameUrl,
+      ].filter(Boolean) as string[];
+
+      const removedOrReplacedUrls = oldMediaUrls.filter((url) => !newMediaUrls.includes(url));
+
+      for (const oldUrl of removedOrReplacedUrls) {
+        if (!oldUrl || (/^https?:\/\//i.test(oldUrl) && !oldUrl.includes('/api/media/'))) {
+          continue;
+        }
+
+        const storageKey = this.storageService.extractStorageKey(oldUrl, 'public/activities');
+        if (!storageKey || !storageKey.startsWith('public/activities/')) continue;
+
+        const remainingCount = await this.activityModel.countDocuments({
+          $or: [
+            { logo_url: oldUrl },
+            { cover_url: oldUrl },
+            { 'background_config.backgroundImageUrl': oldUrl },
+            { 'background_config.backgroundFrameUrl': oldUrl },
+            { 'settings.background.backgroundImageUrl': oldUrl },
+            { 'settings.background.backgroundFrameUrl': oldUrl },
+          ],
+        });
+
+        if (remainingCount === 0) {
+          await this.storageService
+            .quarantineFile(storageKey, 'activity_media_replaced', user?.email || user?.username || 'user')
+            .catch(() => {});
+        }
+      }
+    }
+
     return activity;
   }
 
