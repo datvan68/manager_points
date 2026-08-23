@@ -34,7 +34,23 @@ manager-point/
 
 ## 🚀 Bắt đầu nhanh (Quick Start)
 
-*(Đang cập nhật hướng dẫn cài đặt...)*
+### Phát triển với Docker (hot reload)
+
+Khởi động môi trường phát triển:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:8001`. Thay đổi trong `frontend/` hoặc `backend/` sẽ được framework biên dịch lại mà không cần build hay khởi động lại container.
+
+Khi `package-lock.json` thay đổi, cập nhật hai volume dependency riêng thay vì dùng `down -v` (lệnh đó có thể xóa cả volume database):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps frontend npm ci
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps backend npm ci
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
 
 ### Tính năng Import Backup Database (Bản nháp)
 Hệ thống hỗ trợ nhập (import) các bản sao lưu cơ sở dữ liệu (`.gz`, `.archive`, `.zip`) thông qua giao diện quản trị.

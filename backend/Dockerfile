@@ -4,6 +4,28 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 COPY package*.json ./
 RUN npm ci
 
+FROM deps AS development
+WORKDIR /app
+ENV NODE_ENV=development
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+RUN apk add --no-cache \
+    ca-certificates \
+    chromium \
+    freetype \
+    harfbuzz \
+    nss \
+    ttf-freefont \
+    mongodb-tools
+
+COPY . .
+RUN mkdir -p /app/storage/uploads
+
+EXPOSE 8001
+
+CMD ["npm", "run", "start:dev"]
+
 FROM node:20-alpine AS builder
 WORKDIR /app
 ENV PUPPETEER_SKIP_DOWNLOAD=true

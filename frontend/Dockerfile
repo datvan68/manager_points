@@ -9,6 +9,20 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# Development image with dependencies available for the bind-mounted source tree.
+FROM deps AS development
+WORKDIR /app
+COPY . .
+
+ENV NODE_ENV development
+ENV NEXT_TELEMETRY_DISABLED 1
+ENV HOSTNAME "0.0.0.0"
+ENV PORT 3000
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev:webpack", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app

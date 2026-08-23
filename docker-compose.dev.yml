@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      target: development
+    volumes:
+      - ./backend:/app
+      - backend-node-modules:/app/node_modules
+      - backend-dist:/app/dist
+    environment:
+      NODE_ENV: development
+      PORT: 8001
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "500"
+
+  frontend:
+    build:
+      target: development
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+      - frontend-next:/app/.next
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "500"
+
+volumes:
+  backend-node-modules:
+  backend-dist:
+  frontend-node-modules:
+  frontend-next:
