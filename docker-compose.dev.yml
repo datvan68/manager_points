@@ -2,10 +2,9 @@ services:
   backend:
     build:
       target: development
-    volumes:
+    volumes: !override
       - ./backend:/app
       - backend-node-modules:/app/node_modules
-      - backend-dist:/app/dist
     environment:
       NODE_ENV: development
       PORT: 8001
@@ -27,6 +26,5 @@ services:
 
 volumes:
   backend-node-modules:
-  backend-dist:
   frontend-node-modules:
   frontend-next:

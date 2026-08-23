@@ -1226,7 +1226,8 @@ function PermissionsPageContent() {
               type="button"
               onClick={() => handleAccessUser(u)}
               disabled={accessingUserId !== null}
-              className="h-8 px-2.5 inline-flex items-center gap-1 rounded-xl border border-blue-200/70 bg-blue-50/70 text-[11px] font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-8 w-8 inline-flex items-center justify-center rounded-xl border border-blue-200/70 bg-blue-50/70 text-[11px] font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Truy cập tài khoản ${getUserDisplayName(u)}`}
               title={`Truy cập tài khoản ${getUserDisplayName(u)}`}
             >
               {accessingUserId === (u._id || u.id) ? (
@@ -1234,7 +1235,6 @@ function PermissionsPageContent() {
               ) : (
                 <LogIn className="h-3.5 w-3.5" />
               )}
-              Truy cập
             </button>
           ) : null}
           <Action

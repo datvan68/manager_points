@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Search, LayoutGrid, User, Download, LogOut, MapPin, ShieldAlert } from 'lucide-react';
+import { Bell, Search, LayoutGrid, User, Download, LogOut, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import logoNsg from '@/assets/cropped-logo-nsg.png';
@@ -225,22 +225,6 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
   return (
     <>
-      {user?.impersonation ? (
-        <div className="flex min-h-10 shrink-0 items-center justify-center gap-3 border-b border-amber-300 bg-amber-100 px-4 py-2 text-center text-xs font-bold text-amber-950" role="status">
-          <ShieldAlert className="h-4 w-4 shrink-0" />
-          <span>
-            Đang truy cập với tư cách {user.display_name || user.user_name || user.username || 'tài khoản được chọn'}
-          </span>
-          <button
-            type="button"
-            onClick={logout}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-400 bg-white/70 px-2.5 py-1 text-amber-950 transition-colors hover:bg-white"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Kết thúc truy cập
-          </button>
-        </div>
-      ) : null}
       <header className="dashboard-header sticky top-0 h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] z-50 shadow-sm shadow-slate-200/20 mt-0 min-w-0 w-full">
         {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

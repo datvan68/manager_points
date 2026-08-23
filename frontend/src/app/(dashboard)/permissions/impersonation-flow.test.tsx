@@ -112,13 +112,15 @@ describe('permissions user impersonation action', () => {
     const { unmount } = render(<PermissionsPage />);
     await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalled());
     expect(toastMocks.error).not.toHaveBeenCalled();
-    expect((await screen.findAllByRole('button', { name: 'Truy cập' })).length).toBeGreaterThan(0);
+    const accessButtons = await screen.findAllByRole('button', { name: /Truy cập tài khoản/ });
+    expect(accessButtons.length).toBeGreaterThan(0);
+    expect(accessButtons[0]).not.toHaveTextContent('Truy cập');
     unmount();
 
     authState.current = { id: 'teacher-1', roleCode: 'TEACHER', permissions: [] };
     render(<PermissionsPage />);
     await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalled());
-    expect(screen.queryAllByRole('button', { name: 'Truy cập' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: /Truy cập tài khoản/ })).toHaveLength(0);
   });
 
   it('hides the action when ADMIN_FULL is present without the persisted ADMIN role code', async () => {
@@ -126,12 +128,12 @@ describe('permissions user impersonation action', () => {
     render(<PermissionsPage />);
 
     await waitFor(() => expect(apiMocks.getUsers).toHaveBeenCalled());
-    expect(screen.queryAllByRole('button', { name: 'Truy cập' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: /Truy cập tài khoản/ })).toHaveLength(0);
   });
 
   it('opens synchronously and requests the backend only after the child is ready', async () => {
     render(<PermissionsPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Truy cập' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Truy cập tài khoản/ }))[0]);
 
     expect(window.open).toHaveBeenCalledWith(
       '/access#channel=handoff-nonce-1234567890',
@@ -157,7 +159,7 @@ describe('permissions user impersonation action', () => {
 
   it('best-effort cancels a child session when the create response arrives after timeout', async () => {
     render(<PermissionsPage />);
-    const button = (await screen.findAllByRole('button', { name: 'Truy cập' }))[0];
+    const button = (await screen.findAllByRole('button', { name: /Truy cập tài khoản/ }))[0];
     let resolveCreate: (value: unknown) => void = () => undefined;
     apiMocks.createImpersonation.mockImplementationOnce(() => new Promise((resolve) => {
       resolveCreate = resolve;
@@ -213,7 +215,7 @@ describe('permissions user impersonation action', () => {
     ['unknown error', { status: 500, message: 'database stack trace' }, 'Không thể mở phiên truy cập tài khoản.'],
   ] as const)('maps %s to safe user-facing copy', async (_name, error, expectedMessage) => {
     render(<PermissionsPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Truy cập' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Truy cập tài khoản/ }))[0]);
     const channel = FakeBroadcastChannel.instances[0];
     apiMocks.createImpersonation.mockRejectedValueOnce(error);
 
