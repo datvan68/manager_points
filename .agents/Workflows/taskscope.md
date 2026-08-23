@@ -36,6 +36,11 @@ acceptance_criteria:
 execution:
   - "Small change step mapped to an AC and path"
 
+temporary_artifacts:
+  create: ["Exact task-generated Markdown paths, or []"]
+  cleanup: ["Exact paths to remove before successful completion, or []"]
+  retain: ["Explicit durable Markdown deliverables and reason, or []"]
+
 verification:
   - "Exact repository-native command → AC proven by this command"
 
@@ -55,7 +60,16 @@ stop_conditions: ["Specific boundary, gate, or decision that requires a stop"]
 - **Review:** pin the diff or file set. Produce evidence-backed findings, not a
   patch.
 - **Docs/explanation:** define the audience, question, and code sources. Default
-  to read-only behavior.
+  to read-only behavior. A Markdown file is retained only when it is the
+  requested durable output or an intentional canonical documentation update.
+
+## Artifact cleanup
+
+When execution creates Markdown for planning, measurements, handoff, checkpoint,
+or resume, list each exact path in `temporary_artifacts.create` and mirror its
+final disposition in `cleanup` or `retain`. Successful completion requires every
+`cleanup` path to be removed and every `retain` path to have an explicit durable
+reason. Never infer cleanup targets from a wildcard or directory-wide delete.
 
 ## Anti-overthinking rule
 

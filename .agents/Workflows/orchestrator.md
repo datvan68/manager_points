@@ -24,7 +24,10 @@ it coordinates specialized workers when they are available and useful.
    artifact.
 6. Stop if planning-only. Otherwise execute Quick directly or schedule Full as
    a dependency-aware pipeline.
-7. Verify results, final diff/status, and completion criteria.
+7. On successful execution, remove persisted taskscopes and other temporary
+   Markdown artifacts recorded by the task. Preserve explicit durable
+   deliverables and canonical documentation updates.
+8. Verify results, artifact cleanup, final diff/status, and completion criteria.
 
 Ask the user only for an inaccessible decision that materially changes behavior,
 scope, risk, data, external effects, or authority. Group questions.
@@ -97,5 +100,6 @@ evidence, tests, and domain ownership; ask the user only for unresolved product
 behavior.
 
 Return a concise result with changed paths, checks actually run, remaining risk,
-gates, and next action. `partial` is valid only when every mandatory criterion
-passes and only optional work remains.
+gates, and next action. Do not report success while a completed task still owns
+temporary Markdown execution artifacts. `partial` is valid only when every
+mandatory criterion passes and only optional work remains.

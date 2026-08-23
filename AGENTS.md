@@ -68,7 +68,13 @@ when possible:
 6. Run focused checks first, affected-package checks when required, and a full
    suite/build only when repository policy or risk requires it. Review the final
    diff against every acceptance criterion.
-7. Report only the outcome, changed paths, checks actually run, and remaining
+7. Before reporting success, remove every task-generated Markdown execution
+   artifact, including persisted taskscopes, benchmark run reports, temporary
+   plans, and handoff/checkpoint notes. Keep only Markdown that the user
+   explicitly requested as a durable deliverable or an existing canonical
+   repository document that the task intentionally updates. Resolve and review
+   exact cleanup paths; never delete unrelated or pre-existing files by glob.
+8. Report only the outcome, changed paths, checks actually run, and remaining
    risks or blockers. Do not narrate the full reasoning process.
 
 ## Speed and token rules
@@ -87,5 +93,8 @@ when possible:
 - Ask one grouped question only when a missing decision would change behavior,
   data, permissions, public contracts, external effects, or approved scope.
 
-When a taskscope must be persisted, use `docs/tasks/<task-id>.md`. Do not
-overwrite `docs/taskscope.md`; it belongs to an existing performance initiative.
+When a taskscope must be persisted for an active Full/resumable task, use
+`docs/tasks/<task-id>.md`. Treat it as a temporary execution artifact and delete
+it after successful completion unless the user explicitly requests retention
+or an audit/resume requirement is still active. Do not overwrite
+`docs/taskscope.md`; it belongs to an existing performance initiative.

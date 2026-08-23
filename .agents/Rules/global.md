@@ -106,10 +106,26 @@ work remains.
 - Report pre-existing and environmental failures without repairing them outside
   scope.
 
-## 5. Completion
+## 5. Artifact lifecycle and completion
+
+Task-generated Markdown used only to execute, measure, coordinate, checkpoint,
+or resume work is temporary. This includes persisted taskscopes, benchmark run
+reports, ad hoc plans, inventories, and handoff notes. Record their exact paths
+when they are created and remove them before a task is reported as successfully
+complete. Do not use globs for cleanup, and do not remove pre-existing or
+unrelated files.
+
+Retain Markdown only when it is an explicitly requested durable deliverable, an
+intentional update to an existing canonical repository document, or evidence
+that must remain for an active audit/resume requirement. If temporary evidence
+contains a durable conclusion, merge only that conclusion into the scoped
+canonical document before removing the artifact. A blocked or interrupted task
+may retain the minimum artifacts needed to resume, but they remain cleanup
+obligations for the eventual successful completion.
 
 A step completes only when changed paths stay within boundaries, required
 verification passes or a failed criterion is explicitly reported, unrelated
-changes are preserved, and no unresolved gate/conflict remains. Full work also
+changes are preserved, no unresolved gate/conflict remains, and all temporary
+artifact cleanup obligations due at that step are satisfied. Full work also
 validates required hashes and checkpoints. Never claim a check ran when it did
 not.

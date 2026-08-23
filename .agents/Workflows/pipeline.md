@@ -133,5 +133,12 @@ pin base/head and scope -> review affected boundaries, sharded when useful
   points, not after every read-only step.
 - Store long output as an artifact only when it must be handed off, audited, or
   resumed; otherwise retain the concise command result.
+- Track every task-created Markdown artifact by exact path. Before successful
+  completion, remove taskscopes, raw benchmark reports, temporary plans, and
+  handoff/checkpoint notes that are no longer required. Retain only explicit
+  durable deliverables, canonical documentation updates, or evidence required
+  by an active audit/resume flow.
+- Include artifact cleanup in final diff/status review; a leftover temporary
+  Markdown file is an incomplete cleanup obligation, not a deliverable.
 - Never parallelize overlapping writes; shard only independent read-only work or
   disjoint mutations with proven dependencies.
