@@ -8,8 +8,6 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8001
-      CHOKIDAR_USEPOLLING: "true"
-      CHOKIDAR_INTERVAL: "500"
 
   frontend:
     build:
@@ -21,8 +19,6 @@ services:
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:8001
-      WATCHPACK_POLLING: "true"
-      WATCHPACK_POLLING_INTERVAL: "500"
 
 volumes:
   backend-node-modules:
