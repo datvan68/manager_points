@@ -1,6 +1,6 @@
 ---
 description: Defines proportional Quick and Full software workflows.
-version: 3.2.0
+version: 3.3.0
 managed_by: orchestrator
 ---
 
@@ -23,9 +23,10 @@ boundaries, risk, environments, or approvals differ materially.
 
 ## 2. Profile selection
 
-Read-only explanation, diagnosis, and PR review do not create taskscope by
-default. DevOps/infrastructure mutation always uses Full. Other pipelines may
-use Quick only when every `safety.md` Quick condition passes.
+Read-only explanation and PR review do not persist taskscope by default. A bug
+diagnosis that is immediately followed by an authorized fix shares one taskscope
+and one execution loop. DevOps/infrastructure mutation always uses Full. Other
+pipelines may use Quick only when every `safety.md` Quick condition passes.
 
 When a Quick trigger appears during execution—additional module/service,
 fourth changed file with meaningful scope impact, public contract, dependency,
@@ -35,7 +36,7 @@ Full with the smallest scope amendment.
 
 ## 3. Quick pipeline
 
-One worker performs one capsule:
+One actor (normally the orchestrator) performs one bounded capsule:
 
 ```yaml
 profile: Quick
@@ -44,7 +45,7 @@ steps:
   - mutate
   - focused_verify
   - self_review_diff
-workers: 1
+actors: 1
 checkpoints: 0
 independent_review: conditional
 ```
@@ -117,6 +118,11 @@ pin base/head and scope -> review affected boundaries, sharded when useful
 
 ## 5. Verification, loops, and artifacts
 
+- For Quick, inspect only the target, nearest representative implementation/test,
+  and direct dependencies needed to prove the change. Do not inventory the repo.
+- Start mutation once root cause/desired behavior, write paths, binary criteria,
+  and a focused verification command are known. More analysis needs a named
+  evidence gap or risk.
 - Run focused checks first, affected-package checks second, and broader
   regression only when impact, repository policy, or risk requires it.
 - Required tests, security checks, acceptance criteria, and gated review use
@@ -125,6 +131,7 @@ pin base/head and scope -> review affected boundaries, sharded when useful
   `0..2`. These budgets are separate and shared across delegation.
 - Full checkpoints and hashes occur only at material synchronization/resume
   points, not after every read-only step.
-- Store long output as an artifact and exchange references/deltas.
+- Store long output as an artifact only when it must be handed off, audited, or
+  resumed; otherwise retain the concise command result.
 - Never parallelize overlapping writes; shard only independent read-only work or
   disjoint mutations with proven dependencies.

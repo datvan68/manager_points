@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.2.0
+version: 3.3.0
 ---
 
 # Global Rules
@@ -10,16 +10,16 @@ version: 3.2.0
 Precedence:
 
 ```text
-safety.md > global.md > antigravity-operating-contract.md > orchestrator.md > pipeline.md > selected skill files
+safety.md > global.md > AGENTS.md > orchestrator.md > pipeline.md > taskscope.md > selected skill files
 ```
 
 ## 1. Roles and authority
 
 The orchestrator resolves intent, profile, risk, boundaries, and routing. For a
-Quick planning-only task, it may perform focused read-only repository discovery
-and write `taskscope.md` directly. For Quick implementation, it may assign one
-worker to discovery, mutation, verification, and self-review in one bounded
-capsule. Full uses specialized workers as defined by the pipeline.
+Quick task, it may perform focused discovery, create the Taskscope Brief, mutate
+approved implementation paths, verify, and self-review in one bounded execution.
+Delegation is optional in Quick and must not add coordination overhead. Full uses
+specialized workers when available as defined by the pipeline.
 
 Workers act only within their assigned capabilities and boundaries:
 
@@ -30,18 +30,19 @@ Workers act only within their assigned capabilities and boundaries:
 | `review-agent` | search, summary, security review |
 | `devops-agent` | search, scoped generation, validation, security review |
 | `doc-agent` | search, summary, documentation generation |
-| `orchestrator` | rule resolution, focused read-only preflight, scope writing, coordination |
+| `orchestrator` | rule resolution, focused search/code generation/verification, scope writing, coordination |
 
-The orchestrator does not mutate implementation files.
+One actor owns each write path. The orchestrator may be that actor in Quick.
 
 ## 2. Effective Rules Capsule
 
-Load canonical rules once per root task. Record their versions and hashes in an
-Effective Rules Manifest when available. Each worker receives only:
+Load canonical rules once per root task. Record versions/hashes only when Full,
+resumable, delegated, or audit-required. When delegation is used, each worker
+receives only:
 
 ```json
 {
-  "protocol_version": "3.2",
+  "protocol_version": "3.3",
   "task_id": "stable-id",
   "profile": "Quick",
   "pipeline_id": "bug_fix",
@@ -55,20 +56,20 @@ Effective Rules Manifest when available. Each worker receives only:
   "acceptance_criteria": ["Binary criterion"],
   "verification": ["exact repository-native command"],
   "applicable_rules": ["concise safety and stop constraints"],
-  "rule_manifest_version": "3.2",
+  "rule_manifest_version": "3.3",
   "selected_skill_refs": [],
   "on_failure": "stop"
 }
 ```
 
-Workers must not reread the complete canonical set, orchestrator rules, full
+Delegated workers must not reread the complete canonical set, orchestrator rules, full
 conversation, unrelated pipelines, or unrelated skills. Reopen a canonical
 source only if the capsule is missing, stale, incomplete, or conflicts with a
 path-specific instruction. Source rules win conflicts.
 
 ## 3. Results
 
-Quick workers return a compact envelope:
+Quick actors return a compact envelope:
 
 ```json
 {

@@ -1,6 +1,6 @@
 ---
-description: Routes work through proportional Quick or Full coordination.
-version: 3.2.0
+description: Routes work through proportional, token-efficient Quick or Full execution.
+version: 3.3.0
 ---
 
 # Orchestrator
@@ -8,19 +8,22 @@ version: 3.2.0
 ## 1. Role
 
 The orchestrator resolves rules, intent, authority, risk, profile, pipeline,
-boundaries, and completion. It may perform focused read-only preflight and write
-taskscope files. It does not mutate implementation files.
+boundaries, and completion. In Quick it is also the default executor: it may
+inspect, mutate, verify, and self-review inside the approved taskscope. In Full
+it coordinates specialized workers when they are available and useful.
 
 ## 2. Routing sequence
 
-1. Load canonical rules once and create the Effective Rules Manifest.
+1. Load canonical rules once. Create a formal Effective Rules Manifest only for
+   Full, resumable, delegated, or audit-required work.
 2. Determine whether the request is read-only, planning-only, or implementation.
 3. Select Quick only when every `safety.md` condition is evidenced.
-4. Perform one focused Quick discovery pass or delegate evidence-driven Full
-   discovery.
-5. Publish the applicable scope. Stop if planning-only.
-6. If execution is authorized, schedule Quick as one bounded worker or Full as a
-   dependency-aware pipeline.
+4. Perform one focused Quick discovery pass or evidence-driven Full discovery.
+5. Create the applicable Taskscope Brief. Publish it in the response/runtime;
+   persist it only when the user asks or an authorized Full/resume flow needs an
+   artifact.
+6. Stop if planning-only. Otherwise execute Quick directly or schedule Full as
+   a dependency-aware pipeline.
 7. Verify results, final diff/status, and completion criteria.
 
 Ask the user only for an inaccessible decision that materially changes behavior,
@@ -43,16 +46,22 @@ formal_artifact_hashes: none
 The soft deadline never permits guessing. Promote to Full when eligibility,
 paths, command, ownership, or risk cannot be established in one focused pass.
 
-For implementation, send one code/test/doc worker an Effective Rules Capsule
-covering baseline, mutation, focused verification, and self-review. Do not spawn
-separate discovery, test, review, or documentation agents unless a Full trigger
-appears. The worker may load only selected skills and path-specific instructions.
+For implementation, one actor performs baseline, mutation, focused verification,
+and self-review. The orchestrator should do this directly unless delegation is
+explicitly required or requested. Do not spawn separate discovery, test, review,
+or documentation agents unless a Full trigger appears. Load only the primary
+skill and any path-specific instruction; add the test skill only when needed.
+
+Quick discovery is progressive: exact target, direct caller/dependency, then
+owning module. Stop as soon as path ownership, observed behavior, change boundary,
+acceptance criteria, and a focused verification command are established.
 
 ## 4. Full mode
 
-Use specialized workers and a dependency-aware DAG when the task is high or
-critical risk, cross-module/service, gated, resumable, infrastructure-related,
-or needs independent security/review evidence.
+Use specialized workers and a dependency-aware DAG only when the task is high
+or critical risk, cross-module/service, gated, resumable, infrastructure-related,
+or needs independent security/review evidence. If worker tooling is unavailable,
+execute dependency steps serially while preserving the same boundaries and gates.
 
 Full responsibilities:
 
@@ -70,11 +79,11 @@ resume would avoid meaningful repeated work or protect a completed mutation.
 
 ## 5. Worker context
 
-Send only the objective, role/step, boundaries, criteria, relevant paths and
-symbols, predecessor deltas, verification profile, applicable constraints,
-selected skill references, and rule manifest identity. Do not forward full chat
-history, full logs, repository listings, unrelated pipeline definitions, or the
-complete canonical set.
+When delegation is used, send only the objective, role/step, boundaries, criteria,
+relevant paths and symbols, predecessor deltas, verification profile, applicable
+constraints, selected skill references, and rule manifest identity. Do not
+forward full chat history, full logs, repository listings, unrelated pipeline
+definitions, or the complete canonical set.
 
 If a worker reports stale rules, changed environment/boundaries, or a local
 instruction conflict, revalidate only the affected rule subset. Canonical source
