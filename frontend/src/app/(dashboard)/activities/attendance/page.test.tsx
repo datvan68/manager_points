@@ -40,7 +40,7 @@ describe('ActivitiesAttendancePage', () => {
     fireEvent.click(screen.getAllByRole('checkbox').at(-1)!);
     const exportButton = screen.getByRole('button', { name: /Xuất Excel/i });
     fireEvent.click(exportButton);
-    expect(XLSX.writeFile).toHaveBeenCalledWith(expect.anything(), 'danh-sach-diem-danh.xlsx');
+    await waitFor(() => expect(XLSX.writeFile).toHaveBeenCalledWith(expect.anything(), 'danh-sach-diem-danh.xlsx'));
   });
 
   it('refreshes in the background without flashing rows or duplicating requests', async () => {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { ArrowLeft, Calendar as CalendarIcon, Download, RefreshCw, Search as SearchIcon, X as XIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { activityAttendanceApi, ActivityAttendance } from '@/api/activity-api';
@@ -140,7 +139,8 @@ export default function ActivitiesAttendancePage() {
   const pageIds = useMemo(() => items.map((row) => row._id), [items]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
   const selectAll = (checked: boolean) => setSelectedIds((ids) => checked ? Array.from(new Set([...ids, ...pageIds])) : ids.filter((id) => !pageIds.includes(id)));
-  const exportSelected = () => {
+  const exportSelected = async () => {
+    const XLSX = await import('xlsx');
     const rows = items.filter((row) => selectedIds.includes(row._id)).map((row) => ({
       'Hoạt động': display(row.activity_id), 'Lịch': display(row.schedule_id), 'Sinh viên': display(row.student_id),
       'Lớp': display(row.class_id), 'Có mặt': attendanceLabel(row.status), 'Trạng thái': approvalLabel(row.approval_status),

@@ -52,6 +52,27 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-dep
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+### Phát triển khuyến nghị trên macOS: Node trên host, hạ tầng trong Docker
+
+Luồng này tránh bind mount source vào container frontend/backend, giúp giảm thời gian cold compile và tải filesystem của Docker:
+
+```bash
+cp .env.example .env
+npm --prefix frontend ci
+npm --prefix backend ci
+./scripts/dev-host.sh
+```
+
+Script chỉ khởi động MongoDB và Redis bằng `docker-compose.dev-infra.yml`; frontend chạy ở `http://localhost:3000`, backend ở `http://localhost:8001`. Full-Docker ở trên vẫn là luồng tương thích cho CI và môi trường cần container ứng dụng.
+
+Đo cold/warm navigation và lưu báo cáo Markdown:
+
+```bash
+./scripts/benchmark-dev.sh
+```
+
+Để đo cả thời gian startup, truyền lệnh khởi động qua biến môi trường, ví dụ `BENCHMARK_START_COMMAND='./scripts/dev-host.sh'`. Script không tự xóa cache, volume hoặc database.
+
 ### Tính năng Import Backup Database (Bản nháp)
 Hệ thống hỗ trợ nhập (import) các bản sao lưu cơ sở dữ liệu (`.gz`, `.archive`, `.zip`) thông qua giao diện quản trị.
 Quy trình nhập dữ liệu bao gồm hai bước để đảm bảo an toàn:

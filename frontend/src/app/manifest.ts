@@ -1,11 +1,16 @@
 import type { MetadataRoute } from 'next'
 import { API_BASE } from '@/api/config'
 
-export const dynamic = 'force-dynamic'
+// Branding is intentionally allowed to lag by a short, bounded period. The
+// settings page already updates the live app through its realtime provider;
+// the manifest does not need a backend request for every browser request.
+export const revalidate = 300
 
 async function getBranding() {
   try {
-    const response = await fetch(`${API_BASE}/app-branding`, { cache: 'no-store' })
+    const response = await fetch(`${API_BASE}/app-branding`, {
+      next: { revalidate: 300 },
+    })
     if (response.ok) return await response.json() as { name: string; shortName: string; version: string }
   } catch { /* Static metadata remains available while the API is offline. */ }
   return { name: 'HOCSINHSINHVIEN - Hệ thống quản lý', shortName: 'HSSV', version: 'static' }
