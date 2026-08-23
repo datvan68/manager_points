@@ -12,6 +12,9 @@ services:
   frontend:
     build:
       target: development
+    cpus: "${FRONTEND_DEV_CPUS:-1.5}"
+    mem_limit: "${FRONTEND_DEV_MEMORY:-2g}"
+    pids_limit: ${FRONTEND_DEV_PIDS:-512}
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
