@@ -1,6 +1,6 @@
 ---
 description: Compact, evidence-based scope template for implementation tasks.
-version: 3.3.0
+version: 3.3.1
 managed_by: orchestrator
 ---
 
@@ -10,6 +10,17 @@ A taskscope must contain enough detail for an agent to implement and verify the
 change without repeating discovery, but it must not become a design document.
 Keep a Quick scope within roughly 350 words. A Full scope should be longer only
 when real boundaries, dependencies, or gates require it.
+
+## Output contract
+
+When the user explicitly asks to write, create, generate, or update a
+taskscope, write the complete Taskscope Brief to `docs/task/taskscope.md`.
+Replace the file's entire previous contents on every request. Do not append,
+merge, retain stale sections, or create a second task-specific taskscope. This
+rolling file is the requested durable output and is excluded from temporary
+artifact cleanup. When no explicit taskscope output is requested, keep the
+brief in the response/runtime unless an authorized Full/resume flow requires a
+separate temporary artifact.
 
 ## Required template
 
@@ -70,6 +81,9 @@ or resume, list each exact path in `temporary_artifacts.create` and mirror its
 final disposition in `cleanup` or `retain`. Successful completion requires every
 `cleanup` path to be removed and every `retain` path to have an explicit durable
 reason. Never infer cleanup targets from a wildcard or directory-wide delete.
+For an explicit taskscope request, list `docs/task/taskscope.md` under `retain`
+with the reason `user-requested rolling taskscope`; never list it under
+`cleanup`.
 
 ## Anti-overthinking rule
 

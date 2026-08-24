@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.3.0
+version: 3.3.1
 ---
 
 # Global Rules
@@ -109,11 +109,18 @@ work remains.
 ## 5. Artifact lifecycle and completion
 
 Task-generated Markdown used only to execute, measure, coordinate, checkpoint,
-or resume work is temporary. This includes persisted taskscopes, benchmark run
-reports, ad hoc plans, inventories, and handoff notes. Record their exact paths
-when they are created and remove them before a task is reported as successfully
-complete. Do not use globs for cleanup, and do not remove pre-existing or
-unrelated files.
+or resume work is temporary. This includes temporary persisted taskscopes,
+benchmark run reports, ad hoc plans, inventories, and handoff notes. Record
+their exact paths when they are created and remove them before a task is
+reported as successfully complete. Do not use globs for cleanup, and do not
+remove pre-existing or unrelated files.
+
+When the user explicitly requests a taskscope, the complete result is a rolling
+retained deliverable at `docs/task/taskscope.md`. Replace the entire file on
+every such request; never append, merge with stale content, or create an
+additional task-specific taskscope unless a separately authorized Full/resume
+flow requires it. This explicit output is not a temporary execution artifact
+and must not be included in cleanup obligations.
 
 Retain Markdown only when it is an explicitly requested durable deliverable, an
 intentional update to an existing canonical repository document, or evidence

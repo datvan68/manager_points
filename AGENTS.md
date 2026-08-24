@@ -58,9 +58,15 @@ when possible:
    is sufficient.
 3. Create a Taskscope Brief from the template. A Quick scope should stay within
    roughly 350 words; make it specific through paths, symbols, binary criteria,
-   and exact checks rather than long prose.
-4. If the user requested planning only, stop after the scope. If implementation
-   is requested, continue in the same turn unless a Human Gate or unresolved
+   and exact checks rather than long prose. When the user explicitly asks to
+   write, create, generate, or update a taskscope, write the complete result to
+   `docs/task/taskscope.md` and replace the file's entire previous contents.
+   Never append to or merge with the previous taskscope. For other requests,
+   keep the Taskscope Brief in the response/runtime unless a separately
+   authorized Full/resume flow requires another artifact.
+4. If the user requested planning only, stop after the scope and, when rule 3
+   applies, after replacing `docs/task/taskscope.md`. If implementation is
+   requested, continue in the same turn unless a Human Gate or unresolved
    product decision prevents safe execution.
 5. Apply the smallest patch that satisfies the acceptance criteria. Preserve
    current conventions and do not introduce an out-of-scope refactor,
@@ -69,11 +75,14 @@ when possible:
    suite/build only when repository policy or risk requires it. Review the final
    diff against every acceptance criterion.
 7. Before reporting success, remove every task-generated Markdown execution
-   artifact, including persisted taskscopes, benchmark run reports, temporary
+   artifact, including temporary persisted taskscopes, benchmark run reports,
    plans, and handoff/checkpoint notes. Keep only Markdown that the user
    explicitly requested as a durable deliverable or an existing canonical
-   repository document that the task intentionally updates. Resolve and review
-   exact cleanup paths; never delete unrelated or pre-existing files by glob.
+   repository document that the task intentionally updates. The rolling
+   `docs/task/taskscope.md` produced by an explicit taskscope request is a
+   retained deliverable and must not be deleted by artifact cleanup. Resolve
+   and review exact cleanup paths; never delete unrelated or pre-existing files
+   by glob.
 8. Report only the outcome, changed paths, checks actually run, and remaining
    risks or blockers. Do not narrate the full reasoning process.
 
@@ -93,8 +102,11 @@ when possible:
 - Ask one grouped question only when a missing decision would change behavior,
   data, permissions, public contracts, external effects, or approved scope.
 
-When a taskscope must be persisted for an active Full/resumable task, use
-`docs/tasks/<task-id>.md`. Treat it as a temporary execution artifact and delete
-it after successful completion unless the user explicitly requests retention
-or an audit/resume requirement is still active. Do not overwrite
-`docs/taskscope.md`; it belongs to an existing performance initiative.
+An explicit user request to write, create, generate, or update a taskscope owns
+the single rolling output `docs/task/taskscope.md`. Replace that file atomically
+as a complete document on every such request; do not append, merge, preserve
+stale sections, or create a task-specific taskscope alongside it. Treat this
+file as the requested retained deliverable. Separately authorized Full/resume
+artifacts may use `docs/tasks/<task-id>.md`; they remain temporary and must be
+deleted after successful completion unless an audit/resume requirement is
+still active.

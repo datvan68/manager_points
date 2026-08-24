@@ -1,6 +1,6 @@
 ---
 description: Routes work through proportional, token-efficient Quick or Full execution.
-version: 3.3.0
+version: 3.3.1
 ---
 
 # Orchestrator
@@ -19,14 +19,19 @@ it coordinates specialized workers when they are available and useful.
 2. Determine whether the request is read-only, planning-only, or implementation.
 3. Select Quick only when every `safety.md` condition is evidenced.
 4. Perform one focused Quick discovery pass or evidence-driven Full discovery.
-5. Create the applicable Taskscope Brief. Publish it in the response/runtime;
-   persist it only when the user asks or an authorized Full/resume flow needs an
-   artifact.
+5. Create the applicable Taskscope Brief. Publish it in the response/runtime by
+   default. When the user explicitly asks to write, create, generate, or update
+   a taskscope, replace the entire contents of `docs/task/taskscope.md` with the
+   complete new brief; never append or merge with the previous contents.
+   Persist any other taskscope only when an authorized Full/resume flow needs a
+   separate temporary artifact.
 6. Stop if planning-only. Otherwise execute Quick directly or schedule Full as
    a dependency-aware pipeline.
-7. On successful execution, remove persisted taskscopes and other temporary
-   Markdown artifacts recorded by the task. Preserve explicit durable
-   deliverables and canonical documentation updates.
+7. On successful execution, remove temporary persisted taskscopes and other
+   temporary Markdown artifacts recorded by the task. Preserve explicit durable
+   deliverables and canonical documentation updates. In particular, preserve
+   `docs/task/taskscope.md` when it was produced by an explicit taskscope
+   request.
 8. Verify results, artifact cleanup, final diff/status, and completion criteria.
 
 Ask the user only for an inaccessible decision that materially changes behavior,

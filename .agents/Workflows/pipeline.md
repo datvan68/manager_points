@@ -1,6 +1,6 @@
 ---
 description: Defines proportional Quick and Full software workflows.
-version: 3.3.0
+version: 3.3.1
 managed_by: orchestrator
 ---
 
@@ -23,10 +23,13 @@ boundaries, risk, environments, or approvals differ materially.
 
 ## 2. Profile selection
 
-Read-only explanation and PR review do not persist taskscope by default. A bug
-diagnosis that is immediately followed by an authorized fix shares one taskscope
-and one execution loop. DevOps/infrastructure mutation always uses Full. Other
-pipelines may use Quick only when every `safety.md` Quick condition passes.
+Read-only explanation and PR review do not persist taskscope by default. An
+explicit user request to write, create, generate, or update a taskscope is the
+exception: replace `docs/task/taskscope.md` with the complete new result. A bug
+diagnosis that is immediately followed by an authorized fix shares one
+taskscope and one execution loop. DevOps/infrastructure mutation always uses
+Full. Other pipelines may use Quick only when every `safety.md` Quick condition
+passes.
 
 When a Quick trigger appears during execution—additional module/service,
 fourth changed file with meaningful scope impact, public contract, dependency,
@@ -134,10 +137,12 @@ pin base/head and scope -> review affected boundaries, sharded when useful
 - Store long output as an artifact only when it must be handed off, audited, or
   resumed; otherwise retain the concise command result.
 - Track every task-created Markdown artifact by exact path. Before successful
-  completion, remove taskscopes, raw benchmark reports, temporary plans, and
-  handoff/checkpoint notes that are no longer required. Retain only explicit
-  durable deliverables, canonical documentation updates, or evidence required
-  by an active audit/resume flow.
+  completion, remove temporary taskscopes, raw benchmark reports, temporary
+  plans, and handoff/checkpoint notes that are no longer required. Retain only
+  explicit durable deliverables, canonical documentation updates, or evidence
+  required by an active audit/resume flow. The rolling
+  `docs/task/taskscope.md` written for an explicit taskscope request is a
+  retained deliverable, not a cleanup target.
 - Include artifact cleanup in final diff/status review; a leftover temporary
   Markdown file is an incomplete cleanup obligation, not a deliverable.
 - Never parallelize overlapping writes; shard only independent read-only work or
