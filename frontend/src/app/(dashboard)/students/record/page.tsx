@@ -1663,26 +1663,28 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           </div>
         ) : (
           canAccessClassTab && (
-            <div className="flex items-center gap-0.5 p-0.5 bg-white/40 border border-white/70 rounded-xl shadow-xs shrink-0 h-9 justify-center">
+            <div className="flex items-center gap-1 p-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl shadow-xs shrink-0 h-9 w-full sm:w-auto justify-center">
               <button
+                type="button"
                 onClick={() => setActiveSubTab("student")}
-                className={`px-3.5 h-8 text-xs font-semibold rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
+                className={`flex-1 sm:flex-initial flex items-center justify-center text-center px-4 h-7 text-xs rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
                   activeSubTab === "student"
                     ? "bg-white text-slate-800 shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium"
                 }`}
               >
-                Tình hình HSSV
+                <span>Tình hình HSSV</span>
               </button>
               <button
+                type="button"
                 onClick={() => setActiveSubTab("class")}
-                className={`px-3.5 h-8 text-xs font-semibold rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
+                className={`flex-1 sm:flex-initial flex items-center justify-center text-center px-4 h-7 text-xs rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer ${
                   activeSubTab === "class"
                     ? "bg-white text-slate-800 shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium"
                 }`}
               >
-                Tình hình lớp học
+                <span>Tình hình lớp học</span>
               </button>
             </div>
           )
