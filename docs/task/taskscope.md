@@ -1,27 +1,27 @@
-task: "Đồng bộ modal đăng ký KTX sau khi quét QR"
+task: "Tối ưu responsive màn hình ghi nhận"
 pipeline: feature_development
 profile: Quick
-objective: "Trang đăng ký KTX công khai mở từ QR có bố cục và phong cách thống nhất với modal 'Thêm sinh viên đăng ký KTX' trong Danh sách KTX."
+objective: "Trên viewport dưới 1024px, thẻ chọn sinh viên ở hai màn hình dễ đọc/chạm hơn và các nội dung tổng hợp, hướng dẫn lặp được ẩn; desktop giữ nguyên."
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/dormitory/roster/page.tsx:getPublicRegistrationUrl trỏ QR tới /public/dormitory/register; frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx:PublicDormitoryRegistrationModal dùng max-w-2xl và một khối form, trong khi roster/page.tsx:createOpen dùng max-w-4xl, nền gradient, hai thẻ nội dung và footer Hủy/Tạo đăng ký."
-  expected_behavior: "Modal công khai áp dụng shell, header, bố cục hai cột responsive và footer theo modal thêm mới; các trường công khai bổ sung vẫn được giữ ở phần phù hợp."
-  root_cause: "PublicDormitoryRegistrationModal có class và cấu trúc form riêng, chưa dùng cùng quy ước trình bày với createOpen."
+  current_behavior: "frontend/src/components/grading/{AddRecordView,AddClassReportView}.tsx:quick-entry cards dùng p-2/text-xs/text-[10px]; các thanh tổng hợp cuối form vẫn hiển thị ở mọi viewport; isMobile dùng matchMedia('(max-width: 1023px)')."
+  expected_behavior: "Mobile/tablet (<1024px) có thẻ sinh viên lớn hơn, thông tin chính rõ ràng, không hiện nhãn/hướng dẫn dư và thanh tổng hợp; desktop (>=1024px) không đổi bố cục/nội dung."
+  root_cause: "Hai component dùng kích thước compact làm mặc định và thiếu utility responsive để ẩn microcopy/thanh tổng hợp dưới breakpoint lg."
 
 scope:
-  inspect: ["frontend/src/app/(dashboard)/dormitory/roster/page.tsx:createOpen làm chuẩn giao diện", "frontend/src/app/public/dormitory/register/page.tsx:điểm vào sau quét QR"]
-  write: ["frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx:PublicDormitoryRegistrationModal", "frontend/src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx:kiểm thử hồi quy modal công khai"]
-  preserve: ["URL QR và hành vi đóng về trang chủ", "toàn bộ trường công khai, validation, trạng thái tải/lỗi/thành công", "payload/API đăng ký, quy tắc loại phòng theo giới tính"]
-  out: ["modal hiển thị mã QR trong Danh sách KTX", "backend/API/schema", "modal sửa đăng ký"]
+  inspect: ["frontend/src/components/grading/AddRecordView.tsx:quick-entry/student summary", "frontend/src/components/grading/AddClassReportView.tsx:quick-entry/attendance summary", "frontend/src/components/grading/{AddRecordView,AddClassReportView}.test.tsx:nearest regression coverage"]
+  write: ["frontend/src/components/grading/AddRecordView.tsx:responsive presentation", "frontend/src/components/grading/AddClassReportView.tsx:responsive presentation"]
+  preserve: ["API payload, chọn/bỏ sinh viên, tải thêm, manual/edit mode, desktop >=1024px, accessibility aria-pressed"]
+  out: ["Backend/API, logic tính sĩ số/chuyên cần, desktop redesign, breakpoint khác 1024px"]
 
 acceptance_criteria:
-  - "AC-01: Trên desktop, form công khai có shell max-w-4xl, nền gradient, header học kỳ và hai thẻ song song: thông tin cá nhân bên trái, loại phòng/ghi chú bên phải; trên màn hình nhỏ tự xếp một cột và cuộn trong viewport."
-  - "AC-02: Footer có Hủy và Gửi đăng ký theo cùng thứ tự/phong cách modal tham chiếu; Hủy đóng modal, submit/loading/error/success vẫn hoạt động như hiện tại."
-  - "AC-03: Không mất trường, không đổi validation hoặc payload gửi dormitoryApi.public.register."
+  - "AC-01: Ở 375px và 768px, thẻ sinh viên chọn nhanh của cả hai trang có vùng chạm tối thiểu 44px, tên/MSSV lớn hơn hiện tại và không tràn ngang."
+  - "AC-02: Ở viewport <1024px, ẩn nhãn chữ 'Đã chọn', câu hướng dẫn chọn tiêu chí/thẻ, và các thanh 'Tổng số SV ghi nhận' hoặc 'Sĩ số lớp/Hiện diện/Vắng mặt/% Chuyên cần'; trạng thái chọn vẫn phân biệt bằng màu và aria-pressed."
+  - "AC-03: Ở viewport >=1024px, các nội dung và kích thước desktop hiện tại vẫn hiển thị; mọi thao tác ghi nhận giữ nguyên."
 
 execution:
-  - "E-01 [AC-01..AC-03] PublicDormitoryRegistrationModal.tsx:đổi shell/header/grid/section/footer theo createOpen, chỉ tái bố trí các control hiện có."
-  - "E-02 [AC-01..AC-03] PublicDormitoryRegistrationModal.test.tsx:render modal với API mock và kiểm tra tiêu đề, nhóm trường, Hủy/Gửi đăng ký cùng payload hiện hữu."
+  - "E-01 [AC-01,AC-02,AC-03] frontend/src/components/grading/AddRecordView.tsx:quick-entry/summary → tăng min-height, padding và font dưới lg; lg khôi phục giá trị cũ; ẩn microcopy và summary dưới lg."
+  - "E-02 [AC-01,AC-02,AC-03] frontend/src/components/grading/AddClassReportView.tsx:quick-entry/summary → áp dụng cùng quy tắc responsive; giữ nguyên dữ liệu và desktop attendance summary."
 
 temporary_artifacts:
   create: ["docs/task/taskscope.md"]
@@ -29,9 +29,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-03] npm --prefix frontend test -- src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx -> focused tests pass."
-  - "V-02 [AC-01..AC-03] npm --prefix frontend run typecheck; git diff --check -> no TypeScript or whitespace errors."
-  - "V-03 [AC-01..AC-02] Mở /public/dormitory/register ở desktop và mobile -> đối chiếu trực quan với modal createOpen và không tràn viewport."
+  - "V-01 [AC-01,AC-02,AC-03] npm --prefix frontend test -- src/components/grading/AddRecordView.test.tsx src/components/grading/AddClassReportView.test.tsx → toàn bộ test pass."
+  - "V-02 [AC-01,AC-02,AC-03] npm --prefix frontend run typecheck → exit code 0."
+  - "V-03 [AC-01,AC-02,AC-03] kiểm tra thủ công hai trang ở 375px, 768px, 1024px → đúng kích thước/ẩn-hiện, không overflow, chọn-bỏ sinh viên hoạt động."
 
-risks: ["Form công khai có thêm mã sinh viên và hồ sơ tùy chọn; chỉ đồng bộ bố cục, không loại bỏ dữ liệu đang hỗ trợ."]
-stop_conditions: ["Dừng nếu yêu cầu 'giống' bao gồm bỏ trường, đổi validation/payload, hoặc sửa API/backend."]
+risks: ["Thiếu lớp lg khôi phục có thể làm thay đổi bố cục desktop."]
+stop_conditions: ["Dừng nếu yêu cầu phải đổi breakpoint, nghiệp vụ/tải dữ liệu, API payload, hoặc cần chỉnh component dùng chung ngoài hai file đã nêu."]

@@ -965,7 +965,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         </div>
 
                         {/* Danh sách sinh viên tinh gọn */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 max-h-[300px] sm:max-h-[340px] lg:max-h-[260px] xl:max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
                           {classStudents.map(student => {
                             const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
                             return (
@@ -975,18 +975,18 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 aria-pressed={selected}
                                 disabled={!selectedCriterionId}
                                 onClick={() => handleToggleQuickStudent(student)}
-                                className={`text-left rounded-lg border p-2 sm:px-2.5 sm:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
+                                className={`text-left rounded-lg border min-h-[52px] sm:min-h-[56px] lg:min-h-0 p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
                                   selected
                                     ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
                                     : 'border-white/70 bg-white/50 backdrop-blur-2xs hover:border-blue-400/60 hover:bg-white/80 text-[#1E293B]'
                                 } disabled:cursor-not-allowed disabled:opacity-60`}
                               >
-                                <div className="min-w-0 flex-1">
-                                  <span className="block text-xs font-bold truncate">{student.full_name}</span>
-                                  <span className="block text-[10.5px] text-slate-500 font-mono">MSSV: {student.student_code}</span>
+                                <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
+                                  <span className="block text-[13.5px] sm:text-sm lg:text-xs font-bold truncate leading-tight">{student.full_name}</span>
+                                  <span className="block text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
                                 </div>
                                 {selected && (
-                                  <span className="shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
+                                  <span className="hidden lg:inline-flex shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
                                     Đã chọn
                                   </span>
                                 )}
@@ -998,7 +998,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
                           <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-7.5 rounded-lg text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
                         )}
-                        <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
+                        <p className="hidden lg:block text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                       </div>
                     )}
                   </div>
@@ -1071,7 +1071,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </>}
 
                   {/* Sĩ số hiển thị xem nhanh */}
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-bold text-slate-600 px-3 py-2 bg-white/40 border border-white/60 rounded-xl mt-0.5">
+                  <div className="hidden lg:flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-bold text-slate-600 px-3 py-2 bg-white/40 border border-white/60 rounded-xl mt-0.5">
                     <div className="flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-blue-500" />
                       <span>Sĩ số lớp: <strong className="text-slate-800">
