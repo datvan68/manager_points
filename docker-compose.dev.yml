@@ -8,10 +8,13 @@ services:
     environment:
       NODE_ENV: development
       PORT: 8001
+      TSC_WATCHFILE: DynamicPriorityPolling
+      TSC_WATCHDIRECTORY: DynamicPriorityPolling
 
   frontend:
     build:
       target: development
+    command: npm run dev:webpack -- --hostname 0.0.0.0 --port 3000
     cpus: "${FRONTEND_DEV_CPUS:-1.5}"
     mem_limit: "${FRONTEND_DEV_MEMORY:-2g}"
     pids_limit: ${FRONTEND_DEV_PIDS:-512}
@@ -22,6 +25,7 @@ services:
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_URL: http://localhost:8001
+      WATCHPACK_POLLING: "true"
 
 volumes:
   backend-node-modules:

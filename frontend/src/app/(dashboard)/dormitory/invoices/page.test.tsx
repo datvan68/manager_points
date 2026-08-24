@@ -146,9 +146,15 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
       expect(screen.getByText('Cấu hình định mức & đơn giá điện - nước')).toBeInTheDocument();
     });
 
-    // Add room-2 to electricity unit price overrides
-    const elecPriceSelect = screen.getAllByLabelText('Chọn phòng để thêm đơn giá riêng')[0];
-    fireEvent.change(elecPriceSelect, { target: { value: 'room-2' } });
+    // Wait for rooms and config to be loaded
+    await waitFor(() => {
+      const selects = screen.getAllByRole('combobox', { name: 'Chọn phòng để thêm đơn giá riêng' });
+      expect(selects[0]).not.toBeDisabled();
+    });
+
+    const elecPriceSelect = screen.getAllByRole('combobox', { name: 'Chọn phòng để thêm đơn giá riêng' })[0];
+    fireEvent.keyDown(elecPriceSelect, { key: 'ArrowDown' });
+    fireEvent.keyDown(elecPriceSelect, { key: 'Enter' });
 
     const addButtons = screen.getAllByRole('button', { name: /Thêm phòng/i });
     // Click the Add Room button for electricity price overrides (index 1)

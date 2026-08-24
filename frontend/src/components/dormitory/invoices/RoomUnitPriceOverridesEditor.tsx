@@ -2,6 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, DollarSign } from 'lucide-react';
 import { Room, RoomUnitPriceOverride } from '@/api/dormitory-api';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface RoomUnitPriceOverridesEditorProps {
   label: string;
@@ -149,30 +156,41 @@ export default function RoomUnitPriceOverridesEditor({
 
       {/* Add new room override controls */}
       <div className="flex items-center gap-2 pt-1">
-        <select
-          value={selectedRoomIdToAdd}
-          disabled={disabled || availableRooms.length === 0}
-          onChange={(e) => setSelectedRoomIdToAdd(e.target.value)}
-          aria-label="Chọn phòng để thêm đơn giá riêng"
-          className="flex-1 rounded-xl border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs text-[#1E293B] focus:border-[#1A73E8] focus:outline-none focus:ring-1 focus:ring-[#1A73E8] disabled:bg-slate-100 disabled:text-slate-400"
-        >
-          <option value="">
-            {availableRooms.length > 0 ? '-- Chọn phòng áp dụng đơn giá riêng --' : 'Đã cấu hình toàn bộ phòng'}
-          </option>
-          {availableRooms.map((room) => {
-            const buildingName =
-              typeof room.building_id === 'object' && room.building_id
-                ? room.building_id.name || room.building_id.building_code
-                : '';
-            const roomLabel = room.room_name || room.room_code || 'Phòng';
-            const labelWithBld = buildingName ? `${roomLabel} (${buildingName})` : roomLabel;
-            return (
-              <option key={room._id} value={room._id}>
-                {labelWithBld}
-              </option>
-            );
-          })}
-        </select>
+        <div className="flex-1 min-w-0">
+          <Select
+            value={selectedRoomIdToAdd}
+            onValueChange={(val: string) => setSelectedRoomIdToAdd(val)}
+          >
+            <SelectTrigger
+              disabled={disabled || availableRooms.length === 0}
+              aria-label="Chọn phòng để thêm đơn giá riêng"
+              className="h-8 rounded-xl border-slate-200/90 bg-white text-xs"
+            >
+              <SelectValue
+                placeholder={
+                  availableRooms.length > 0
+                    ? '-- Chọn phòng áp dụng đơn giá riêng --'
+                    : 'Đã cấu hình toàn bộ phòng'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {availableRooms.map((room) => {
+                const buildingName =
+                  typeof room.building_id === 'object' && room.building_id
+                    ? room.building_id.name || room.building_id.building_code
+                    : '';
+                const roomLabel = room.room_name || room.room_code || 'Phòng';
+                const labelWithBld = buildingName ? `${roomLabel} (${buildingName})` : roomLabel;
+                return (
+                  <SelectItem key={room._id} value={String(room._id)}>
+                    {labelWithBld}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
 
         <Button
           type="button"
