@@ -230,8 +230,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [reportToForceDelete, setReportToForceDelete] = useState<string | null>(
     null,
   );
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [classItemsPerPage, setClassItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(40);
+  const [classItemsPerPage, setClassItemsPerPage] = useState(40);
 
   // Academic record states
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
@@ -3476,6 +3476,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 currentPage={currentPage}
                 pageSize={itemsPerPage}
                 totalItems={totalRecords}
+                pageSizeOptions={[5, 10, 20, 40, 50, 100]}
                 onPageChange={(page) => {
                   setCurrentPage(page);
                   fetchAcademicRecords(page, false);
@@ -3901,7 +3902,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.1, delay: idx * 0.04 }}
                             key={report._id}
-                            className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out group"
+                            className="hover:bg-white/65 transition-all duration-150 ease-out group"
                           >
                             <td className="px-5 py-4 w-12 text-center">
                               {canDeleteClassReport(report) && (
@@ -4047,6 +4048,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 currentPage={classCurrentPage}
                 pageSize={classItemsPerPage}
                 totalItems={totalClassReports}
+                pageSizeOptions={[5, 10, 20, 40, 50, 100]}
                 onPageChange={(page) => {
                   setClassCurrentPage(page);
                 }}

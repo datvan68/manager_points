@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, act, cleanup, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import StudentRecordPage from './page';
 import { academicRecordApi } from '@/api/academic-record-api';
@@ -158,12 +158,12 @@ describe('StudentRecordPage Infinite Scroll', () => {
     await waitFor(() => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(1);
     });
-    expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }));
+    expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(expect.objectContaining({ page: 1, limit: 40 }));
 
-    // Resolve first fetch with 20 items
+    // Resolve first fetch with 40 items
     await act(async () => {
       resolveFirstFetch({
-        data: Array.from({ length: 20 }).map((_, i) => ({
+        data: Array.from({ length: 40 }).map((_, i) => ({
           _id: `id-1-${i}`,
           points_effect: 10,
           record_title: `Record 1-${i}`,
@@ -192,7 +192,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     // Resolve second fetch
     await act(async () => {
       resolveSecondFetch({
-        data: Array.from({ length: 20 }).map((_, i) => ({
+        data: Array.from({ length: 40 }).map((_, i) => ({
           _id: `id-2-${i}`,
           points_effect: 10,
           record_title: `Record 2-${i}`,
@@ -208,5 +208,35 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
 
     expect(academicRecordApi.getAcademicRecords).toHaveBeenCalled();
+  });
+
+  it('uses 40 rows for the class situation tab and avoids row scaling', async () => {
+    (dailyClassReportApi.getDailyClassReports as any).mockResolvedValue({
+      data: [{
+        _id: 'report-1',
+        class_id: { class_name: 'CS-101-A' },
+        report_date: '2026-08-24',
+        total_present: 10,
+        total_absent: 0,
+        recordedStudentsCount: 0,
+        teacher_name: 'Teacher',
+      }],
+      meta: { total: 1 },
+    });
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByText('Tình hình lớp học'));
+
+    await waitFor(() => {
+      expect(dailyClassReportApi.getDailyClassReports).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, limit: 40 }),
+      );
+    });
+
+    const classRow = screen
+      .getAllByText('CS-101-A')
+      .map((element) => element.closest('tr'))
+      .find((row) => row !== null);
+    expect(classRow).not.toHaveClass('hover:scale-[1.002]');
   });
 });

@@ -1,32 +1,29 @@
-task: "Đơn giản hóa form ghi nhận và ưu tiên tiêu chí dùng nhiều"
-pipeline: feature_development
-profile: Full
-objective: "Hai form ghi nhận dùng chung tối đa 3 tiêu chí được tài khoản hiện tại chọn nhiều nhất; form Thêm Ghi nhận Rèn luyện bắt đầu từ chọn Lớp và form đánh giá lớp giữ ghi chú sau khi thêm."
+task: "Ổn định bảng Tình hình và tăng mặc định lên 40 dòng"
+pipeline: bug_fix
+profile: Quick
+objective: "Bảng desktop tab Tình hình lớp học không nháy thanh cuộn ngang khi tương tác và hai tab Tình hình mặc định tải/hiển thị 40 dòng mỗi trang."
 
 evidence:
-  current_behavior: "frontend/src/components/grading/AddClassReportView.tsx render criteria theo thứ tự API và handleAddViolationToList reset violationNote; frontend/src/components/grading/AddRecordView.tsx tải Khoa, bắt buộc Khoa để lọc Lớp, render criteria theo thứ tự API."
-  expected_behavior: "Lịch sử chọn tiêu chí dùng chung giữa hai form, tách theo user.id và hiển thị tối đa 3 mục dưới nhãn 'Sử dụng nhiều'; AddRecordView bỏ toàn bộ trường/phụ thuộc Khoa và cho chọn trực tiếp mọi Lớp; AddClassReportView không xóa ghi chú khi Thêm thành công."
-  root_cause: "Hai component chưa có abstraction lưu/xếp usage; AddRecordView giữ department state/API/filter; AddClassReportView gọi setViolationNote('') sau khi thêm."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx khởi tạo itemsPerPage và classItemsPerPage bằng 20; row desktop của Tình hình lớp học có hover:scale-[1.002]; CustomPagination mặc định chỉ có [5,10,20,50,100]."
+  expected_behavior: "Tình hình HSSV và Tình hình lớp học dùng page size mặc định 40, bộ chọn Số dòng có lựa chọn 40; tương tác với giá trị/row bảng lớp không phát sinh overflow ngang thoáng qua."
+  root_cause: "Transform scale làm row rộng hơn table/container khi hover; hai state phân trang chưa dùng 40 và danh sách page-size dùng chung không chứa 40."
 
 scope:
-  inspect: ["frontend/src/providers/auth-provider.tsx:UserInfo.id", "frontend/src/components/ui/select.tsx:SelectLabel/SelectSeparator", "frontend/src/api/class-api.ts:Class"]
-  write: ["frontend/src/components/grading/criterion-usage.ts:new shared per-user usage helpers", "frontend/src/components/grading/AddClassReportView.tsx:criteria Select/handleAddViolationToList", "frontend/src/components/grading/AddRecordView.tsx:basic-info fields/data loading/criteria Select", "frontend/src/components/grading/AddClassReportView.test.tsx:new focused tests", "frontend/src/components/grading/AddRecordView.test.tsx:new focused tests"]
-  preserve: ["Tất cả tiêu chí API vẫn xuất hiện đúng một lần và chọn được", "Validation, chống trùng, payload, edit mode, RBAC và API contracts", "AddClassReportView vẫn reset sinh viên/tiêu chí sau Thêm", "AddRecordView giữ hành vi reset sinh viên/ghi chú khi đổi Lớp và sau Thêm"]
-  out: ["Backend/API/schema", "Đồng bộ lịch sử giữa thiết bị/trình duyệt", "Thay đổi Select dùng chung", "Bỏ Khoa ở trang khác"]
+  inspect: ["frontend/src/components/ui/pagination.tsx:CustomPagination pageSizeOptions", "frontend/src/app/(dashboard)/students/record/page.tsx:fetchAcademicRecords/fetchClassReports"]
+  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:page-size states, two CustomPagination calls, class desktop row className", "frontend/src/app/(dashboard)/students/record/page.test.tsx:focused regression tests"]
+  preserve: ["API/filter/sort/RBAC và hành vi chọn, xem, sửa, xóa row", "Pagination vẫn đổi trang/đổi số dòng và reset về trang 1", "Giao diện thẻ mobile/tablet và các pagination khác"]
+  out: ["Backend/API/schema", "Sửa CustomPagination dùng chung", "Thay đổi hiệu ứng của nút hành động hoặc row Tình hình HSSV"]
 
 acceptance_criteria:
-  - "AC-01: Lịch sử chọn tiêu chí dùng một localStorage key theo user.id, được cả hai form đọc/ghi; mỗi onValueChange tăng count, dữ liệu thiếu/hỏng fallback rỗng không làm lỗi."
-  - "AC-02: Mỗi menu Tiêu chí ghi nhận hiển thị tối đa 3 tiêu chí count cao nhất dưới nhãn 'Sử dụng nhiều', tie giữ thứ tự API, rồi các tiêu chí còn lại; không lặp mục và không hiện nhóm khi chưa có usage hợp lệ."
-  - "AC-03: Thông tin cơ bản của AddRecordView không render Khoa; Lớp là select đầu tiên, chứa toàn bộ classes từ classApi và không gọi departmentApi."
-  - "AC-04: AddClassReportView giữ nguyên Ghi chú chi tiết sau Thêm thành công; người dùng vẫn sửa/xóa được và validation thất bại không đổi ghi chú."
+  - "AC-01: Row desktop của Tình hình lớp học không dùng scale theo hover/click, vẫn giữ đổi màu nền, transition và mọi thao tác hiện có; không xuất hiện thanh cuộn ngang do row transform."
+  - "AC-02: Lần tải đầu của Tình hình HSSV gọi academicRecordApi với limit 40 và pagination hiển thị pageSize 40."
+  - "AC-03: Lần tải đầu của Tình hình lớp học gọi dailyClassReportApi với limit 40 và pagination hiển thị pageSize 40."
+  - "AC-04: Cả hai bộ chọn Số dòng chứa 40 cùng các lựa chọn hiện hành cần giữ lại; thay đổi lựa chọn vẫn về trang 1 và tải đúng limit."
 
 execution:
-  - "E-01 [AC-01,AC-02] criterion-usage.ts → định nghĩa storage key theo user.id, parse/validate counts, increment và stable top-3 partition dùng chung."
-  - "E-02 [AC-01,AC-02,AC-04] AddClassReportView.tsx → dùng helper trong criterion onValueChange/render SelectLabel + SelectSeparator; bỏ reset violationNote sau Thêm."
-  - "E-03 [AC-01,AC-02,AC-03] AddRecordView.tsx → bỏ department imports/state/fetch/edit-resolution/handler/filter/UI; render classes trực tiếp và tích hợp cùng helper/usage key cho tiêu chí."
-  - "E-04 [AC-01,AC-02,AC-04] AddClassReportView.test.tsx → khóa shared usage, top 3/no duplicate/malformed storage và giữ/sửa/xóa ghi chú."
-  - "E-05 [AC-01,AC-02,AC-03] AddRecordView.test.tsx → khóa không có Khoa/department API, Lớp đầu tiên có đủ dữ liệu và cùng lịch sử tiêu chí."
-  - "E-06 [AC-01..AC-04] independent review → đối chiếu diff với preserve/out và xác nhận hai form dùng cùng storage contract."
+  - "E-01 [AC-01..AC-04] page.tsx → đổi hai state mặc định thành 40, truyền pageSizeOptions có 40 cho đúng hai CustomPagination và bỏ hover scale khỏi motion.tr của bảng lớp."
+  - "E-02 [AC-01..AC-04] page.test.tsx → cập nhật fixture phân trang 20→40 và thêm assertions cho limit/page-size 40 ở hai tab cùng regression className không scale."
+  - "E-03 [AC-01..AC-04] review diff → xác nhận không đổi component pagination dùng chung, API contract hoặc hành vi ngoài hai bảng."
 
 temporary_artifacts:
   create: ["docs/task/taskscope.md"]
@@ -34,10 +31,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01,AC-02,AC-04] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx → Vitest pass."
-  - "V-02 [AC-01,AC-02,AC-03] npm --prefix frontend test -- src/components/grading/AddRecordView.test.tsx → Vitest pass."
-  - "V-03 [AC-01..AC-04] npm --prefix frontend run typecheck → exit 0."
-  - "V-04 [AC-01..AC-04] git diff --check -- frontend/src/components/grading → exit 0; review không có thay đổi ngoài scope."
+  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → Vitest pass."
+  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck → exit 0."
+  - "V-03 [AC-01..AC-04] git diff --check -- 'frontend/src/app/(dashboard)/students/record/page.tsx' 'frontend/src/app/(dashboard)/students/record/page.test.tsx' → exit 0; focused diff review pass."
 
-risks: ["localStorage chỉ phản ánh lịch sử trên trình duyệt hiện tại; key theo user.id ngăn trộn tài khoản.", "Bỏ bộ lọc Khoa làm danh sách Lớp dài hơn nhưng không thay đổi dữ liệu hoặc class API."]
-stop_conditions: ["Dừng nếu yêu cầu lịch sử xuyên thiết bị/backend, lớp phải giới hạn theo quyền/Khoa ngoài dữ liệu classApi hiện tại, cần đổi API/schema, hoặc phải sửa Select dùng chung."]
+risks: ["Mặc định 40 tăng dữ liệu/render mỗi lần tải so với 20; phạm vi chỉ thay limit đã được API hỗ trợ."]
+stop_conditions: ["Dừng nếu thanh cuộn ngang còn do container ngoài row transform, API giới hạn limit dưới 40, hoặc yêu cầu đổi mặc định pagination toàn hệ thống."]
