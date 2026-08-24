@@ -32,8 +32,8 @@ export class DailyClassReport {
   @Prop({ required: true, type: Number, default: 0, min: 0 })
   total_absent: number;
 
-  @Prop({ required: true, type: String })
-  teacher_name: string;
+  @Prop({ type: String, default: '' })
+  teacher_name?: string;
 
   @Prop({ type: String, default: '' })
   class_notes: string;

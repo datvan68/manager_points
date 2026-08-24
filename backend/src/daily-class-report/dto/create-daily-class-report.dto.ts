@@ -48,11 +48,12 @@ export class CreateDailyClassReportDto {
 
   @ApiProperty({
     example: 'Nguyễn Văn A',
+    required: false,
     description: 'Tên giảng viên giảng dạy',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  teacher_name: string;
+  teacher_name?: string;
 
   @ApiProperty({
     example: 'Lớp học nghiêm túc, vắng có phép 1 em',

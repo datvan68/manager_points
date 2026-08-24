@@ -8,7 +8,7 @@ export interface DailyClassReport {
   report_date: string;
   total_present: number;
   total_absent: number;
-  teacher_name: string;
+  teacher_name?: string;
   class_note: string;
   recordedStudentsCount?: number;
   createdAt?: string;
@@ -21,7 +21,7 @@ export interface CreateDailyClassReportDto {
   report_date: string;
   total_present: number;
   total_absent: number;
-  teacher_name: string;
+  teacher_name?: string;
   class_notes?: string;
 }
 

@@ -5,7 +5,7 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { createViolationItem, getViolationAddError, mergeStudentsById } from './AddClassReportView';
+import { clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById } from './AddClassReportView';
 
 const criteria = [
   { _id: 'one', criterion_name: 'Một' },
@@ -78,5 +78,18 @@ describe('AddClassReportView violation selection', () => {
       refreshedStudent,
       secondClassStudent,
     ]);
+  });
+
+  it('filters classes by displayed name, year, or id', () => {
+    const classes = [{ _id: 'class-1', class_name: 'CNTT-01', class_year: '2025' }, { _id: 'class-2', class_name: 'Kế toán-02', class_year: '2024' }] as any;
+    expect(filterClassesBySearch(classes, 'ke toan')).toHaveLength(1);
+    expect(filterClassesBySearch(classes, '2025')[0]._id).toBe('class-1');
+  });
+
+  it('clears only pending quick violations when the criterion changes', () => {
+    const preserved = createViolationItem({ _id: 'student-1', full_name: 'A', student_code: 'A' } as any, { _id: 'criterion-old', criterion_name: 'Cũ' } as any, 'manual');
+    const pending = createViolationItem({ _id: 'student-2', full_name: 'B', student_code: 'B' } as any, { _id: 'criterion-old', criterion_name: 'Cũ' } as any, 'quick');
+
+    expect(clearPendingQuickViolations([preserved, pending], new Set(['student-2:criterion-old']))).toEqual([preserved]);
   });
 });

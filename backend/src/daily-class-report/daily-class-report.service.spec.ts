@@ -7,11 +7,11 @@ import { AcademicRecordService } from '../academic-record/academic-record.servic
 describe('DailyClassReportService', () => {
   let service: DailyClassReportService;
 
-  const mockDailyClassReportModel = {
+  const mockDailyClassReportModel: any = Object.assign(jest.fn(), {
     db: { model: jest.fn() },
     find: jest.fn(),
     countDocuments: jest.fn(),
-  };
+  });
 
   const mockAcademicRecordService = {
     classModel: { find: jest.fn() },
@@ -76,5 +76,19 @@ describe('DailyClassReportService', () => {
         }),
       );
     });
+  });
+
+  it('creates a report with a blank lecturer name', async () => {
+    const saved = { populate: jest.fn().mockResolvedValue({ teacher_name: '' }) };
+    mockDailyClassReportModel.mockImplementation(() => ({ save: jest.fn().mockResolvedValue(saved) }));
+
+    await expect(service.create({
+      class_id: '60c72b2f9b1d8b2bad123456',
+      reported_by: '60c72b2f9b1d8b2bad654321',
+      report_date: '2026-06-01T00:00:00.000Z',
+      total_present: 1,
+      total_absent: 0,
+      teacher_name: '',
+    })).resolves.toEqual({ teacher_name: '' });
   });
 });

@@ -65,6 +65,16 @@ export function mergeStudentsById(studentGroups: Student[][]): Student[] {
   return Array.from(studentsById.values());
 }
 
+export function filterClassesBySearch(classes: Class[], query: string): Class[] {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return classes;
+  return classes.filter(item => normalizeText(`${item.class_name} ${item.class_year} ${item._id}`).includes(normalizedQuery));
+}
+
+export function clearPendingQuickViolations(violations: ViolationItem[], pendingKeys: Set<string>): ViolationItem[] {
+  return violations.filter(violation => !pendingKeys.has(`${violation.student_id}:${violation.criterion_id}`));
+}
+
 const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
 
 function getIdValue(value: any): string {
@@ -158,6 +168,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [teacherName, setTeacherName] = useState('');
   const [classNote, setClassNote] = useState('');
+  const [classSearch, setClassSearch] = useState('');
+  const [isClassPickerOpen, setIsClassPickerOpen] = useState(false);
 
   // Sĩ số states (ẩn chỉnh tay, tự động tính toán hoặc cho phép xem)
   const [totalPresent, setTotalPresent] = useState<number>(0);
@@ -168,6 +180,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
+  const [pendingQuickViolationKeys, setPendingQuickViolationKeys] = useState<Set<string>>(new Set());
   const [entryMode, setEntryMode] = useState<'manual' | 'quick'>('quick');
   const [isMobile, setIsMobile] = useState(false);
 
@@ -479,6 +492,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     );
     if (existingViolation) {
       setAddedViolations(prev => prev.filter(violation => violation !== existingViolation));
+      setPendingQuickViolationKeys(prev => {
+        const next = new Set(prev);
+        next.delete(`${existingViolation.student_id}:${existingViolation.criterion_id}`);
+        return next;
+      });
       return;
     }
     const addError = getViolationAddError(addedViolations, student._id, selectedCriterionId);
@@ -493,9 +511,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       return;
     }
     setAddedViolations(prev => [...prev, createViolationItem(student, criterion, violationNote)]);
+    setPendingQuickViolationKeys(prev => new Set(prev).add(`${student._id}:${selectedCriterionId}`));
   };
 
   const handleCriterionChange = (nextCriterionId: string) => {
+    if (nextCriterionId !== selectedCriterionId && pendingQuickViolationKeys.size > 0) {
+      setAddedViolations(prev => clearPendingQuickViolations(prev, pendingQuickViolationKeys));
+      setPendingQuickViolationKeys(new Set());
+    }
     setSelectedCriterionId(nextCriterionId);
     setCriterionUsage(incrementCriterionUsage(user?.id, nextCriterionId));
   };
@@ -514,11 +537,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       toast.error('Vui lòng chọn lớp học!');
       return;
     }
-    if (!teacherName.trim()) {
-      toast.error('Vui lòng nhập tên giảng viên!');
-      return;
-    }
-
     setIsSaving(true);
     const dateFormatted = reportDate.toISOString();
 
@@ -707,22 +725,38 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     {/* Mã lớp học: hỗ trợ chọn nhiều lớp */}
                     <div className="flex flex-col w-full relative">
                       <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Mã lớp học</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-white/80 bg-white/50 p-2 max-h-32 overflow-y-auto">
-                        {classes.map(c => {
-                          const selected = classIds.includes(c._id);
-                          return (
-                            <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-white/70 text-slate-700'}`}>
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])}
-                                className="accent-blue-600"
-                              />
-                              <span>{c.class_name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                      <Popover open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="ghost" className="h-10 w-full justify-between rounded-xl border border-white/80 bg-white/50 px-3 text-left text-[12.5px] font-semibold text-[#1E293B] shadow-sm hover:bg-white/70">
+                            <span className="truncate">{classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn mã lớp học...'}</span>
+                            <span className="ml-2 text-slate-400">⌄</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-slate-100 bg-white p-2 shadow-xl" align="start">
+                          <Input
+                            type="search"
+                            role="combobox"
+                            aria-expanded={isClassPickerOpen}
+                            aria-label="Tìm lớp học"
+                            value={classSearch}
+                            onChange={e => setClassSearch(e.target.value)}
+                            placeholder="Nhập tên hoặc mã lớp..."
+                            className="mb-2 h-9 rounded-lg text-[12px]"
+                          />
+                          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Danh sách lớp học">
+                            {filterClassesBySearch(classes, classSearch).map(c => {
+                              const selected = classIds.includes(c._id);
+                              return (
+                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50 text-slate-700'}`}>
+                                  <input type="checkbox" checked={selected} onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])} className="accent-blue-600" />
+                                  <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
+                                </label>
+                              );
+                            })}
+                            {filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-3 text-center text-[11px] text-slate-400">Không tìm thấy lớp.</span>}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       <span className="mt-1 ml-1 text-[11px] text-slate-500" aria-live="polite">
                         {classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn mã lớp học...'}
                       </span>
@@ -735,7 +769,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="Nhập tên giảng viên đứng lớp"
-                      required
                       className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
                       containerClassName="w-full"
                     />
@@ -952,9 +985,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 onClick={() => handleToggleQuickStudent(student)}
                                 className={`text-left rounded-xl border px-3 py-2 transition-colors ${selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 bg-white/60 hover:border-blue-300'} disabled:cursor-not-allowed disabled:opacity-60`}
                               >
-                                <span className="block text-[13px] font-bold">{student.full_name}</span>
+                                <span className="flex min-w-0 items-center justify-between gap-2 text-[13px] font-bold"><span className="min-w-0 truncate">{student.full_name}</span>{selected && <span className="shrink-0 text-[11px] font-bold text-red-600">Đã chọn</span>}</span>
                                 <span className="block text-[11px] text-slate-500">MSSV: {student.student_code}</span>
-                                {selected && <span className="block text-[11px] font-bold text-red-600">Đã chọn</span>}
                               </button>
                             );
                           })}
