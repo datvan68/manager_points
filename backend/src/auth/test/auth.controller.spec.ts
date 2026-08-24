@@ -16,6 +16,7 @@ describe('AuthController', () => {
     createUsersBulk: jest.fn(),
     createImpersonation: jest.fn(),
     cancelImpersonation: jest.fn(),
+    terminateImpersonation: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -179,6 +180,22 @@ describe('AuthController', () => {
       expect(response.clearCookie).toHaveBeenCalledWith(
         'refresh_token_browser_session_01',
         expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
+      );
+    });
+
+    it('terminates a target session through the admin endpoint without cookies', async () => {
+      mockAuthService.terminateImpersonation.mockResolvedValue({ terminated: true });
+
+      await expect(
+        controller.terminateImpersonation(
+          { user: { userId: 'admin-id' }, ip: '127.0.0.1', headers: {} },
+          { target_user_id: '507f1f77bcf86cd799439011' },
+        ),
+      ).resolves.toEqual({ terminated: true });
+
+      expect(mockAuthService.terminateImpersonation).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+        '127.0.0.1',
       );
     });
 

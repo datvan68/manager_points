@@ -19,6 +19,10 @@ export interface CancelImpersonationResponse {
   cancelled: boolean;
 }
 
+export interface TerminateImpersonationResponse {
+  terminated: boolean;
+}
+
 export interface RefreshResponse {
   access_token: string;
 }
@@ -198,6 +202,21 @@ export const authApi = {
       body: JSON.stringify({ session_id: browserSessionId }),
     });
     return handleResponse<CancelImpersonationResponse>(res);
+  },
+
+  async terminateImpersonation(
+    targetUserId: string,
+    accessToken: string,
+  ): Promise<TerminateImpersonationResponse> {
+    const res = await fetch(`${API_BASE}/auth/impersonations/terminate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return handleResponse<TerminateImpersonationResponse>(res);
   },
 
   async forkSession(sessionId: string, remember: boolean): Promise<RefreshResponse> {

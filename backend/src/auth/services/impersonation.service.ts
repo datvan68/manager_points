@@ -281,6 +281,41 @@ export class ImpersonationService implements OnModuleInit {
     return session;
   }
 
+  async releaseActiveForSubject(
+    subjectUserId: string,
+    ip = '0.0.0.0',
+  ): Promise<ImpersonationSessionDocument | null> {
+    if (!Types.ObjectId.isValid(subjectUserId)) return null;
+
+    const session = await this.sessionModel
+      .findOneAndUpdate(
+        {
+          subject_user_id: new Types.ObjectId(subjectUserId),
+          status: ImpersonationSessionStatus.ACTIVE,
+          expires_at: { $gt: new Date() },
+        },
+        {
+          $set: {
+            status: ImpersonationSessionStatus.ENDED,
+            ended_at: new Date(),
+            ended_reason: 'admin_terminated',
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (session) {
+      await this.auditBestEffort('impersonation_stop', ip, {
+        actorUserId: session.actor_user_id.toString(),
+        subjectUserId: session.subject_user_id.toString(),
+        sessionId: session._id.toString(),
+        browserSessionId: session.browser_session_id,
+        reason: 'admin_terminated',
+      });
+    }
+    return session;
+  }
+
   async recordGuardDenied(
     actorUserId: string | undefined,
     subjectUserId: string | undefined,

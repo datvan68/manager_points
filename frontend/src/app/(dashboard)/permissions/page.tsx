@@ -131,6 +131,8 @@ function PermissionsPageContent() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [classes, setClasses] = useState<any[]>([]);
   const [accessingUserId, setAccessingUserId] = useState<string | null>(null);
+  const [isTerminateModalOpen, setIsTerminateModalOpen] = useState(false);
+  const [terminatingUser, setTerminatingUser] = useState<any>(null);
   const handoffCleanupRef = useRef<(() => void) | null>(null);
 
   const [users, setUsers] = useState<any[]>([]);
@@ -454,6 +456,11 @@ function PermissionsPageContent() {
 
   const handleAccessUser = (targetUser: any) => {
     if (!hasPersistedAdminRole(authUser) || accessingUserId) return;
+    if (targetUser?.is_under_impersonation) {
+      setTerminatingUser(targetUser);
+      setIsTerminateModalOpen(true);
+      return;
+    }
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
       toast.error('Trình duyệt không hỗ trợ mở phiên truy cập an toàn.');
       return;
@@ -558,6 +565,28 @@ function PermissionsPageContent() {
       window.open(`/access#channel=${encodeURIComponent(nonce)}`, '_blank', 'noopener,noreferrer');
     } catch {
       sendError('Không thể mở cửa sổ truy cập. Hãy cho phép cửa sổ bật lên và thử lại.');
+    }
+  };
+
+  const handleTerminateImpersonation = async () => {
+    const targetUserId = terminatingUser?._id || terminatingUser?.id;
+    const accessToken = tokenStorage.getAccessToken();
+    if (!targetUserId || !accessToken) {
+      toast.error('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.');
+      return;
+    }
+    try {
+      const result = await authApi.terminateImpersonation(targetUserId, accessToken);
+      if (!result.terminated) {
+        toast.error('Phiên truy cập đã kết thúc hoặc không còn hiệu lực.');
+        return;
+      }
+      toast.success(`Đã kết thúc truy cập ${getUserDisplayName(terminatingUser)}.`);
+      setIsTerminateModalOpen(false);
+      setTerminatingUser(null);
+      await fetchData({ silent: true });
+    } catch {
+      toast.error('Không thể kết thúc phiên truy cập. Vui lòng thử lại.');
     }
   };
 
@@ -1231,13 +1260,17 @@ function PermissionsPageContent() {
                   ? 'border-red-200/70 bg-red-50/70 text-red-700 hover:bg-red-100'
                   : 'border-blue-200/70 bg-blue-50/70 text-blue-700 hover:bg-blue-100'
               }`}
-              aria-label={`${u.is_under_impersonation ? 'Đang được truy cập: ' : 'Truy cập tài khoản '}${getUserDisplayName(u)}`}
-              title={`${u.is_under_impersonation ? 'Đang được truy cập: ' : 'Truy cập tài khoản '}${getUserDisplayName(u)}`}
+              aria-label={`${u.is_under_impersonation ? 'Kết thúc truy cập' : 'Truy cập tài khoản'} ${getUserDisplayName(u)}`}
+              title={u.is_under_impersonation ? 'Kết thúc truy cập' : `Truy cập tài khoản ${getUserDisplayName(u)}`}
             >
               {accessingUserId === (u._id || u.id) ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <LogIn className="h-3.5 w-3.5" />
+                u.is_under_impersonation ? (
+                  <span aria-hidden="true" className="text-base leading-none font-black">×</span>
+                ) : (
+                  <LogIn className="h-3.5 w-3.5" />
+                )
               )}
             </button>
           ) : null}
@@ -2716,6 +2749,19 @@ function PermissionsPageContent() {
           }
           setIsDeleteModalOpen(false);
         }}
+      />
+
+      <ConfirmModal
+        isOpen={isTerminateModalOpen}
+        onClose={() => {
+          setIsTerminateModalOpen(false);
+          setTerminatingUser(null);
+        }}
+        title="Kết thúc truy cập?"
+        message={`Bạn có chắc chắn muốn kết thúc phiên truy cập của ${getUserDisplayName(terminatingUser)} không? Quyền truy cập sẽ bị thu hồi ngay.`}
+        confirmLabel="Kết thúc truy cập"
+        variant="danger"
+        onConfirm={handleTerminateImpersonation}
       />
 
       <UserModal

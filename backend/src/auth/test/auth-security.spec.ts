@@ -1148,6 +1148,7 @@ describe('Auth Security (Student Account Policies)', () => {
             provide: AuthService,
             useValue: {
               login: jest.fn(),
+              terminateImpersonation: jest.fn(),
             },
           },
           {
@@ -1159,6 +1160,20 @@ describe('Auth Security (Student Account Policies)', () => {
 
       authController = module.get<AuthController>(AuthController);
       authService = module.get(AuthService);
+    });
+
+    it('exposes target termination only through the existing strict admin contract', async () => {
+      authService.terminateImpersonation.mockResolvedValue({ terminated: true });
+      await expect(
+        authController.terminateImpersonation(
+          { user: { userId: 'admin-id' }, ip: '127.0.0.1', headers: {} },
+          { target_user_id: '507f1f77bcf86cd799439011' },
+        ),
+      ).resolves.toEqual({ terminated: true });
+      expect(authService.terminateImpersonation).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+        '127.0.0.1',
+      );
     });
 
     it('should set maxAge to 30 days for Admin login with remember=true', async () => {

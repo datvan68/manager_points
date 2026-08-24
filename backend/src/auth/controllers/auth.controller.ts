@@ -49,6 +49,7 @@ import {
   PasswordResetCompleteDto,
   CreateImpersonationDto,
   CancelImpersonationDto,
+  TerminateImpersonationDto,
 } from '../dto/auth.dto';
 
 import { isAdminUser } from '../utils/role.util';
@@ -318,6 +319,23 @@ export class AuthController {
       getRefreshCookieOptions(),
     );
     return result;
+  }
+
+  @Post('impersonations/terminate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, StrictAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Terminate an active impersonation session' })
+  async terminateImpersonation(
+    @Req() req: any,
+    @Body() dto: TerminateImpersonationDto,
+  ) {
+    const rawIp = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
+    const ip = Array.isArray(rawIp) ? rawIp[0] : rawIp;
+    return this.authService.terminateImpersonation(
+      dto.target_user_id,
+      ip,
+    );
   }
 
   @Post('logout')

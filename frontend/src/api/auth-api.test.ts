@@ -166,4 +166,29 @@ describe('authApi', () => {
       );
     });
   });
+
+  describe('terminateImpersonation', () => {
+    it('sends the target in the body and the admin token only as bearer auth', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ terminated: true })),
+      });
+
+      await expect(authApi.terminateImpersonation('user-2', 'admin-token'))
+        .resolves.toEqual({ terminated: true });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/impersonations/terminate'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer admin-token',
+          },
+          body: JSON.stringify({ target_user_id: 'user-2' }),
+        }),
+      );
+      expect(mockFetch.mock.calls[0][0]).not.toContain('admin-token');
+    });
+  });
 });

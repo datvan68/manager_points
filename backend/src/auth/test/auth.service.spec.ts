@@ -73,6 +73,7 @@ describe('AuthService', () => {
     recordStarted: jest.fn(),
     release: jest.fn(),
     releaseActiveForActorBrowserSession: jest.fn(),
+    releaseActiveForSubject: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -253,6 +254,33 @@ describe('AuthService', () => {
       'startup_failure',
       '127.0.0.1',
     );
+  });
+
+  it('terminates the active target lease and revokes all linked refresh tokens', async () => {
+    const sessionId = new Types.ObjectId();
+    mockImpersonationService.releaseActiveForSubject.mockResolvedValue({ _id: sessionId });
+
+    await expect(
+      service.terminateImpersonation('507f1f77bcf86cd799439011', '127.0.0.1'),
+    ).resolves.toEqual({ terminated: true });
+
+    expect(mockImpersonationService.releaseActiveForSubject).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      '127.0.0.1',
+    );
+    expect(mockTokenService.revokeAllImpersonationTokens).toHaveBeenCalledWith(
+      sessionId.toString(),
+    );
+  });
+
+  it('is idempotent when the target has no active lease', async () => {
+    mockImpersonationService.releaseActiveForSubject.mockResolvedValue(null);
+    mockTokenService.revokeAllImpersonationTokens.mockClear();
+
+    await expect(
+      service.terminateImpersonation('507f1f77bcf86cd799439011', '127.0.0.1'),
+    ).resolves.toEqual({ terminated: false });
+    expect(mockTokenService.revokeAllImpersonationTokens).not.toHaveBeenCalled();
   });
 
   describe('login status transitions', () => {

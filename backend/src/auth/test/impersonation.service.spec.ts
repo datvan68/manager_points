@@ -272,6 +272,32 @@ describe('ImpersonationService', () => {
     expect(session.ended_reason).toBe('handoff_timeout');
   });
 
+  it('releases only the active, unexpired lease for a subject with admin audit reason', async () => {
+    const targetId = [...users.keys()][1];
+    const { session } = await service.acquire(
+      actorId.toString(),
+      targetId,
+      'browser_session_admin_stop',
+      '127.0.0.1',
+    );
+
+    await expect(
+      service.releaseActiveForSubject(targetId, '127.0.0.1'),
+    ).resolves.toBe(session);
+    expect(session.status).toBe(ImpersonationSessionStatus.ENDED);
+    expect(session.ended_reason).toBe('admin_terminated');
+    expect(loginLogModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'impersonation_stop',
+        details: expect.stringContaining('admin_terminated'),
+      }),
+    );
+
+    await expect(
+      service.releaseActiveForSubject(targetId, '127.0.0.1'),
+    ).resolves.toBeNull();
+  });
+
   it('returns only active subjects with an unexpired lease', async () => {
     const activeTargetId = [...users.keys()][1];
     const staleTargetId = [...users.keys()][2];

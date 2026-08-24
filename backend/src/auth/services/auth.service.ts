@@ -451,6 +451,22 @@ export class AuthService implements OnModuleInit {
     return { cancelled: true };
   }
 
+  async terminateImpersonation(
+    subjectUserId: string,
+    ip: string,
+  ): Promise<{ terminated: boolean }> {
+    const session = await this.impersonationService.releaseActiveForSubject(
+      subjectUserId,
+      ip,
+    );
+    if (!session) return { terminated: false };
+
+    await this.tokenService.revokeAllImpersonationTokens(
+      session._id.toString(),
+    );
+    return { terminated: true };
+  }
+
   async revokeToken(token: string, ip?: string) {
     const storedToken = await this.tokenService.findToken(token);
     if (storedToken?.impersonation_session_id) {

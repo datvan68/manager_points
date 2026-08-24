@@ -11,6 +11,7 @@ const { apiMocks, authState, push, toastMocks } = vi.hoisted(() => ({
     getPagePermissionScopes: vi.fn(),
     createImpersonation: vi.fn(),
     cancelImpersonation: vi.fn(),
+    terminateImpersonation: vi.fn(),
     logout: vi.fn(),
     getClasses: vi.fn(),
     getAccessToken: vi.fn(),
@@ -130,13 +131,31 @@ describe('permissions user impersonation action', () => {
     ]);
     render(<PermissionsPage />);
 
-    const activeButton = (await screen.findAllByRole('button', { name: /Đang được truy cập: active-target/ }))
+    const activeButton = (await screen.findAllByRole('button', { name: /Kết thúc truy cập active-target/ }))
       .find((button) => button.classList.contains('text-red-700'))!;
     const otherButton = (await screen.findAllByRole('button', { name: /Truy cập tài khoản other-target/ }))
       .find((button) => button.classList.contains('text-blue-700'))!;
     expect(activeButton).toHaveClass('text-red-700');
-    expect(activeButton).toHaveAttribute('title', 'Đang được truy cập: active-target');
+    expect(activeButton).toHaveAttribute('title', 'Kết thúc truy cập');
+    expect(activeButton).toHaveAccessibleName('Kết thúc truy cập active-target');
     expect(otherButton).toHaveClass('text-blue-700');
+  });
+
+  it('confirms before terminating an active impersonation and refreshes users', async () => {
+    apiMocks.getUsers.mockResolvedValueOnce([
+      { _id: 'target-1', user_name: 'active-target', status: 'active', is_under_impersonation: true },
+    ]);
+    apiMocks.terminateImpersonation.mockResolvedValue({ terminated: true });
+    render(<PermissionsPage />);
+
+    const button = (await screen.findAllByRole('button', { name: /Kết thúc truy cập active-target/ }))[0];
+    fireEvent.click(button);
+    expect(apiMocks.terminateImpersonation).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Kết thúc truy cập' }));
+    await waitFor(() => expect(apiMocks.terminateImpersonation).toHaveBeenCalledWith('target-1', 'admin-token'));
+    expect(apiMocks.getUsers).toHaveBeenCalledTimes(2);
+    expect(toastMocks.success).toHaveBeenCalled();
   });
 
   it('hides the action when ADMIN_FULL is present without the persisted ADMIN role code', async () => {
