@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/providers/auth-provider'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 import { AppBrandingProvider } from '@/providers/app-branding-provider'
+import { Suspense } from 'react'
 
 export const metadata: Metadata = {
   title: 'HOCSINHSINHVIEN - Hệ thống quản lý',
@@ -40,13 +41,17 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <AuthProvider>
-          <AppBrandingProvider>
-            {children}
-            <Toaster position="top-right" richColors />
-            <PwaInstallPrompt />
-          </AppBrandingProvider>
-        </AuthProvider>
+        <div id="__app" suppressHydrationWarning>
+          <Suspense fallback={null}>
+            <AuthProvider>
+              <AppBrandingProvider>
+                {children}
+                <Toaster position="top-right" richColors />
+                <PwaInstallPrompt />
+              </AppBrandingProvider>
+            </AuthProvider>
+          </Suspense>
+        </div>
       </body>
     </html>
   )

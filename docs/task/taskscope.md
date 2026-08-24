@@ -1,37 +1,36 @@
-task: "Fix root layout hydration mismatch"
+task: "Khôi phục hydration boundary cho AuthProvider"
 pipeline: bug_fix
 profile: Quick
-objective: "The /students route hydrates with identical server/client body structure and no removeChild NotFoundError."
+objective: "Trang SSR dưới RootLayout hydrate không có recoverable hydration mismatch và vẫn giữ nguyên bootstrap xác thực."
 
 evidence:
-  current_behavior: "frontend/src/app/layout.tsx:RootLayout plus the supplied Next dev trace -> server body contains a whitespace text node where the client expects Suspense; hydration then throws removeChild NotFoundError."
-  expected_behavior: "RootLayout emits a stable body child tree on SSR and first hydration while providers, page content, toaster, and PWA prompt remain mounted."
-  root_cause: "frontend/src/app/layout.tsx:RootLayout wraps all body content in a root Suspense boundary whose streamed server marker/whitespace structure differs from the initial client tree. AuthProvider uses usePathname/useRouter, not useSearchParams, so this root boundary is not required by that provider."
+  current_behavior: "frontend/src/app/layout.tsx:RootLayout đặt AuthProvider trực tiếp trong body; log /students/* cho thấy server body chỉ có whitespace nhưng client render loading div của frontend/src/providers/auth-provider.tsx:AuthProvider."
+  expected_behavior: "Server/client có boundary ổn định quanh cây AuthProvider và không báo hydration mismatch."
+  root_cause: "Commit b1663a13 bỏ Suspense quanh AuthProvider; AuthProvider phụ thuộc usePathname và render nhánh loading trong lần client đầu, khiến cây client không khớp HTML server rỗng."
 
 scope:
-  inspect: ["frontend/src/app/layout.tsx:RootLayout", "frontend/src/providers/auth-provider.tsx:AuthProvider navigation hooks", "frontend/vitest.config.ts:test environment"]
+  inspect: ["frontend/src/providers/auth-provider.tsx:AuthProvider — xác nhận hook điều hướng và nhánh loading"]
   write: ["frontend/src/app/layout.tsx:RootLayout", "frontend/src/app/layout.test.tsx:RootLayout hydration regression"]
-  preserve: ["provider nesting and auth/RBAC behavior", "metadata/icons", "Toaster and PwaInstallPrompt rendering", "page-local Suspense boundaries"]
-  out: ["backend/API changes", "Next/React upgrades", "auth flow refactor", "unrelated removeChild call sites"]
+  preserve: ["Thứ tự AuthProvider > AppBrandingProvider", "children/Toaster/PwaInstallPrompt", "logic session, redirect và RBAC trong AuthProvider"]
+  out: ["Thay đổi API/backend", "refactor auth/session", "che lỗi bằng suppressHydrationWarning bổ sung"]
 
 acceptance_criteria:
-  - "AC-01: RootLayout server markup and first client hydration complete without hydration-mismatch or removeChild errors."
-  - "AC-02: AuthProvider > AppBrandingProvider nesting and all existing root children remain unchanged."
+  - "AC-01: AuthProvider nằm trong Suspense boundary có fallback xác định; SSR/hydration layout không ghi recoverable mismatch."
+  - "AC-02: Cây provider và các phần tử con vẫn render đúng thứ tự hiện tại."
 
 execution:
-  - "E-01 [AC-01, AC-02] frontend/src/app/layout.tsx:RootLayout -> remove or relocate only the unnecessary root Suspense boundary without changing provider order."
-  - "E-02 [AC-01, AC-02] frontend/src/app/layout.test.tsx:RootLayout hydration regression -> mock client side-effect components/providers, SSR then hydrate, and assert no recoverable hydration error plus preserved children."
+  - "E-01 [AC-01,AC-02] frontend/src/app/layout.tsx:RootLayout → khôi phục Suspense boundary tối thiểu quanh AuthProvider với fallback ổn định."
+  - "E-02 [AC-01,AC-02] frontend/src/app/layout.test.tsx → mở rộng regression để kiểm tra boundary/fallback và cây provider hydrate không lỗi."
 
 temporary_artifacts:
   create: []
   cleanup: []
-  retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
+  retain: ["docs/task/taskscope.md — user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01, AC-02] npm --prefix frontend test -- src/app/layout.test.tsx -> focused test passes with no hydration diagnostic."
-  - "V-02 [AC-01, AC-02] npm --prefix frontend run typecheck -> exits 0."
-  - "V-03 [AC-01] npm --prefix frontend run build -> exits 0 and reports no missing Suspense boundary."
-  - "V-04 [AC-01] npm --prefix frontend run dev, open /students in a clean browser session -> console contains neither hydration-mismatch nor removeChild NotFoundError."
+  - "V-01 [AC-01,AC-02] npm --prefix frontend test -- src/app/layout.test.tsx → test pass, recoverableErrors rỗng."
+  - "V-02 [AC-01,AC-02] npm --prefix frontend run typecheck → exit code 0."
+  - "V-03 [AC-01] npm --prefix frontend run dev rồi mở /students/tasks trong phiên chưa xác thực → console không còn Hydration failed."
 
-risks: ["Removing the global boundary may expose a page that improperly relies on it; the production build is the stop-on-failure check for that case."]
-stop_conditions: ["Build identifies a route requiring the global boundary", "Fix requires a Next/React upgrade or auth/RBAC contract change", "Target paths contain overlapping uncommitted changes before implementation"]
+risks: ["Test jsdom không mô phỏng đầy đủ streaming SSR của Next.js; cần kiểm chứng dev thủ công V-03."]
+stop_conditions: ["Dừng nếu fix cần đổi hành vi xác thực/điều hướng, public contract, hoặc vượt quá hai file frontend đã nêu."]

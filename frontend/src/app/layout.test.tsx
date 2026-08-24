@@ -21,6 +21,7 @@ describe('RootLayout hydration', () => {
 
   it('hydrates the provider tree without recoverable mismatch errors', () => {
     const html = renderToString(<RootLayout><main>Students</main></RootLayout>)
+    expect(html).toContain('<!--$-->')
     document.documentElement.innerHTML = html
     const recoverableErrors: unknown[] = []
 
