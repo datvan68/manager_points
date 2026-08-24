@@ -14,7 +14,7 @@ services:
   frontend:
     build:
       target: development
-    command: npm run dev:webpack -- --hostname 0.0.0.0 --port 3000
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
     cpus: "${FRONTEND_DEV_CPUS:-1.5}"
     mem_limit: "${FRONTEND_DEV_MEMORY:-2g}"
     pids_limit: ${FRONTEND_DEV_PIDS:-512}

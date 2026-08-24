@@ -28,7 +28,6 @@ export class RateLimitModule {
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: (config: ConfigService) => ({
-              isGlobal: true,
               options: {
                 url:
                   config.get<string>('REDIS_URL') ||
@@ -42,9 +41,8 @@ export class RateLimitModule {
 
     const throttlerImports = production
       ? [
-          ...redisImports,
           ThrottlerModule.forRootAsync({
-            imports: [ConfigModule],
+            imports: [ConfigModule, ...redisImports],
             inject: [RedisToken()],
             useFactory: (redis: any) => ({
               throttlers: [
