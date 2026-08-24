@@ -5,7 +5,7 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { createViolationItem, getViolationAddError } from './AddClassReportView';
+import { createViolationItem, getViolationAddError, mergeStudentsById } from './AddClassReportView';
 
 const criteria = [
   { _id: 'one', criterion_name: 'Một' },
@@ -67,5 +67,16 @@ describe('AddClassReportView violation selection', () => {
       student_id: `student-${index}`,
     }));
     expect(getViolationAddError(tenItems, 'student-11', 'criterion-1')).toBe('limit');
+  });
+
+  it('merges rosters from selected classes without duplicate student IDs', () => {
+    const firstClassStudent = { _id: 'student-1', full_name: 'Nguyễn Văn A' } as any;
+    const secondClassStudent = { _id: 'student-2', full_name: 'Trần Văn B' } as any;
+    const refreshedStudent = { _id: 'student-1', full_name: 'Nguyễn Văn A cập nhật' } as any;
+
+    expect(mergeStudentsById([[firstClassStudent], [secondClassStudent, refreshedStudent]])).toEqual([
+      refreshedStudent,
+      secondClassStudent,
+    ]);
   });
 });
