@@ -26,7 +26,7 @@ const Input = React.forwardRef<any, InputProps>(
         {multiline ? (
           <textarea
             className={cn(
-              `flex min-h-[80px] w-full px-3 py-2 text-sm ring-offset-white placeholder:text-slate-400 resize-none ${controlBase}`,
+              `flex min-h-[80px] w-full px-3 py-2 text-sm ring-offset-white placeholder:text-[#64748B]/60 placeholder:font-normal resize-none ${controlBase}`,
               error && "border-red-500 focus-visible:ring-red-500/20 focus-visible:border-red-500",
               className
             )}
@@ -38,7 +38,7 @@ const Input = React.forwardRef<any, InputProps>(
           <input
             type={type}
             className={cn(
-              `flex h-10 w-full px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-400 ${controlBase}`,
+              `flex h-10 w-full px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[#64748B]/60 placeholder:font-normal ${controlBase}`,
               error && "border-red-500 focus-visible:ring-red-500/20 focus-visible:border-red-500",
               className
             )}

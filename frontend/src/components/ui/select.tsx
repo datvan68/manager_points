@@ -325,7 +325,7 @@ export const SelectTrigger = React.forwardRef<any, any>(
           aria-describedby={props["aria-describedby"]}
           aria-invalid={Boolean(error)}
           disabled={disabled}
-          className="w-full bg-transparent border-none outline-none text-xs font-semibold text-[#1E293B] placeholder-slate-400 focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+          className="w-full bg-transparent border-none outline-none text-xs font-semibold text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
           placeholder={placeholder}
           value={displayValue}
           onChange={(e) => {

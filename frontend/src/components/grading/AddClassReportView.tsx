@@ -727,12 +727,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Mã lớp học</label>
                       <Popover open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
                         <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" className="h-10 w-full justify-between rounded-xl border border-white/80 bg-white/50 px-3 text-left text-[12.5px] font-semibold text-[#1E293B] shadow-sm hover:bg-white/70">
-                            <span className="truncate">{classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn mã lớp học...'}</span>
+                          <Button type="button" variant="ghost" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3 text-left text-[12.5px] shadow-sm hover:bg-white/60 transition-all duration-150 ease-out">
+                            <span className={`truncate ${classIds.length > 0 ? 'font-semibold text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
+                              {classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn mã lớp học...'}
+                            </span>
                             <span className="ml-2 text-slate-400">⌄</span>
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-slate-100 bg-white p-2 shadow-xl" align="start">
+                        <PopoverContent className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-white/70 bg-white/90 backdrop-blur-md p-2 shadow-xl" align="start">
                           <Input
                             type="search"
                             role="combobox"
@@ -741,13 +743,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                             value={classSearch}
                             onChange={e => setClassSearch(e.target.value)}
                             placeholder="Nhập tên hoặc mã lớp..."
-                            className="mb-2 h-9 rounded-lg text-[12px]"
+                            className="mb-2 h-9 rounded-xl text-[12px] bg-white/40 border-white/70 backdrop-blur-sm placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70"
                           />
                           <div className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Danh sách lớp học">
                             {filterClassesBySearch(classes, classSearch).map(c => {
                               const selected = classIds.includes(c._id);
                               return (
-                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50 text-slate-700'}`}>
+                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer transition-colors ${selected ? 'bg-blue-50/80 text-blue-800' : 'hover:bg-white/60 text-slate-700'}`}>
                                   <input type="checkbox" checked={selected} onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])} className="accent-blue-600" />
                                   <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
                                 </label>
@@ -769,7 +771,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="Nhập tên giảng viên đứng lớp"
-                      className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
+                      className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-sm transition-all duration-150 ease-out"
                       containerClassName="w-full"
                     />
 
@@ -781,7 +783,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/50 border border-white/80 h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-blue-500/20 transition-all w-full shadow-sm text-left font-sans"
+                            className="bg-white/40 border border-white/70 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out w-full shadow-sm text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
                             <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
@@ -818,7 +820,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     value={classNote}
                     onChange={(e) => setClassNote(e.target.value)}
                     placeholder="Nhập nhận xét chung về tình hình lớp học, mức độ tiếp thu..."
-                    className="bg-white/50 border-white/80 backdrop-blur-sm rounded-xl p-[16px] min-h-[110px] text-[13.5px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 transition-all w-full resize-none shadow-sm font-semibold leading-relaxed placeholder:text-[#64748B]"
+                    className="bg-white/40 border-white/70 backdrop-blur-sm rounded-xl p-[16px] min-h-[110px] text-[13.5px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 transition-all duration-150 ease-out w-full resize-none shadow-sm font-semibold leading-relaxed placeholder:text-[#64748B]/60 placeholder:font-normal"
                     containerClassName="w-full"
                   />
                 </div>
@@ -833,7 +835,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     aria-pressed={entryMode === 'manual'}
                     disabled={isMobile}
                     onClick={() => { if (!isMobile) setEntryMode('manual'); }}
-                    className="rounded-lg h-9 px-4 text-[12px] font-bold"
+                    className={`rounded-xl h-9 px-4 text-[12px] font-bold transition-all duration-150 ease-out ${entryMode === 'manual' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
                   >
                     Nhập thủ công
                   </Button>
@@ -842,7 +844,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     variant={entryMode === 'quick' ? 'default' : 'outline'}
                     aria-pressed={entryMode === 'quick'}
                     onClick={() => setEntryMode('quick')}
-                    className="rounded-lg h-9 px-4 text-[12px] font-bold"
+                    className={`rounded-xl h-9 px-4 text-[12px] font-bold transition-all duration-150 ease-out ${entryMode === 'quick' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
                   >
                     Chọn nhanh nhiều sinh viên
                   </Button>
@@ -867,7 +869,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           error={""}
                         >
                           <SelectTrigger
-                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans"
+                            className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
                             disabled={classIds.length === 0}
                           >
                             <SelectValue placeholder={classIds.length > 0 ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
@@ -875,7 +877,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           <SelectContent 
                             lazyLoad 
                             onLoadMore={handleLoadMoreStudents}
-                            className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60"
+                            className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70"
                           >
                             {classStudents.map(s => (
                               <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
@@ -898,10 +900,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           label="Tiêu chí ghi nhận"
                           error={""}
                         >
-                          <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all hover:bg-white/70 cursor-pointer font-sans">
+                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
                             <SelectValue placeholder="Chọn tiêu chí..." />
                           </SelectTrigger>
-                          <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
+                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
                             {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
                             {orderedCriteria.frequent.map(c => (
                               <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
@@ -921,7 +923,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         value={violationNote}
                         onChange={(e) => setViolationNote(e.target.value)}
                         placeholder="VD: Nhắc nhở lần 1..."
-                        className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B] focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/80 focus-visible:border-blue-400 shadow-sm"
+                        className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-sm transition-all duration-150 ease-out"
                         containerClassName="col-span-12 md:col-span-9 w-full"
                       />
 
@@ -947,10 +949,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                               label="Tiêu chí ghi nhận"
                               error=""
                             >
-                              <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm">
+                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm hover:bg-white/60 transition-all duration-150 ease-out">
                                 <SelectValue placeholder="Chọn tiêu chí..." />
                               </SelectTrigger>
-                              <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
+                              <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
                                 {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
                                 {orderedCriteria.frequent.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
                                 {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
@@ -965,7 +967,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                             onChange={e => handleStudentSearch(e.target.value)}
                             placeholder={classIds.length > 0 ? 'Tìm theo tên hoặc mã sinh viên...' : 'Vui lòng chọn lớp trước...'}
                             disabled={classIds.length === 0}
-                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]"
+                            className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70 transition-all duration-150 ease-out"
                             containerClassName="col-span-12 md:col-span-6 w-full"
                           />
                         </div>
@@ -983,7 +985,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 aria-pressed={selected}
                                 disabled={!selectedCriterionId}
                                 onClick={() => handleToggleQuickStudent(student)}
-                                className={`text-left rounded-xl border px-3 py-2 transition-colors ${selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 bg-white/60 hover:border-blue-300'} disabled:cursor-not-allowed disabled:opacity-60`}
+                                className={`text-left rounded-xl border px-3 py-2 transition-all duration-150 ease-out ${selected ? 'border-rose-400/80 bg-rose-50/70 text-rose-800 shadow-xs' : 'border-white/70 bg-white/40 backdrop-blur-xs hover:border-blue-400/60 hover:bg-white/60 text-[#1E293B]'} disabled:cursor-not-allowed disabled:opacity-60`}
                               >
                                 <span className="flex min-w-0 items-center justify-between gap-2 text-[13px] font-bold"><span className="min-w-0 truncate">{student.full_name}</span>{selected && <span className="shrink-0 text-[11px] font-bold text-red-600">Đã chọn</span>}</span>
                                 <span className="block text-[11px] text-slate-500">MSSV: {student.student_code}</span>
@@ -993,7 +995,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-6 text-center text-[12px] text-slate-400 italic">Không tìm thấy sinh viên.</div>}
                         </div>
                         {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
-                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-8 rounded-lg text-[11px]">Tải thêm sinh viên</Button>
+                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-8 rounded-xl text-[11px] border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
                         )}
                         <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                       </div>
@@ -1002,10 +1004,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                   {entryMode === 'manual' && <>
                   {/* Violation Table */}
-                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-sm bg-white/15">
+                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-sm bg-white/15 backdrop-blur-xs">
                     <table className="w-full text-left border-collapse min-w-max">
                       <thead>
-                        <tr className="bg-white/50 backdrop-blur-sm border-b border-white/60">
+                        <tr className="bg-white/40 backdrop-blur-sm border-b border-white/60">
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">HỌ TÊN</th>
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">TIÊU CHÍ</th>
                           <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">GHI CHÚ</th>
@@ -1025,7 +1027,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-white/65 hover:scale-[1.002] transition-all duration-150 ease-out">
+                            <tr key={idx} className="hover:bg-white/50 hover:scale-[1.002] transition-all duration-150 ease-out">
                               <td className="px-[20px] py-[12px] font-semibold text-[#111c2d] text-[13.5px]">
                                 <div className="flex flex-col">
                                   <span>{violation.student_name}</span>
@@ -1045,7 +1047,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/50 border border-white/80 shadow-sm outline-none cursor-pointer mx-auto"
+                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-sm outline-none cursor-pointer mx-auto"
                                   title="Xóa vi phạm"
                                 >
                                   <Trash2 className="w-[14px] h-[16px]" />
@@ -1099,7 +1101,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         )}
                       </strong></span>
                     </div>
-                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-xl text-[11px] min-w-[90px] text-center">
+                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-xl text-[11px] min-w-[90px] text-center border border-emerald-100">
                       {isStudentsLoading ? (
                         <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-middle" />
                       ) : (
@@ -1109,62 +1111,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
                 </div>
               </div>
-
-              {/* Dialog cấu hình tiêu chí vắng mặt */}
-              {/* <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
-                <DialogContent className="max-w-[480px] rounded-[20px] border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-                  <DialogTitle className="text-[17px] font-bold text-slate-800 flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-rose-500" />
-                    Cấu hình tiêu chí tính vắng mặt
-                  </DialogTitle>
-                  <DialogDescription className="text-[13px] text-slate-500 mt-1">
-                    Chọn các tiêu chí kỷ luật dùng để xác định sinh viên vắng học (ảnh hưởng tới việc tự động tính toán sĩ số vắng mặt/hiện diện).
-                  </DialogDescription>
-                  <div className="mt-4 max-h-[250px] overflow-y-auto pr-2 flex flex-col gap-2.5">
-                    {criteria.map((c) => {
-                      const isChecked = absentCriteriaIds.includes(c._id);
-                      return (
-                        <label
-                          key={c._id}
-                          className={`flex items-center justify-between p-3 rounded-xl border text-[13px] font-medium transition-all cursor-pointer select-none ${isChecked
-                              ? 'bg-rose-50/50 border-rose-200/80 text-rose-700 shadow-sm'
-                              : 'bg-slate-50/30 border-slate-100 text-slate-700 hover:bg-slate-50/85'
-                            }`}
-                        >
-                          <span className="flex-1 pr-3">{c.criterion_name}</span>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAbsentCriteriaIds(prev => [...prev, c._id]);
-                              } else {
-                                setAbsentCriteriaIds(prev => prev.filter(id => id !== c._id));
-                              }
-                            }}
-                            className="w-4 h-4 rounded text-rose-600 border-slate-300 focus:ring-rose-500/20 cursor-pointer accent-rose-600"
-                          />
-                        </label>
-                      );
-                    })}
-                    {criteria.length === 0 && (
-                      <div className="text-center py-6 text-slate-400 italic text-[12.5px]">
-                        Không tìm thấy tiêu chí kỷ luật nào.
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-6 flex justify-end">
-                    <Button
-                      type="button"
-                      onClick={() => setIsConfigModalOpen(false)}
-                      className="bg-slate-900 text-white font-semibold rounded-full px-5 py-1.5 hover:bg-slate-800 text-[12.5px] cursor-pointer"
-                    >
-                      Hoàn tất
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog> */}
-
             </div>
 
             {/* Footer Actions Panel */}
@@ -1181,7 +1127,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   type="button"
                   variant="outline"
                   onClick={onBack}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/30 hover:bg-white/80 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
+                  className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
                 </Button>
