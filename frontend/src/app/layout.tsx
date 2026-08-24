@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import '../globals.css'
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/providers/auth-provider'
-import { Suspense } from 'react'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 import { AppBrandingProvider } from '@/providers/app-branding-provider'
 
@@ -41,15 +40,13 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <Suspense fallback={null}>
-          <AuthProvider>
-            <AppBrandingProvider>
-              {children}
-              <Toaster position="top-right" richColors />
-              <PwaInstallPrompt />
-            </AppBrandingProvider>
-          </AuthProvider>
-        </Suspense>
+        <AuthProvider>
+          <AppBrandingProvider>
+            {children}
+            <Toaster position="top-right" richColors />
+            <PwaInstallPrompt />
+          </AppBrandingProvider>
+        </AuthProvider>
       </body>
     </html>
   )
