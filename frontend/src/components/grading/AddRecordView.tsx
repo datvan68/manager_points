@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
@@ -18,9 +18,9 @@ import { academicRecordApi, AcademicRecord } from '@/api/academic-record-api';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
-import { departmentApi, Department } from '@/api/department-api';
 import { useAuth } from '@/providers/auth-provider';
 import { useLinkedTaskProgress } from '@/hooks/useLinkedTaskProgress';
+import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 
 interface ViolationItem {
   student_id: string;
@@ -51,14 +51,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   const [classes, setClasses] = useState<Class[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [criterionUsage, setCriterionUsage] = useState<CriterionUsage>({});
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isStudentsLoading, setIsStudentsLoading] = useState(false);
 
   // Card Trái (Thông tin cơ bản)
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [department, setDepartment] = useState('');
   const [classId, setClassId] = useState('');
   const [category, setCategory] = useState('ky_luat'); // 'ky_luat' hoặc 'khen_thuong'
   const [criterionId, setCriterionId] = useState('');
@@ -73,6 +72,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   const isEditMode = Boolean(recordToEdit && recordToEdit._id);
 
+  useEffect(() => {
+    setCriterionUsage(readCriterionUsage(user?.id));
+  }, [user?.id]);
+
   // Load classes, students, criteria
   useEffect(() => {
     async function loadData() {
@@ -80,13 +83,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       try {
         const classList = await classApi.getClasses();
         setClasses(classList);
-
-        try {
-          const departmentList = await departmentApi.getDepartments();
-          setDepartments(departmentList);
-        } catch (deptErr) {
-          console.warn('Lỗi khi nạp danh sách Khoa:', deptErr);
-        }
 
         const criteriaList = await criteriaApi.getCriteria();
         setCriteria(criteriaList);
@@ -110,22 +106,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
           
           // Resolve class from student object or by calling student API
           let classIdFromRecord = '';
-          let departmentIdFromRecord = '';
           if (studentObj?.class_id) {
             classIdFromRecord = typeof studentObj.class_id === 'object' ? studentObj.class_id?._id : studentObj.class_id;
-            const classObj = typeof studentObj.class_id === 'object' ? studentObj.class_id : classList.find(c => c._id === classIdFromRecord);
-            if (classObj && classObj.dept_id) {
-              departmentIdFromRecord = typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id;
-            }
           } else if (studentIdStr) {
             try {
               const sObj = await studentApi.getStudent(studentIdStr);
               if (sObj) {
                 classIdFromRecord = typeof sObj.class_id === 'object' ? sObj.class_id?._id : sObj.class_id;
-                const classObj = typeof sObj.class_id === 'object' ? sObj.class_id : classList.find(c => c._id === classIdFromRecord);
-                if (classObj && classObj.dept_id) {
-                  departmentIdFromRecord = typeof classObj.dept_id === 'object' ? classObj.dept_id?._id : classObj.dept_id;
-                }
               }
             } catch (err) {
               console.warn('Lỗi phân giải lớp từ sinh viên:', err);
@@ -148,9 +135,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             ? recordToEdit.semester_id?._id
             : recordToEdit.semester_id;
 
-          if (departmentIdFromRecord) {
-            setDepartment(String(departmentIdFromRecord));
-          }
           if (classIdFromRecord) {
             setClassId(classIdFromRecord);
           }
@@ -227,20 +211,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     setAddedViolations([]);
   };
 
-  const handleDepartmentChange = (nextDeptId: string) => {
-    setDepartment(nextDeptId);
-    setClassId('');
-    setSelectedStudentId('');
-    setViolationNote('');
-    setAddedViolations([]);
-  };
-
-  const filteredClasses = classes.filter(c => {
-    if (!department) return false;
-    const cDeptId = typeof c.dept_id === 'object' ? c.dept_id?._id : c.dept_id;
-    return cDeptId === department;
-  });
-
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
     setSelectedStudentId('');
@@ -283,6 +253,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Lọc danh sách tiêu chí (lấy tất cả không cần qua danh mục)
   const filteredCriteria = criteria;
+
+  const handleCriterionChange = (nextCriterionId: string) => {
+    setCriterionId(nextCriterionId);
+    setCriterionUsage(incrementCriterionUsage(user?.id, nextCriterionId));
+  };
+
+  const orderedCriteria = orderCriteriaByUsage(filteredCriteria, criterionUsage);
 
   // Reset tiêu chí khi đổi danh mục
   useEffect(() => {
@@ -514,29 +491,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   </div>
 
                   <div className="flex flex-col gap-3.5 w-full">
-                    {/* Khoa học sử dụng Select Component */}
-                    <div className="flex flex-col w-full relative">
-                      <Select
-                        value={department}
-                        onValueChange={handleDepartmentChange}
-                        label="Khoa"
-                        required
-                        error={""}
-                      >
-                        <SelectTrigger className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none focus-within:ring-0 focus-within:border-white/80 transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer w-full shadow-xs">
-                          <SelectValue placeholder="Chọn Khoa..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70">
-                          {departments.map(d => (
-                            <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
-                          ))}
-                          {departments.length === 0 && (
-                            <div className="p-4 text-center text-xs text-slate-400 italic">Không có khoa nào</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
                     {/* Lớp học sử dụng Select Component */}
                     <div className="flex flex-col w-full relative">
                       <Select
@@ -550,14 +504,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70">
-                          {filteredClasses.map(c => (
+                          {classes.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.class_name}</SelectItem>
                           ))}
-                          {filteredClasses.length === 0 && (
-                            <div className="p-4 text-center text-xs text-slate-400 italic">
-                              {department ? 'Không có lớp học nào thuộc khoa này' : 'Vui lòng chọn Khoa trước'}
-                            </div>
-                          )}
+                          {classes.length === 0 && <div className="p-4 text-center text-xs text-slate-400 italic">Không có lớp học nào</div>}
                         </SelectContent>
                       </Select>
                     </div>
@@ -566,7 +516,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                     <div className="flex flex-col w-full relative">
                       <Select
                         value={criterionId}
-                        onValueChange={setCriterionId}
+                        onValueChange={handleCriterionChange}
                         label="Tiêu chí ghi nhận"
                         required
                         error={""}
@@ -575,7 +525,12 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           <SelectValue placeholder="Chọn tiêu chí..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
-                          {filteredCriteria.map(c => (
+                          {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                          {orderedCriteria.frequent.map(c => (
+                            <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || 0}đ)</SelectItem>
+                          ))}
+                          {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                          {orderedCriteria.remaining.map(c => (
                             <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || 0}đ)</SelectItem>
                           ))}
                           {filteredCriteria.length === 0 && (

@@ -1,43 +1,43 @@
-task: "Kết thúc quyền truy cập từ danh sách tài khoản"
+task: "Đơn giản hóa form ghi nhận và ưu tiên tiêu chí dùng nhiều"
 pipeline: feature_development
 profile: Full
-objective: "Tài khoản đang có impersonation session hiển thị icon X màu đỏ; admin xác nhận để chấm dứt ngay toàn bộ quyền truy cập của phiên đó."
+objective: "Hai form ghi nhận dùng chung tối đa 3 tiêu chí được tài khoản hiện tại chọn nhiều nhất; form Thêm Ghi nhận Rèn luyện bắt đầu từ chọn Lớp và form đánh giá lớp giữ ghi chú sau khi thêm."
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/permissions/page.tsx:actions tô đỏ khi is_under_impersonation=true nhưng luôn render LogIn và gọi handleAccessUser; POST /auth/impersonations/cancel chỉ nhận browser session của handoff do chính actor tạo."
-  expected_behavior: "Tài khoản không bị truy cập dùng LogIn màu xanh; tài khoản đang bị truy cập dùng X màu đỏ, mở ConfirmModal và chỉ sau xác nhận mới kết thúc lease, thu hồi token rồi làm mới trạng thái."
-  root_cause: "Danh sách chỉ có cờ is_under_impersonation và chưa có API quản trị kết thúc active session theo subject_user_id; cancelImpersonation không phải contract cho phiên đã bàn giao."
+  current_behavior: "frontend/src/components/grading/AddClassReportView.tsx render criteria theo thứ tự API và handleAddViolationToList reset violationNote; frontend/src/components/grading/AddRecordView.tsx tải Khoa, bắt buộc Khoa để lọc Lớp, render criteria theo thứ tự API."
+  expected_behavior: "Lịch sử chọn tiêu chí dùng chung giữa hai form, tách theo user.id và hiển thị tối đa 3 mục dưới nhãn 'Sử dụng nhiều'; AddRecordView bỏ toàn bộ trường/phụ thuộc Khoa và cho chọn trực tiếp mọi Lớp; AddClassReportView không xóa ghi chú khi Thêm thành công."
+  root_cause: "Hai component chưa có abstraction lưu/xếp usage; AddRecordView giữ department state/API/filter; AddClassReportView gọi setViolationNote('') sau khi thêm."
 
 scope:
-  inspect: ["backend/src/auth/schemas/impersonation-session.schema.ts:index/active-session contract"]
-  write: ["backend/src/auth/dto/auth.dto.ts:TerminateImpersonationDto", "backend/src/auth/controllers/auth.controller.ts:terminateImpersonation", "backend/src/auth/services/auth.service.ts:terminateImpersonation", "backend/src/auth/services/impersonation.service.ts:releaseActiveForSubject", "backend/src/auth/test/auth.controller.spec.ts", "backend/src/auth/test/auth.service.spec.ts", "backend/src/auth/test/impersonation.service.spec.ts", "backend/src/auth/test/auth-security.spec.ts", "frontend/src/api/auth-api.ts:terminateImpersonation", "frontend/src/api/auth-api.test.ts", "frontend/src/app/(dashboard)/permissions/page.tsx:actions/ConfirmModal", "frontend/src/app/(dashboard)/permissions/impersonation-flow.test.tsx"]
-  preserve: ["StrictAdminGuard và yêu cầu role_code ADMIN", "cancel handoff theo browser session", "logout/refresh/fork hiện hữu", "giới hạn và uniqueness impersonation", "nút xem/sửa/xóa tài khoản"]
-  out: ["đóng cưỡng bức tab trình duyệt từ xa", "realtime/WebSocket", "schema/index/migration", "lịch sử quản lý phiên mới"]
+  inspect: ["frontend/src/providers/auth-provider.tsx:UserInfo.id", "frontend/src/components/ui/select.tsx:SelectLabel/SelectSeparator", "frontend/src/api/class-api.ts:Class"]
+  write: ["frontend/src/components/grading/criterion-usage.ts:new shared per-user usage helpers", "frontend/src/components/grading/AddClassReportView.tsx:criteria Select/handleAddViolationToList", "frontend/src/components/grading/AddRecordView.tsx:basic-info fields/data loading/criteria Select", "frontend/src/components/grading/AddClassReportView.test.tsx:new focused tests", "frontend/src/components/grading/AddRecordView.test.tsx:new focused tests"]
+  preserve: ["Tất cả tiêu chí API vẫn xuất hiện đúng một lần và chọn được", "Validation, chống trùng, payload, edit mode, RBAC và API contracts", "AddClassReportView vẫn reset sinh viên/tiêu chí sau Thêm", "AddRecordView giữ hành vi reset sinh viên/ghi chú khi đổi Lớp và sau Thêm"]
+  out: ["Backend/API/schema", "Đồng bộ lịch sử giữa thiết bị/trình duyệt", "Thay đổi Select dùng chung", "Bỏ Khoa ở trang khác"]
 
 acceptance_criteria:
-  - "AC-01: User có is_under_impersonation=true hiển thị nút X màu đỏ với accessible label/title 'Kết thúc truy cập'; user false vẫn hiển thị LogIn màu xanh."
-  - "AC-02: Click X chỉ mở ConfirmModal; hủy không gọi API, xác nhận gọi API bằng target_user_id và bearer token admin."
-  - "AC-03: Endpoint được StrictAdminGuard bảo vệ, chỉ kết thúc active/unexpired session của target, ghi audit lý do admin_terminated và thu hồi mọi refresh token liên kết; request lặp lại trả kết quả không thay đổi an toàn."
-  - "AC-04: Thành công thông báo, đóng modal và fetch lại danh sách; lỗi giữ trạng thái hiện tại, hiển thị thông báo an toàn và cho phép thử lại."
+  - "AC-01: Lịch sử chọn tiêu chí dùng một localStorage key theo user.id, được cả hai form đọc/ghi; mỗi onValueChange tăng count, dữ liệu thiếu/hỏng fallback rỗng không làm lỗi."
+  - "AC-02: Mỗi menu Tiêu chí ghi nhận hiển thị tối đa 3 tiêu chí count cao nhất dưới nhãn 'Sử dụng nhiều', tie giữ thứ tự API, rồi các tiêu chí còn lại; không lặp mục và không hiện nhóm khi chưa có usage hợp lệ."
+  - "AC-03: Thông tin cơ bản của AddRecordView không render Khoa; Lớp là select đầu tiên, chứa toàn bộ classes từ classApi và không gọi departmentApi."
+  - "AC-04: AddClassReportView giữ nguyên Ghi chú chi tiết sau Thêm thành công; người dùng vẫn sửa/xóa được và validation thất bại không đổi ghi chú."
 
 execution:
-  - "E-01 [AC-03] DTO/controller/service → thêm POST /auth/impersonations/terminate nhận target_user_id đã validate; release theo subject rồi revokeAllImpersonationTokens."
-  - "E-02 [AC-03] backend tests → khóa guard, ownership-independent target termination, active/stale/idempotent behavior, audit và token revocation."
-  - "E-03 [AC-02,AC-04] auth-api → thêm typed terminateImpersonation(targetUserId, accessToken) và contract test không rò token vào URL/body ngoài bearer."
-  - "E-04 [AC-01,AC-02,AC-04] permissions page → phân nhánh LogIn/X, cấu hình ConfirmModal, pending state, toast và fetchData sau thành công; mở rộng flow test."
-  - "E-05 [AC-03] independent security review → xác nhận impersonated token bị StrictAdminGuard từ chối và việc chấm dứt không nới quyền/API khác."
+  - "E-01 [AC-01,AC-02] criterion-usage.ts → định nghĩa storage key theo user.id, parse/validate counts, increment và stable top-3 partition dùng chung."
+  - "E-02 [AC-01,AC-02,AC-04] AddClassReportView.tsx → dùng helper trong criterion onValueChange/render SelectLabel + SelectSeparator; bỏ reset violationNote sau Thêm."
+  - "E-03 [AC-01,AC-02,AC-03] AddRecordView.tsx → bỏ department imports/state/fetch/edit-resolution/handler/filter/UI; render classes trực tiếp và tích hợp cùng helper/usage key cho tiêu chí."
+  - "E-04 [AC-01,AC-02,AC-04] AddClassReportView.test.tsx → khóa shared usage, top 3/no duplicate/malformed storage và giữ/sửa/xóa ghi chú."
+  - "E-05 [AC-01,AC-02,AC-03] AddRecordView.test.tsx → khóa không có Khoa/department API, Lớp đầu tiên có đủ dữ liệu và cùng lịch sử tiêu chí."
+  - "E-06 [AC-01..AC-04] independent review → đối chiếu diff với preserve/out và xác nhận hai form dùng cùng storage contract."
 
 temporary_artifacts:
-  create: []
+  create: ["docs/task/taskscope.md"]
   cleanup: []
-  retain: ["docs/task/taskscope.md — user-requested rolling taskscope"]
+  retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-03] npm --prefix backend test -- auth/test/impersonation.service.spec.ts auth/test/auth.service.spec.ts auth/test/auth.controller.spec.ts auth/test/auth-security.spec.ts --runInBand → pass."
-  - "V-02 [AC-02,AC-04] npm --prefix frontend test -- src/api/auth-api.test.ts → pass."
-  - "V-03 [AC-01,AC-02,AC-04] npm --prefix frontend test -- 'src/app/(dashboard)/permissions/impersonation-flow.test.tsx' → pass."
-  - "V-04 [AC-03] npm --prefix backend run build → exit code 0."
-  - "V-05 [AC-01,AC-02,AC-04] npm --prefix frontend run typecheck → exit code 0."
+  - "V-01 [AC-01,AC-02,AC-04] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx → Vitest pass."
+  - "V-02 [AC-01,AC-02,AC-03] npm --prefix frontend test -- src/components/grading/AddRecordView.test.tsx → Vitest pass."
+  - "V-03 [AC-01..AC-04] npm --prefix frontend run typecheck → exit 0."
+  - "V-04 [AC-01..AC-04] git diff --check -- frontend/src/components/grading → exit 0; review không có thay đổi ngoài scope."
 
-risks: ["Đây là thao tác authorization/concurrency: phải kết thúc đúng một active subject session và thu hồi token trước khi báo thành công.", "Không thể đóng tab từ xa; quyền bị vô hiệu ở request kế tiếp nhờ JWT strategy kiểm tra lease."]
-stop_conditions: ["Dừng nếu yêu cầu cho phép role ngoài ADMIN, thay schema/index, trả chi tiết phiên nhạy cảm, hoặc cần đóng tab/realtime đa trình duyệt."]
+risks: ["localStorage chỉ phản ánh lịch sử trên trình duyệt hiện tại; key theo user.id ngăn trộn tài khoản.", "Bỏ bộ lọc Khoa làm danh sách Lớp dài hơn nhưng không thay đổi dữ liệu hoặc class API."]
+stop_conditions: ["Dừng nếu yêu cầu lịch sử xuyên thiết bị/backend, lớp phải giới hạn theo quyền/Khoa ngoài dữ liệu classApi hiện tại, cần đổi API/schema, hoặc phải sửa Select dùng chung."]

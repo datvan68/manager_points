@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
@@ -19,6 +19,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
+import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 
 interface ViolationItem {
   student_id: string;
@@ -115,6 +116,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [classes, setClasses] = useState<Class[]>([]);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [criterionUsage, setCriterionUsage] = useState<CriterionUsage>({});
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -135,6 +137,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
+
+  useEffect(() => {
+    setCriterionUsage(readCriterionUsage(user?.id));
+  }, [user?.id]);
 
   // Cấu hình tiêu chí vắng mặt
   const [absentCriteriaIds, setAbsentCriteriaIds] = useState<string[]>([]);
@@ -408,10 +414,16 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       // Reset inputs
       setSelectedStudentId('');
       setSelectedCriterionId('');
-      setViolationNote('');
       toast.success('Đã thêm vi phạm vào danh sách!');
     }
   };
+
+  const handleCriterionChange = (nextCriterionId: string) => {
+    setSelectedCriterionId(nextCriterionId);
+    setCriterionUsage(incrementCriterionUsage(user?.id, nextCriterionId));
+  };
+
+  const orderedCriteria = orderCriteriaByUsage(criteria, criterionUsage);
 
   // Xóa vi phạm khỏi danh sách tạm
   const handleRemoveViolationFromList = (index: number) => {
@@ -721,7 +733,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
                         <Select
                           value={selectedCriterionId}
-                          onValueChange={setSelectedCriterionId}
+                          onValueChange={handleCriterionChange}
                           label="Tiêu chí ghi nhận"
                           error={""}
                         >
@@ -729,7 +741,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                             <SelectValue placeholder="Chọn tiêu chí..." />
                           </SelectTrigger>
                           <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
-                            {criteria.map(c => (
+                            {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                            {orderedCriteria.frequent.map(c => (
+                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
+                            ))}
+                            {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                            {orderedCriteria.remaining.map(c => (
                               <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
                             ))}
                           </SelectContent>
