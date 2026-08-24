@@ -64,29 +64,41 @@ function StudentTasksPageContent() {
           {/* Sub-tabs for Navigation inside Tasks */}
           {canViewProgress && (
             <div className="flex items-center gap-2 mb-3 w-full shrink-0">
-              <div className="flex items-center gap-2 bg-white/40 p-1 rounded-xl border border-white/70 backdrop-blur-md shadow-sm">
-              <button
-                onClick={() => setInternalTab('tasks')}
-                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
-                  internalTab === 'tasks' 
-                    ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
-                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
-                }`}
-              >
-                Danh sách nhiệm vụ
-              </button>
-              <button
-                onClick={() => setInternalTab('progress')}
-                className={`flex-1 sm:flex-initial text-center px-4 py-1.5 text-sm font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] outline-none focus:outline-none focus-visible:outline-none select-none border ${
-                  internalTab === 'progress' 
-                    ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
-                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
-                }`}
-              >
-                Theo dõi thực hiện
-              </button>
+              <div className="flex items-center gap-1 p-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl shadow-xs shrink-0 h-9 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setInternalTab('tasks')}
+                  className={`flex items-center justify-center text-center px-4 h-7 text-xs rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer whitespace-nowrap shrink-0 ${
+                    internalTab === 'tasks'
+                      ? 'bg-white text-slate-800 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                  }`}
+                >
+                  <span className="whitespace-nowrap">Nhiệm vụ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInternalTab('progress')}
+                  className={`flex items-center justify-center text-center px-4 h-7 text-xs rounded-lg transition-all duration-150 ease-out outline-none focus:outline-none select-none cursor-pointer whitespace-nowrap shrink-0 ${
+                    internalTab === 'progress'
+                      ? 'bg-white text-slate-800 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60 font-medium'
+                  }`}
+                >
+                  <span className="whitespace-nowrap">Theo dõi</span>
+                </button>
               </div>
-              <button type="button" onClick={() => internalTab === 'tasks' ? setShowTaskStats(v => !v) : setShowProgressStats(v => !v)} aria-label="Bật hoặc tắt thống kê nhanh" title="Thống kê nhanh" className={`flex h-9 w-9 items-center justify-center rounded-xl border bg-white/40 ${(internalTab === 'tasks' ? showTaskStats : showProgressStats) ? 'border-[#1A73E8] text-[#1A73E8]' : 'border-white/70 text-[#64748B]'}`}>
+              <button
+                type="button"
+                onClick={() => internalTab === 'tasks' ? setShowTaskStats(v => !v) : setShowProgressStats(v => !v)}
+                aria-label="Bật hoặc tắt thống kê nhanh"
+                title="Thống kê nhanh"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-150 ease-out cursor-pointer shadow-xs ${
+                  (internalTab === 'tasks' ? showTaskStats : showProgressStats)
+                    ? 'bg-white border-[#1A73E8] text-[#1A73E8]'
+                    : 'bg-white/40 border-white/70 text-[#64748B] hover:bg-white/60 hover:text-slate-900'
+                }`}
+              >
                 <BarChart3 size={16} />
               </button>
             </div>

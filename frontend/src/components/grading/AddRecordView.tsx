@@ -569,11 +569,8 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
             <div className="flex flex-col items-start min-w-0">
               <h2 className="font-bold text-lg lg:text-xl text-[#1A73E8] leading-tight truncate">
-                {isEditMode ? 'Chỉnh sửa Ghi nhận Rèn luyện' : 'Thêm Ghi nhận Rèn luyện'}
+                {isEditMode ? 'Chỉnh sửa ghi nhận HSSV' : 'Ghi nhận HSSV'}
               </h2>
-              <p className="font-medium text-slate-500 text-xs lg:text-[13px] leading-relaxed">
-                {isEditMode ? 'Cập nhật thông tin ghi nhận hiện tại của sinh viên' : 'Ghi nhận khen thưởng hoặc vi phạm của sinh viên'}
-              </p>
             </div>
           </div>
           <div className="flex items-center sm:justify-end shrink-0">
