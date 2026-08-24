@@ -31,6 +31,7 @@ const mockImpersonationService = {
   recordStarted: jest.fn(),
   release: jest.fn(),
   recordGuardDenied: jest.fn(),
+  getActiveSubjectUserIds: jest.fn().mockResolvedValue(new Set()),
 };
 
 describe('Auth Security (Student Account Policies)', () => {
@@ -996,6 +997,38 @@ describe('Auth Security (Student Account Policies)', () => {
         expect(regularUser.display_name).toBe('teacher1');
         expect(regularUser.student_profile).toBeUndefined();
         expect(regularUser.user_name).toBe('teacher1');
+        expect(studentUser.is_under_impersonation).toBe(false);
+        expect(regularUser.is_under_impersonation).toBe(false);
+      });
+
+      it('marks only active, unexpired impersonation subjects', async () => {
+        const subjectId = new Types.ObjectId();
+        const staleId = new Types.ObjectId();
+        const mockUsers = [subjectId, staleId].map((id) => ({
+          _id: id,
+          user_name: id.toString(),
+          role: mockRole,
+          toObject() {
+            return { ...this };
+          },
+        }));
+        userModel.find.mockReturnValue({
+          populate: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue(mockUsers),
+        });
+        studentModel.find.mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        });
+        mockImpersonationService.getActiveSubjectUserIds.mockResolvedValue(
+          new Set([subjectId.toString()]),
+        );
+
+        const result = await authService.getUsers();
+
+        expect(result.find((u) => u._id.equals(subjectId)).is_under_impersonation).toBe(true);
+        expect(result.find((u) => u._id.equals(staleId)).is_under_impersonation).toBe(false);
+        expect(mockImpersonationService.getActiveSubjectUserIds).toHaveBeenCalled();
       });
     });
 

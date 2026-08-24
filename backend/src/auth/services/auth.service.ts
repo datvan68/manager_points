@@ -723,6 +723,8 @@ export class AuthService implements OnModuleInit {
     const students = await this.studentModel
       .find({ user_id: { $in: userIds } })
       .exec();
+    const impersonatedSubjectIds =
+      await this.impersonationService.getActiveSubjectUserIds();
 
     const studentMap = new Map();
     for (const student of students) {
@@ -733,6 +735,9 @@ export class AuthService implements OnModuleInit {
 
     return users.map((user) => {
       const userObj = user.toObject() as any;
+      userObj.is_under_impersonation = impersonatedSubjectIds.has(
+        user._id.toString(),
+      );
       const student = studentMap.get(user._id.toString());
       if (student) {
         userObj.display_name = student.full_name;

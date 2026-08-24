@@ -96,6 +96,9 @@ describe('ImpersonationService', () => {
             () => sessions.find((session) => matches(session, filter)) || null,
           ),
         ),
+      find: jest.fn().mockImplementation((filter) =>
+        query(() => sessions.filter((session) => matches(session, filter))),
+      ),
       create: jest.fn().mockImplementation((input) => {
         const collision = sessions.some(
           (session) =>
@@ -267,6 +270,27 @@ describe('ImpersonationService', () => {
     ).resolves.toBe(session);
     expect(session.status).toBe(ImpersonationSessionStatus.ENDED);
     expect(session.ended_reason).toBe('handoff_timeout');
+  });
+
+  it('returns only active subjects with an unexpired lease', async () => {
+    const activeTargetId = [...users.keys()][1];
+    const staleTargetId = [...users.keys()][2];
+    sessions.push(
+      {
+        subject_user_id: new Types.ObjectId(activeTargetId),
+        status: ImpersonationSessionStatus.ACTIVE,
+        expires_at: new Date(Date.now() + 60_000),
+      },
+      {
+        subject_user_id: new Types.ObjectId(staleTargetId),
+        status: ImpersonationSessionStatus.ACTIVE,
+        expires_at: new Date(Date.now() - 1),
+      },
+    );
+
+    await expect(service.getActiveSubjectUserIds()).resolves.toEqual(
+      new Set([activeTargetId]),
+    );
   });
 
   it('requires the current actor role_code ADMIN even with other admin signals', async () => {

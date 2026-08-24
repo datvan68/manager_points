@@ -1226,9 +1226,13 @@ function PermissionsPageContent() {
               type="button"
               onClick={() => handleAccessUser(u)}
               disabled={accessingUserId !== null}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-xl border border-blue-200/70 bg-blue-50/70 text-[11px] font-bold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={`Truy cập tài khoản ${getUserDisplayName(u)}`}
-              title={`Truy cập tài khoản ${getUserDisplayName(u)}`}
+              className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                u.is_under_impersonation
+                  ? 'border-red-200/70 bg-red-50/70 text-red-700 hover:bg-red-100'
+                  : 'border-blue-200/70 bg-blue-50/70 text-blue-700 hover:bg-blue-100'
+              }`}
+              aria-label={`${u.is_under_impersonation ? 'Đang được truy cập: ' : 'Truy cập tài khoản '}${getUserDisplayName(u)}`}
+              title={`${u.is_under_impersonation ? 'Đang được truy cập: ' : 'Truy cập tài khoản '}${getUserDisplayName(u)}`}
             >
               {accessingUserId === (u._id || u.id) ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

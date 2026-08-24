@@ -294,6 +294,17 @@ export class ImpersonationService implements OnModuleInit {
     });
   }
 
+  async getActiveSubjectUserIds(now = new Date()): Promise<Set<string>> {
+    const sessions = await this.sessionModel
+      .find({
+        status: ImpersonationSessionStatus.ACTIVE,
+        expires_at: { $gt: now },
+      })
+      .exec();
+
+    return new Set(sessions.map((session) => session.subject_user_id.toString()));
+  }
+
   private async expireStaleSessions(now: Date): Promise<void> {
     await this.sessionModel.updateMany(
       {

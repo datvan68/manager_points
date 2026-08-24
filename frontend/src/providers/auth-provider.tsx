@@ -52,7 +52,12 @@ if (tabPresenceChannel) {
 }
 
 async function isolateDuplicatedTab(): Promise<void> {
-  if (!tabPresenceChannel || !tokenStorage.getAccessToken()) return;
+  const storedUser = tokenStorage.getUser();
+  if (
+    !tabPresenceChannel ||
+    !tokenStorage.getAccessToken() ||
+    storedUser?.impersonation?.id
+  ) return;
   const sourceSessionId = tokenStorage.getSessionId();
   const duplicateDetected = await new Promise<boolean>((resolve) => {
     let found = false;

@@ -123,6 +123,22 @@ describe('permissions user impersonation action', () => {
     expect(screen.queryAllByRole('button', { name: /Truy cập tài khoản/ })).toHaveLength(0);
   });
 
+  it('marks the active impersonation target red and other targets blue', async () => {
+    apiMocks.getUsers.mockResolvedValueOnce([
+      { _id: 'target-1', user_name: 'active-target', status: 'active', is_under_impersonation: true },
+      { _id: 'target-2', user_name: 'other-target', status: 'active', is_under_impersonation: false },
+    ]);
+    render(<PermissionsPage />);
+
+    const activeButton = (await screen.findAllByRole('button', { name: /Đang được truy cập: active-target/ }))
+      .find((button) => button.classList.contains('text-red-700'))!;
+    const otherButton = (await screen.findAllByRole('button', { name: /Truy cập tài khoản other-target/ }))
+      .find((button) => button.classList.contains('text-blue-700'))!;
+    expect(activeButton).toHaveClass('text-red-700');
+    expect(activeButton).toHaveAttribute('title', 'Đang được truy cập: active-target');
+    expect(otherButton).toHaveClass('text-blue-700');
+  });
+
   it('hides the action when ADMIN_FULL is present without the persisted ADMIN role code', async () => {
     authState.current = { id: 'permission-only', permissions: ['ADMIN_FULL'] };
     render(<PermissionsPage />);
