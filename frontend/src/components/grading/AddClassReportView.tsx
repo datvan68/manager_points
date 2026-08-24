@@ -664,37 +664,34 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       exit={{ opacity: 0 }}
       className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex flex-col gap-[20px]  mx-auto w-full">
+      <div className="flex flex-col gap-3.5 sm:gap-4 mx-auto w-full">
         {/* Page Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-          <div className="flex gap-[12px] items-center">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+          <div className="flex gap-2.5 sm:gap-3 items-center">
             {/* Back Button Pill Glassmorphism using Custom Button */}
             <Button
               type="button"
               variant="ghost"
               onClick={onBack}
-              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-10 h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-sm shrink-0"
+              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-9 h-9 sm:w-10 sm:h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-xs shrink-0"
               title="Quay lại"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
             </Button>
 
             {/* Figma Icon Block */}
-            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-sm shrink-0 w-10 h-10">
+            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-xs shrink-0 w-9 h-9 sm:w-10 sm:h-10">
               <FileText className="w-4 h-4 text-[#005bbf]" />
             </div>
 
             <div className="flex flex-col items-start min-w-0">
-              <h2 className="font-bold text-[20px] lg:text-[23px] text-[#005bbf] leading-tight truncate">
-                Ghi nhận Đánh giá Lớp học
+              <h2 className="font-bold text-[18px] sm:text-[20px] lg:text-[22px] text-[#005bbf] leading-tight truncate">
+                {reportToEdit ? 'Chỉnh sửa ghi nhận lớp' : 'Ghi nhận lớp'}
               </h2>
-              <p className="font-normal text-[#414754] text-[13px] lg:text-[14px] leading-relaxed">
-                Ghi lại thông tin chuyên cần, kỷ luật và đánh giá chất lượng buổi học hôm nay.
-              </p>
             </div>
           </div>
           <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-sm bg-white/40 backdrop-blur-md">
+            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-xs bg-white/40 backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
               <span>Hệ thống ghi nhận</span>
             </div>
@@ -703,31 +700,31 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
         {/* Loading Spinner */}
         {isLoadingData ? (
-          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-10 shadow-sm shadow-slate-300/40 flex flex-col items-center justify-center min-h-[250px] gap-3">
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-8 shadow-xs shadow-slate-300/30 flex flex-col items-center justify-center min-h-[220px] gap-2.5">
             <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
             <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-[20px]">
+          <form onSubmit={handleSave} className="flex flex-col gap-3.5 sm:gap-4">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-[20px] w-full">
+            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 w-full">
 
               {/* Left Column: Core Info (col-span-4) */}
-              <div className="col-span-12 lg:col-span-4 flex flex-col gap-[20px]">
+              <div className="col-span-12 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
-                  <div className="flex gap-[8px] items-center text-[#005bbf]">
-                    <FileText className="w-4.5 h-4.5 shrink-0" />
-                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Thông tin cơ bản</h3>
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                  <div className="flex gap-2 items-center text-[#005bbf]">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Thông tin cơ bản</h3>
                   </div>
 
-                  <div className="flex flex-col gap-[14px] w-full">
+                  <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
                     {/* Mã lớp học: hỗ trợ chọn nhiều lớp */}
                     <div className="flex flex-col w-full relative">
-                      <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Mã lớp học</label>
+                      <label className="text-xs font-medium text-[#414754] mb-1 ml-1">Mã lớp học</label>
                       <Popover open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
                         <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3 text-left text-[12.5px] shadow-sm hover:bg-white/60 transition-all duration-150 ease-out">
+                          <Button type="button" variant="ghost" className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3 text-left text-xs sm:text-[12.5px] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out">
                             <span className={`truncate ${classIds.length > 0 ? 'font-semibold text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
                               {classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn mã lớp học...'}
                             </span>
@@ -743,19 +740,19 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                             value={classSearch}
                             onChange={e => setClassSearch(e.target.value)}
                             placeholder="Nhập tên hoặc mã lớp..."
-                            className="mb-2 h-9 rounded-xl text-[12px] bg-white/40 border-white/70 backdrop-blur-sm placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70"
+                            className="mb-2 h-8 sm:h-9 rounded-xl text-xs bg-white/40 border-white/70 backdrop-blur-sm placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70"
                           />
                           <div className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Danh sách lớp học">
                             {filterClassesBySearch(classes, classSearch).map(c => {
                               const selected = classIds.includes(c._id);
                               return (
-                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer transition-colors ${selected ? 'bg-blue-50/80 text-blue-800' : 'hover:bg-white/60 text-slate-700'}`}>
+                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${selected ? 'bg-blue-50/80 text-blue-800' : 'hover:bg-white/60 text-slate-700'}`}>
                                   <input type="checkbox" checked={selected} onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])} className="accent-blue-600" />
                                   <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
                                 </label>
                               );
                             })}
-                            {filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-3 text-center text-[11px] text-slate-400">Không tìm thấy lớp.</span>}
+                            {filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-3 text-center text-xs text-slate-400">Không tìm thấy lớp.</span>}
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -771,22 +768,22 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       value={teacherName}
                       onChange={(e) => setTeacherName(e.target.value)}
                       placeholder="Nhập tên giảng viên đứng lớp"
-                      className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-sm transition-all duration-150 ease-out"
+                      className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[13px] text-[#1E293B] font-semibold placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
                       containerClassName="w-full"
                     />
 
                     {/* Ngày báo cáo */}
                     <div className="flex flex-col w-full">
-                      <label className="text-[12px] font-medium text-[#414754] mb-1 ml-[4px]">Ngày báo cáo</label>
+                      <label className="text-xs font-medium text-[#414754] mb-1 ml-1">Ngày báo cáo</label>
                       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/40 border border-white/70 backdrop-blur-sm h-10 rounded-xl px-[16px] text-[13.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out w-full shadow-sm text-left font-sans"
+                            className="bg-white/40 border border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[13px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
-                            <CalendarIcon className="w-[16px] h-[16px] text-slate-400 shrink-0" />
+                            <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
@@ -808,11 +805,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
                 </div>
 
-                {/* Section 2: Ghi chú lớp học sử dụng Input Component với multiline */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
-                  <div className="flex gap-[8px] items-center text-[#005bbf]">
-                    <FileText className="w-4.5 h-4.5 shrink-0" />
-                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi chú lớp học</h3>
+                {/* Section 2: Ghi chú lớp học */}
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                  <div className="flex gap-2 items-center text-[#005bbf]">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Ghi chú lớp học</h3>
                   </div>
 
                   <Input
@@ -820,14 +817,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     value={classNote}
                     onChange={(e) => setClassNote(e.target.value)}
                     placeholder="Nhập nhận xét chung về tình hình lớp học, mức độ tiếp thu..."
-                    className="bg-white/40 border-white/70 backdrop-blur-sm rounded-xl p-[16px] min-h-[110px] text-[13.5px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 transition-all duration-150 ease-out w-full resize-none shadow-sm font-semibold leading-relaxed placeholder:text-[#64748B]/60 placeholder:font-normal"
+                    className="bg-white/40 border-white/70 backdrop-blur-sm rounded-xl p-3 min-h-[85px] sm:min-h-[95px] text-xs sm:text-[13px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 transition-all duration-150 ease-out w-full resize-none shadow-xs font-semibold leading-relaxed placeholder:text-[#64748B]/60 placeholder:font-normal"
                     containerClassName="w-full"
                   />
                 </div>
               </div>
 
               {/* Right Column: Violations Section (col-span-8) */}
-              <div className="col-span-12 lg:col-span-8 flex flex-col gap-[20px]">
+              <div className="col-span-12 lg:col-span-8 flex flex-col gap-3.5 sm:gap-4">
                 <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chế độ nhập vi phạm">
                   <Button
                     type="button"
@@ -835,7 +832,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     aria-pressed={entryMode === 'manual'}
                     disabled={isMobile}
                     onClick={() => { if (!isMobile) setEntryMode('manual'); }}
-                    className={`rounded-xl h-9 px-4 text-[12px] font-bold transition-all duration-150 ease-out ${entryMode === 'manual' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
+                    className={`rounded-xl h-8 px-3.5 text-xs font-bold transition-all duration-150 ease-out ${entryMode === 'manual' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
                   >
                     Nhập thủ công
                   </Button>
@@ -844,21 +841,22 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     variant={entryMode === 'quick' ? 'default' : 'outline'}
                     aria-pressed={entryMode === 'quick'}
                     onClick={() => setEntryMode('quick')}
-                    className={`rounded-xl h-9 px-4 text-[12px] font-bold transition-all duration-150 ease-out ${entryMode === 'quick' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
+                    className={`rounded-xl h-8 px-3.5 text-xs font-bold transition-all duration-150 ease-out ${entryMode === 'quick' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
                   >
                     Chọn nhanh nhiều sinh viên
                   </Button>
                 </div>
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[22px] lg:p-[26px] flex flex-col gap-[16px] w-full">
-                  <div className="flex gap-[8px] items-center text-[#005bbf]">
-                    <AlertTriangle className="w-4.5 h-4.5 shrink-0" />
-                    <h3 className="font-bold text-[15px] lg:text-[16px] leading-none">Ghi nhận sinh viên vi phạm (nếu có)</h3>
+
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                  <div className="flex gap-2 items-center text-[#005bbf]">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Ghi nhận sinh viên vi phạm (nếu có)</h3>
                   </div>
 
-                  {/* Entry Form: Kính mờ gọn gàng */}
-                  <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-[14px] w-full relative z-20">
+                  {/* Entry Form: Tinh gọn không bị lồng nhiều lớp */}
+                  <div className="bg-white/35 backdrop-blur-xs border border-white/60 rounded-xl p-3 sm:p-3.5 w-full relative z-20">
                     {entryMode === 'manual' ? (
-                    <div className="grid grid-cols-12 gap-[12px] w-full">
+                    <div className="grid grid-cols-12 gap-2.5 sm:gap-3 w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
                         <Select
@@ -869,7 +867,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           error={""}
                         >
                           <SelectTrigger
-                            className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
+                            className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
                             disabled={classIds.length === 0}
                           >
                             <SelectValue placeholder={classIds.length > 0 ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
@@ -900,7 +898,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           label="Tiêu chí ghi nhận"
                           error={""}
                         >
-                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
                             <SelectValue placeholder="Chọn tiêu chí..." />
                           </SelectTrigger>
                           <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
@@ -923,7 +921,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         value={violationNote}
                         onChange={(e) => setViolationNote(e.target.value)}
                         placeholder="VD: Nhắc nhở lần 1..."
-                        className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-sm transition-all duration-150 ease-out"
+                        className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
                         containerClassName="col-span-12 md:col-span-9 w-full"
                       />
 
@@ -932,50 +930,42 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         <Button
                           type="button"
                           onClick={handleAddViolationToList}
-                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-10 rounded-xl shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-[12.5px]"
+                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold h-9 sm:h-10 rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-xs sm:text-[12.5px]"
                         >
-                          <Plus className="w-4 h-4 shrink-0" />
+                          <Plus className="w-3.5 h-3.5 shrink-0" />
                           <span>Thêm</span>
                         </Button>
                       </div>
                     </div>
                     ) : (
-                      <div className="flex flex-col gap-3">
-                        <div className="grid grid-cols-12 gap-[12px]">
-                          <div className="col-span-12 md:col-span-6">
-                            <Select
-                              value={selectedCriterionId}
-                              onValueChange={handleCriterionChange}
-                              label="Tiêu chí ghi nhận"
-                              error=""
-                            >
-                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm hover:bg-white/60 transition-all duration-150 ease-out">
-                                <SelectValue placeholder="Chọn tiêu chí..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
-                                {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
-                                {orderedCriteria.frequent.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
-                                {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
-                                {orderedCriteria.remaining.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <Input
-                            type="search"
-                            label="Tìm sinh viên"
-                            value={studentsSearch}
-                            onChange={e => handleStudentSearch(e.target.value)}
-                            placeholder={classIds.length > 0 ? 'Tìm theo tên hoặc mã sinh viên...' : 'Vui lòng chọn lớp trước...'}
-                            disabled={classIds.length === 0}
-                            className="bg-white/40 border-white/70 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70 transition-all duration-150 ease-out"
-                            containerClassName="col-span-12 md:col-span-6 w-full"
-                          />
+                      <div className="flex flex-col gap-2.5">
+                        {/* Tiêu chí ghi nhận (full width, ẩn Tìm sinh viên) */}
+                        <div className="w-full">
+                          <Select
+                            value={selectedCriterionId}
+                            onValueChange={handleCriterionChange}
+                            label="Tiêu chí ghi nhận"
+                            error=""
+                          >
+                            <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs hover:bg-white/60 transition-all duration-150 ease-out">
+                              <SelectValue placeholder="Chọn tiêu chí..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
+                              {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                              {orderedCriteria.frequent.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
+                              {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                              {orderedCriteria.remaining.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <div className="flex items-center justify-between text-[12px] font-semibold text-slate-500">
+
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-0.5">
                           <span aria-live="polite">Đã chọn: <strong className="text-[#005bbf]">{addedViolations.filter(v => v.criterion_id === selectedCriterionId).length}</strong> / {totalStudentsCount || classStudents.length}</span>
-                          {isStudentsLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-label="Đang tải sinh viên" />}
+                          {isStudentsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" aria-label="Đang tải sinh viên" />}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
+
+                        {/* Danh sách sinh viên tinh gọn */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 max-h-[260px] sm:max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
                           {classStudents.map(student => {
                             const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
                             return (
@@ -985,17 +975,28 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 aria-pressed={selected}
                                 disabled={!selectedCriterionId}
                                 onClick={() => handleToggleQuickStudent(student)}
-                                className={`text-left rounded-xl border px-3 py-2 transition-all duration-150 ease-out ${selected ? 'border-rose-400/80 bg-rose-50/70 text-rose-800 shadow-xs' : 'border-white/70 bg-white/40 backdrop-blur-xs hover:border-blue-400/60 hover:bg-white/60 text-[#1E293B]'} disabled:cursor-not-allowed disabled:opacity-60`}
+                                className={`text-left rounded-lg border p-2 sm:px-2.5 sm:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
+                                  selected
+                                    ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
+                                    : 'border-white/70 bg-white/50 backdrop-blur-2xs hover:border-blue-400/60 hover:bg-white/80 text-[#1E293B]'
+                                } disabled:cursor-not-allowed disabled:opacity-60`}
                               >
-                                <span className="flex min-w-0 items-center justify-between gap-2 text-[13px] font-bold"><span className="min-w-0 truncate">{student.full_name}</span>{selected && <span className="shrink-0 text-[11px] font-bold text-red-600">Đã chọn</span>}</span>
-                                <span className="block text-[11px] text-slate-500">MSSV: {student.student_code}</span>
+                                <div className="min-w-0 flex-1">
+                                  <span className="block text-xs font-bold truncate">{student.full_name}</span>
+                                  <span className="block text-[10.5px] text-slate-500 font-mono">MSSV: {student.student_code}</span>
+                                </div>
+                                {selected && (
+                                  <span className="shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
+                                    Đã chọn
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
-                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-6 text-center text-[12px] text-slate-400 italic">Không tìm thấy sinh viên.</div>}
+                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-5 text-center text-xs text-slate-400 italic">Không tìm thấy sinh viên.</div>}
                         </div>
                         {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
-                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-8 rounded-xl text-[11px] border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
+                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-7.5 rounded-lg text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
                         )}
                         <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                       </div>
@@ -1004,14 +1005,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                   {entryMode === 'manual' && <>
                   {/* Violation Table */}
-                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-sm bg-white/15 backdrop-blur-xs">
+                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-xs bg-white/15 backdrop-blur-2xs">
                     <table className="w-full text-left border-collapse min-w-max">
                       <thead>
                         <tr className="bg-white/40 backdrop-blur-sm border-b border-white/60">
-                          <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">HỌ TÊN</th>
-                          <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">TIÊU CHÍ</th>
-                          <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase">GHI CHÚ</th>
-                          <th className="px-[20px] py-[10px] font-bold text-[#005bbf] text-[12px] tracking-[0.65px] uppercase text-center w-32">THAO TÁC</th>
+                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">HỌ TÊN</th>
+                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">TIÊU CHÍ</th>
+                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">GHI CHÚ</th>
+                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase text-center w-24">THAO TÁC</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/20">
@@ -1027,30 +1028,30 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           }
 
                           return (
-                            <tr key={idx} className="hover:bg-white/50 hover:scale-[1.002] transition-all duration-150 ease-out">
-                              <td className="px-[20px] py-[12px] font-semibold text-[#111c2d] text-[13.5px]">
+                            <tr key={idx} className="hover:bg-white/50 transition-all duration-150 ease-out">
+                              <td className="px-3.5 py-2 font-semibold text-[#111c2d] text-xs">
                                 <div className="flex flex-col">
                                   <span>{violation.student_name}</span>
-                                  <span className="text-slate-400 text-[10.5px] font-medium">MSSV: {violation.student_code}</span>
+                                  <span className="text-slate-400 text-[10px] font-medium font-mono">MSSV: {violation.student_code}</span>
                                 </div>
                               </td>
-                              <td className="px-[20px] py-[12px]">
-                                <span className={`font-bold rounded-xl px-[10px] py-[3px] text-[11.5px] inline-block tracking-wide ${badgeClass}`}>
+                              <td className="px-3.5 py-2">
+                                <span className={`font-bold rounded-lg px-2 py-0.5 text-[11px] inline-block tracking-wide ${badgeClass}`}>
                                   {violation.criterion_name}
                                 </span>
                               </td>
-                              <td className="px-[20px] py-[12px] font-normal text-[#414754] text-[13.5px] max-w-[200px] truncate" title={violation.class_note}>
+                              <td className="px-3.5 py-2 font-normal text-[#414754] text-xs max-w-[200px] truncate" title={violation.class_note}>
                                 {violation.class_note}
                               </td>
-                              <td className="px-[20px] py-[12px] text-center">
+                              <td className="px-3.5 py-2 text-center">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="w-[28px] h-[28px] rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-sm outline-none cursor-pointer mx-auto"
+                                  className="w-7 h-7 rounded-lg hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-xs outline-none cursor-pointer mx-auto"
                                   title="Xóa vi phạm"
                                 >
-                                  <Trash2 className="w-[14px] h-[16px]" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </td>
                             </tr>
@@ -1059,7 +1060,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                         {addedViolations.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-[20px] py-[24px] text-center text-[13px] text-slate-500 italic bg-white/10">
+                            <td colSpan={4} className="px-3.5 py-4 text-center text-xs text-slate-500 italic bg-white/10">
                               Chưa có ghi nhận sinh viên vi phạm trong buổi học này.
                             </td>
                           </tr>
@@ -1070,8 +1071,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </>}
 
                   {/* Sĩ số hiển thị xem nhanh */}
-                  <div className="flex flex-wrap items-center gap-4 lg:gap-6 text-[12px] font-bold text-slate-500 px-2 mt-1">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-bold text-slate-600 px-3 py-2 bg-white/40 border border-white/60 rounded-xl mt-0.5">
+                    <div className="flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-blue-500" />
                       <span>Sĩ số lớp: <strong className="text-slate-800">
                         {isStudentsLoading ? (
@@ -1081,7 +1082,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         )}
                       </strong></span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <span>Hiện diện: <strong className="text-emerald-600">
                         {isStudentsLoading ? (
@@ -1091,7 +1092,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         )}
                       </strong></span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-rose-500" />
                       <span>Vắng mặt: <strong className="text-rose-600">
                         {isStudentsLoading ? (
@@ -1101,7 +1102,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         )}
                       </strong></span>
                     </div>
-                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-xl text-[11px] min-w-[90px] text-center border border-emerald-100">
+                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg text-[11px] min-w-[85px] text-center border border-emerald-100 font-semibold">
                       {isStudentsLoading ? (
                         <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-middle" />
                       ) : (
@@ -1114,29 +1115,29 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             </div>
 
             {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-[18px] flex items-center justify-between gap-4 w-full">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full">
               {/* Reset/Placeholder info */}
-              <div className="hidden sm:flex items-center text-[12.5px] text-[#414754] font-medium italic">
+              <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-[12px] items-center justify-end w-full sm:w-auto ml-auto">
-                {/* Hủy bỏ sử dụng Custom Button với variant outline */}
+              <div className="flex gap-2.5 items-center justify-end w-full sm:w-auto ml-auto">
+                {/* Hủy bỏ */}
                 <Button
                   type="button"
                   variant="outline"
                   onClick={onBack}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-[32px] py-[10px] text-[#005bbf] font-bold text-[13px] tracking-[0.28px] h-10 hover:scale-[1.01] transition-all duration-150 ease-out"
+                  className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#005bbf] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
                 </Button>
 
-                {/* Lưu ghi nhận sử dụng Custom Button với variant default */}
+                {/* Lưu ghi nhận */}
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="relative bg-[#005bbf] text-white font-bold px-[38px] py-[10px] rounded-xl shadow-sm hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-2 border-none outline-none cursor-pointer text-[13px] tracking-[0.28px] h-10 disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="relative bg-[#005bbf] text-white font-bold px-6 sm:px-8 py-2 rounded-xl shadow-xs hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-1.5 border-none outline-none cursor-pointer text-xs sm:text-[13px] h-9 sm:h-9.5 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
                     <>
