@@ -19,7 +19,7 @@ jest.mock('xlsx', () => ({
 }));
 
 const mockClass = {
-  _id: 'mock-class-id',
+  _id: '507f1f77bcf86cd799439011',
   class_name: 'Class A',
   class_year: '2023-2027',
   dept_id: 'mock-dept-id',
@@ -73,7 +73,15 @@ describe('ClassesService', () => {
                 }),
                 model: jest.fn().mockReturnValue({
                   find: jest.fn().mockReturnValue({
+                    select: jest.fn().mockReturnThis(),
+                    lean: jest.fn().mockReturnThis(),
                     exec: jest.fn().mockResolvedValue([]),
+                  }),
+                  deleteMany: jest.fn().mockReturnValue({
+                    exec: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+                  }),
+                  updateMany: jest.fn().mockReturnValue({
+                    exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
                   }),
                   countDocuments: jest.fn().mockReturnValue({
                     exec: jest.fn().mockResolvedValue(0),
@@ -178,7 +186,7 @@ describe('ClassesService', () => {
       const result = await service.findAll();
       expect(result).toBeDefined();
       expect(Array.isArray(result)).toBe(true);
-      expect((result[0] as any)._id).toEqual('mock-class-id');
+      expect((result[0] as any)._id).toEqual(mockClass._id);
     });
   });
 
@@ -247,6 +255,23 @@ describe('ClassesService', () => {
     it('should delete and return the deleted class', async () => {
       const result = await service.remove('mock-class-id');
       expect(result).toBeDefined();
+    });
+
+    it('keeps the class when a dependent purge fails so a retry can finish', async () => {
+      const studentId = '507f1f77bcf86cd799439012';
+      const userId = '507f1f77bcf86cd799439013';
+      const deleteClass = model.findByIdAndDelete;
+      (service as any).studentModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: studentId, user_id: userId }]),
+      });
+      (service as any).userModel.deleteMany.mockReturnValueOnce({
+        exec: jest.fn().mockRejectedValue(new Error('purge failed')),
+      });
+
+      await expect(service.remove(mockClass._id)).rejects.toThrow('purge failed');
+      expect(deleteClass).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException on remove if class not found', async () => {

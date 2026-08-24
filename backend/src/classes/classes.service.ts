@@ -142,22 +142,101 @@ export class ClassesService {
     if (!existingClass) {
       throw new NotFoundException(`Class with ID ${id} not found`);
     }
-    const session = await this.classModel.db.startSession();
-    try {
-      let deletedClass: ClassDocument | null = null;
-      await session.withTransaction(async () => {
-        const students = await this.studentModel.find({ class_id: existingClass._id }).select('user_id').session(session).lean().exec();
-        const userIds = students
-          .map((student) => student.user_id)
-          .filter((userId): userId is Types.ObjectId => userId instanceof Types.ObjectId);
-        if (userIds.length) await this.userModel.deleteMany({ _id: { $in: userIds } }).session(session).exec();
-        await this.studentModel.deleteMany({ class_id: existingClass._id }).session(session).exec();
-        deletedClass = await this.classModel.findByIdAndDelete(existingClass._id).session(session).exec();
+
+    // MongoDB standalone deployments do not support transactions. Every
+    // operation below is idempotent and the class is removed last so a retry
+    // can finish a partially completed purge.
+    const asObjectId = (value: unknown): any =>
+      Types.ObjectId.isValid(value as any) ? new Types.ObjectId(value as any) : value;
+    const classId: any = asObjectId(existingClass._id);
+    const students = await this.studentModel
+      .find({ class_id: classId })
+      .select('_id user_id')
+      .lean()
+      .exec();
+    const studentIds = students.map((student) => asObjectId(student._id));
+    const userIds = students
+      .map((student) => student.user_id)
+      .filter(Boolean)
+      .map((userId) => asObjectId(userId));
+    const model = (name: string): Model<any> => this.classModel.db.model(name);
+    const deleteMany = async (name: string, filter: Record<string, unknown>) => {
+      await model(name).deleteMany(filter).exec();
+    };
+
+    await deleteMany('DailyClassReport', { class_id: classId });
+    const classSessions = await model('AttendanceSession')
+      .find({ class_id: classId })
+      .select('_id')
+      .lean()
+      .exec();
+    if (classSessions.length) {
+      await deleteMany('AttendanceCheckin', {
+        session_id: { $in: classSessions.map((session) => session._id) },
       });
-      return deletedClass as unknown as Class;
-    } finally {
-      await session.endSession();
     }
+    await deleteMany('AttendanceSession', { class_id: classId });
+    await deleteMany('ActivityAttendance', {
+      $or: [{ class_id: classId }, { student_id: { $in: studentIds } }],
+    });
+    await deleteMany('StudentTaskProgress', {
+      $or: [
+        { classId },
+        { studentId: { $in: studentIds } },
+        { assigneeUserId: { $in: userIds } },
+      ],
+    });
+    await model('StudentTask').updateMany(
+      { $or: [{ targetClassIds: classId }, { targetStudentIds: { $in: studentIds } }] },
+      { $pull: { targetClassIds: classId, targetStudentIds: { $in: studentIds } } },
+    ).exec();
+    await model('Activity').updateMany(
+      { vice_president_ids: { $in: studentIds } },
+      { $pull: { vice_president_ids: { $in: studentIds } } },
+    ).exec();
+    await model('Activity').updateMany(
+      { president_id: { $in: studentIds } },
+      { $unset: { president_id: '' } },
+    ).exec();
+
+    if (studentIds.length) {
+      await deleteMany('AcademicRecord', { student_id: { $in: studentIds } });
+      await deleteMany('SummaryPoint', { student_id: { $in: studentIds } });
+      await deleteMany('ActivityMember', { student_id: { $in: studentIds } });
+      await deleteMany('ActivityMembershipTransfer', { student_id: { $in: studentIds } });
+      await deleteMany('ActivityAttendance', { student_id: { $in: studentIds } });
+      await deleteMany('ActivityCompletionAward', { student_id: { $in: studentIds } });
+      await deleteMany('ScheduleRegistration', { student_id: { $in: studentIds } });
+      await deleteMany('AttendanceCheckin', { student_id: { $in: studentIds } });
+      await deleteMany('Contract', { student_id: { $in: studentIds } });
+      await deleteMany('DormitoryRosterEntry', { student_id: { $in: studentIds } });
+      await deleteMany('Invoice', { student_id: { $in: studentIds } });
+      await deleteMany('RoomFeeInvoice', { student_id: { $in: studentIds } });
+      await deleteMany('MaintenanceRequest', { student_id: { $in: studentIds } });
+      await deleteMany('Violation', { student_id: { $in: studentIds } });
+      await model('StudentTask').updateMany(
+        { targetStudentIds: { $in: studentIds } },
+        { $pull: { targetStudentIds: { $in: studentIds } } },
+      ).exec();
+    }
+
+    if (userIds.length) {
+      await deleteMany('ActivityFavorite', { user_id: { $in: userIds } });
+      await deleteMany('ImpersonationSession', {
+        $or: [{ actor_user_id: { $in: userIds } }, { subject_user_id: { $in: userIds } }],
+      });
+      await deleteMany('LoginLog', { user_id: { $in: userIds } });
+      await deleteMany('PasswordResetRequest', { user_id: { $in: userIds } });
+      await deleteMany('PasswordResetToken', { user_id: { $in: userIds } });
+      await deleteMany('RefreshToken', {
+        $or: [{ user_id: { $in: userIds } }, { actor_user_id: { $in: userIds } }],
+      });
+      await deleteMany('SystemPerformanceMetric', { user_id: { $in: userIds } });
+    }
+
+    await this.userModel.deleteMany({ _id: { $in: userIds } }).exec();
+    await this.studentModel.deleteMany({ _id: { $in: studentIds } }).exec();
+    return (await this.classModel.findByIdAndDelete(classId).exec()) as unknown as Class;
   }
 
   async getClassSummary(requester?: any): Promise<any[]> {

@@ -219,7 +219,7 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     code: 'CLASS_DELETE',
     name: 'Xóa lớp',
     module: STUDENT_MANAGER_GROUP.name,
-    description: 'Cho phép xóa lớp quản lý (chỉ khi lớp không còn sinh viên).',
+    description: 'Cho phép xóa vĩnh viễn lớp và toàn bộ dữ liệu phụ thuộc theo cascade.',
   },
 
   // 3. Nhóm Quản lý Điểm Rèn Luyện
