@@ -21,7 +21,7 @@ import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 
-interface ViolationItem {
+export interface ViolationItem {
   student_id: string;
   student_name: string;
   student_code: string;
@@ -32,6 +32,29 @@ interface ViolationItem {
   criterion_name: string;
   points_effect: number;
   class_note: string;
+}
+
+export function createViolationItem(student: Student, criterion: Criterion, note: string): ViolationItem {
+  return {
+    student_id: student._id,
+    student_name: student.full_name,
+    student_code: student.student_code,
+    criterion_id: criterion._id,
+    evaluation_detail_id: undefined,
+    criterion_name: criterion.criterion_name,
+    points_effect: criterion.score_per_unit || criterion.min_score || -5,
+    class_note: note.trim() || 'Không có ghi chú',
+  };
+}
+
+export function getViolationAddError(
+  violations: ViolationItem[],
+  studentId: string,
+  criterionId: string,
+): 'duplicate' | 'limit' | null {
+  if (violations.length >= 10) return 'limit';
+  if (violations.some(item => item.student_id === studentId && item.criterion_id === criterionId)) return 'duplicate';
+  return null;
 }
 
 const OBJECT_ID_REGEX = /^[a-fA-F0-9]{24}$/;
@@ -137,6 +160,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
+  const [entryMode, setEntryMode] = useState<'manual' | 'quick'>('manual');
 
   useEffect(() => {
     setCriterionUsage(readCriterionUsage(user?.id));
@@ -370,16 +394,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       return;
     }
 
-    if (addedViolations.length >= 10) {
+    const addError = getViolationAddError(addedViolations, selectedStudentId, selectedCriterionId);
+    if (addError === 'limit') {
       toast.error('Chỉ được ghi nhận tối đa 10 mục vi phạm!');
       return;
     }
 
     // Check trùng vi phạm cùng sinh viên
-    const isDuplicate = addedViolations.some(
-      v => v.student_id === selectedStudentId && v.criterion_id === selectedCriterionId
-    );
-    if (isDuplicate) {
+    if (addError === 'duplicate') {
       toast.error('Sinh viên này đã bị ghi nhận tiêu chí vi phạm này!');
       return;
     }
@@ -398,16 +420,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     }
 
     if (student && criterion) {
-      const newViolation: ViolationItem = {
-        student_id: student._id,
-        student_name: student.full_name,
-        student_code: student.student_code,
-        criterion_id: criterion._id,
-        evaluation_detail_id: undefined,
-        criterion_name: criterion.criterion_name,
-        points_effect: criterion.score_per_unit || criterion.min_score || -5,
-        class_note: violationNote.trim() || 'Không có ghi chú'
-      };
+      const newViolation = createViolationItem(student, criterion, violationNote);
 
       setAddedViolations([...addedViolations, newViolation]);
 
@@ -416,6 +429,37 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       setSelectedCriterionId('');
       toast.success('Đã thêm vi phạm vào danh sách!');
     }
+  };
+
+  const handleToggleQuickStudent = (student: Student) => {
+    if (!classId) {
+      toast.error('Vui lòng chọn lớp học trước!');
+      return;
+    }
+    if (!selectedCriterionId) {
+      toast.error('Vui lòng chọn tiêu chí vi phạm!');
+      return;
+    }
+
+    const existingViolation = addedViolations.find(
+      violation => violation.student_id === student._id && violation.criterion_id === selectedCriterionId,
+    );
+    if (existingViolation) {
+      setAddedViolations(prev => prev.filter(violation => violation !== existingViolation));
+      return;
+    }
+    const addError = getViolationAddError(addedViolations, student._id, selectedCriterionId);
+    if (addError === 'limit') {
+      toast.error('Chỉ được ghi nhận tối đa 10 mục vi phạm!');
+      return;
+    }
+
+    const criterion = criteria.find(item => item._id === selectedCriterionId);
+    if (!criterion) {
+      toast.error('Không tìm thấy tiêu chí đã chọn, vui lòng tải lại danh sách tiêu chí');
+      return;
+    }
+    setAddedViolations(prev => [...prev, createViolationItem(student, criterion, violationNote)]);
   };
 
   const handleCriterionChange = (nextCriterionId: string) => {
@@ -695,6 +739,28 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                   {/* Entry Form: Kính mờ gọn gàng */}
                   <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-[14px] w-full relative z-20">
+                    <div className="flex flex-wrap items-center gap-2 mb-3" role="group" aria-label="Chế độ nhập vi phạm">
+                      <Button
+                        type="button"
+                        variant={entryMode === 'manual' ? 'default' : 'outline'}
+                        aria-pressed={entryMode === 'manual'}
+                        onClick={() => setEntryMode('manual')}
+                        className="rounded-lg h-9 px-4 text-[12px] font-bold"
+                      >
+                        Nhập thủ công
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={entryMode === 'quick' ? 'default' : 'outline'}
+                        aria-pressed={entryMode === 'quick'}
+                        onClick={() => setEntryMode('quick')}
+                        className="rounded-lg h-9 px-4 text-[12px] font-bold"
+                      >
+                        Chọn nhanh nhiều sinh viên
+                      </Button>
+                    </div>
+
+                    {entryMode === 'manual' ? (
                     <div className="grid grid-cols-12 gap-[12px] w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
@@ -776,6 +842,67 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         </Button>
                       </div>
                     </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <div className="grid grid-cols-12 gap-[12px]">
+                          <div className="col-span-12 md:col-span-6">
+                            <Select
+                              value={selectedCriterionId}
+                              onValueChange={handleCriterionChange}
+                              label="Tiêu chí ghi nhận"
+                              error=""
+                            >
+                              <SelectTrigger className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-sm">
+                                <SelectValue placeholder="Chọn tiêu chí..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-100/60 font-sans">
+                                {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                                {orderedCriteria.frequent.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
+                                {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                                {orderedCriteria.remaining.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Input
+                            type="search"
+                            label="Tìm sinh viên"
+                            value={studentsSearch}
+                            onChange={e => handleStudentSearch(e.target.value)}
+                            placeholder={classId ? 'Tìm theo tên hoặc mã sinh viên...' : 'Vui lòng chọn lớp trước...'}
+                            disabled={!classId}
+                            className="bg-white/50 border-white/80 backdrop-blur-sm h-10 rounded-xl px-[14px] text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]"
+                            containerClassName="col-span-12 md:col-span-6 w-full"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[12px] font-semibold text-slate-500">
+                          <span aria-live="polite">Đã chọn: <strong className="text-[#005bbf]">{addedViolations.filter(v => v.criterion_id === selectedCriterionId).length}</strong> / {totalStudentsCount || classStudents.length}</span>
+                          {isStudentsLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" aria-label="Đang tải sinh viên" />}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
+                          {classStudents.map(student => {
+                            const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
+                            return (
+                              <button
+                                key={student._id}
+                                type="button"
+                                aria-pressed={selected}
+                                disabled={!selectedCriterionId}
+                                onClick={() => handleToggleQuickStudent(student)}
+                                className={`text-left rounded-xl border px-3 py-2 transition-colors ${selected ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white/60 hover:border-blue-300'} disabled:cursor-not-allowed disabled:opacity-60`}
+                              >
+                                <span className="block text-[13px] font-bold">{student.full_name}</span>
+                                <span className="block text-[11px] text-slate-500">MSSV: {student.student_code}</span>
+                              </button>
+                            );
+                          })}
+                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-6 text-center text-[12px] text-slate-400 italic">Không tìm thấy sinh viên.</div>}
+                        </div>
+                        {hasMoreStudents && classStudents.length > 0 && (
+                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-8 rounded-lg text-[11px]">Tải thêm sinh viên</Button>
+                        )}
+                        <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Violation Table */}
