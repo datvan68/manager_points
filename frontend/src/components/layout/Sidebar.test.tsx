@@ -131,6 +131,17 @@ describe('Sidebar Component', () => {
     expect(mobileNav?.textContent).not.toContain('Trang chủ');
   });
 
+  it('omits subsystem entries that are available from the subsystem modal', async () => {
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.queryByTitle('Thông báo')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Báo cáo')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Quản trị hệ thống')).not.toBeInTheDocument();
+    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
+    expect(within(document.querySelector('.mobile-bottom-nav') as HTMLElement).queryByRole('link', { name: 'Thông báo' })).not.toBeInTheDocument();
+  });
+
   it('does not open or close on hover', async () => {
     render(<Sidebar />);
     await ensureCollapsed();

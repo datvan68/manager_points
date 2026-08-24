@@ -10,10 +10,8 @@ import {
   PanelLeftOpen,
   Settings,
   LayoutGrid,
-  Bell,
   User,
   Shield,
-  BarChart3,
   Compass,
 } from "lucide-react";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
@@ -53,10 +51,7 @@ const allMenuItems = [
   { icon: LayoutDashboard, label: "Trang chủ", href: "/" },
   { icon: Users, label: "Học sinh sinh viên", href: "/students" },
   { icon: Compass, label: "Hoạt động", href: "/activities" },
-  { icon: Bell, label: "Thông báo", href: "/notifications" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
-  { icon: BarChart3, label: "Báo cáo", href: "/reports" },
-  { icon: Settings, label: "Quản trị hệ thống", href: "/system" },
 ];
 
 // Global variables to persist sidebar state across client-side page transitions
@@ -419,16 +414,6 @@ const Sidebar = () => {
                 </Link>
               );
             })}
-
-            {!isAdminUser(user) && <Link
-              href="/notifications"
-              aria-current={pathname === "/notifications" || pathname.startsWith("/notifications") ? 'page' : undefined}
-              aria-label="Thông báo"
-              title="Thông báo"
-              className={`mobile-bottom-nav-item ${pathname === "/notifications" || pathname.startsWith("/notifications") ? "mobile-bottom-nav-item-active" : ""}`}
-            >
-              <Bell size={25} strokeWidth={2.25} aria-hidden="true" />
-            </Link>}
 
             {!isAdminUser(user) && <button
               onClick={handleProfileClick}
