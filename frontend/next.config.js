@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
+    // Keep metadata in the initial document so the streamed hidden metadata
+    // container cannot change the body tree during client hydration.
+    htmlLimitedBots: /.*/,
     async redirects() {
         return [
             {

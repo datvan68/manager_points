@@ -61,6 +61,36 @@ describe('AuthProvider session rehydration', () => {
     expect(push).not.toHaveBeenCalledWith('/login');
   });
 
+  it('redirects an unauthenticated protected route once after auth loading completes', async () => {
+    refresh.mockRejectedValue({ status: 401 });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/login'));
+
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders an authenticated protected route after hydration without redirecting', async () => {
+    tokenStorage.setAccessToken('stored-access-token');
+    tokenStorage.setUser({ id: 'user-1', roleCode: 'ADMIN', permissions: ['TASK_READ'] });
+
+    const { getByText } = render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(getByText(/"isLoading":false/)).toBeInTheDocument());
+
+    expect(getByText(/"isAuthenticated":true/)).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('does not refresh or hydrate the normal session on the access bootstrap route', async () => {
     pathnameState.current = '/access';
 
