@@ -57,9 +57,13 @@ when possible:
    **target → direct dependency/caller → owning module**. Stop when the evidence
    is sufficient.
 3. Create a Taskscope Brief from the template. A Quick scope should stay within
-   roughly 350 words; make it specific through paths, symbols, binary criteria,
-   and exact checks rather than long prose. When the user explicitly asks to
-   write, create, generate, or update a taskscope, write the complete result to
+   a 220-word target and roughly 350-word maximum. Optimize for actionable
+   detail per token: use exact paths/symbols, observed evidence, binary criteria,
+   ordered edits, and focused checks instead of narrative. Every expected write
+   must map to at least one acceptance criterion and verification. A Full scope
+   may be longer only for evidenced dependencies, risks, gates, or independent
+   work boundaries. When the user explicitly asks to write, create, generate,
+   or update a taskscope, write the complete result to
    `docs/task/taskscope.md` and replace the file's entire previous contents.
    Never append to or merge with the previous taskscope. For other requests,
    keep the Taskscope Brief in the response/runtime unless a separately
@@ -93,6 +97,21 @@ when possible:
   artifacts, hashes, checkpoints, or long documents for a small task.
 - Do not repeat the user request, full logs, full files, or canonical rules in a
   prompt or handoff. Pass only relevant deltas and evidence.
+- Treat the taskscope as an execution handoff, not a discussion. State each fact
+  once in its shortest useful field; use `[]` or `null` instead of explanatory
+  filler. Exclude generic steps, speculative alternatives, inventories, and
+  background that do not change a boundary, criterion, check, risk, or gate.
+- Before publishing a taskscope, perform one readiness pass: confirm exact write
+  paths/symbols, preserved contracts, binary acceptance criteria, ordered change
+  steps, and the narrowest feasible verification commands. Resolve a missing
+  item with one targeted inspection rather than padding the scope with guesses.
+- An agent consuming a current taskscope checks Git/worktree freshness and the
+  named targets, then executes from the scope. It must not repeat broad discovery
+  unless the scope is stale, a named fact is unresolved, or a boundary/gate is
+  triggered.
+- After writing an explicitly requested taskscope to
+  `docs/task/taskscope.md`, reply with only a concise outcome/path summary; do
+  not duplicate the full taskscope in the response unless the user asks.
 - Do not keep generating hypotheses after a reproduction or test has confirmed
   the root cause.
 - Do not run broad commands when a file- or package-level command proves the

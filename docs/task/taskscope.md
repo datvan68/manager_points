@@ -1,28 +1,26 @@
-task: "Fix mobile protected-route hydration failure"
+task: "Fix root layout hydration mismatch"
 pipeline: bug_fix
 profile: Quick
-objective: "Protected routes opened on mobile redirect or render without hydration, DOM-removal, or forced-reload errors."
+objective: "The /students route hydrates with identical server/client body structure and no removeChild NotFoundError."
 
 evidence:
-  current_behavior: "At 320x568, opening Docker-served /students shows security loading then redirects to /login; frontend logs repeat a Head/MetadataWrapper hydration mismatch, removeChild NotFoundError, and Fast Refresh reload. The container has no restart or OOM."
-  expected_behavior: "Server and client trees match; unauthenticated routes redirect once and authenticated routes hydrate normally."
-  root_cause: null
+  current_behavior: "frontend/src/app/layout.tsx:RootLayout plus the supplied Next dev trace -> server body contains a whitespace text node where the client expects Suspense; hydration then throws removeChild NotFoundError."
+  expected_behavior: "RootLayout emits a stable body child tree on SSR and first hydration while providers, page content, toaster, and PWA prompt remain mounted."
+  root_cause: "frontend/src/app/layout.tsx:RootLayout wraps all body content in a root Suspense boundary whose streamed server marker/whitespace structure differs from the initial client tree. AuthProvider uses usePathname/useRouter, not useSearchParams, so this root boundary is not required by that provider."
 
 scope:
-  inspect: ["frontend/src/app/layout.tsx", "frontend/src/providers/auth-provider.tsx", "frontend/next.config.js", "frontend/src/providers/auth-provider.test.tsx"]
-  write: ["confirmed owner: frontend/src/app/layout.tsx or frontend/src/providers/auth-provider.tsx", "frontend/src/providers/auth-provider.test.tsx"]
-  preserve: ["RBAC/token validation", "public routes", "role-based destinations", "desktop and PWA metadata"]
-  out: ["login form spacing", "responsive redesign", "backend/API changes", "dependency upgrade"]
+  inspect: ["frontend/src/app/layout.tsx:RootLayout", "frontend/src/providers/auth-provider.tsx:AuthProvider navigation hooks", "frontend/vitest.config.ts:test environment"]
+  write: ["frontend/src/app/layout.tsx:RootLayout", "frontend/src/app/layout.test.tsx:RootLayout hydration regression"]
+  preserve: ["provider nesting and auth/RBAC behavior", "metadata/icons", "Toaster and PwaInstallPrompt rendering", "page-local Suspense boundaries"]
+  out: ["backend/API changes", "Next/React upgrades", "auth flow refactor", "unrelated removeChild call sites"]
 
 acceptance_criteria:
-  - "AC-01: At 320x568, unauthenticated /students reaches /login once without hydration, removeChild, or forced-reload errors."
-  - "AC-02: An authenticated protected route opened or refreshed on mobile hydrates without redirect regression."
-  - "AC-03: Existing public-route and role-based redirect tests remain passing."
+  - "AC-01: RootLayout server markup and first client hydration complete without hydration-mismatch or removeChild errors."
+  - "AC-02: AuthProvider > AppBrandingProvider nesting and all existing root children remain unchanged."
 
 execution:
-  - "Isolate the first divergent tree to AuthProvider navigation or Next metadata streaming; do not patch until confirmed."
-  - "Fix only the confirmed owner and add an AC-01/AC-02 regression test."
-  - "Run focused checks and repeat the Docker mobile reproduction."
+  - "E-01 [AC-01, AC-02] frontend/src/app/layout.tsx:RootLayout -> remove or relocate only the unnecessary root Suspense boundary without changing provider order."
+  - "E-02 [AC-01, AC-02] frontend/src/app/layout.test.tsx:RootLayout hydration regression -> mock client side-effect components/providers, SSR then hydrate, and assert no recoverable hydration error plus preserved children."
 
 temporary_artifacts:
   create: []
@@ -30,10 +28,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "npm --prefix frontend test -- src/providers/auth-provider.test.tsx -> AC-02, AC-03"
-  - "npm --prefix frontend run typecheck -> changed paths type-check"
-  - "Docker frontend at 320x568: open /students, verify final URL and docker compose logs --since 2m frontend -> AC-01, AC-02"
+  - "V-01 [AC-01, AC-02] npm --prefix frontend test -- src/app/layout.test.tsx -> focused test passes with no hydration diagnostic."
+  - "V-02 [AC-01, AC-02] npm --prefix frontend run typecheck -> exits 0."
+  - "V-03 [AC-01] npm --prefix frontend run build -> exits 0 and reports no missing Suspense boundary."
+  - "V-04 [AC-01] npm --prefix frontend run dev, open /students in a clean browser session -> console contains neither hydration-mismatch nor removeChild NotFoundError."
 
-risks:
-  - "Evidence does not yet distinguish redirect timing from a Next.js 16.2.9 metadata-streaming defect."
-stop_conditions: ["Fix requires Next/React upgrade or auth contract change", "Failure disappears after clearing Fast Refresh state", "Backend or persistent-data change is required"]
+risks: ["Removing the global boundary may expose a page that improperly relies on it; the production build is the stop-on-failure check for that case."]
+stop_conditions: ["Build identifies a route requiring the global boundary", "Fix requires a Next/React upgrade or auth/RBAC contract change", "Target paths contain overlapping uncommitted changes before implementation"]

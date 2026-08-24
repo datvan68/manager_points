@@ -1,6 +1,6 @@
 ---
 description: Routes work through proportional, token-efficient Quick or Full execution.
-version: 3.3.1
+version: 3.3.2
 ---
 
 # Orchestrator
@@ -45,6 +45,7 @@ Quick planning must use:
 discovery_passes: 1
 workers_before_scope: 0
 scope_target_words: 220
+scope_max_words: 350
 scope_soft_deadline_seconds: 120
 implementation_workers_max: 1
 checkpoint: none
@@ -53,6 +54,12 @@ formal_artifact_hashes: none
 
 The soft deadline never permits guessing. Promote to Full when eligibility,
 paths, command, ownership, or risk cannot be established in one focused pass.
+The word maximum is a compression guard, not permission to omit execution
+inputs. Use one readiness-and-compression pass: add only missing paths, symbols,
+contracts, criteria, steps, checks, risks, or gates; remove repetition,
+background, generic instructions, and speculative branches. Full scopes have no
+fixed word cap, but every extra section must map to a real dependency, risk,
+gate, environment, or independent work boundary.
 
 For implementation, one actor performs baseline, mutation, focused verification,
 and self-review. The orchestrator should do this directly unless delegation is
@@ -63,6 +70,9 @@ skill and any path-specific instruction; add the test skill only when needed.
 Quick discovery is progressive: exact target, direct caller/dependency, then
 owning module. Stop as soon as path ownership, observed behavior, change boundary,
 acceptance criteria, and a focused verification command are established.
+When consuming a current Taskscope Brief, validate Git/worktree freshness and
+the named targets, then begin the ordered execution steps. Repeat discovery only
+for a stale fact, an explicit unknown, or a newly triggered boundary/gate.
 
 ## 4. Full mode
 
