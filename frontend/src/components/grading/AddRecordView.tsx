@@ -24,12 +24,66 @@ import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, Crit
 
 interface ViolationItem {
   student_id: string;
+  class_id?: string;
   student_name: string;
   student_code: string;
   evaluation_detail_id: string;
   criterion_name: string;
   points_effect: number;
   class_note: string;
+}
+
+export function buildViolationItems(
+  students: Student[],
+  selectedStudentIds: string[],
+  criterion: Pick<Criterion, '_id' | 'criterion_name' | 'score_per_unit' | 'min_score'>,
+  note: string,
+  existing: ViolationItem[],
+): ViolationItem[] {
+  return students
+    .filter(student => selectedStudentIds.includes(student._id))
+    .filter(student => !existing.some(
+      violation => violation.student_id === student._id && violation.evaluation_detail_id === criterion._id
+    ))
+    .map(student => ({
+      student_id: student._id,
+      class_id: typeof student.class_id === 'object' ? student.class_id?._id : student.class_id,
+      student_name: student.full_name,
+      student_code: student.student_code,
+      evaluation_detail_id: criterion._id,
+      criterion_name: criterion.criterion_name,
+      points_effect: criterion.score_per_unit || criterion.min_score || -5,
+      class_note: note.trim() || 'Không có ghi chú',
+    }));
+}
+
+export function mergeStudentsById(studentGroups: Student[][]): Student[] {
+  const studentsById = new Map<string, Student>();
+  studentGroups.flat().forEach(student => studentsById.set(student._id, student));
+  return Array.from(studentsById.values());
+}
+
+export function clearPendingQuickViolations(violations: ViolationItem[], pendingKeys: Set<string>): ViolationItem[] {
+  return violations.filter(violation => !pendingKeys.has(`${violation.student_id}:${violation.evaluation_detail_id}`));
+}
+
+export function toggleStudentSelectionState(
+  selectedIds: string[],
+  selectedStudents: Student[],
+  student: Student,
+): { selectedIds: string[]; selectedStudents: Student[] } {
+  if (selectedIds.includes(student._id)) {
+    return {
+      selectedIds: selectedIds.filter(id => id !== student._id),
+      selectedStudents: selectedStudents.filter(item => item._id !== student._id),
+    };
+  }
+  return {
+    selectedIds: [...selectedIds, student._id],
+    selectedStudents: selectedStudents.some(item => item._id === student._id)
+      ? selectedStudents
+      : [...selectedStudents, student],
+  };
 }
 
 interface AddRecordViewProps {
@@ -59,6 +113,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Card Trái (Thông tin cơ bản)
   const [classId, setClassId] = useState('');
+  const [classIds, setClassIds] = useState<string[]>([]);
+  const [classSearch, setClassSearch] = useState('');
+  const [isClassPickerOpen, setIsClassPickerOpen] = useState(false);
+  const classIdsRef = React.useRef<string[]>([]);
   const [category, setCategory] = useState('ky_luat'); // 'ky_luat' hoặc 'khen_thuong'
   const [criterionId, setCriterionId] = useState('');
   const [reportDate, setReportDate] = useState<Date>(new Date());
@@ -66,6 +124,11 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Card Phải (Ghi nhận sinh viên)
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<Student[]>([]);
+  const [entryMode, setEntryMode] = useState<'manual' | 'quick'>('quick');
+  const [isMobile, setIsMobile] = useState(false);
+  const [pendingQuickViolationKeys, setPendingQuickViolationKeys] = useState<Set<string>>(new Set());
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
   const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
@@ -137,6 +200,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
           if (classIdFromRecord) {
             setClassId(classIdFromRecord);
+            setClassIds(classIdFromRecord ? [classIdFromRecord] : []);
           }
           if (criterionIdFromRecord) {
             setCriterionId(String(criterionIdFromRecord));
@@ -175,29 +239,42 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     loadData();
   }, [recordToEdit]);
 
-  const [studentsPage, setStudentsPage] = useState(1);
+  const [studentsPages, setStudentsPages] = useState<Record<string, number>>({});
   const [studentsSearch, setStudentsSearch] = useState("");
-  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+  const [hasMoreStudents, setHasMoreStudents] = useState<Record<string, boolean>>({});
 
-  const fetchClassStudents = async (page: number, searchVal: string, append: boolean = false) => {
-    if (!classId) return;
+  const fetchClassStudents = async (selectedClassId: string, page: number, searchVal: string, append: boolean = false) => {
     setIsStudentsLoading(true);
     try {
       const limit = 30;
       const res = await studentApi.getStudents({
-        classId,
+        classId: selectedClassId,
         page,
         limit,
         search: searchVal || undefined
       });
       
-      const newStudents = Array.isArray(res) ? res : (res?.data || []);
-      setClassStudents(prev => append ? [...prev, ...newStudents] : newStudents);
-      setHasMoreStudents(newStudents.length >= limit);
+      const newStudents = (Array.isArray(res) ? res : (res?.data || [])).map(student => ({
+        ...student,
+        class_id: student.class_id || selectedClassId,
+      }));
+      if (!classIdsRef.current.includes(selectedClassId)) return;
+      setClassStudents(prev => mergeStudentsById([
+        append ? prev : prev.filter(student => {
+          const studentClassId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
+          return studentClassId !== selectedClassId;
+        }),
+        newStudents,
+      ]));
+      setHasMoreStudents(prev => ({ ...prev, [selectedClassId]: newStudents.length >= limit }));
     } catch (err) {
       console.warn('Lỗi nạp sinh viên lớp:', err);
       if (!append) {
-        setClassStudents([]);
+        setClassStudents(prev => prev.filter(student => {
+          const studentClassId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
+          return studentClassId !== selectedClassId;
+        }));
+        setHasMoreStudents(prev => ({ ...prev, [selectedClassId]: false }));
       }
     } finally {
       setIsStudentsLoading(false);
@@ -206,55 +283,84 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   const handleClassChange = (nextClassId: string) => {
     setClassId(nextClassId);
+    setClassIds(nextClassId ? [nextClassId] : []);
     setSelectedStudentId('');
+    setSelectedStudentIds([]);
+    setSelectedStudents([]);
     setViolationNote('');
     setAddedViolations([]);
+    setPendingQuickViolationKeys(new Set());
   };
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    const updateMobile = () => {
+      const mobile = mediaQuery.matches;
+      setIsMobile(mobile);
+      if (mobile) setEntryMode('quick');
+    };
+    updateMobile();
+    mediaQuery.addEventListener('change', updateMobile);
+    return () => mediaQuery.removeEventListener('change', updateMobile);
+  }, []);
 
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
+    classIdsRef.current = classIds;
     setSelectedStudentId('');
+    setSelectedStudentIds([]);
+    setSelectedStudents([]);
     setViolationNote('');
-    setStudentsPage(1);
+    setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setStudentsSearch("");
-    setHasMoreStudents(true);
-    setClassStudents([]);
-    if (classId) {
-      fetchClassStudents(1, "");
-      setAddedViolations([]);
+    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
+    setClassStudents(prev => prev.filter(student => {
+      const studentClassId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
+      return classIds.includes(studentClassId || '');
+    }));
+    if (classIds.length > 0) {
+      void Promise.all(classIds.map(id => fetchClassStudents(id, 1, "")));
+      if (!isEditMode) {
+        setAddedViolations(prev => prev.filter(violation => !violation.class_id || classIds.includes(violation.class_id)));
+      }
     } else {
-      setAddedViolations([]);
+      setClassStudents([]);
+      if (!isEditMode) setAddedViolations([]);
     }
-  }, [classId]);
+  }, [classIds, isEditMode]);
 
   // Tránh search liên tục khi gõ, ta dùng debounce
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   
   const handleStudentSearch = (query: string) => {
     setStudentsSearch(query);
-    setStudentsPage(1);
-    setHasMoreStudents(true);
+    setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
+    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     
     searchTimeoutRef.current = setTimeout(() => {
-      fetchClassStudents(1, query, false);
+      void Promise.all(classIds.map(id => fetchClassStudents(id, 1, query, false)));
     }, 400);
   };
 
   const handleLoadMoreStudents = () => {
-    if (isStudentsLoading || !hasMoreStudents) return;
-    const nextPage = studentsPage + 1;
-    setStudentsPage(nextPage);
-    fetchClassStudents(nextPage, studentsSearch, true);
+    if (isStudentsLoading || !classIds.some(id => hasMoreStudents[id])) return;
+    const nextPages = Object.fromEntries(classIds.map(id => [id, (studentsPages[id] || 1) + 1]));
+    setStudentsPages(nextPages);
+    void Promise.all(classIds.filter(id => hasMoreStudents[id]).map(id => fetchClassStudents(id, nextPages[id], studentsSearch, true)));
   };
 
   // Lọc danh sách tiêu chí (lấy tất cả không cần qua danh mục)
   const filteredCriteria = criteria;
 
   const handleCriterionChange = (nextCriterionId: string) => {
+    if (nextCriterionId !== criterionId && pendingQuickViolationKeys.size > 0) {
+      setAddedViolations(prev => clearPendingQuickViolations(prev, pendingQuickViolationKeys));
+      setPendingQuickViolationKeys(new Set());
+    }
     setCriterionId(nextCriterionId);
     setCriterionUsage(incrementCriterionUsage(user?.id, nextCriterionId));
   };
@@ -267,7 +373,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   }, [category]);
 
   const handleAddViolationToList = () => {
-    if (!classId) {
+    if (classIds.length === 0) {
       toast.error('Vui lòng chọn lớp học trước!');
       return;
     }
@@ -275,41 +381,77 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       toast.error('Vui lòng chọn tiêu chí rèn luyện!');
       return;
     }
-    if (!selectedStudentId) {
+    if (isEditMode && !selectedStudentId) {
       toast.error('Vui lòng chọn sinh viên!');
       return;
     }
-
-    // Check trùng vi phạm cùng sinh viên
-    const isDuplicate = addedViolations.some(
-      v => v.student_id === selectedStudentId && v.evaluation_detail_id === criterionId
-    );
-    if (isDuplicate) {
-      toast.error('Sinh viên này đã được ghi nhận tiêu chí này!');
+    if (!isEditMode && selectedStudentIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một sinh viên!');
       return;
     }
 
-    const student = classStudents.find(s => s._id === selectedStudentId);
     const criterion = criteria.find(c => c._id === criterionId);
 
-    if (student && criterion) {
-      const newViolation: ViolationItem = {
-        student_id: student._id,
-        student_name: student.full_name,
-        student_code: student.student_code,
-        evaluation_detail_id: criterion._id,
-        criterion_name: criterion.criterion_name,
-        points_effect: criterion.score_per_unit || criterion.min_score || -5,
-        class_note: violationNote.trim() || 'Không có ghi chú'
-      };
+    if (!criterion) return;
 
-      setAddedViolations([...addedViolations, newViolation]);
-
-      // Reset input sinh viên & ghi chú
-      setSelectedStudentId('');
-      setViolationNote('');
-      toast.success('Đã thêm sinh viên vào danh sách tạm!');
+    const selectedIds = isEditMode ? [selectedStudentId] : selectedStudentIds;
+    const newViolations = buildViolationItems(classStudents, selectedIds, criterion, violationNote, addedViolations);
+    if (newViolations.length === 0) {
+      toast.error('Các sinh viên đã được ghi nhận tiêu chí này!');
+      return;
     }
+
+    setAddedViolations(prev => [...prev, ...newViolations]);
+    setSelectedStudentId('');
+    setSelectedStudentIds([]);
+    setSelectedStudents([]);
+    setViolationNote('');
+    toast.success('Đã thêm sinh viên vào danh sách tạm!');
+  };
+
+  const toggleStudentSelection = (student: Student) => {
+    setSelectedStudentIds(prev => {
+      const next = toggleStudentSelectionState(prev, selectedStudents, student);
+      setSelectedStudents(next.selectedStudents);
+      return next.selectedIds;
+    });
+  };
+
+  const handleToggleQuickStudent = (student: Student) => {
+    if (classIds.length === 0) {
+      toast.error('Vui lòng chọn lớp học trước!');
+      return;
+    }
+    if (!criterionId) {
+      toast.error('Vui lòng chọn tiêu chí rèn luyện!');
+      return;
+    }
+    const existingViolation = addedViolations.find(
+      violation => violation.student_id === student._id && violation.evaluation_detail_id === criterionId,
+    );
+    const key = `${student._id}:${criterionId}`;
+    if (existingViolation) {
+      setAddedViolations(prev => prev.filter(violation => violation !== existingViolation));
+      setPendingQuickViolationKeys(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      return;
+    }
+    const criterion = criteria.find(item => item._id === criterionId);
+    if (!criterion) return;
+    setAddedViolations(prev => [...prev, {
+      student_id: student._id,
+      class_id: typeof student.class_id === 'object' ? student.class_id?._id : student.class_id,
+      student_name: student.full_name,
+      student_code: student.student_code,
+      evaluation_detail_id: criterion._id,
+      criterion_name: criterion.criterion_name,
+      points_effect: criterion.score_per_unit || criterion.min_score || -5,
+      class_note: violationNote.trim() || 'Không có ghi chú',
+    }]);
+    setPendingQuickViolationKeys(prev => new Set(prev).add(key));
   };
 
   const handleRemoveViolationFromList = (index: number) => {
@@ -491,15 +633,9 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   </div>
 
                   <div className="flex flex-col gap-3.5 w-full">
-                    {/* Lớp học sử dụng Select Component */}
+                    {/* Lớp học: create hỗ trợ chọn nhiều, edit giữ một lớp */}
                     <div className="flex flex-col w-full relative">
-                      <Select
-                        value={classId}
-                        onValueChange={handleClassChange}
-                        label="Lớp học"
-                        required
-                        error={""}
-                      >
+                      {isEditMode ? <Select value={classId} onValueChange={handleClassChange} label="Lớp học" required error="">
                         <SelectTrigger className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[13px] text-[#1E293B] font-medium outline-none focus-within:ring-0 focus-within:border-white/80 transition-all duration-150 ease-out hover:bg-white/70 hover:scale-[1.005] cursor-pointer w-full shadow-xs">
                           <SelectValue placeholder="Chọn lớp học..." />
                         </SelectTrigger>
@@ -509,7 +645,30 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           ))}
                           {classes.length === 0 && <div className="p-4 text-center text-xs text-slate-400 italic">Không có lớp học nào</div>}
                         </SelectContent>
-                      </Select>
+                      </Select> : <>
+                        <label className="mb-1 ml-1 text-[12px] font-medium text-slate-600">Lớp học</label>
+                        <Popover open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" className="h-9 w-full justify-between rounded-xl border-white/80 bg-white/50 px-3.5 text-left text-[13px] font-medium text-[#1E293B] shadow-xs hover:bg-white/70">
+                              <span className="truncate">{classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn lớp học...'}</span>
+                              <span className="ml-2 text-slate-400">⌄</span>
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-slate-100 bg-white p-2 shadow-xl">
+                            <Input type="search" role="combobox" aria-label="Tìm lớp học" value={classSearch} onChange={e => setClassSearch(e.target.value)} placeholder="Nhập tên hoặc mã lớp..." className="mb-2 h-9 rounded-lg text-[12px]" />
+                            <div className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Danh sách lớp học">
+                              {classes.filter(c => `${c.class_name} ${c.class_year} ${c._id}`.toLowerCase().includes(classSearch.toLowerCase())).map(c => {
+                                const selected = classIds.includes(c._id);
+                                return <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-semibold cursor-pointer ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50 text-slate-700'}`}>
+                                  <input type="checkbox" checked={selected} onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])} className="accent-blue-600" />
+                                  <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
+                                </label>;
+                              })}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <span className="mt-1 ml-1 text-[11px] text-slate-500" aria-live="polite">{classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn lớp học...'}</span>
+                      </>}
                     </div>
 
                     {/* Tiêu chí */}
@@ -582,11 +741,33 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                     <h3 className="font-bold text-sm lg:text-base leading-none">Ghi nhận sinh viên</h3>
                   </div>
 
+                  {!isEditMode && <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chế độ nhập ghi nhận">
+                    <Button type="button" variant={entryMode === 'manual' ? 'default' : 'outline'} aria-pressed={entryMode === 'manual'} disabled={isMobile} onClick={() => { if (!isMobile) setEntryMode('manual'); }} className="h-9 rounded-lg px-4 text-[12px] font-bold">Nhập thủ công</Button>
+                    <Button type="button" variant={entryMode === 'quick' ? 'default' : 'outline'} aria-pressed={entryMode === 'quick'} onClick={() => setEntryMode('quick')} className="h-9 rounded-lg px-4 text-[12px] font-bold">Chọn nhanh nhiều sinh viên</Button>
+                  </div>}
+
                   {/* Entry Form: Kính mờ gọn gàng */}
+                  {entryMode === 'quick' && !isEditMode ? <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-3.5 w-full relative z-20">
+                    <div className="grid grid-cols-12 gap-3">
+                      <Input type="search" label="Tìm sinh viên" value={studentsSearch} onChange={e => handleStudentSearch(e.target.value)} placeholder={classIds.length > 0 ? 'Tìm theo tên hoặc mã sinh viên...' : 'Vui lòng chọn lớp trước...'} disabled={classIds.length === 0} className="col-span-12 h-9 rounded-xl bg-white/50 text-[12.5px]" />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-[12px] font-semibold text-slate-500"><span aria-live="polite">Đã chọn: <strong className="text-[#005bbf]">{addedViolations.filter(v => v.evaluation_detail_id === criterionId).length}</strong></span>{isStudentsLoading && <Loader2 className="h-4 w-4 animate-spin" aria-label="Đang tải sinh viên" />}</div>
+                    <div className="mt-2 grid max-h-[300px] grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2" aria-label="Danh sách sinh viên">
+                      {classStudents.map(student => {
+                        const selected = addedViolations.some(v => v.student_id === student._id && v.evaluation_detail_id === criterionId);
+                        return <button key={student._id} type="button" aria-pressed={selected} disabled={!criterionId} onClick={() => handleToggleQuickStudent(student)} className={`rounded-xl border px-3 py-2 text-left transition-colors ${selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 bg-white/60 hover:border-blue-300'} disabled:cursor-not-allowed disabled:opacity-60`}><span className="flex min-w-0 items-center justify-between gap-2 text-[13px] font-bold"><span className="min-w-0 truncate">{student.full_name}</span>{selected && <span className="shrink-0 text-[11px] font-bold text-red-600">Đã chọn</span>}</span><span className="block text-[11px] text-slate-500">MSSV: {student.student_code}</span></button>;
+                      })}
+                      {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-6 text-center text-[12px] text-slate-400 italic">Không tìm thấy sinh viên.</div>}
+                    </div>
+                    {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="mx-auto mt-3 block h-8 rounded-lg text-[11px]">Tải thêm sinh viên</Button>}
+                  </div> : null}
+                  {entryMode === 'manual' || isEditMode ? (
                   <div className="bg-white/30 backdrop-blur-sm border border-white/60 rounded-xl p-3.5 w-full relative z-20">
                     <div className="grid grid-cols-12 gap-3 w-full">
-                      {/* Họ tên sinh viên sử dụng Select Component */}
+                      {/* Họ tên sinh viên: edit giữ luồng một sinh viên; create hỗ trợ chọn nhiều */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
+                        <div className="w-full">
+                        {isEditMode ? (
                         <Select
                           value={selectedStudentId}
                           onValueChange={setSelectedStudentId}
@@ -616,6 +797,59 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                             )}
                           </SelectContent>
                         </Select>
+                        ) : (
+                          <>
+                            <label className="flex items-center gap-1 px-1 mb-1.5 text-[13px] font-bold text-[#1E293B]">Họ tên sinh viên<span className="text-red-500">*</span></label>
+                            <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!classId}
+                                aria-label="Chọn sinh viên"
+                                className="bg-white/50 border border-white/80 backdrop-blur-sm h-9 rounded-xl px-3.5 text-[12.5px] text-[#1E293B] font-medium outline-none w-full shadow-xs transition-all duration-150 ease-out hover:bg-white/70 cursor-pointer justify-start"
+                              >
+                                {classId ? (selectedStudentIds.length > 0 ? `Đã chọn ${selectedStudentIds.length} sinh viên` : 'Tìm và chọn sinh viên...') : 'Vui lòng chọn lớp trước...'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-[--radix-popover-trigger-width] min-w-72 p-2 bg-white/95 backdrop-blur-md border border-white/70">
+                              <Input
+                                autoFocus
+                                type="search"
+                                aria-label="Tìm sinh viên"
+                                value={studentsSearch}
+                                onChange={(e) => handleStudentSearch(e.target.value)}
+                                placeholder="Tìm theo tên hoặc mã sinh viên..."
+                                className="h-9 rounded-lg mb-2"
+                              />
+                              <div
+                                role="group"
+                                aria-label="Danh sách sinh viên"
+                                className="max-h-56 overflow-y-auto"
+                                onScroll={(e) => {
+                                  const target = e.currentTarget;
+                                  if (target.scrollHeight - target.scrollTop - target.clientHeight < 32) handleLoadMoreStudents();
+                                }}
+                              >
+                                {classStudents.map(student => (
+                                  <label key={student._id} className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs cursor-pointer hover:bg-blue-50">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedStudentIds.includes(student._id)}
+                                      onChange={() => toggleStudentSelection(student)}
+                                      className="h-4 w-4 accent-[#1A73E8]"
+                                    />
+                                    <span>{student.full_name} ({student.student_code})</span>
+                                  </label>
+                                ))}
+                                {isStudentsLoading && <div className="p-2 text-center text-xs text-slate-400"><Loader2 className="inline-block w-3.5 h-3.5 animate-spin mr-1.5" />Đang tải thêm...</div>}
+                                {!isStudentsLoading && classStudents.length === 0 && <div className="p-3 text-center text-xs text-slate-400">Không tìm thấy sinh viên</div>}
+                              </div>
+                            </PopoverContent>
+                            </Popover>
+                          </>
+                        )}
+                        </div>
                       </div>
 
                       {/* Ghi chú chi tiết sử dụng Input Component */}
@@ -643,6 +877,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                       )}
                     </div>
                   </div>
+                  ) : null}
 
                   {isEditMode ? (
                     <div className="rounded-xl border border-blue-100 bg-blue-50/90 p-3 text-xs text-blue-700 shadow-xs">
