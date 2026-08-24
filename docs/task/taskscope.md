@@ -1,29 +1,27 @@
-task: "Mirror class-report quick selection in training records"
+task: "Đồng bộ modal đăng ký KTX sau khi quét QR"
 pipeline: feature_development
 profile: Quick
-objective: "In create mode, select multiple classes and quickly record one criterion for students from their combined rosters."
+objective: "Trang đăng ký KTX công khai mở từ QR có bố cục và phong cách thống nhất với modal 'Thêm sinh viên đăng ký KTX' trong Danh sách KTX."
 
 evidence:
-  current_behavior: "frontend/src/components/grading/AddRecordView.tsx:classId/create-mode student picker supports one class and the current dirty implementation adds a checkbox multi-student field; frontend/src/components/grading/AddClassReportView.tsx:classIds/entryMode already provides the required searchable multi-class and quick-card pattern."
-  expected_behavior: "Training-record creation mirrors AddClassReportView multi-class, manual/quick mode, roster search, selected-card, and criterion-reset behavior."
-  root_cause: null
+  current_behavior: "frontend/src/app/(dashboard)/dormitory/roster/page.tsx:getPublicRegistrationUrl trỏ QR tới /public/dormitory/register; frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx:PublicDormitoryRegistrationModal dùng max-w-2xl và một khối form, trong khi roster/page.tsx:createOpen dùng max-w-4xl, nền gradient, hai thẻ nội dung và footer Hủy/Tạo đăng ký."
+  expected_behavior: "Modal công khai áp dụng shell, header, bố cục hai cột responsive và footer theo modal thêm mới; các trường công khai bổ sung vẫn được giữ ở phần phù hợp."
+  root_cause: "PublicDormitoryRegistrationModal có class và cấu trúc form riêng, chưa dùng cùng quy ước trình bày với createOpen."
 
 scope:
-  inspect: ["frontend/src/components/grading/AddClassReportView.tsx:classIds, entryMode, roster loading, handleToggleQuickStudent", "frontend/src/api/academic-record-api.ts:bulkCreateAcademicRecords contract"]
-  write: ["frontend/src/components/grading/AddRecordView.tsx:create-mode class and entry selection", "frontend/src/components/grading/AddRecordView.test.tsx:multi-class/quick-selection regressions"]
-  preserve: ["single-class/single-student edit mode", "criterion usage ordering", "note/date values", "student+criterion deduplication", "bulk API payload, idempotency, RBAC"]
-  out: ["backend/API/schema changes", "changes to AddClassReportView", "multi-record edit"]
+  inspect: ["frontend/src/app/(dashboard)/dormitory/roster/page.tsx:createOpen làm chuẩn giao diện", "frontend/src/app/public/dormitory/register/page.tsx:điểm vào sau quét QR"]
+  write: ["frontend/src/components/dormitory/PublicDormitoryRegistrationModal.tsx:PublicDormitoryRegistrationModal", "frontend/src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx:kiểm thử hồi quy modal công khai"]
+  preserve: ["URL QR và hành vi đóng về trang chủ", "toàn bộ trường công khai, validation, trạng thái tải/lỗi/thành công", "payload/API đăng ký, quy tắc loại phòng theo giới tính"]
+  out: ["modal hiển thị mã QR trong Danh sách KTX", "backend/API/schema", "modal sửa đăng ký"]
 
 acceptance_criteria:
-  - "AC-01: Create mode replaces the single-class select with a text-searchable checkbox picker; selecting classes loads and deduplicates their students, while removing a class removes its pending/staged students."
-  - "AC-02: Manual and quick buttons appear outside the student-record section; mobile always uses quick mode, matching AddClassReportView visibility behavior."
-  - "AC-03: Quick mode requires a criterion, supports roster search/paging, toggles a student card as one staged record, and shows red 'Đã chọn' inline right of the name."
-  - "AC-04: Changing criterion clears only pending quick selections; save still submits all staged records through bulkCreateAcademicRecords and edit mode remains single-record."
+  - "AC-01: Trên desktop, form công khai có shell max-w-4xl, nền gradient, header học kỳ và hai thẻ song song: thông tin cá nhân bên trái, loại phòng/ghi chú bên phải; trên màn hình nhỏ tự xếp một cột và cuộn trong viewport."
+  - "AC-02: Footer có Hủy và Gửi đăng ký theo cùng thứ tự/phong cách modal tham chiếu; Hủy đóng modal, submit/loading/error/success vẫn hoạt động như hiện tại."
+  - "AC-03: Không mất trường, không đổi validation hoặc payload gửi dormitoryApi.public.register."
 
 execution:
-  - "E-01 [AC-01] AddRecordView.tsx -> replace classId create state/fetching with classIds, searchable checks, per-class paging, and merged roster; retain classId for edit mode."
-  - "E-02 [AC-02..AC-04] AddRecordView.tsx -> replace the dirty checkbox field with AddClassReportView-style manual/quick controls and card toggling."
-  - "E-03 [AC-01..AC-04] AddRecordView.test.tsx -> cover roster merge/class removal, quick toggle/reset, deduplication, and mode rules."
+  - "E-01 [AC-01..AC-03] PublicDormitoryRegistrationModal.tsx:đổi shell/header/grid/section/footer theo createOpen, chỉ tái bố trí các control hiện có."
+  - "E-02 [AC-01..AC-03] PublicDormitoryRegistrationModal.test.tsx:render modal với API mock và kiểm tra tiêu đề, nhóm trường, Hủy/Gửi đăng ký cùng payload hiện hữu."
 
 temporary_artifacts:
   create: ["docs/task/taskscope.md"]
@@ -31,8 +29,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/grading/AddRecordView.test.tsx -> focused tests pass."
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck; git diff --check -> no TypeScript or whitespace errors."
+  - "V-01 [AC-01..AC-03] npm --prefix frontend test -- src/components/dormitory/PublicDormitoryRegistrationModal.test.tsx -> focused tests pass."
+  - "V-02 [AC-01..AC-03] npm --prefix frontend run typecheck; git diff --check -> no TypeScript or whitespace errors."
+  - "V-03 [AC-01..AC-02] Mở /public/dormitory/register ở desktop và mobile -> đối chiếu trực quan với modal createOpen và không tràn viewport."
 
-risks: ["Roster requests from several classes may finish out of order; merge by student ID and track paging per class."]
-stop_conditions: ["Stop if multi-class training records require an academic-record API/schema change or different behavior from AddClassReportView."]
+risks: ["Form công khai có thêm mã sinh viên và hồ sơ tùy chọn; chỉ đồng bộ bố cục, không loại bỏ dữ liệu đang hỗ trợ."]
+stop_conditions: ["Dừng nếu yêu cầu 'giống' bao gồm bỏ trường, đổi validation/payload, hoặc sửa API/backend."]
