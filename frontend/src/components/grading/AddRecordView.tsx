@@ -117,6 +117,10 @@ export function mergeStudentsById(studentGroups: Student[][]): Student[] {
   return Array.from(studentsById.values());
 }
 
+export function shouldResetClassDependentState(isRestoringDraft: boolean): boolean {
+  return !isRestoringDraft;
+}
+
 export function clearPendingQuickViolations(violations: ViolationItem[], pendingKeys: Set<string>): ViolationItem[] {
   return violations.filter(violation => !pendingKeys.has(`${violation.student_id}:${violation.evaluation_detail_id}`));
 }
@@ -405,14 +409,9 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
-    if (restoringDraftRef.current) {
-      restoringDraftRef.current = false;
-      classIdsRef.current = classIds;
-      return;
-    }
+    const isRestoringDraft = restoringDraftRef.current;
+    restoringDraftRef.current = false;
     classIdsRef.current = classIds;
-    setSelectedStudentId('');
-    setViolationNote('');
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setStudentsSearch("");
     setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
@@ -420,14 +419,18 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       const studentClassId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
       return classIds.includes(studentClassId || '');
     }));
+    if (shouldResetClassDependentState(isRestoringDraft)) {
+      setSelectedStudentId('');
+      setViolationNote('');
+    }
     if (classIds.length > 0) {
       void Promise.all(classIds.map(id => fetchClassStudents(id, 1, "")));
-      if (!isEditMode) {
+      if (!isRestoringDraft && !isEditMode) {
         setAddedViolations(prev => prev.filter(violation => !violation.class_id || classIds.includes(violation.class_id)));
       }
     } else {
       setClassStudents([]);
-      if (!isEditMode) setAddedViolations([]);
+      if (!isRestoringDraft && !isEditMode) setAddedViolations([]);
     }
   }, [classIds, isEditMode]);
 

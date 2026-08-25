@@ -5,10 +5,15 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft } from './AddClassReportView';
+import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft, shouldResetClassDependentState } from './AddClassReportView';
 import { quickGridClass } from './RecordSelectionUi';
 
 describe('AddClassReportView draft contract', () => {
+  it('refetches restored classes while preserving restored attendance state', () => {
+    expect(shouldResetClassDependentState(true)).toBe(false);
+    expect(shouldResetClassDependentState(false)).toBe(true);
+  });
+
   it('builds the latest source state without derived attendance totals', () => {
     const draft = buildClassReportDraft({
       classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'), teacherName: 'Teacher', classNote: 'note',

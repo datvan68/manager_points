@@ -67,6 +67,10 @@ export function mergeStudentsById(studentGroups: Student[][]): Student[] {
   return Array.from(studentsById.values());
 }
 
+export function shouldResetClassDependentState(isRestoringDraft: boolean): boolean {
+  return !isRestoringDraft;
+}
+
 export function filterClassesBySearch(classes: Class[], query: string): Class[] {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return classes;
@@ -265,6 +269,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   });
   const draftRestoredRef = React.useRef(false);
   const restoringDraftRef = React.useRef(false);
+  const classIdsRef = React.useRef<string[]>([]);
   const dataReadyRef = React.useRef(false);
 
   useEffect(() => {
@@ -445,6 +450,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       }));
       const total = (!Array.isArray(res) && res?.meta?.total) ? res.meta.total : newStudents.length;
 
+      if (!classIdsRef.current.includes(classId)) return;
       if (page === 1) {
         setClassStudentTotals(prev => ({ ...prev, [classId]: total }));
       }
@@ -467,28 +473,29 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   // Lọc sinh viên theo các lớp học đang chọn từ backend
   useEffect(() => {
-    if (restoringDraftRef.current) {
-      restoringDraftRef.current = false;
-      return;
-    }
-    setSelectedStudentId('');
-    setSelectedCriterionId('');
-    setViolationNote('');
+    const isRestoringDraft = restoringDraftRef.current;
+    restoringDraftRef.current = false;
+    classIdsRef.current = classIds;
     setStudentsSearch("");
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
     setClassStudentTotals({});
     setTotalStudentsCount(0);
     setClassStudents(prev => prev.filter(student => classIds.includes(getIdValue(student.class_id))));
+    if (shouldResetClassDependentState(isRestoringDraft)) {
+      setSelectedStudentId('');
+      setSelectedCriterionId('');
+      setViolationNote('');
+    }
     if (classIds.length > 0) {
       void Promise.all(classIds.map(id => fetchClassStudents(id, 1, "")));
       // Nếu không ở edit mode hoặc đổi lớp khác, reset vi phạm cũ
-      if (!reportToEdit) {
+      if (!isRestoringDraft && !reportToEdit) {
         setAddedViolations(prev => prev.filter(violation => !violation.class_id || classIds.includes(violation.class_id)));
       }
     } else {
       setClassStudents([]);
-      setAddedViolations([]);
+      if (!isRestoringDraft) setAddedViolations([]);
     }
   }, [classIds]);
 

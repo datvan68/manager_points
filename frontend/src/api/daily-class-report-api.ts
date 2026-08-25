@@ -15,6 +15,32 @@ export interface DailyClassReport {
   updatedAt?: string;
 }
 
+type RawDailyClassReport = Omit<DailyClassReport, 'class_note'> & {
+  class_note?: string;
+  class_notes?: string;
+};
+
+export function normalizeDailyClassReport(report: RawDailyClassReport): DailyClassReport {
+  const note = typeof report.class_notes === 'string' ? report.class_notes : report.class_note || '';
+  return {
+    ...report,
+    class_note: note.trim() ? note : '',
+  };
+}
+
+function normalizeReportResponse<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(normalizeDailyClassReport) as T;
+  }
+  if (value && typeof value === 'object' && Array.isArray((value as any).data)) {
+    return { ...(value as any), data: (value as any).data.map(normalizeDailyClassReport) } as T;
+  }
+  if (value && typeof value === 'object') {
+    return normalizeDailyClassReport(value as unknown as RawDailyClassReport) as T;
+  }
+  return value;
+}
+
 export interface CreateDailyClassReportDto {
   class_id: string;
   reported_by: string;
@@ -54,17 +80,17 @@ export const dailyClassReportApi = {
     }
     const queryString = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
     const res = await httpClient(`${API_BASE}/daily-class-reports${queryString}`);
-    return handleResponse<any>(res);
+    return normalizeReportResponse(await handleResponse<any>(res));
   },
 
   async getDailyClassReport(id: string): Promise<DailyClassReport> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/${id}`);
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async getDailyClassReportsByClass(classId: string): Promise<DailyClassReport[]> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/class/${classId}`);
-    return handleResponse<DailyClassReport[]>(res);
+    return normalizeReportResponse(await handleResponse<RawDailyClassReport[]>(res)) as DailyClassReport[];
   },
 
   async createDailyClassReport(dto: CreateDailyClassReportDto): Promise<DailyClassReport> {
@@ -75,7 +101,7 @@ export const dailyClassReportApi = {
       },
       body: JSON.stringify(dto),
     });
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async updateDailyClassReport(id: string, dto: UpdateDailyClassReportDto): Promise<DailyClassReport> {
@@ -86,14 +112,14 @@ export const dailyClassReportApi = {
       },
       body: JSON.stringify(dto),
     });
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async deleteDailyClassReport(id: string): Promise<DailyClassReport> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/${id}`, {
       method: 'DELETE',
     });
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async deleteDailyClassReportsBulk(ids: string[]): Promise<{
@@ -115,21 +141,21 @@ export const dailyClassReportApi = {
 
   async getDeletedDailyClassReports(): Promise<DailyClassReport[]> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/deleted/all`);
-    return handleResponse<DailyClassReport[]>(res);
+    return normalizeReportResponse(await handleResponse<RawDailyClassReport[]>(res)) as DailyClassReport[];
   },
 
   async restoreDailyClassReport(id: string): Promise<DailyClassReport> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/${id}/restore`, {
       method: 'PATCH',
     });
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async forceDeleteDailyClassReport(id: string): Promise<DailyClassReport> {
     const res = await httpClient(`${API_BASE}/daily-class-reports/${id}/force`, {
       method: 'DELETE',
     });
-    return handleResponse<DailyClassReport>(res);
+    return normalizeDailyClassReport(await handleResponse<RawDailyClassReport>(res));
   },
 
   async importClassRecords(rows: any[], commit?: boolean): Promise<{ success: boolean; errors: any[]; reportsCreated?: number; recordsCreated?: number; count: number }> {

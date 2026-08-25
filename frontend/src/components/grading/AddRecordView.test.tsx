@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { orderCriteriaByUsage, readCriterionUsage } from './criterion-usage';
-import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft } from './AddRecordView';
+import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft, shouldResetClassDependentState } from './AddRecordView';
 
 describe('AddRecordView draft contract', () => {
+  it('refetches restored classes without resetting restored state', () => {
+    expect(shouldResetClassDependentState(true)).toBe(false);
+    expect(shouldResetClassDependentState(false)).toBe(true);
+  });
+
   it('builds the latest source state for navigation persistence', () => {
     expect(buildStudentRecordDraft({
       classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'),

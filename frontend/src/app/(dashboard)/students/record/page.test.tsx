@@ -239,4 +239,20 @@ describe('StudentRecordPage Infinite Scroll', () => {
       .find((row) => row !== null);
     expect(classRow).not.toHaveClass('hover:scale-[1.002]');
   });
+
+  it('renders a saved class note in the class report card', async () => {
+    (dailyClassReportApi.getDailyClassReports as any).mockResolvedValue({
+      data: [{
+        _id: 'report-note', class_id: { class_name: 'CS-101-A' }, report_date: '2026-08-24',
+        total_present: 10, total_absent: 0, recordedStudentsCount: 0,
+        teacher_name: 'Teacher', class_note: 'Ghi chú đã lưu',
+      }],
+      meta: { total: 1 },
+    });
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByText('Tình hình lớp học'));
+
+    expect(await screen.findAllByText('Ghi chú đã lưu')).not.toHaveLength(0);
+  });
 });
