@@ -129,6 +129,8 @@ export default function UserModal({
     username: "",
     email: "",
     role: "",
+    roleIds: [] as string[],
+    primaryRoleId: "",
     password: "",
     advisorClassIds: [] as string[],
   });
@@ -169,6 +171,8 @@ export default function UserModal({
         username: initialData?.user_name || initialData?.username || "",
         email: initialData?.email || "",
         role: initialData?.role?._id || initialData?.role || "",
+        roleIds: (initialData?.roles || [initialData?.role]).filter(Boolean).map((role: any) => role?._id || role),
+        primaryRoleId: initialData?.role?._id || initialData?.role || "",
         password: "",
         advisorClassIds: userClassIds,
       });
@@ -177,7 +181,7 @@ export default function UserModal({
 
       // Reset bulk
       setBulkUsers([
-        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
+        { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", roleIds: roles?.[0]?._id ? [roles[0]._id] : [], primaryRoleId: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
       ]);
       setUseCommonPassword(false);
       setCommonPassword("");
@@ -210,7 +214,7 @@ export default function UserModal({
     if (!isEditing && !formData.password.trim()) {
       newErrors.password = "Vui lòng nhập mật khẩu";
     }
-    if (!formData.role) {
+    if (!formData.roleIds.length && !formData.role) {
       newErrors.role = "Vui lòng chọn vai trò";
     }
 
@@ -224,7 +228,7 @@ export default function UserModal({
     if (onSave) {
       setIsLoading(true);
       try {
-        await onSave({ ...formData, advisor_class_ids: formData.advisorClassIds, status: isActive ? "active" : "inactive" });
+        await onSave({ ...formData, role_id: formData.primaryRoleId || formData.role, role_ids: formData.roleIds.length ? formData.roleIds : [formData.role], primary_role_id: formData.primaryRoleId || formData.role, advisor_class_ids: formData.advisorClassIds, status: isActive ? "active" : "inactive" });
         toast.success(
           isEditing
             ? "Cập nhật người dùng thành công!"
@@ -244,7 +248,7 @@ export default function UserModal({
   const addBulkRow = () => {
     setBulkUsers([
       ...bulkUsers,
-      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
+      { id: Date.now().toString(), username: "", email: "", role: roles?.[0]?._id || "", roleIds: roles?.[0]?._id ? [roles[0]._id] : [], primaryRoleId: roles?.[0]?._id || "", status: "active", password: "", advisorClassIds: [] }
     ]);
   };
 
@@ -293,7 +297,9 @@ export default function UserModal({
             user_name: u.username,
             email: u.email,
             password: useCommonPassword ? undefined : u.password,
-            role_id: u.role,
+            role_id: u.primaryRoleId || u.role,
+            role_ids: u.roleIds?.length ? u.roleIds : [u.role],
+            primary_role_id: u.primaryRoleId || u.role,
             status: u.status,
             advisor_class_ids: u.advisorClassIds || [],
           }))
@@ -501,8 +507,9 @@ export default function UserModal({
                             <div className="flex flex-col gap-1.5">
                               <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
                               <Select value={formData.role} onValueChange={(value: string) => {
-                                const isTeacher = isTeacherRole(roles.find(r => r._id === value));
-                                setFormData({ ...formData, role: value, advisorClassIds: isTeacher ? formData.advisorClassIds : [] });
+                                const nextRoleIds = formData.roleIds.includes(value) ? formData.roleIds : [...formData.roleIds, value];
+                                const isTeacher = isTeacherRole(roles.find(r => r._id === formData.primaryRoleId));
+                                setFormData({ ...formData, role: formData.primaryRoleId || value, roleIds: nextRoleIds, advisorClassIds: isTeacher ? formData.advisorClassIds : [] });
                               }}>
                                 <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
                                   <SelectValue placeholder="Chọn vai trò..." />
@@ -513,6 +520,24 @@ export default function UserModal({
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white/40 p-2">
+                                {roles.map((role) => {
+                                  const roleId = role._id || role.id;
+                                  const checked = formData.roleIds.includes(roleId);
+                                  return <label key={roleId} className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                                    <input type="checkbox" checked={checked} onChange={() => setFormData(prev => {
+                                      const roleIds = checked ? prev.roleIds.filter(id => id !== roleId) : [...prev.roleIds, roleId];
+                                      const primaryRoleId = roleIds.includes(prev.primaryRoleId) ? prev.primaryRoleId : (roleIds[0] || '');
+                                      return { ...prev, roleIds, primaryRoleId, role: primaryRoleId, advisorClassIds: isTeacherRole(roles.find(r => (r._id || r.id) === primaryRoleId)) ? prev.advisorClassIds : [] };
+                                    })} />
+                                    {role.name}
+                                  </label>;
+                                })}
+                              </div>
+                              <Select value={formData.primaryRoleId || formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value, primaryRoleId: value, roleIds: prev.roleIds.includes(value) ? prev.roleIds : [...prev.roleIds, value] }))}>
+                                <SelectTrigger className="mt-1 h-8 rounded-xl border border-blue-200 bg-blue-50/60 px-3 text-[11px] font-semibold"><SelectValue placeholder="Chọn vai trò chính..." /></SelectTrigger>
+                                <SelectContent>{roles.filter(role => formData.roleIds.includes(role._id || role.id)).map(role => <SelectItem key={role._id || role.id} value={role._id || role.id} className="text-xs">Chính: {role.name}</SelectItem>)}</SelectContent>
+                              </Select>
                               {errors.role && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.role}</span>}
                             </div>
                             <div className="flex flex-col gap-1.5">
@@ -521,7 +546,7 @@ export default function UserModal({
                                 selectedIds={formData.advisorClassIds} 
                                 onChange={(ids) => setFormData(prev => ({ ...prev, advisorClassIds: ids }))} 
                                 classes={classes} 
-                                disabled={!isTeacherRole(roles.find(r => r._id === formData.role))} 
+                                disabled={!isTeacherRole(roles.find(r => r._id === (formData.primaryRoleId || formData.role)))}
                                 className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
                               />
                             </div>
@@ -569,7 +594,10 @@ export default function UserModal({
                               <td className="px-2 py-2">
                                 <Select value={u.role} onValueChange={(val) => {
                                   const isTeacher = isTeacherRole(roles.find(r => r._id === val));
+                                  const roleIds = u.roleIds?.includes(val) ? u.roleIds : [...(u.roleIds || []), val];
                                   updateBulkRow(u.id, 'role', val);
+                                  updateBulkRow(u.id, 'roleIds', roleIds);
+                                  updateBulkRow(u.id, 'primaryRoleId', val);
                                   if (!isTeacher) updateBulkRow(u.id, 'advisorClassIds', []);
                                 }}>
                                   <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue /></SelectTrigger>
@@ -577,6 +605,9 @@ export default function UserModal({
                                     {roles.map(r => <SelectItem key={r._id} value={r._id} className="text-[11px]">{r.name}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {roles.map(r => { const id = r._id || r.id; return <label key={id} className="flex items-center gap-1 text-[10px]"><input type="checkbox" checked={u.roleIds?.includes(id) || false} onChange={() => { const next = u.roleIds?.includes(id) ? u.roleIds.filter((x: string) => x !== id) : [...(u.roleIds || []), id]; updateBulkRow(u.id, 'roleIds', next); if (!next.includes(u.primaryRoleId)) updateBulkRow(u.id, 'primaryRoleId', next[0] || ''); }} />{r.name}</label>; })}
+                                </div>
                               </td>
                               <td className="px-2 py-2">
                                 <MultiClassSelect

@@ -175,8 +175,19 @@ export class UpdateRoleDto {
 export class AssignRoleDto {
   @ApiProperty({ example: '65f1...' })
   @IsMongoId()
-  @IsNotEmpty({ message: 'RoleId không được để trống' })
+  @IsOptional()
   role_id: string;
+
+  @ApiProperty({ example: ['65f1...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  role_ids?: string[];
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsMongoId()
+  @IsOptional()
+  primary_role_id?: string;
 }
 
 export class CreatePermissionDto {
@@ -385,6 +396,17 @@ export class UpdateUserDto {
   @IsOptional()
   role_id?: string;
 
+  @ApiProperty({ example: ['65f1...', '65f2...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  role_ids?: string[];
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsMongoId()
+  @IsOptional()
+  primary_role_id?: string;
+
   @ApiProperty({ example: '0987654321', required: false })
   @IsString()
   @IsOptional()
@@ -452,8 +474,19 @@ export class CreateUserDto {
 
   @ApiProperty({ example: '65f1...' })
   @IsMongoId({ message: 'role_id không hợp lệ' })
-  @IsNotEmpty({ message: 'role_id không được để trống' })
+  @IsOptional()
   role_id: string;
+
+  @ApiProperty({ example: ['65f1...', '65f2...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  role_ids?: string[];
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsMongoId()
+  @IsOptional()
+  primary_role_id?: string;
 
   @ApiProperty({
     example: 'active',
@@ -490,8 +523,19 @@ export class BulkCreateUserItemDto {
 
   @ApiProperty({ example: '65f1...' })
   @IsMongoId({ message: 'role_id không hợp lệ' })
-  @IsNotEmpty({ message: 'role_id không được để trống' })
+  @IsOptional()
   role_id: string;
+
+  @ApiProperty({ example: ['65f1...', '65f2...'], required: false })
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsOptional()
+  role_ids?: string[];
+
+  @ApiProperty({ example: '65f1...', required: false })
+  @IsMongoId()
+  @IsOptional()
+  primary_role_id?: string;
 
   @ApiProperty({
     example: 'active',

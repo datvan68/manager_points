@@ -91,6 +91,8 @@ interface UserInfo {
   role?: string;
   roleName?: string;
   roleCode?: string;
+  roles?: any[];
+  roleCodes?: string[];
   permissions?: string[];
   studentId?: string;
   classId?: string;
@@ -192,7 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           display_name: serverUser.display_name,
           role: serverUser.roleName || serverRole,
           roleName: serverUser.roleName || serverRole,
-          roleCode: serverUser.roleCode || serverUser.role?.role_code,
+            roleCode: serverUser.roleCode || serverUser.role?.role_code,
+            roles: serverUser.roles || [],
+            roleCodes: serverUser.roleCodes || [],
         };
         const isStudent = isStudentRole({
           ...baseUser,
@@ -245,6 +249,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: serverUser.roleName || serverRole || baseUser.role,
             roleName: serverUser.roleName || baseUser.roleName || baseUser.role,
             roleCode: serverUser.roleCode || baseUser.roleCode,
+            roles: serverUser.roles || baseUser.roles || [],
+            roleCodes: serverUser.roleCodes || baseUser.roleCodes || [],
             studentId,
             classId,
         };

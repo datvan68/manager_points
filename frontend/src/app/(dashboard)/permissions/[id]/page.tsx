@@ -131,6 +131,7 @@ export default function UserDetailPage() {
   const [allPermissionsList, setAllPermissionsList] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [selectedNewRole, setSelectedNewRole] = useState<string>("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [isRoleConfirmOpen, setIsRoleConfirmOpen] = useState(false);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
 
@@ -190,6 +191,7 @@ export default function UserDetailPage() {
 
       if (foundUser) {
         setUser(foundUser);
+        setSelectedRoleIds((foundUser.roles?.length ? foundUser.roles : [foundUser.role]).filter(Boolean).map((role: any) => role._id || role.id || role));
         
         const userId = foundUser._id || foundUser.id;
         const userClassIds = classesData
@@ -222,6 +224,7 @@ export default function UserDetailPage() {
 
   const handleRoleChange = (roleId: string) => {
     setSelectedNewRole(roleId);
+    setSelectedRoleIds((current) => current.includes(roleId) ? current : [...current, roleId]);
     setIsRoleConfirmOpen(true);
   };
 
@@ -234,7 +237,8 @@ export default function UserDetailPage() {
 
     setIsAssigningRole(true);
     try {
-      await authApi.assignRole(id, selectedNewRole, token);
+      const roleIds = selectedRoleIds.length ? selectedRoleIds : [selectedNewRole];
+      await authApi.assignRole(id, roleIds, token, selectedNewRole);
       toast.success("Thay đổi vai trò thành công!");
       await fetchUsers(); // Làm mới dữ liệu người dùng và các quyền truy cập đi kèm
     } catch (error: any) {
@@ -288,6 +292,10 @@ export default function UserDetailPage() {
       </>
     );
   }
+
+  const effectivePermissions = user?.permissions?.length
+    ? Array.from(new Set(user.permissions))
+    : Array.from(new Set((user?.roles?.length ? user.roles : [user?.role]).filter(Boolean).flatMap((role: any) => (role.permissions || []).map((p: any) => typeof p === 'string' ? p : p.code || p._id || p.id))));
 
   return (
     <>
@@ -744,16 +752,20 @@ export default function UserDetailPage() {
                   </div>
                   <div className="p-5 space-y-5">
                     <div className="flex flex-wrap gap-3 items-center">
-                      {user?.role ? (
-                        <div
+                      {(user?.roles?.length ? user.roles : [user?.role]).filter(Boolean).length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {(user?.roles?.length ? user.roles : [user?.role]).filter(Boolean).map((assignedRole: any) => <div
+                          key={assignedRole._id || assignedRole.id}
                           className={cn(
                             "flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm transition-all hover:scale-[1.01] duration-150 ease-out font-sans",
-                            user.role.name === "Admin"
+                            assignedRole.role_code === "ADMIN" || assignedRole.name === "Admin"
                               ? "bg-purple-500/10 border-purple-500/20 text-purple-700"
                               : "bg-blue-500/10 border-blue-500/20 text-[#1A73E8]"
                           )}
                         >
-                          <span className="text-xs font-bold">{user.role.name}</span>
+                          <span className="text-xs font-bold">{assignedRole.name}</span>
+                          {assignedRole._id?.toString() === user.role?._id?.toString() && <span className="text-[9px] font-extrabold uppercase">Chính</span>}
+                        </div>)}
                         </div>
                       ) : (
                         <div className="text-xs text-[#64748B] font-medium italic font-sans">
@@ -780,7 +792,7 @@ export default function UserDetailPage() {
                     </div>
                   </div>
                   <div className="p-5">
-                    {user?.role?.permissions && user.role.permissions.length > 0 ? (
+                    {effectivePermissions.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Cột 1: Nửa đầu danh sách quyền hạn thực tế */}
                         <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 space-y-3">
@@ -793,7 +805,7 @@ export default function UserDetailPage() {
                             </h3>
                           </div>
                           <ul className="space-y-2.5">
-                            {user.role.permissions.slice(0, Math.ceil(user.role.permissions.length / 2)).map((perm: any, i: number) => {
+                            {effectivePermissions.slice(0, Math.ceil(effectivePermissions.length / 2)).map((perm: any, i: number) => {
                               const details = getPermissionDetails(perm);
                               return (
                                 <li
@@ -822,7 +834,7 @@ export default function UserDetailPage() {
                             </h3>
                           </div>
                           <ul className="space-y-2.5">
-                            {user.role.permissions.slice(Math.ceil(user.role.permissions.length / 2)).map((perm: any, i: number) => {
+                            {effectivePermissions.slice(Math.ceil(effectivePermissions.length / 2)).map((perm: any, i: number) => {
                               const details = getPermissionDetails(perm);
                               return (
                                 <li

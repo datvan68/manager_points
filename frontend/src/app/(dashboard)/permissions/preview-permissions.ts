@@ -49,13 +49,14 @@ export function getPreviewPermissions(subject: PreviewSubject): string[] {
     });
   }
 
-  // 2. Lấy permissions từ role (subject.role đã được gán là role của user trong resolvePreviewSubject)
-  if (subject.role && Array.isArray(subject.role.permissions)) {
-    subject.role.permissions.forEach((p: any) => {
+  // 2. Merge every assigned role while preserving server order and codes.
+  const assignedRoles = subject.user?.roles?.length ? subject.user.roles : [subject.role];
+  assignedRoles.filter(Boolean).forEach((role: any) => {
+    (role.permissions || []).forEach((p: any) => {
       const code = typeof p === 'string' ? p : p.code || p._id || p.id;
       if (code) permsSet.add(code);
     });
-  }
+  });
 
   return Array.from(permsSet);
 }

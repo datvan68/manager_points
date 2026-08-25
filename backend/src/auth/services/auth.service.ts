@@ -56,6 +56,7 @@ import {
 } from '../permissions.registry';
 import { maskLoginKey } from '../utils/mask.util';
 import { ImpersonationService } from './impersonation.service';
+import { getAssignedRoles, getEffectivePermissions } from '../utils/role.util';
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MINUTES = 15;
@@ -532,7 +533,9 @@ export class AuthService implements OnModuleInit {
     return this.rbacService.deleteRole(id);
   }
   async assignRole(userId: string, dto: AssignRoleDto) {
-    return this.rbacService.assignRole(userId, dto);
+    const result = await this.rbacService.assignRole(userId, dto);
+    await this.tokenService.revokeAllUserTokens(userId);
+    return result;
   }
 
   // ─── ROUTE PERMISSION WRAPPERS ──────────────────
@@ -652,6 +655,42 @@ export class AuthService implements OnModuleInit {
 
   // ─── USER MANAGEMENT ──────────────────────────
 
+  private async resolveRoleAssignments(dto: any) {
+    if (dto.role_id && !dto.role_ids && !dto.primary_role_id) {
+      try {
+        const roleQuery: any = this.roleModel.findById(dto.role_id);
+        const legacyRole = roleQuery?.populate
+          ? await roleQuery.populate('permissions').exec()
+          : await roleQuery;
+        if (!legacyRole) throw new BadRequestException('Vai trò không tồn tại');
+        return { ids: [String(dto.role_id)], roles: [legacyRole], primary: legacyRole, primaryId: String(dto.role_id) };
+      } catch (error) {
+        if (error instanceof BadRequestException) throw error;
+        throw new BadRequestException('ID vai trò không hợp lệ');
+      }
+    }
+    const rawIds = Array.isArray(dto.role_ids) && dto.role_ids.length
+      ? dto.role_ids
+      : dto.role_id
+        ? [dto.role_id]
+        : [];
+    const ids: string[] = [...new Set<string>(rawIds.map((id: string) => String(id)))];
+    if (ids.length === 0) throw new BadRequestException('Phải chọn ít nhất một vai trò');
+    if (ids.some((id) => !Types.ObjectId.isValid(id))) {
+      throw new BadRequestException('ID vai trò không hợp lệ');
+    }
+    const roles = await this.roleModel.find({ _id: { $in: ids } }).populate('permissions').exec();
+    const roleMap = new Map(roles.map((role) => [role._id.toString(), role]));
+    if (roles.length !== ids.length) throw new BadRequestException('Vai trò không tồn tại');
+    const primaryId = String(dto.primary_role_id || ids[0]);
+    if (!ids.includes(primaryId)) throw new BadRequestException('Vai trò chính phải thuộc danh sách vai trò');
+    const primary = roleMap.get(primaryId)!;
+    if (roles.some((role) => role.role_code === 'ADMIN') && primary.role_code !== 'ADMIN') {
+      throw new BadRequestException('Vai trò ADMIN phải là vai trò chính');
+    }
+    return { ids, roles: ids.map((id) => roleMap.get(id)!), primary, primaryId };
+  }
+
   async getMe(userId: string) {
     const user = await this.userModel
       .findById(userId)
@@ -659,12 +698,17 @@ export class AuthService implements OnModuleInit {
         path: 'role',
         populate: { path: 'permissions' },
       })
+      .populate({
+        path: 'roles',
+        populate: { path: 'permissions' },
+      })
       .select('-pw_hash');
 
     if (!user) throw new BadRequestException('Người dùng không tồn tại');
 
     const role = user.role as any;
-    const permissions = role?.permissions?.map((p: any) => p.code) || [];
+    const assignedRoles = getAssignedRoles(user);
+    const permissions = getEffectivePermissions(user);
 
     const student = await this.studentModel
       .findOne({ user_id: user._id })
@@ -690,6 +734,8 @@ export class AuthService implements OnModuleInit {
             permissions: role.permissions || [],
           }
         : null,
+      roles: assignedRoles,
+      roleCodes: assignedRoles.map((assignedRole: any) => assignedRole.role_code),
       permissions,
       advisor_classes: (
         await this.classModel.find({ advisor_id: user._id }).exec()
@@ -732,7 +778,8 @@ export class AuthService implements OnModuleInit {
   async getUsers() {
     const users = await this.userModel
       .find()
-      .populate('role')
+      .populate({ path: 'role', populate: { path: 'permissions' } })
+      .populate({ path: 'roles', populate: { path: 'permissions' } })
       .select('-pw_hash')
       .exec();
 
@@ -752,6 +799,9 @@ export class AuthService implements OnModuleInit {
 
     return users.map((user) => {
       const userObj = user.toObject() as any;
+      userObj.roles = getAssignedRoles(userObj);
+      userObj.roleCodes = userObj.roles.map((role: any) => role.role_code);
+      userObj.permissions = getEffectivePermissions(userObj);
       userObj.is_under_impersonation = impersonatedSubjectIds.has(
         user._id.toString(),
       );
@@ -801,19 +851,13 @@ export class AuthService implements OnModuleInit {
 
     let shouldRevokeTokens = false;
 
-    // Check role existence if role_id is provided
-    if (dto.role_id) {
-      if (!Types.ObjectId.isValid(dto.role_id)) {
-        throw new BadRequestException('ID vai trò không hợp lệ');
-      }
-      const role = await this.roleModel.findById(dto.role_id);
-      if (!role) {
-        throw new BadRequestException('Vai trò không tồn tại');
-      }
-      if (user.role && user.role.toString() !== role._id.toString()) {
-        user.role = role._id;
-        shouldRevokeTokens = true;
-      }
+    if (dto.role_id || dto.role_ids || dto.primary_role_id) {
+      const assignment = await this.resolveRoleAssignments(dto);
+      const currentIds = getAssignedRoles(user).map((role: any) => role._id?.toString?.() || role.toString());
+      const changed = assignment.ids.join(',') !== currentIds.join(',') || user.role?.toString() !== assignment.primaryId;
+      user.roles = assignment.roles.map((role) => role._id) as any;
+      user.role = assignment.primary._id;
+      shouldRevokeTokens ||= changed;
     }
 
     // Update other fields
@@ -916,10 +960,17 @@ export class AuthService implements OnModuleInit {
     const updatedUser = await this.userModel
       .findById(userId)
       .populate('role')
+      .populate('roles')
       .select('-pw_hash');
+    const updatedUserObj = updatedUser?.toObject?.() as any;
+    if (updatedUserObj) {
+      updatedUserObj.roles = getAssignedRoles(updatedUserObj);
+      updatedUserObj.roleCodes = updatedUserObj.roles.map((role: any) => role.role_code);
+      updatedUserObj.permissions = getEffectivePermissions(updatedUserObj);
+    }
     return {
       message: 'Cập nhật người dùng thành công',
-      user: updatedUser,
+      user: updatedUserObj,
     };
   }
 
@@ -940,10 +991,7 @@ export class AuthService implements OnModuleInit {
     });
     if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
-    const role = await this.roleModel.findById(dto.role_id);
-    if (!role) {
-      throw new BadRequestException('Vai trò không tồn tại');
-    }
+    const assignment = await this.resolveRoleAssignments(dto);
 
     const pw_hash = await this.passwordService.hashPassword(dto.password);
 
@@ -952,13 +1000,14 @@ export class AuthService implements OnModuleInit {
       email: dto.email.toLowerCase(),
       pw_hash,
       status: dto.status || UserStatus.ACTIVE,
-      role: role._id,
+      role: assignment.primary._id,
+      roles: assignment.roles.map((role) => role._id),
     });
 
     if (dto.advisor_class_ids && dto.advisor_class_ids.length > 0) {
       const isTeacher =
-        role.role_code === 'TEACHER' ||
-        !!role.name.match(/Teacher|Giảng viên|GVCN/i);
+        assignment.primary.role_code === 'TEACHER' ||
+        !!assignment.primary.name.match(/Teacher|Giảng viên|GVCN/i);
       if (!isTeacher) {
         await this.userModel.deleteOne({ _id: newUser._id });
         throw new BadRequestException(
@@ -1014,15 +1063,12 @@ export class AuthService implements OnModuleInit {
     const successes: any[] = [];
     const errors: any[] = [];
 
-    // Cache roles
-    const rolesCache = new Map<string, Types.ObjectId | null>();
-
     for (let i = 0; i < users.length; i++) {
       const u = users[i];
       try {
-        if (!u.user_name || !u.email || !u.role_id) {
+        if (!u.user_name || !u.email || (!u.role_id && !u.role_ids)) {
           throw new BadRequestException(
-            'Thiếu trường bắt buộc (user_name, email, role_id)',
+            'Thiếu trường bắt buộc (user_name, email, role_ids)',
           );
         }
 
@@ -1042,21 +1088,7 @@ export class AuthService implements OnModuleInit {
         });
         if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
-        let roleId = rolesCache.get(u.role_id);
-        if (roleId === undefined) {
-          if (!Types.ObjectId.isValid(u.role_id)) {
-            rolesCache.set(u.role_id, null);
-            roleId = null;
-          } else {
-            const role = await this.roleModel.findById(u.role_id);
-            roleId = role ? role._id : null;
-            rolesCache.set(u.role_id, roleId);
-          }
-        }
-
-        if (!roleId) {
-          throw new BadRequestException('Vai trò không tồn tại');
-        }
+        const assignment = await this.resolveRoleAssignments(u);
 
         const pw_hash = await this.passwordService.hashPassword(password);
 
@@ -1065,7 +1097,8 @@ export class AuthService implements OnModuleInit {
           email: u.email.toLowerCase(),
           pw_hash,
           status: u.status || UserStatus.ACTIVE,
-          role: roleId,
+          role: assignment.primary._id,
+          roles: assignment.roles.map((role) => role._id),
         });
 
         const classIds =
@@ -1075,7 +1108,7 @@ export class AuthService implements OnModuleInit {
               ? [u.advisor_class_id]
               : [];
         if (classIds.length > 0) {
-          const roleObj = await this.roleModel.findById(roleId);
+          const roleObj = assignment.primary;
           const isTeacher =
             roleObj &&
             (roleObj.role_code === 'TEACHER' ||

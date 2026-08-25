@@ -89,3 +89,47 @@ export function isAdminUser(requester?: any): boolean {
     getRequesterRoleName(requester) === 'Admin'
   );
 }
+
+export function getAssignedRoles(user?: any): any[] {
+  if (!user) return [];
+  const roles = Array.isArray(user.roles) && user.roles.length > 0
+    ? user.roles
+    : user.role
+      ? [user.role]
+      : [];
+  const seen = new Set<string>();
+  return roles.filter((role: any) => {
+    const id = role?._id?.toString?.() || role?.toString?.();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export function getEffectivePermissions(userOrRoles?: any): string[] {
+  const roles = Array.isArray(userOrRoles)
+    ? userOrRoles
+    : getAssignedRoles(userOrRoles);
+  const primaryId = !Array.isArray(userOrRoles)
+    ? userOrRoles?.role?._id?.toString?.() || userOrRoles?.role?.toString?.()
+    : undefined;
+  const ordered = primaryId
+    ? [...roles].sort((a, b) => {
+        const aId = a?._id?.toString?.() || a?.toString?.();
+        const bId = b?._id?.toString?.() || b?.toString?.();
+        return Number(bId === primaryId) - Number(aId === primaryId);
+      })
+    : roles;
+  const seen = new Set<string>();
+  const permissions: string[] = [];
+  for (const role of ordered) {
+    for (const permission of role?.permissions || []) {
+      const code = typeof permission === 'string' ? permission : permission?.code;
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        permissions.push(code);
+      }
+    }
+  }
+  return permissions;
+}

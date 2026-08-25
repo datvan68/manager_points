@@ -105,7 +105,8 @@ export function filterPermissionUsers(users: any[], searchTerm: string, filterRo
       (u.display_name || '').toLowerCase().includes(query) ||
       (u.student_profile?.full_name || '').toLowerCase().includes(query) ||
       (u.student_profile?.student_code || '').toLowerCase().includes(query);
-    const matchesRole = filterRole === 'Tất cả' || (u.role?.name || 'User') === filterRole;
+    const assignedRoleNames = (u.roles?.length ? u.roles : [u.role]).filter(Boolean).map((role: any) => role?.name || role);
+    const matchesRole = filterRole === 'Tất cả' || assignedRoleNames.includes(filterRole);
     const userStatus = u.status || 'active';
     const matchesStatus = filterStatuses.includes('Tất cả') || filterStatuses.some((status) => {
       if (status === 'Hoạt động') return userStatus === 'active';
@@ -947,7 +948,9 @@ function PermissionsPageContent() {
         user_name: userData.username,
         email: userData.email,
         status: userData.status,
-        role_id: userData.role,
+        role_id: userData.primary_role_id || userData.role,
+        role_ids: userData.role_ids?.length ? userData.role_ids : [userData.role],
+        primary_role_id: userData.primary_role_id || userData.role,
         advisor_class_ids: userData.advisor_class_ids || [],
         ...(userData.password ? { password: userData.password } : {})
       }, token);
@@ -956,7 +959,9 @@ function PermissionsPageContent() {
         user_name: userData.username,
         email: userData.email,
         password: userData.password,
-        role_id: userData.role,
+        role_id: userData.primary_role_id || userData.role,
+        role_ids: userData.role_ids?.length ? userData.role_ids : [userData.role],
+        primary_role_id: userData.primary_role_id || userData.role,
         status: userData.status,
         advisor_class_ids: userData.advisor_class_ids || []
       }, token);

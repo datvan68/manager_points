@@ -319,7 +319,9 @@ export class RbacService {
     if (!Types.ObjectId.isValid(roleId)) {
       throw new BadRequestException('ID vai trò không hợp lệ');
     }
-    const usersCount = await this.userModel.countDocuments({ role: roleId });
+    const usersCount = await this.userModel.countDocuments({
+      $or: [{ role: roleId }, { roles: roleId }],
+    });
     if (usersCount > 0) {
       throw new BadRequestException(
         'Không thể xóa vai trò đang có người dùng sử dụng',
@@ -334,10 +336,9 @@ export class RbacService {
   }
 
   async assignRole(userId: string, dto: AssignRoleDto) {
-    if (
-      !Types.ObjectId.isValid(userId) ||
-      !Types.ObjectId.isValid(dto.role_id)
-    ) {
+    const roleIds = [...new Set((dto.role_ids?.length ? dto.role_ids : [dto.role_id]).filter(Boolean))];
+    const primaryRoleId = dto.primary_role_id || roleIds[0];
+    if (!Types.ObjectId.isValid(userId) || roleIds.some((id) => !Types.ObjectId.isValid(id))) {
       throw new BadRequestException(
         'ID người dùng hoặc ID vai trò không hợp lệ',
       );
@@ -345,14 +346,20 @@ export class RbacService {
     const user = await this.userModel.findById(userId);
     if (!user) throw new BadRequestException('Người dùng không tồn tại');
 
-    const role = await this.roleModel.findById(dto.role_id);
-    if (!role) throw new BadRequestException('Vai trò không tồn tại');
+    if (!roleIds.includes(primaryRoleId)) throw new BadRequestException('Vai trò chính phải thuộc danh sách vai trò');
+    const roles = await this.roleModel.find({ _id: { $in: roleIds } });
+    if (roles.length !== roleIds.length) throw new BadRequestException('Vai trò không tồn tại');
+    if (roles.some((role) => role.role_code === 'ADMIN') && roles.find((role) => role._id.toString() === primaryRoleId)?.role_code !== 'ADMIN') {
+      throw new BadRequestException('Vai trò ADMIN phải là vai trò chính');
+    }
+    const role = roles.find((item) => item._id.toString() === primaryRoleId)!;
 
     user.role = role._id;
+    user.roles = roleIds.map((id) => roles.find((item) => item._id.toString() === id)!._id) as any;
     await user.save();
 
     return {
-      message: `Đã gán vai trò ${role.name} cho người dùng ${user.user_name}`,
+      message: `Đã gán ${roles.length} vai trò cho người dùng ${user.user_name}`,
     };
   }
 

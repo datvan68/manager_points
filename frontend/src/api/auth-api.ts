@@ -8,6 +8,8 @@ export interface LoginResponse {
     id: string;
     username: string;
     role: string;
+    roles?: any[];
+    roleCodes?: string[];
   };
 }
 
@@ -404,14 +406,14 @@ export const authApi = {
     return handleResponse<any>(res);
   },
 
-  async assignRole(userId: string, roleId: string, accessToken: string): Promise<any> {
+  async assignRole(userId: string, roleId: string | string[], accessToken: string, primaryRoleId?: string): Promise<any> {
     const res = await fetch(`${API_BASE}/auth/users/${userId}/role`, {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}` 
       },
-      body: JSON.stringify({ role_id: roleId }),
+      body: JSON.stringify({ role_id: Array.isArray(roleId) ? roleId[0] : roleId, role_ids: Array.isArray(roleId) ? roleId : [roleId], primary_role_id: primaryRoleId || (Array.isArray(roleId) ? roleId[0] : roleId) }),
     });
     return handleResponse<any>(res);
   },

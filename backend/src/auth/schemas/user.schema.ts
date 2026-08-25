@@ -28,6 +28,9 @@ export class User {
   @Prop({ type: Types.ObjectId, ref: 'Role' })
   role: Role | Types.ObjectId;
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Role' }], default: undefined })
+  roles?: Array<Role | Types.ObjectId>;
+
   @Prop({ default: 0 })
   failed_login_attempts: number;
 

@@ -6,6 +6,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../schemas/user.schema';
 import { ImpersonationService } from '../services/impersonation.service';
+import { getAssignedRoles, getEffectivePermissions } from '../utils/role.util';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -43,6 +44,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         path: 'role',
         populate: { path: 'permissions' },
       })
+      .populate({
+        path: 'roles',
+        populate: { path: 'permissions' },
+      })
       .select('-pw_hash');
 
     if (!user) {
@@ -66,7 +71,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const role = user.role as any;
-    const permissions = role?.permissions?.map((p: any) => p.code) || [];
+    const roles = getAssignedRoles(user);
+    const permissions = getEffectivePermissions(user);
 
     return {
       userId: payload.user_id,
@@ -74,6 +80,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       roleName: role?.name || 'User',
       roleCode: role?.role_code || 'USER',
+      roles,
+      roleCodes: roles.map((assignedRole: any) => assignedRole.role_code),
       permissions: permissions,
       ...(payload.impersonation_session_id
         ? {
