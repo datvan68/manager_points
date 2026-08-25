@@ -50,6 +50,7 @@ import {
   type PreviewSubject,
   type PreviewPermissionItem,
 } from './preview-permissions';
+import { sortRolesByPriority, sortUsersByRolePriority } from './user-role-priority';
 
 const getUserDisplayName = (user: any) =>
   user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
@@ -1152,7 +1153,8 @@ function PermissionsPageContent() {
   }, [selectedGroup, activeTab]);
 
 
-  const filteredUsers = filterPermissionUsers(users, searchTerm, filterRole, filterStatuses);
+  const filteredUsers = sortUsersByRolePriority(filterPermissionUsers(users, searchTerm, filterRole, filterStatuses));
+  const orderedRoles = sortRolesByPriority(roles || []);
 
   // Pagination derived data for users table
   const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / userPageSize));
@@ -1458,7 +1460,7 @@ function PermissionsPageContent() {
                               <SelectValue placeholder="Tất cả" />
                             </SelectTrigger>
                             <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
-                              {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
+                              {['Tất cả', ...orderedRoles.map((r: any) => r.name).filter(Boolean)].map((role) => (
                                 <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
                               ))}
                             </SelectContent>

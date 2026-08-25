@@ -4,6 +4,7 @@ import {
   getPermissionUsersForViewport,
   MOBILE_USER_BATCH_SIZE,
 } from './page';
+import { sortRolesByPriority, sortUsersByRolePriority } from './user-role-priority';
 
 const users = [
   { _id: 'active-admin', user_name: 'admin', email: 'admin@example.com', role: { name: 'Admin' }, status: 'active' },
@@ -30,5 +31,72 @@ describe('permissions user list filtering and responsive datasets', () => {
     expect(getPermissionUsersForViewport(manyUsers, false, 20, 2, 10).map((user) => user._id)).toEqual(
       Array.from({ length: 10 }, (_, index) => String(index + 10)),
     );
+  });
+
+  it('orders users by the highest assigned role priority with case-insensitive codes', () => {
+    const prioritizedUsers = [
+      { _id: 'unknown', role: { role_code: 'guest' } },
+      { _id: 'teacher', role: { roleCode: 'teacher' } },
+      { _id: 'multi-role', roles: [{ code: 'guest' }, { role_code: 'SuPeRvIsOr' }] },
+      { _id: 'admin', roleCode: 'ADMIN' },
+    ];
+
+    expect(sortUsersByRolePriority(prioritizedUsers).map((user) => user._id)).toEqual([
+      'admin',
+      'multi-role',
+      'teacher',
+      'unknown',
+    ]);
+  });
+
+  it('keeps source order for ties and missing or unknown role codes', () => {
+    const usersWithTies = [
+      { _id: 'first-unknown', role: { name: 'Guest' } },
+      { _id: 'admin-a', role: { code: 'admin' } },
+      { _id: 'admin-b', role_code: 'ADMIN' },
+      { _id: 'second-unknown', role: { code: 'OTHER' } },
+    ];
+
+    expect(sortUsersByRolePriority(usersWithTies).map((user) => user._id)).toEqual([
+      'admin-a',
+      'admin-b',
+      'first-unknown',
+      'second-unknown',
+    ]);
+  });
+
+  it('sorts role options by code while preserving localized labels and fallback order', () => {
+    const roles = [
+      { name: 'Khách', role_code: 'GUEST' },
+      { name: 'Giáo viên', roleCode: 'teacher' },
+      { name: 'Quản trị viên', code: 'ADMIN' },
+      { name: 'Giám sát', role_code: 'SUPERVISOR' },
+      { name: 'Khác' },
+    ];
+
+    expect(sortRolesByPriority(roles).map((role) => role.name)).toEqual([
+      'Quản trị viên',
+      'Giám sát',
+      'Giáo viên',
+      'Khách',
+      'Khác',
+    ]);
+  });
+
+  it('sorts before desktop pages and mobile visible batches', () => {
+    const filteredUsers = sortUsersByRolePriority([
+      { _id: 'teacher', role_code: 'TEACHER' },
+      { _id: 'admin', role_code: 'ADMIN' },
+      { _id: 'supervisor', role_code: 'SUPERVISOR' },
+    ]);
+
+    expect(getPermissionUsersForViewport(filteredUsers, false, 20, 1, 2).map((user) => user._id)).toEqual([
+      'admin',
+      'supervisor',
+    ]);
+    expect(getPermissionUsersForViewport(filteredUsers, true, 2, 1, 2).map((user) => user._id)).toEqual([
+      'admin',
+      'supervisor',
+    ]);
   });
 });
