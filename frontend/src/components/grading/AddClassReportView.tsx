@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Users, Save, Settings, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Save, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -891,14 +891,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 aria-pressed={selected}
                                 disabled={!selectedCriterionId}
                                 onClick={() => handleToggleQuickStudent(student)}
-                                className={`text-left rounded-lg border min-h-[52px] sm:min-h-[56px] lg:min-h-0 p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
+                                className={`h-full text-left rounded-lg border min-h-[52px] sm:min-h-[56px] lg:min-h-[52px] p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
                                   selected
                                     ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
                                     : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
                                 } disabled:cursor-not-allowed disabled:opacity-60`}
                               >
                                 <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-                                  <span className="block text-[13.5px] sm:text-sm lg:text-xs font-bold truncate leading-tight">{student.full_name}</span>
+                                  <span className="block text-[13.5px] sm:text-sm lg:text-xs font-bold leading-tight break-words">{student.full_name}</span>
                                   <span className="block text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
                                 </div>
                                 {selected && (
@@ -986,46 +986,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
                   </>}
 
-                  {/* Sĩ số hiển thị xem nhanh */}
-                  <div className="hidden lg:flex flex-wrap items-center gap-3 sm:gap-5 text-xs font-bold text-slate-600 px-3 py-2 bg-white/40 border border-white/60 rounded-xl mt-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Sĩ số lớp: <strong className="text-slate-800">
-                        {isStudentsLoading ? (
-                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-slate-400 align-middle ml-1" />
-                        ) : (
-                          `${classStudents.length} SV`
-                        )}
-                      </strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>Hiện diện: <strong className="text-emerald-600">
-                        {isStudentsLoading ? (
-                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-400 align-middle ml-1" />
-                        ) : (
-                          `${totalPresent} SV`
-                        )}
-                      </strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-500" />
-                      <span>Vắng mặt: <strong className="text-rose-600">
-                        {isStudentsLoading ? (
-                          <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-rose-400 align-middle ml-1" />
-                        ) : (
-                          `${totalAbsent} SV`
-                        )}
-                      </strong></span>
-                    </div>
-                    <div className="ml-auto text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg text-[11px] min-w-[85px] text-center border border-emerald-100 font-semibold">
-                      {isStudentsLoading ? (
-                        <Loader2 className="inline-block w-3.5 h-3.5 animate-spin text-emerald-500 align-middle" />
-                      ) : (
-                        `${classStudents.length > 0 ? Math.round((totalPresent / classStudents.length) * 100) : 0}% Chuyên cần`
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

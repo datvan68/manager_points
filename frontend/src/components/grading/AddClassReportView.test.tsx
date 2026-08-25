@@ -6,6 +6,7 @@ import {
   readCriterionUsage,
 } from './criterion-usage';
 import { clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById } from './AddClassReportView';
+import { quickGridClass } from './RecordSelectionUi';
 
 const criteria = [
   { _id: 'one', criterion_name: 'Một' },
@@ -91,5 +92,10 @@ describe('AddClassReportView violation selection', () => {
     const pending = createViolationItem({ _id: 'student-2', full_name: 'B', student_code: 'B' } as any, { _id: 'criterion-old', criterion_name: 'Cũ' } as any, 'quick');
 
     expect(clearPendingQuickViolations([preserved, pending], new Set(['student-2:criterion-old']))).toEqual([preserved]);
+  });
+
+  it('keeps the quick violation viewport complete through the six-card boundary', () => {
+    expect(quickGridClass(6)).toContain('overflow-visible');
+    expect(quickGridClass(7)).toMatch(/auto-rows-\[52px\].*sm:auto-rows-\[56px\].*xl:auto-rows-\[52px\]/);
   });
 });

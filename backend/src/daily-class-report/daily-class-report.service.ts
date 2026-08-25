@@ -49,42 +49,23 @@ export class DailyClassReportService {
   private async getScopeFilter(requester?: any): Promise<any> {
     if (!requester) return {};
     const roleName = (requester.roleName || '').toLowerCase();
+    const permissions = Array.isArray(requester.permissions)
+      ? requester.permissions.map((permission: any) =>
+          typeof permission === 'string' ? permission : permission?.code,
+        )
+      : [];
 
-    // Admin, Supervisor xem tất cả
-    if (
-      roleName.includes('admin') ||
-      roleName.includes('supervisor') ||
-      roleName.includes('quản sinh')
-    ) {
+    // Admin hoặc người được cấp quyền explicit xem tất cả báo cáo.
+    if (roleName.includes('admin') || permissions.includes('READ_ALL_CLASS_RECORD')) {
       return {};
     }
 
-    // Teacher chỉ xem các lớp phụ trách
-    if (
-      roleName.includes('teacher') ||
-      roleName.includes('advisor') ||
-      roleName.includes('giảng viên')
-    ) {
-      const classes = await this.academicRecordService['classModel']
-        .find({ advisor_id: requester.userId })
-        .select('_id')
-        .exec();
-      return { class_id: { $in: classes.map((c) => c._id) } };
-    }
-
-    // Student chỉ xem báo cáo của lớp mình
-    if (roleName.includes('student')) {
-      const student = await this.academicRecordService['studentModel']
-        .findOne({ user_id: new Types.ObjectId(requester.userId) })
-        .select('class_id')
-        .exec();
-      if (student && student.class_id) {
-        return { class_id: student.class_id };
-      }
-      return { class_id: null }; // Không có lớp -> không xem được gì
-    }
-
-    return {};
+    // Mọi non-admin không có quyền full-view chỉ thấy báo cáo do chính mình tạo.
+    return {
+      reported_by: Types.ObjectId.isValid(requester.userId)
+        ? new Types.ObjectId(requester.userId)
+        : null,
+    };
   }
 
   async findAll(

@@ -3,6 +3,7 @@ import { DailyClassReportService } from './daily-class-report.service';
 import { getModelToken } from '@nestjs/mongoose';
 import { DailyClassReport } from './schemas/daily-class-report.schema';
 import { AcademicRecordService } from '../academic-record/academic-record.service';
+import { Types } from 'mongoose';
 
 describe('DailyClassReportService', () => {
   let service: DailyClassReportService;
@@ -41,6 +42,24 @@ describe('DailyClassReportService', () => {
   });
 
   describe('findAll', () => {
+    const setupPaginatedQueries = (reports: any[] = [], total = reports.length) => {
+      const mockQueryObj = {
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(reports),
+      };
+      mockDailyClassReportModel.find.mockReturnValue(mockQueryObj);
+      mockDailyClassReportModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(total),
+      });
+      mockDailyClassReportModel.db.model.mockReturnValue({
+        aggregate: jest.fn().mockResolvedValue([]),
+      });
+      return mockQueryObj;
+    };
+
     it('should apply startDate and endDate filters with correct time boundaries', async () => {
       const mockExec = jest.fn().mockResolvedValue([]);
       const mockQueryObj = {
@@ -75,6 +94,35 @@ describe('DailyClassReportService', () => {
           },
         }),
       );
+    });
+
+    it('filters both data and meta.total to the requesting owner for non-admin users', async () => {
+      setupPaginatedQueries([], 2);
+      const ownerId = new Types.ObjectId().toString();
+
+      const result = await service.findAll(
+        { page: 1, limit: 10, classId: new Types.ObjectId().toString() },
+        { userId: ownerId, roleName: 'Teacher', permissions: ['READ_CLASS_RECORD'] },
+      );
+
+      const filter = mockDailyClassReportModel.find.mock.calls[0][0];
+      expect(filter.reported_by).toEqual(new Types.ObjectId(ownerId));
+      expect(mockDailyClassReportModel.countDocuments).toHaveBeenCalledWith(filter);
+      expect(result.meta.total).toBe(2);
+    });
+
+    it.each([
+      ['Admin', []],
+      ['Teacher', ['READ_ALL_CLASS_RECORD']],
+    ])('does not add ownership filtering for %s/full-view users', async (roleName, permissions) => {
+      setupPaginatedQueries([], 0);
+
+      await service.findAll(
+        { page: 1, limit: 10 },
+        { userId: new Types.ObjectId().toString(), roleName, permissions },
+      );
+
+      expect(mockDailyClassReportModel.find.mock.calls[0][0]).not.toHaveProperty('reported_by');
     });
   });
 

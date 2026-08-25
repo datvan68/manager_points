@@ -13,7 +13,7 @@ export function toggleSelectionValue(value: string[], item: string): string[] {
 
 export function quickGridClass(itemCount: number): string {
   return itemCount > 6
-    ? 'max-h-[360px] sm:max-h-[190px] lg:max-h-[145px] xl:max-h-[112px] overflow-y-auto pr-2'
+    ? 'auto-rows-[52px] sm:auto-rows-[56px] xl:auto-rows-[52px] max-h-[360px] sm:max-h-[190px] lg:max-h-[190px] xl:max-h-[206px] overflow-y-auto pr-2'
     : 'max-h-none overflow-visible';
 }
 

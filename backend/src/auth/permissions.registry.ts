@@ -268,6 +268,12 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép xem tổng hợp ghi nhận rèn luyện của cả lớp học.',
   },
   {
+    code: 'READ_ALL_CLASS_RECORD',
+    name: 'Xem toàn bộ ghi nhận lớp',
+    module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép xem ghi nhận lớp do người dùng khác tạo.',
+  },
+  {
     code: 'CREATE_CLASS_RECORD',
     name: 'Thêm ghi nhận lớp',
     module: GRADING_MANAGER_GROUP.name,

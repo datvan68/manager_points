@@ -36,9 +36,11 @@ describe('RecordSelectionUi', () => {
   it('only enables the six-card viewport from the seventh item', () => {
     expect(quickGridClass(6)).toContain('overflow-visible');
     expect(quickGridClass(7)).toContain('overflow-y-auto');
-    expect(quickGridClass(7)).toContain('max-h-[360px]');
+    expect(quickGridClass(7)).toContain('auto-rows-[52px]');
+    expect(quickGridClass(7)).toContain('sm:auto-rows-[56px]');
+    expect(quickGridClass(7)).toContain('xl:auto-rows-[52px]');
     expect(quickGridClass(7)).toContain('sm:max-h-[190px]');
-    expect(quickGridClass(7)).toContain('xl:max-h-[112px]');
+    expect(quickGridClass(7)).toContain('xl:max-h-[206px]');
   });
 
   it('uses fullscreen confirmation on mobile and shows the display label', () => {

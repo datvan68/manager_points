@@ -1,29 +1,31 @@
-task: "Make grading selectors responsive and fix compact student list"
+task: "Expand the violation student grid and scope class-report visibility"
 pipeline: feature_development
 profile: Full
-objective: "Class and HSSV record forms use fullscreen confirmed selection only on mobile/tablet, remain usable on compact desktops, and show the selected student's full name in manual mode."
+objective: "The class-record form gives the student-card grid more usable space without clipping, while non-admin class-report readers see only reports they created unless granted explicit full-view permission."
 
 evidence:
-  current_behavior: "frontend/src/components/grading/RecordSelectionUi.tsx:RecordSelectionDialog always renders DialogContent; quickGridClass uses breakpoint max-heights unrelated to actual card rows. Both forms pass selectedStudentId without displayValue, so the trigger displays the raw ID."
-  expected_behavior: "Viewport widths <=1023px use the fullscreen draft/confirm selector; >=1024px use an anchored desktop picker. Quick lists expose at most six complete cards before scrolling, and manual student triggers display full_name."
-  root_cause: "The selection component has no responsive rendering branch; fixed grid heights plus responsive columns/card heights clip compact-desktop content; committedLabel falls back to value when displayValue is absent."
+  current_behavior: "frontend/src/components/grading/AddClassReportView.tsx renders a desktop attendance summary below the violation section; its quick list combines responsive columns with quickGridClass fixed pixel heights and lg:min-h-0 cards. backend/src/daily-class-report/daily-class-report.service.ts:getScopeFilter grants Supervisor all reports and Teacher reports for advised classes; findAll does not default to reported_by=requester.userId."
+  expected_behavior: "Remove the pictured attendance summary, use the released area for complete grid rows/cards, and enforce creator-only class-report listing for every non-admin without READ_ALL_CLASS_RECORD. Admin or a user assigned READ_ALL_CLASS_RECORD sees all reports allowed by existing query filters."
+  root_cause: "The redundant summary consumes vertical space while fixed max-heights and shrinkable card rows can cut content. Report visibility is role-based instead of ownership plus an explicit full-view capability."
 
 scope:
-  inspect: ["frontend/src/components/grading/RecordSelectionUi.tsx: responsive selector and quickGridClass", "frontend/src/components/grading/{AddClassReportView.tsx,AddRecordView.tsx}: matchMedia state, selector integrations, quick grids", "frontend/src/components/grading/RecordSelectionUi.test.tsx: nearest behavior tests"]
-  write: ["frontend/src/components/grading/RecordSelectionUi.tsx: responsive modal/anchored picker and six-card viewport", "frontend/src/components/grading/RecordSelectionUi.test.tsx: breakpoint, commit, label, and overflow regressions", "frontend/src/components/grading/AddClassReportView.tsx: selector mode and student display name", "frontend/src/components/grading/AddRecordView.tsx: selector mode and student display name"]
-  preserve: ["Search, single/multi selection, lazy loading, criterion grouping, disabled/loading/empty states", "Mobile/tablet draft selection commits only on Confirm and Cancel/close preserves the committed value", "Criterion side effects, APIs, payloads, RBAC, edit/create flows, date picker, and mobile quick-entry behavior"]
-  out: ["Backend/API/schema changes", "Application-wide Select/Dialog changes", "Date-picker redesign", "Changes to violation rules or saved-record tables"]
+  inspect: ["frontend/src/components/grading/{AddClassReportView.tsx,RecordSelectionUi.tsx}: violation layout and shared six-card viewport", "frontend/src/components/grading/{AddClassReportView.test.tsx,RecordSelectionUi.test.tsx}: nearest UI regressions", "backend/src/daily-class-report/{daily-class-report.service.ts,daily-class-report.service.spec.ts}: list scope and pagination", "backend/src/auth/{permissions.registry.ts,services/auth.service.ts,test/auth.service.spec.ts}: assignable permissions, route actions, and RBAC seed"]
+  write: ["frontend/src/components/grading/AddClassReportView.tsx: remove summary and preserve complete card height", "frontend/src/components/grading/RecordSelectionUi.tsx: grid-row-based six-card viewport", "frontend/src/components/grading/{AddClassReportView.test.tsx,RecordSelectionUi.test.tsx}: layout regressions", "backend/src/daily-class-report/{daily-class-report.service.ts,daily-class-report.service.spec.ts}: ownership/full-view filtering", "backend/src/auth/{permissions.registry.ts,services/auth.service.ts,test/auth.service.spec.ts}: READ_ALL_CLASS_RECORD registration and seed coverage"]
+  preserve: ["Quick selection, criterion selection, 0-6 no-scroll and 7+ scroll behavior, loading/empty/load-more states, manual-entry table, and save payloads", "Existing class/date/search pagination contract and reported_by population", "Admin unrestricted visibility and existing READ_CLASS_RECORD requirement to access the tab"]
+  out: ["DailyClassReport schema/migration changes", "Academic/HSSV record visibility", "Create/update/delete authorization changes", "Unrelated reports-page or permission-page redesign"]
 
 acceptance_criteria:
-  - "AC-01: At <=1023px every class/student/criterion trigger opens the fullscreen dialog with Confirm/Cancel semantics; at >=1024px it opens an anchored picker and never fullscreen, including compact desktop widths."
-  - "AC-02: Quick mode shows 0-6 complete student cards without an inner vertical scrollbar and exactly a six-card viewport with scrolling for 7+ cards at each supported column breakpoint; no card/text is clipped or covered by the scrollbar."
-  - "AC-03: After selecting a student in manual mode, both forms' 'Họ tên sinh viên' trigger shows full_name (not _id/student_code), while the existing placeholder remains before selection."
-  - "AC-04: Search, multi-select, lazy-load, criterion ordering, committed handlers, and existing save payloads retain current behavior across both responsive modes."
+  - "AC-01: The class violation form no longer renders the Sĩ số lớp/Hiện diện/Vắng mặt/% Chuyên cần summary shown in the attachment, and the violation card area expands into that space."
+  - "AC-02: At every existing responsive column breakpoint, student cards use non-shrinking grid rows; up to six cards are fully visible, while 7+ cards scroll after exactly six complete cards with no text/card clipping."
+  - "AC-03: GET /daily-class-reports combines existing class/date/search/deleted filters with reported_by=current user for every non-admin lacking READ_ALL_CLASS_RECORD; response data and meta.total obey the same ownership filter."
+  - "AC-04: Admin and non-admin users assigned READ_ALL_CLASS_RECORD receive the full filtered result set; READ_ALL_CLASS_RECORD is visible/assignable in the grading permission group and /grading action permissions without being granted automatically to ordinary roles."
 
 execution:
-  - "E-01 [AC-01,AC-02,AC-04] frontend/src/components/grading/RecordSelectionUi.tsx → branch presentation at 1023/1024, reuse one selection model, and derive the scroll viewport from six cards plus responsive column count with scrollbar clearance."
-  - "E-02 [AC-01,AC-03,AC-04] frontend/src/components/grading/{AddClassReportView.tsx,AddRecordView.tsx} → pass responsive mode and selected student's full_name to every affected trigger without changing handlers."
-  - "E-03 [AC-01,AC-02,AC-03,AC-04] frontend/src/components/grading/RecordSelectionUi.test.tsx → mock matchMedia and cover mobile/tablet confirmation, desktop anchored rendering, full-name display, and 6/7-card overflow classes."
+  - "E-01 [AC-01,AC-02] frontend/src/components/grading/{AddClassReportView.tsx,RecordSelectionUi.tsx} → remove the summary, keep card min-height at compact desktop widths, and calculate overflow from responsive grid rows representing six cards rather than unrelated fixed container heights."
+  - "E-02 [AC-01,AC-02] frontend/src/components/grading/{AddClassReportView.test.tsx,RecordSelectionUi.test.tsx} → assert summary removal and complete 6/7-card grid viewport classes."
+  - "E-03 [AC-03,AC-04] backend/src/auth/{permissions.registry.ts,services/auth.service.ts} → register READ_ALL_CLASS_RECORD in G_GRADING and /grading actions while preserving custom role assignments."
+  - "E-04 [AC-03,AC-04] backend/src/daily-class-report/daily-class-report.service.ts:getScopeFilter/findAll → return unrestricted scope only for Admin or READ_ALL_CLASS_RECORD; otherwise add a reported_by ObjectId ownership filter before all list filters/counts."
+  - "E-05 [AC-03,AC-04] backend/src/daily-class-report/daily-class-report.service.spec.ts and backend/src/auth/test/auth.service.spec.ts → cover owner-only, full-permission/Admin bypass, meta filtering, and permission seeding."
 
 temporary_artifacts:
   create: ["docs/task/taskscope.md"]
@@ -31,9 +33,11 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01,AC-02,AC-03,AC-04] npm --prefix frontend test -- src/components/grading/RecordSelectionUi.test.tsx src/components/grading/AddClassReportView.test.tsx src/components/grading/AddRecordView.test.tsx → all suites pass."
-  - "V-02 [AC-01,AC-02,AC-03,AC-04] npm --prefix frontend run typecheck → exit code 0."
-  - "V-03 [AC-01,AC-02,AC-03] Manual responsive check of /students/record at 1023px, 1024px, and >=1280px in both flows → correct picker type, full-name trigger, six complete cards, and scrolling from card 7."
+  - "V-01 [AC-01,AC-02] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx src/components/grading/RecordSelectionUi.test.tsx → both suites pass."
+  - "V-02 [AC-01,AC-02] npm --prefix frontend run typecheck → exit code 0."
+  - "V-03 [AC-03,AC-04] npm --prefix backend test -- src/daily-class-report/daily-class-report.service.spec.ts src/auth/test/auth.service.spec.ts --runInBand → both suites pass."
+  - "V-04 [AC-03,AC-04] npm --prefix backend run build → exit code 0."
+  - "V-05 [AC-01,AC-02,AC-03,AC-04] Manual /students/record check at compact desktop and with owner/non-owner/full-view accounts → complete card rows and correct table totals/rows."
 
-risks: ["Responsive rendering must not double-fire selection handlers when crossing the breakpoint; the six-card cap must count cards, not rows."]
-stop_conditions: ["Stop if the breakpoint must differ from the repository's existing 1023px mobile/tablet boundary, desktop selection requires a new product interaction, or the fix needs shared UI/API changes outside the four write paths."]
+risks: ["Authorization change affects every consumer of GET /daily-class-reports, so ownership must be applied before countDocuments and data queries; RBAC seeding must not auto-grant the new permission to existing non-admin roles."]
+stop_conditions: ["Stop if full visibility should retain Teacher/advisor class scope instead of global filtered visibility, if any non-admin role must receive READ_ALL_CLASS_RECORD by default, or if direct detail/deleted endpoints must be included beyond the requested table list. A permission deployment/seed execution requires separate approval; this task only changes and verifies code."]

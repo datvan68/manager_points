@@ -629,6 +629,7 @@ describe('AuthService', () => {
             code: 'ROUTE_PERMISSION_DELETE',
           },
           { _id: 'id-SYSTEM_ADMIN', code: 'SYSTEM_ADMIN' },
+          { _id: 'id-READ_ALL_CLASS_RECORD', code: 'READ_ALL_CLASS_RECORD' },
           { _id: 'id-PDF_TEMPLATE_READ', code: 'PDF_TEMPLATE_READ' },
           { _id: 'id-PDF_TEMPLATE_MANAGE', code: 'PDF_TEMPLATE_MANAGE' },
           { _id: 'id-PDF_TEMPLATE_DELETE', code: 'PDF_TEMPLATE_DELETE' },
@@ -722,6 +723,17 @@ describe('AuthService', () => {
           'id-PDF_TEMPLATE_DELETE',
         ]),
       );
+
+      const gradingCall = groupCalls.find((c) => c[0].code === 'G_GRADING');
+      expect(gradingCall).toBeDefined();
+      expect(gradingCall[1].$addToSet.permissions.$each).toContain(
+        'id-READ_ALL_CLASS_RECORD',
+      );
+
+      const gradingRoute = (await service.getPagePermissionScopes()).find(
+        (scope) => scope.route_path === '/grading',
+      );
+      expect(gradingRoute?.action_permissions).toContain('READ_ALL_CLASS_RECORD');
     });
   });
 
