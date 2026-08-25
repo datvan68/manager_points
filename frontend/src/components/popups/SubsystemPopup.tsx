@@ -162,6 +162,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
 
   const { user, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
   const [routeMappings, setRouteMappings] = useState<any[]>([]);
+  const [routeMappingsLoaded, setRouteMappingsLoaded] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [updatingMaintenanceModuleId, setUpdatingMaintenanceModuleId] = useState<string | null>(null);
 
@@ -191,18 +192,25 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
         const data = await authApi.getRoutePermissionsPublic(token, controller.signal);
         if (!controller.signal.aborted) {
           setRouteMappings(data);
+          setRouteMappingsLoaded(true);
         }
       } catch (err: any) {
         const isAbort = controller.signal.aborted || err?.name === 'AbortError';
         if (!isAbort) {
           console.error('Failed to fetch route permission mappings:', err);
+          if (!controller.signal.aborted) setRouteMappings([]);
         }
+        if (!controller.signal.aborted) setRouteMappingsLoaded(true);
       }
     };
     fetchMappings();
     return () => {
       controller.abort();
     };
+  }, [refreshTrigger]);
+
+  useEffect(() => {
+    setRouteMappingsLoaded(false);
   }, [refreshTrigger]);
 
   // Keep module cards synced with server-backed maintenance states.
@@ -296,6 +304,23 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
 
     // 1. Admin always has full access
     if (isAdmin) return true;
+
+    // KTX access is owned by the explicit module page permission. A missing,
+    // empty, inactive, or unavailable mapping must never grant access through
+    // legacy role fallbacks.
+    if (mod.id === 'dormitory') {
+      if (!routeMappingsLoaded) return false;
+      const mapping = routeMappings.find(
+        (m) => m.route_path === '/dormitory' && m.is_active !== false,
+      );
+      if (!mapping || !Array.isArray(mapping.permissions) || mapping.permissions.length === 0) {
+        return false;
+      }
+      const requiredCodes = mapping.permissions.map((p: any) => p.code || p);
+      return mapping.check_type === 'any'
+        ? hasAnyPermission(...requiredCodes)
+        : hasAllPermissions(...requiredCodes);
+    }
 
     // Activities are available to signed-in students regardless of an
     // administrator-only route mapping for the management workspace.

@@ -16,7 +16,6 @@ import {
   HandleMaintenanceDto,
 } from '../dto/create-maintenance.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Maintenance')
 @ApiBearerAuth()
@@ -31,7 +30,7 @@ export class MaintenanceController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_MAINT_READ'))
   findAll(
     @Query('room_id') room_id?: string,
     @Query('status') status?: string,
@@ -53,7 +52,7 @@ export class MaintenanceController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_MAINT_READ'))
   findOne(@Param('id') id: string) {
     return this.maintenanceService.findOne(id);
   }

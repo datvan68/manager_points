@@ -16,7 +16,6 @@ import {
   HandleViolationDto,
 } from '../dto/create-violation.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Violations')
 @ApiBearerAuth()
@@ -31,7 +30,7 @@ export class ViolationsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_VIOLATION_READ'))
   findAll(
     @Query('student_id') student_id?: string,
     @Query('room_id') room_id?: string,
@@ -53,13 +52,13 @@ export class ViolationsController {
   }
 
   @Get('student/:studentId/summary')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_VIOLATION_READ'))
   getStudentSummary(@Param('studentId') studentId: string) {
     return this.violationsService.getStudentViolationSummary(studentId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_VIOLATION_READ'))
   findOne(@Param('id') id: string) {
     return this.violationsService.findOne(id);
   }

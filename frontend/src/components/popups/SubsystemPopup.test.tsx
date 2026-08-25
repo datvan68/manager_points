@@ -7,11 +7,17 @@ import { authApi } from '@/api/auth-api';
 import { systemApi } from '@/api/system-api';
 
 const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
+let mockDormPage = true;
 
 // Mock auth-provider
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: vi.fn(),
   isAdminUser: vi.fn(),
+}));
+
+vi.mock('@/components/guards/RouteGuard', () => ({
+  RouteGuard: ({ children, requiredPermission }: any) =>
+    requiredPermission === 'DORM_PAGE' && !mockDormPage ? null : <>{children}</>,
 }));
 
 // Mock auth-api
@@ -52,6 +58,7 @@ describe('SubsystemPopup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDormPage = true;
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Default mock auth values
@@ -181,5 +188,48 @@ describe('SubsystemPopup', () => {
     });
 
     expect(screen.queryByText('Quản lý lưu trữ')).not.toBeInTheDocument();
+  });
+
+  it('hides KTX when the route mapping is missing or empty', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'supervisor-1', role: 'Supervisor', username: 'supervisor' },
+      isLoading: false,
+      hasPermission: () => false,
+      hasAnyPermission: () => false,
+      hasAllPermissions: () => false,
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    await waitFor(() => expect(authApi.getRoutePermissionsPublic).toHaveBeenCalled());
+    expect(screen.queryByText('Quản lý KTX')).not.toBeInTheDocument();
+  });
+
+  it('shows KTX only when the mapping grants DORM_PAGE', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'supervisor-1', role: 'Supervisor', username: 'supervisor' },
+      isLoading: false,
+      hasPermission: (permission) => permission === 'DORM_PAGE',
+      hasAnyPermission: (...permissions) => permissions.includes('DORM_PAGE'),
+      hasAllPermissions: (...permissions) => permissions.every((permission) => permission === 'DORM_PAGE'),
+      isAuthenticated: true,
+      permissions: ['DORM_PAGE'],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
+      { route_path: '/dormitory', is_active: true, permissions: ['DORM_PAGE'], check_type: 'any' },
+    ]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    expect(await screen.findByText('Quản lý KTX')).toBeInTheDocument();
   });
 });

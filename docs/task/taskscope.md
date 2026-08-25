@@ -1,37 +1,37 @@
-task: "Fix missing role code in create-role modal"
+task: "Enforce dormitory permissions consistently across UI and API"
 pipeline: bug_fix
-profile: Quick
-objective: "Allow Phân quyền > Vai trò > Tạo vai trò mới to submit the required role_code instead of failing backend validation."
+profile: Full
+objective: "A signed-in account without assigned KTX permissions must not see or open the KTX module, and protected KTX APIs must return 403."
 
 evidence:
-  current_behavior: "frontend/src/components/modals/RoleModal.tsx only collects name, description, and permissions, then submits that object; backend CreateRoleDto and RbacService.createRole require role_code, producing 'Mã vai trò không được để trống, role_code must be a string'."
-  root_cause: "The create form has no role_code state, input, client validation, or request value."
+  root_cause: "SubsystemPopup has no /dormitory mapping fallback and ultimately allows non-student/non-teacher roles; DormitoryLayout has no module-level RouteGuard; several dormitory read endpoints use JwtAuthGuard only."
+  examples: ["SUPERVISOR without DORM_* sees Quản lý KTX", "GET dormitory/buildings and rooms require authentication but not DORM_BUILDING_READ/DORM_ROOM_READ"]
 
 scope:
-  write: ["frontend/src/components/modals/RoleModal.tsx: add and submit the role-code field", "frontend/src/components/modals/__tests__/RoleModal.test.tsx: create/edit initialization, validation, normalization, and payload regressions"]
-  preserve: ["POST/PATCH API contracts and backend uniqueness checks", "Role name, description, permission selection, loading, close, and error behavior"]
-  out: ["Generating role codes automatically", "Changing backend DTO/schema or existing role data", "Changing permission assignment behavior"]
+  write: ["frontend/src/components/popups/SubsystemPopup.tsx and test: fail-closed KTX card visibility", "frontend/src/app/(dashboard)/dormitory/layout.tsx and test: module/tab access", "backend/src/dormitory/controllers/*.controller.ts and focused specs: endpoint permission guards", "backend/src/auth/services/auth.service.ts: ensure /dormitory route mapping uses DORM_PAGE if seed mappings own module access"]
+  preserve: ["ADMIN bypass", "Multi-role permission union", "Explicit public QR endpoints and authenticated self-service endpoints with ownership checks", "Existing DORM_* codes and API payloads"]
+  out: ["Changing role assignments or granting SUPERVISOR implicit KTX access", "Redesigning KTX screens", "Auditing non-KTX business modules"]
 
 acceptance_criteria:
-  - "AC-01: Create mode shows a required input labeled 'Mã vai trò' with an example such as QUAN_LY_DAO_TAO."
-  - "AC-02: Empty or whitespace-only name/role_code blocks submission and shows a field-level Vietnamese validation message."
-  - "AC-03: A valid submission includes role_code trimmed and uppercased; name, description, and permission IDs remain unchanged."
-  - "AC-04: Reopening create mode resets role_code; edit mode initializes it from initialData.role_code and submits it without losing other fields."
-  - "AC-05: Backend duplicate-code and other save failures remain visible through the existing error flow; the modal stays open on failure."
+  - "AC-01: KTX card is visible only to ADMIN or users with DORM_PAGE; absent/empty/failed route mapping never grants KTX access."
+  - "AC-02: Direct navigation to /dormitory and descendants is denied before child UI/data requests when DORM_PAGE is absent."
+  - "AC-03: KTX tabs and action controls render only with their exact read/action permission; hiding controls is not treated as API authorization."
+  - "AC-04: Every non-public KTX controller endpoint has the matching DORM_* or PDF-template guard; list/detail reads no longer use JwtAuthGuard alone."
+  - "AC-05: Public QR routes remain public; self-service routes remain limited to the authenticated subject through existing ownership/service checks and are documented in tests."
+  - "AC-06: Denied API requests return 403 without invoking the service; allowed permission, multi-role union, and ADMIN cases still succeed."
 
 execution:
-  - "E-01 [AC-01..AC-04] extend RoleModal form state, initialization, input rendering, validation, and submit normalization."
-  - "E-02 [AC-01..AC-05] add focused component tests for create success, empty fields, reset/edit initialization, and rejected save."
+  - "E-01 [AC-01,AC-02] align module mapping, popup fallback, and fail-closed route guard on DORM_PAGE."
+  - "E-02 [AC-03] map each KTX tab/action to its registry permission."
+  - "E-03 [AC-04..AC-06] inventory controller methods, replace authentication-only guards where no public/self-service exception applies, and add deny/allow tests."
 
-temporary_artifacts:
-  create: ["docs/task/taskscope.md"]
-  cleanup: []
-  retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
-
+temporary_artifacts: {create: ["docs/task/taskscope.md"], cleanup: [], retain: ["docs/task/taskscope.md"]}
 verification:
-  - "V-01 [AC-01..AC-05] npm --prefix frontend test -- src/components/modals/__tests__/RoleModal.test.tsx"
-  - "V-02 [AC-01..AC-05] npm --prefix frontend run typecheck"
-  - "V-03 [AC-01,AC-03,AC-05] Manual create with lowercase/spaces, then duplicate code: normalized request succeeds once; duplicate error is shown without closing the modal."
+  - "npm --prefix frontend test -- src/components/popups/SubsystemPopup.test.tsx 'src/app/(dashboard)/dormitory/layout.test.tsx'"
+  - "npm --prefix frontend run typecheck"
+  - "npm --prefix backend test -- dormitory --runInBand"
+  - "npm --prefix backend run build"
+  - "Manual: SUPERVISOR with zero DORM_* cannot see/open KTX and receives 403; granting only DORM_PAGE opens module shell but not unauthorized tabs/actions/APIs."
 
-risks: ["Adding stricter character rules in the UI would diverge from the current backend contract; only trim and uppercase are specified."]
-stop_conditions: []
+risks: ["Some JwtAuthGuard-only KTX routes may be intentional self-service flows; changing them without ownership classification could break student access."]
+stop_conditions: ["Stop for product direction if an authenticated KTX endpoint has no registry permission and no evidenced public/self-service contract."]

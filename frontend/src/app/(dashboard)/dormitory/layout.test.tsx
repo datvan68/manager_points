@@ -5,6 +5,7 @@ import DormitoryLayout from './layout';
 const push = vi.fn();
 let pathname = '/dormitory/roster/abc';
 let mockHasPermission = vi.fn((_perm: string) => false);
+let mockDormPage = true;
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
@@ -15,6 +16,11 @@ vi.mock('@/providers/auth-provider', () => ({
   useAuth: () => ({
     hasPermission: mockHasPermission,
   }),
+}));
+
+vi.mock('@/components/guards/RouteGuard', () => ({
+  RouteGuard: ({ children, requiredPermission }: any) =>
+    requiredPermission === 'DORM_PAGE' && !mockDormPage ? null : <>{children}</>,
 }));
 
 vi.mock('@/components/ui/TabNavigation', () => ({
@@ -33,11 +39,12 @@ describe('DormitoryLayout', () => {
   beforeEach(() => {
     push.mockReset();
     pathname = '/dormitory/roster/abc';
+    mockDormPage = true;
     mockHasPermission = vi.fn((_perm: string) => false);
   });
 
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
-    mockHasPermission = vi.fn((perm: string) => perm === 'DORM_INVOICE_READ');
+    mockHasPermission = vi.fn((perm: string) => ['DORM_REG_READ', 'DORM_BUILDING_READ', 'DORM_INVOICE_READ'].includes(perm));
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-responsive-scrollable', 'true');
@@ -123,5 +130,19 @@ describe('DormitoryLayout', () => {
     pathname = '/dormitory/maintenance';
     render(<DormitoryLayout><div data-testid="direct-maintenance">Maintenance Page</div></DormitoryLayout>);
     expect(screen.getByTestId('direct-maintenance')).toBeInTheDocument();
+  });
+
+  it('denies the entire module before rendering child content without DORM_PAGE', () => {
+    mockDormPage = false;
+    render(<DormitoryLayout><div data-testid="protected-child">should not render</div></DormitoryLayout>);
+    expect(screen.queryByTestId('protected-child')).not.toBeInTheDocument();
+  });
+
+  it('shows only tabs whose exact read permissions are present', () => {
+    mockHasPermission = vi.fn((permission: string) => permission === 'DORM_REG_READ');
+    render(<DormitoryLayout><div>content</div></DormitoryLayout>);
+    expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Phòng' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hóa đơn' })).not.toBeInTheDocument();
   });
 });

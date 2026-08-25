@@ -15,7 +15,6 @@ import { BuildingsService } from '../services/buildings.service';
 import { CreateBuildingDto } from '../dto/create-building.dto';
 import { UpdateBuildingDto } from '../dto/update-building.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Buildings')
 @ApiBearerAuth()
@@ -30,7 +29,7 @@ export class BuildingsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_BUILDING_READ'))
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: string,
@@ -46,7 +45,7 @@ export class BuildingsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_BUILDING_READ'))
   findOne(@Param('id') id: string) {
     return this.buildingsService.findOne(id);
   }

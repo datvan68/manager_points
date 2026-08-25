@@ -15,7 +15,6 @@ import { RoomsService } from '../services/rooms.service';
 import { CreateRoomDto } from '../dto/create-room.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Rooms')
 @ApiBearerAuth()
@@ -30,7 +29,7 @@ export class RoomsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_ROOM_READ'))
   findAll(
     @Query('search') search?: string,
     @Query('building_id') building_id?: string,
@@ -50,7 +49,7 @@ export class RoomsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_ROOM_READ'))
   findOne(@Param('id') id: string) {
     return this.roomsService.findOne(id);
   }

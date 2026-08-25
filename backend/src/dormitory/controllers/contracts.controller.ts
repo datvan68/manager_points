@@ -15,7 +15,6 @@ import { RoomAssignmentService } from '../services/room-assignment.service';
 import { CreateContractDto, CancelContractDto } from '../dto/create-contract.dto';
 import { TransferRoomDto } from '../dto/transfer-room.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Contracts')
 @ApiBearerAuth()
@@ -33,7 +32,7 @@ export class ContractsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_CONTRACT_READ'))
   findAll(
     @Query('student_id') student_id?: string,
     @Query('status') status?: string,
@@ -51,7 +50,7 @@ export class ContractsController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_CONTRACT_READ'))
   findOne(@Param('id') id: string) {
     return this.contractsService.findOne(id);
   }

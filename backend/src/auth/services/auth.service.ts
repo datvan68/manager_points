@@ -1663,6 +1663,15 @@ export class AuthService implements OnModuleInit {
         type: 'page',
       },
       {
+        route_path: '/dormitory',
+        route_name: 'Quản lý ký túc xá',
+        description: 'Quản lý phòng, đăng ký lưu trú, hóa đơn và vận hành KTX',
+        permissions: [permMap['DORM_PAGE']],
+        check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
         route_path: '/permissions',
         route_name: 'Quản lý phân quyền (RBAC)',
         description: 'Quản lý vai trò, quyền, nhóm quyền và route mapping',

@@ -25,7 +25,7 @@ export class DormitoryRosterController {
   create(@Body() dto: CreateRosterEntryDto, @Request() req: any) { return this.rosterService.create(dto, req.user); }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_REG_READ'))
   findAll(@Query('semester') semester?: string, @Query('academic_year') academic_year?: string, @Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     return this.rosterService.findAll({ semester, academic_year, search, page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined });
   }
@@ -66,7 +66,7 @@ export class DormitoryRosterController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_REG_READ'))
   findOne(@Param('id') id: string) { return this.rosterService.findOne(id); }
 
   @Patch(':id')
@@ -88,6 +88,6 @@ export class DormitoryRosterController {
   }
 
   @Get(':id/suggest-rooms')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_REG_READ'))
   suggestRooms(@Param('id') id: string) { return this.roomAssignmentService.suggestRooms(id); }
 }

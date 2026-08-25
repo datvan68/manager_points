@@ -13,7 +13,6 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { BedsService } from '../services/beds.service';
 import { CreateBedDto } from '../dto/create-bed.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Beds')
 @ApiBearerAuth()
@@ -38,13 +37,13 @@ export class BedsController {
   }
 
   @Get('room/:roomId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_ROOM_READ'))
   findByRoom(@Param('roomId') roomId: string) {
     return this.bedsService.findByRoom(roomId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('DORM_ROOM_READ'))
   findOne(@Param('id') id: string) {
     return this.bedsService.findOne(id);
   }
