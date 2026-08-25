@@ -46,6 +46,20 @@ interface StudentRecordDraft {
   addedViolations: ViolationItem[];
 }
 
+export function buildStudentRecordDraft({
+  classIds, reportDate, criterionId, selectedStudentId, entryMode,
+  pendingQuickViolationKeys, violationNote, addedViolations,
+}: {
+  classIds: string[]; reportDate: Date; criterionId: string; selectedStudentId: string;
+  entryMode: 'manual' | 'quick'; pendingQuickViolationKeys: Set<string>;
+  violationNote: string; addedViolations: ViolationItem[];
+}): StudentRecordDraft {
+  return {
+    classIds, reportDate: reportDate.toISOString(), criterionId, selectedStudentId, entryMode,
+    pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys), violationNote, addedViolations,
+  };
+}
+
 export function isStudentRecordDraft(value: unknown): value is StudentRecordDraft {
   if (!value || typeof value !== 'object') return false;
   const draft = value as Partial<StudentRecordDraft>;
@@ -205,16 +219,16 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   useEffect(() => {
     if (!draftHydrated || isEditMode || !dataReadyRef.current || !draftRestoredRef.current) return;
-    saveDraft({
+    saveDraft(buildStudentRecordDraft({
       classIds,
-      reportDate: reportDate.toISOString(),
+      reportDate,
       criterionId,
       selectedStudentId,
       entryMode,
-      pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys),
+      pendingQuickViolationKeys,
       violationNote,
       addedViolations,
-    });
+    }));
   }, [
     addedViolations, classIds, criterionId, draftHydrated, entryMode, isEditMode,
     pendingQuickViolationKeys, reportDate, saveDraft, selectedStudentId, violationNote,
@@ -639,6 +653,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   };
 
   const handleBack = () => {
+    if (!isEditMode) saveDraft(buildStudentRecordDraft({
+      classIds, reportDate, criterionId, selectedStudentId, entryMode,
+      pendingQuickViolationKeys, violationNote, addedViolations,
+    }));
+    onBack();
+  };
+
+  const handleCancel = () => {
     if (!isEditMode) clearDraft();
     onBack();
   };
@@ -1028,7 +1050,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleBack}
+                  onClick={handleCancel}
                   className="border border-white/70 bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#1E293B] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ

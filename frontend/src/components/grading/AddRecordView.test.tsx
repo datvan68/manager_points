@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { orderCriteriaByUsage, readCriterionUsage } from './criterion-usage';
-import { buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft } from './AddRecordView';
+import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft } from './AddRecordView';
 
 describe('AddRecordView draft contract', () => {
+  it('builds the latest source state for navigation persistence', () => {
+    expect(buildStudentRecordDraft({
+      classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'),
+      criterionId: 'criterion-1', selectedStudentId: 'student-1', entryMode: 'manual',
+      pendingQuickViolationKeys: new Set(['student-1:criterion-1']), violationNote: 'note', addedViolations: [],
+    })).toEqual(expect.objectContaining({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', entryMode: 'manual',
+      pendingQuickViolationKeys: ['student-1:criterion-1'],
+    }));
+  });
+
   it('accepts the create-form fields and rejects malformed values', () => {
     expect(isStudentRecordDraft({
       classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', criterionId: 'criterion-1',

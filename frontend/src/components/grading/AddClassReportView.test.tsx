@@ -5,10 +5,23 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft } from './AddClassReportView';
+import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft } from './AddClassReportView';
 import { quickGridClass } from './RecordSelectionUi';
 
 describe('AddClassReportView draft contract', () => {
+  it('builds the latest source state without derived attendance totals', () => {
+    const draft = buildClassReportDraft({
+      classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'), teacherName: 'Teacher', classNote: 'note',
+      selectedStudentId: 'student-1', selectedCriterionId: 'criterion-1', violationNote: 'absence', addedViolations: [],
+      pendingQuickViolationKeys: new Set(['student-1:criterion-1']), entryMode: 'quick',
+    });
+    expect(draft).toEqual(expect.objectContaining({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z',
+      pendingQuickViolationKeys: ['student-1:criterion-1'],
+    }));
+    expect(draft).not.toHaveProperty('totalPresent');
+  });
+
   it('accepts create-form fields without derived attendance totals', () => {
     expect(isClassReportDraft({
       classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', teacherName: 'Teacher', classNote: 'note',

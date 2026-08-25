@@ -167,6 +167,22 @@ interface ClassReportDraft {
   entryMode: 'manual' | 'quick';
 }
 
+export function buildClassReportDraft({
+  classIds, reportDate, teacherName, classNote, selectedStudentId, selectedCriterionId,
+  violationNote, addedViolations, pendingQuickViolationKeys, entryMode,
+}: {
+  classIds: string[]; reportDate: Date; teacherName: string; classNote: string;
+  selectedStudentId: string; selectedCriterionId: string; violationNote: string;
+  addedViolations: ViolationItem[]; pendingQuickViolationKeys: Set<string>;
+  entryMode: 'manual' | 'quick';
+}): ClassReportDraft {
+  return {
+    classIds, reportDate: reportDate.toISOString(), teacherName, classNote,
+    selectedStudentId, selectedCriterionId, violationNote, addedViolations,
+    pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys), entryMode,
+  };
+}
+
 export function isClassReportDraft(value: unknown): value is ClassReportDraft {
   if (!value || typeof value !== 'object') return false;
   const draft = value as Partial<ClassReportDraft>;
@@ -271,18 +287,18 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   useEffect(() => {
     if (!draftHydrated || isEditMode || !dataReadyRef.current || !draftRestoredRef.current) return;
-    saveDraft({
+    saveDraft(buildClassReportDraft({
       classIds,
-      reportDate: reportDate.toISOString(),
+      reportDate,
       teacherName,
       classNote,
       selectedStudentId,
       selectedCriterionId,
       violationNote,
       addedViolations,
-      pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys),
+      pendingQuickViolationKeys,
       entryMode,
-    });
+    }));
   }, [addedViolations, classIds, classNote, draftHydrated, entryMode, isEditMode,
     pendingQuickViolationKeys, reportDate, saveDraft, selectedCriterionId,
     selectedStudentId, teacherName, violationNote]);
@@ -756,6 +772,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   };
 
   const handleBack = () => {
+    if (!isEditMode) saveDraft(buildClassReportDraft({
+      classIds, reportDate, teacherName, classNote, selectedStudentId, selectedCriterionId,
+      violationNote, addedViolations, pendingQuickViolationKeys, entryMode,
+    }));
+    onBack();
+  };
+
+  const handleCancel = () => {
     if (!isEditMode) clearDraft();
     onBack();
   };
@@ -1105,7 +1129,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleBack}
+                  onClick={handleCancel}
                   className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#005bbf] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
