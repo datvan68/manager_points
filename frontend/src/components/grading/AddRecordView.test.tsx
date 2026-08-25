@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { orderCriteriaByUsage, readCriterionUsage } from './criterion-usage';
-import { buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState } from './AddRecordView';
+import { buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft } from './AddRecordView';
+
+describe('AddRecordView draft contract', () => {
+  it('accepts the create-form fields and rejects malformed values', () => {
+    expect(isStudentRecordDraft({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', criterionId: 'criterion-1',
+      selectedStudentId: 'student-1', entryMode: 'quick', pendingQuickViolationKeys: [],
+      violationNote: 'note', addedViolations: [],
+    })).toBe(true);
+    expect(isStudentRecordDraft({ classIds: ['class-1'], reportDate: 123 })).toBe(false);
+    expect(isStudentRecordDraft({
+      classIds: [], reportDate: '2026-08-25T00:00:00.000Z', criterionId: '', selectedStudentId: '',
+      entryMode: 'quick', pendingQuickViolationKeys: [], violationNote: '', addedViolations: [{}],
+    })).toBe(false);
+  });
+});
 
 describe('AddRecordView shared criterion usage', () => {
   it('renders every API criterion exactly once after the frequent group', () => {

@@ -142,7 +142,6 @@ export function RouteGuard({
       }
     };
 
-    setMaintenanceCheckDone(false);
     checkMaintenance();
 
     const unsubscribe = subscribeModuleMaintenanceUpdates(applyStates);

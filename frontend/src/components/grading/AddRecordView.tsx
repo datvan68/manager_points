@@ -20,6 +20,7 @@ import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi } from '@/api/evaluation-detail-api';
 import { useAuth } from '@/providers/auth-provider';
 import { useLinkedTaskProgress } from '@/hooks/useLinkedTaskProgress';
+import { useRecordDraft } from '@/hooks/useRecordDraft';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 import { RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
 
@@ -32,6 +33,44 @@ interface ViolationItem {
   criterion_name: string;
   points_effect: number;
   class_note: string;
+}
+
+interface StudentRecordDraft {
+  classIds: string[];
+  reportDate: string;
+  criterionId: string;
+  selectedStudentId: string;
+  entryMode: 'manual' | 'quick';
+  pendingQuickViolationKeys: string[];
+  violationNote: string;
+  addedViolations: ViolationItem[];
+}
+
+export function isStudentRecordDraft(value: unknown): value is StudentRecordDraft {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as Partial<StudentRecordDraft>;
+  const validViolations = Array.isArray(draft.addedViolations) && draft.addedViolations.every(item => {
+    if (!item || typeof item !== 'object') return false;
+    const violation = item as Partial<ViolationItem>;
+    return typeof violation.student_id === 'string'
+      && (!violation.class_id || typeof violation.class_id === 'string')
+      && typeof violation.student_name === 'string'
+      && typeof violation.student_code === 'string'
+      && typeof violation.evaluation_detail_id === 'string'
+      && typeof violation.criterion_name === 'string'
+      && typeof violation.points_effect === 'number'
+      && typeof violation.class_note === 'string';
+  });
+  return Array.isArray(draft.classIds)
+    && draft.classIds.every(item => typeof item === 'string')
+    && typeof draft.reportDate === 'string'
+    && typeof draft.criterionId === 'string'
+    && typeof draft.selectedStudentId === 'string'
+    && (draft.entryMode === 'manual' || draft.entryMode === 'quick')
+    && Array.isArray(draft.pendingQuickViolationKeys)
+    && draft.pendingQuickViolationKeys.every(item => typeof item === 'string')
+    && typeof draft.violationNote === 'string'
+    && validViolations;
 }
 
 export function buildViolationItems(
@@ -130,6 +169,56 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
 
   const isEditMode = Boolean(recordToEdit && recordToEdit._id);
+  const {
+    draft,
+    hydrated: draftHydrated,
+    saveDraft,
+    clearDraft,
+  } = useRecordDraft<StudentRecordDraft>({
+    form: 'student',
+    userId: user?.id,
+    enabled: !isEditMode,
+    validate: isStudentRecordDraft,
+  });
+  const draftRestoredRef = React.useRef(false);
+  const restoringDraftRef = React.useRef(false);
+  const dataReadyRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!draftHydrated || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    if (!draft || isEditMode) return;
+    restoringDraftRef.current = true;
+    const restoredDate = new Date(draft.reportDate);
+    if (draft.classIds.length > 0) {
+      setClassId(draft.classIds[0]);
+    }
+    setClassIds(draft.classIds);
+    setCriterionId(draft.criterionId);
+    setSelectedStudentId(draft.selectedStudentId);
+    setEntryMode(draft.entryMode);
+    setPendingQuickViolationKeys(new Set(draft.pendingQuickViolationKeys));
+    setViolationNote(draft.violationNote);
+    setAddedViolations(draft.addedViolations);
+    if (!Number.isNaN(restoredDate.getTime())) setReportDate(restoredDate);
+  }, [draft, draftHydrated, isEditMode]);
+
+  useEffect(() => {
+    if (!draftHydrated || isEditMode || !dataReadyRef.current || !draftRestoredRef.current) return;
+    saveDraft({
+      classIds,
+      reportDate: reportDate.toISOString(),
+      criterionId,
+      selectedStudentId,
+      entryMode,
+      pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys),
+      violationNote,
+      addedViolations,
+    });
+  }, [
+    addedViolations, classIds, criterionId, draftHydrated, entryMode, isEditMode,
+    pendingQuickViolationKeys, reportDate, saveDraft, selectedStudentId, violationNote,
+  ]);
 
   useEffect(() => {
     setCriterionUsage(readCriterionUsage(user?.id));
@@ -230,6 +319,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
         console.error('Lỗi nạp dữ liệu:', err);
         toast.error('Không thể nạp dữ liệu ban đầu');
       } finally {
+        dataReadyRef.current = true;
         setIsLoadingData(false);
       }
     }
@@ -301,6 +391,11 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
+    if (restoringDraftRef.current) {
+      restoringDraftRef.current = false;
+      classIdsRef.current = classIds;
+      return;
+    }
     classIdsRef.current = classIds;
     setSelectedStudentId('');
     setViolationNote('');
@@ -529,8 +624,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       }
 
       if (onSuccess) {
+        clearDraft();
         onSuccess();
       } else {
+        clearDraft();
         onBack();
       }
     } catch (err) {
@@ -539,6 +636,11 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleBack = () => {
+    if (!isEditMode) clearDraft();
+    onBack();
   };
 
   return (
@@ -556,7 +658,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             <Button
               type="button"
               variant="ghost"
-              onClick={onBack}
+              onClick={handleBack}
               className="backdrop-blur-md bg-white/50 border border-white/80 rounded-xl w-9 h-9 p-0 flex items-center justify-center cursor-pointer hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs shrink-0"
               title="Quay lại"
             >
@@ -926,7 +1028,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onBack}
+                  onClick={handleBack}
                   className="border border-white/70 bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#1E293B] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ

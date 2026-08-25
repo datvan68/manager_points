@@ -5,8 +5,24 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById } from './AddClassReportView';
+import { clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft } from './AddClassReportView';
 import { quickGridClass } from './RecordSelectionUi';
+
+describe('AddClassReportView draft contract', () => {
+  it('accepts create-form fields without derived attendance totals', () => {
+    expect(isClassReportDraft({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', teacherName: 'Teacher', classNote: 'note',
+      selectedStudentId: 'student-1', selectedCriterionId: 'criterion-1', violationNote: 'absence',
+      addedViolations: [], pendingQuickViolationKeys: [], entryMode: 'manual',
+    })).toBe(true);
+    expect(isClassReportDraft({ classIds: ['class-1'], totalPresent: 10 })).toBe(false);
+    expect(isClassReportDraft({
+      classIds: [], reportDate: '2026-08-25T00:00:00.000Z', teacherName: '', classNote: '',
+      selectedStudentId: '', selectedCriterionId: '', violationNote: '', addedViolations: [{}],
+      pendingQuickViolationKeys: [], entryMode: 'quick',
+    })).toBe(false);
+  });
+});
 
 const criteria = [
   { _id: 'one', criterion_name: 'Một' },

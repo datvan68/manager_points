@@ -1,60 +1,42 @@
-task: "Replace department filter with protected student directory search"
-pipeline: feature_development
+task: "Chống reset và khôi phục bản nháp form ghi nhận"
+pipeline: bug_fix
 profile: Full
-objective: "Authorized staff can search accessible students from the student-list page, preview one student's basic information, and open the existing detail page without creating excessive client or server load."
+objective: "Form Ghi nhận lớp và Ghi nhận HSSV không bị reset bởi kiểm tra nền; nếu bị rời khỏi ngoài ý muốn trước khi submit, lần mở lại form trong cùng phiên tab sẽ khôi phục dữ liệu đang làm dở."
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/students/page.tsx:StudentsPageContent renders Research with 'Tìm kiếm khoa...' and filters only the already-loaded department array; backend/src/students/students.service.ts:findAll already supports RBAC-aware search/pagination and fields=slider, but accepts unescaped regex text and uncapped page/limit values."
-  expected_behavior: "The left-column search queries students visible to the requester, shows a bounded result list, opens a compact basic-information modal on result selection, and navigates through /students/{classId}/{studentId}."
-  root_cause: null
+  current_behavior: "frontend/src/components/guards/RouteGuard.tsx:maintenance useEffect gọi setMaintenanceCheckDone(false) ở mọi lần kiểm tra focus/interval 30 giây; nhánh loading unmount frontend/src/app/(dashboard)/students/record/page.tsx:GhiNhanTab nên currentView trở về list. frontend/src/components/grading/AddClassReportView.tsx và AddRecordView.tsx giữ dữ liệu tạo mới duy nhất trong useState, không có cơ chế phục hồi sau unmount."
+  expected_behavior: "Kiểm tra bảo trì nền giữ nguyên cây trang; hai form tạo mới tự lưu và khôi phục bản nháp theo người dùng trong cùng tab, không phục hồi dữ liệu chỉnh sửa."
+  root_cause: "RouteGuard biến revalidation nền thành bootstrap loading; form ghi nhận không có lớp persistence cho state chưa submit."
 
 scope:
-  inspect:
-    - "frontend/src/app/(dashboard)/students/[classId]/page.tsx:student drawer and detail navigation conventions"
-    - "backend/src/core/rate-limit/rate-limit.module.ts:shared Redis-backed production throttling"
-  write:
-    - "frontend/src/app/(dashboard)/students/page.tsx:StudentsPageContent"
-    - "frontend/src/components/students/StudentDirectorySearch.tsx:student search/results/preview UI"
-    - "frontend/src/components/students/StudentDirectorySearch.test.tsx:interaction and request-control coverage"
-    - "frontend/src/api/student-api.ts:studentApi.getStudents optional AbortSignal"
-    - "backend/src/students/students.controller.ts:findAll query throttling"
-    - "backend/src/students/students.service.ts:findAll input normalization and bounded lightweight search"
-    - "backend/src/students/test/students.service.spec.ts:search safety/RBAC/limit coverage"
-    - "backend/src/students/test/students.controller.spec.ts:route throttle metadata coverage"
-  preserve:
-    - "Department selection, class cards, responsive class navigation, JwtAuthGuard, and teacher/student visibility restrictions"
-    - "Existing GET /students response shapes for callers not using the new search UI"
-  out:
-    - "Student schema/index migration, fuzzy-search service, cross-user result cache, detail-page redesign, or permission changes"
+  inspect: ["frontend/src/components/guards/RouteGuard.tsx:maintenance lifecycle", "frontend/src/app/(dashboard)/students/record/page.tsx:GhiNhanTab/currentView", "frontend/src/components/grading/{AddRecordView,AddClassReportView}.tsx:create/edit state"]
+  write: ["frontend/src/components/guards/RouteGuard.tsx", "frontend/src/components/guards/RouteGuard.test.tsx", "frontend/src/hooks/useRecordDraft.ts", "frontend/src/hooks/useRecordDraft.test.tsx", "frontend/src/components/grading/AddRecordView.tsx", "frontend/src/components/grading/AddRecordView.test.tsx", "frontend/src/components/grading/AddClassReportView.tsx", "frontend/src/components/grading/AddClassReportView.test.tsx"]
+  preserve: ["Loading và chặn quyền/bảo trì lần đầu", "Chuyển sang màn hình bảo trì khi revalidation trả true", "API payload, RBAC, validation, idempotency và luồng edit hiện tại"]
+  out: ["Backend/database draft", "Đồng bộ bản nháp giữa tab/thiết bị", "Khôi phục sau khi đóng tab hoặc đăng xuất", "Thiết kế lại form"]
 
 acceptance_criteria:
-  - "AC-01: 'Tìm kiếm sinh viên...' replaces department filtering; fewer than 2 trimmed characters performs no request, and 400 ms debounce issues page=1, limit=8, fields=slider."
-  - "AC-02: A newer query aborts or invalidates the previous request; loading, empty, API-error, and HTTP 429 states are visible without clearing department/class state."
-  - "AC-03: Selecting a result opens an accessible compact modal showing name, student code, class, date of birth, sex, email, and study status from the reduced payload."
-  - "AC-04: 'Chi tiết' closes the modal and opens /students/{classId}/{studentId}; it is disabled with an explanation when class_id is absent, and closing/focus behavior is keyboard accessible."
-  - "AC-05: Search remains JWT/RBAC-scoped, escapes regex metacharacters, trims/length-bounds input, clamps positive page/limit values (server maximum 50), and never returns more fields than fields=slider currently permits."
-  - "AC-06: GET /students has a stricter shared throttle (burst 20/10 s, sustained 120/min) while the existing global Redis production store and standard 429 contract remain unchanged."
+  - "AC-01: Sau lần render đầu, kiểm tra bảo trì do focus/interval không unmount children; state form còn nguyên, nhưng maintenance=true vẫn chặn trang."
+  - "AC-02: Form tạo Ghi nhận HSSV khôi phục classIds, ngày, chế độ nhập, lựa chọn tạm, ghi chú và addedViolations sau unmount/mở lại trong cùng tab."
+  - "AC-03: Form tạo Ghi nhận lớp khôi phục classIds, ngày, giáo viên, ghi chú lớp, chế độ nhập, lựa chọn tạm và addedViolations; số có mặt/vắng được tính lại."
+  - "AC-04: Draft dùng sessionStorage key có version + userId + loại form; dữ liệu sai schema/JSON hoặc khác người dùng không được áp dụng."
+  - "AC-05: Chỉ bắt đầu persist sau hydration; submit thành công hoặc quay lại/hủy chủ động xóa draft, còn lỗi API/unmount ngoài ý muốn giữ draft; edit mode không đọc/ghi draft tạo mới."
 
 execution:
-  - "E-01 [AC-05,AC-06] backend/src/students/students.controller.ts and students.service.ts → normalize/escape search, clamp pagination, retain requester filters and reduced projection, and apply named route throttles."
-  - "E-02 [AC-01,AC-02] frontend/src/api/student-api.ts and StudentDirectorySearch.tsx → add cancellable bounded search with debounce and explicit result states."
-  - "E-03 [AC-03,AC-04] StudentDirectorySearch.tsx and students/page.tsx → replace the department Research control, add preview modal, and use the populated class id for existing detail routing."
-  - "E-04 [AC-01..AC-06] focused frontend/backend specs → cover timing, stale response, modal/navigation, RBAC filter preservation, regex escaping, caps, and throttle configuration."
+  - "E-01 [AC-01] RouteGuard.tsx → tách bootstrap loading khỏi background maintenance revalidation; thêm regression test child mount/state và maintenance transition."
+  - "E-02 [AC-04, AC-05] useRecordDraft.ts → hook sessionStorage an toàn, hydration guard, version/user/form isolation và clear; kiểm thử malformed, remount, account isolation."
+  - "E-03 [AC-02, AC-05] AddRecordView.tsx → nối toàn bộ state tạo mới vào draft hook, serialize Date/Set rõ ràng, restore sau dữ liệu nền; kiểm thử round-trip và clear semantics."
+  - "E-04 [AC-03, AC-05] AddClassReportView.tsx → nối state tạo mới, không persist state dẫn xuất/cache; kiểm thử round-trip, tính lại chuyên cần và clear semantics."
 
 temporary_artifacts:
-  create: ["docs/task/taskscope.md"]
+  create: []
   cleanup: []
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx → all interaction tests pass."
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck → exits 0."
-  - "V-03 [AC-05,AC-06] npm --prefix backend test -- students/test/students.service.spec.ts students/test/students.controller.spec.ts --runInBand → focused Jest suites pass."
-  - "V-04 [AC-05,AC-06] npm --prefix backend run build → exits 0."
-  - "V-05 [AC-01..AC-04] Manual desktop/mobile: search by name/code, select result, close by Escape, and follow Chi tiết; department/class selection remains usable."
+  - "V-01 [AC-01] npm --prefix frontend test -- src/components/guards/RouteGuard.test.tsx → pass."
+  - "V-02 [AC-02..AC-05] npm --prefix frontend test -- src/hooks/useRecordDraft.test.tsx src/components/grading/AddRecordView.test.tsx src/components/grading/AddClassReportView.test.tsx → pass."
+  - "V-03 [AC-01..AC-05] npm --prefix frontend run typecheck → exit 0."
+  - "V-04 [AC-02, AC-03, AC-05] Manual: nhập dở từng form, chuyển trang/quay lại và mở lại form → dữ liệu phục hồi; bấm hủy hoặc lưu thành công → lần mở sau trống."
 
-risks:
-  - "Student results contain personal data; reduced fields, existing RBAC filters, and no shared result cache are mandatory."
-  - "The stricter GET /students throttle also covers class-list pagination callers; focused tests and manual load-more checks must detect regressions."
-stop_conditions:
-  - "Stop if product requires typo-tolerant/global search, per-account rather than current IP-based throttling, a new permission, schema/index migration, or a different destination for students without class_id."
+risks: ["Draft chứa định danh HSSV và ghi chú: chỉ dùng sessionStorage theo user/form, không localStorage hay log; RouteGuard là component dùng chung nên cần regression riêng."]
+stop_conditions: ["Dừng nếu yêu cầu lưu qua đóng tab/đăng nhập lại, đồng bộ server, đổi API/RBAC, hoặc xử lý dữ liệu cá nhân ngoài các field form hiện có."]

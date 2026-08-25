@@ -21,6 +21,7 @@ import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 import { RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
+import { useRecordDraft } from '@/hooks/useRecordDraft';
 
 export interface ViolationItem {
   student_id: string;
@@ -153,6 +154,49 @@ interface AddClassReportViewProps {
   onSuccess: () => void;
 }
 
+interface ClassReportDraft {
+  classIds: string[];
+  reportDate: string;
+  teacherName: string;
+  classNote: string;
+  selectedStudentId: string;
+  selectedCriterionId: string;
+  violationNote: string;
+  addedViolations: ViolationItem[];
+  pendingQuickViolationKeys: string[];
+  entryMode: 'manual' | 'quick';
+}
+
+export function isClassReportDraft(value: unknown): value is ClassReportDraft {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as Partial<ClassReportDraft>;
+  const validViolations = Array.isArray(draft.addedViolations) && draft.addedViolations.every(item => {
+    if (!item || typeof item !== 'object') return false;
+    const violation = item as Partial<ViolationItem>;
+    return typeof violation.student_id === 'string'
+      && (!violation.class_id || typeof violation.class_id === 'string')
+      && typeof violation.student_name === 'string'
+      && typeof violation.student_code === 'string'
+      && typeof violation.criterion_id === 'string'
+      && (!violation.evaluation_detail_id || typeof violation.evaluation_detail_id === 'string')
+      && typeof violation.criterion_name === 'string'
+      && typeof violation.points_effect === 'number'
+      && typeof violation.class_note === 'string';
+  });
+  return Array.isArray(draft.classIds)
+    && draft.classIds.every(item => typeof item === 'string')
+    && typeof draft.reportDate === 'string'
+    && typeof draft.teacherName === 'string'
+    && typeof draft.classNote === 'string'
+    && typeof draft.selectedStudentId === 'string'
+    && typeof draft.selectedCriterionId === 'string'
+    && typeof draft.violationNote === 'string'
+    && validViolations
+    && Array.isArray(draft.pendingQuickViolationKeys)
+    && draft.pendingQuickViolationKeys.every(item => typeof item === 'string')
+    && (draft.entryMode === 'manual' || draft.entryMode === 'quick');
+}
+
 export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: AddClassReportViewProps) {
   const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
@@ -195,6 +239,53 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   // Học kỳ hoạt động thực tế
   const [activeSemesterId, setActiveSemesterId] = useState('60d0fe4f5311236168a109cb');
+
+  const isEditMode = Boolean(reportToEdit && reportToEdit._id);
+  const { draft, hydrated: draftHydrated, saveDraft, clearDraft } = useRecordDraft<ClassReportDraft>({
+    form: 'class',
+    userId: user?.id,
+    enabled: !isEditMode,
+    validate: isClassReportDraft,
+  });
+  const draftRestoredRef = React.useRef(false);
+  const restoringDraftRef = React.useRef(false);
+  const dataReadyRef = React.useRef(false);
+
+  useEffect(() => {
+    if (!draftHydrated || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    if (!draft || isEditMode) return;
+    restoringDraftRef.current = true;
+    const restoredDate = new Date(draft.reportDate);
+    setClassIds(draft.classIds);
+    setTeacherName(draft.teacherName);
+    setClassNote(draft.classNote);
+    setSelectedStudentId(draft.selectedStudentId);
+    setSelectedCriterionId(draft.selectedCriterionId);
+    setViolationNote(draft.violationNote);
+    setAddedViolations(draft.addedViolations);
+    setPendingQuickViolationKeys(new Set(draft.pendingQuickViolationKeys));
+    setEntryMode(draft.entryMode);
+    if (!Number.isNaN(restoredDate.getTime())) setReportDate(restoredDate);
+  }, [draft, draftHydrated, isEditMode]);
+
+  useEffect(() => {
+    if (!draftHydrated || isEditMode || !dataReadyRef.current || !draftRestoredRef.current) return;
+    saveDraft({
+      classIds,
+      reportDate: reportDate.toISOString(),
+      teacherName,
+      classNote,
+      selectedStudentId,
+      selectedCriterionId,
+      violationNote,
+      addedViolations,
+      pendingQuickViolationKeys: Array.from(pendingQuickViolationKeys),
+      entryMode,
+    });
+  }, [addedViolations, classIds, classNote, draftHydrated, entryMode, isEditMode,
+    pendingQuickViolationKeys, reportDate, saveDraft, selectedCriterionId,
+    selectedStudentId, teacherName, violationNote]);
 
   // Load classes, students, criteria and editing data
   useEffect(() => {
@@ -292,6 +383,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         console.error('Lỗi nạp dữ liệu:', err);
         toast.error('Không thể nạp dữ liệu ban đầu');
       } finally {
+        dataReadyRef.current = true;
         setIsLoadingData(false);
       }
     }
@@ -359,6 +451,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   // Lọc sinh viên theo các lớp học đang chọn từ backend
   useEffect(() => {
+    if (restoringDraftRef.current) {
+      restoringDraftRef.current = false;
+      return;
+    }
     setSelectedStudentId('');
     setSelectedCriterionId('');
     setViolationNote('');
@@ -649,6 +745,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         }
       }
 
+      if (!reportToEdit) clearDraft();
       onSuccess();
     } catch (err: any) {
       console.error('Lỗi khi lưu:', err);
@@ -656,6 +753,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleBack = () => {
+    if (!isEditMode) clearDraft();
+    onBack();
   };
 
   return (
@@ -673,7 +775,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             <Button
               type="button"
               variant="ghost"
-              onClick={onBack}
+              onClick={handleBack}
               className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl w-9 h-9 sm:w-10 sm:h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-xs shrink-0"
               title="Quay lại"
             >
@@ -1003,7 +1105,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onBack}
+                  onClick={handleBack}
                   className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#005bbf] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
