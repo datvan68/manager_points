@@ -73,6 +73,9 @@ describe('StudentsService', () => {
               find: jest.fn().mockImplementation(() => ({
                 populate: jest.fn().mockReturnThis(),
                 select: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
                 exec: jest.fn().mockResolvedValue([getCloneMockStudent()]),
               })),
               findById: jest.fn().mockImplementation(() => ({
@@ -382,6 +385,20 @@ describe('StudentsService', () => {
   });
 
   describe('findAll', () => {
+    it('escapes search text and clamps paginated slider results', async () => {
+      const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
+      const result = await service.findAll({ search: '  A.B+  ', page: 0, limit: 999, fields: 'slider' }, requester);
+
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.limit).toBe(50);
+      expect(model.find).toHaveBeenCalledWith({
+        $or: [
+          { full_name: { $regex: 'A\\.B\\+', $options: 'i' } },
+          { student_code: { $regex: 'A\\.B\\+', $options: 'i' } },
+        ],
+      });
+    });
+
     it('should return list containing only self profile when requester is Student', async () => {
       const requester = {
         userId: '507f1f77bcf86cd799439013',

@@ -57,6 +57,20 @@ export interface StudentImportSession {
   }>;
 }
 
+const MAX_SEARCH_LENGTH = 100;
+const MAX_PAGE_LIMIT = 50;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizePositiveInteger(value: number | undefined, fallback: number, maximum?: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  const normalized = Math.floor(value as number);
+  if (normalized < 1) return fallback;
+  return maximum ? Math.min(normalized, maximum) : normalized;
+}
+
 @Injectable()
 export class StudentsService implements OnModuleInit {
   private readonly logger = new Logger(StudentsService.name);
@@ -795,6 +809,12 @@ export class StudentsService implements OnModuleInit {
     }
 
     const isPaginationRequested = page !== undefined || limit !== undefined;
+    const normalizedPage = normalizePositiveInteger(page, 1);
+    const normalizedLimit = normalizePositiveInteger(limit, 10, MAX_PAGE_LIMIT);
+    search = typeof search === 'string'
+      ? search.trim().slice(0, MAX_SEARCH_LENGTH)
+      : undefined;
+    if (!search) search = undefined;
     const isRequesterStudent = isStudent(actualRequester);
 
     if (isRequesterStudent) {
@@ -807,8 +827,8 @@ export class StudentsService implements OnModuleInit {
               data: [],
               meta: {
                 total: 0,
-                page: page || 1,
-                limit: limit || 10,
+                page: normalizedPage,
+                limit: normalizedLimit,
                 totalPages: 0,
               },
             }
@@ -829,8 +849,8 @@ export class StudentsService implements OnModuleInit {
               data: [],
               meta: {
                 total: 0,
-                page: page || 1,
-                limit: limit || 10,
+                page: normalizedPage,
+                limit: normalizedLimit,
                 totalPages: 0,
               },
             }
@@ -845,8 +865,8 @@ export class StudentsService implements OnModuleInit {
                 data: [],
                 meta: {
                   total: 0,
-                  page: page || 1,
-                  limit: limit || 10,
+                  page: normalizedPage,
+                  limit: normalizedLimit,
                   totalPages: 0,
                 },
               }
@@ -862,8 +882,8 @@ export class StudentsService implements OnModuleInit {
                 data: [],
                 meta: {
                   total: 0,
-                  page: page || 1,
-                  limit: limit || 10,
+                  page: normalizedPage,
+                  limit: normalizedLimit,
                   totalPages: 0,
                 },
               }
@@ -876,8 +896,8 @@ export class StudentsService implements OnModuleInit {
             data: [attached],
             meta: {
               total: 1,
-              page: page || 1,
-              limit: limit || 10,
+              page: normalizedPage,
+              limit: normalizedLimit,
               totalPages: 1,
             },
           }
@@ -894,8 +914,8 @@ export class StudentsService implements OnModuleInit {
               data: [],
               meta: {
                 total: 0,
-                page: page || 1,
-                limit: limit || 10,
+                page: normalizedPage,
+                limit: normalizedLimit,
                 totalPages: 0,
               },
             }
@@ -912,8 +932,8 @@ export class StudentsService implements OnModuleInit {
                 data: [],
                 meta: {
                   total: 0,
-                  page: page || 1,
-                  limit: limit || 10,
+                  page: normalizedPage,
+                  limit: normalizedLimit,
                   totalPages: 0,
                 },
               }
@@ -928,8 +948,8 @@ export class StudentsService implements OnModuleInit {
               data: [],
               meta: {
                 total: 0,
-                page: page || 1,
-                limit: limit || 10,
+                page: normalizedPage,
+                limit: normalizedLimit,
                 totalPages: 0,
               },
             }
@@ -955,8 +975,8 @@ export class StudentsService implements OnModuleInit {
 
     if (search) {
       filter.$or = [
-        { full_name: { $regex: search, $options: 'i' } },
-        { student_code: { $regex: search, $options: 'i' } },
+        { full_name: { $regex: escapeRegex(search), $options: 'i' } },
+        { student_code: { $regex: escapeRegex(search), $options: 'i' } },
       ];
     }
 
@@ -971,8 +991,8 @@ export class StudentsService implements OnModuleInit {
     const isSliderMode = fields === 'slider';
 
     if (isPaginationRequested) {
-      const p = page || 1;
-      const l = limit || 10;
+      const p = normalizedPage;
+      const l = normalizedLimit;
 
       if (isSliderMode) {
         const [students, total] = await Promise.all([

@@ -10,6 +10,7 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { StudentsService } from './students.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
@@ -129,6 +130,10 @@ export class StudentsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @Throttle({
+    burst: { limit: 20, ttl: 10_000 },
+    sustained: { limit: 120, ttl: 60_000 },
+  })
   findAll(
     @Request() req: any,
     @Query('classId') classId?: string,

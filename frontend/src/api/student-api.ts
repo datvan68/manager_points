@@ -36,6 +36,7 @@ export const studentApi = {
     search?: string;
     status?: string;
     fields?: string;
+    signal?: AbortSignal;
   }): Promise<{ data: Student[]; meta?: any } | Student[]> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', params.page.toString());
@@ -48,7 +49,7 @@ export const studentApi = {
     
     const qs = query.toString();
     const url = `${API_BASE}/students${qs ? `?${qs}` : ''}`;
-    const res = await httpClient(url);
+    const res = await httpClient(url, { signal: params?.signal });
     return handleResponse(res);
   },
 
