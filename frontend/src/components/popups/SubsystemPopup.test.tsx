@@ -232,4 +232,46 @@ describe('SubsystemPopup', () => {
 
     expect(await screen.findByText('Quản lý KTX')).toBeInTheDocument();
   });
+
+  it('shows the student-record module for a custom role with READ_STUDENT_RECORD', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'reviewer-1', role: 'Records Reviewer', username: 'reviewer' },
+      isLoading: false,
+      hasPermission: (permission) => permission === 'READ_STUDENT_RECORD',
+      hasAnyPermission: (...permissions) => permissions.includes('READ_STUDENT_RECORD'),
+      hasAllPermissions: (...permissions) => permissions.every((permission) => permission === 'READ_STUDENT_RECORD'),
+      isAuthenticated: true,
+      permissions: ['READ_STUDENT_RECORD'],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    expect(await screen.findByText('Theo dõi chuyên cần')).toBeInTheDocument();
+  });
+
+  it('keeps the record module visible when a legacy mapping still requires STUDENT_PAGE', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'reviewer-1', role: 'Records Reviewer', username: 'reviewer' },
+      isLoading: false,
+      hasPermission: (permission) => permission === 'READ_STUDENT_RECORD',
+      hasAnyPermission: (...permissions) => permissions.includes('READ_STUDENT_RECORD'),
+      hasAllPermissions: (...permissions) => permissions.every((permission) => permission === 'READ_STUDENT_RECORD'),
+      isAuthenticated: true,
+      permissions: ['READ_STUDENT_RECORD'],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
+      { route_path: '/students/record', is_active: true, check_type: 'any', permissions: [{ code: 'STUDENT_PAGE' }] },
+    ]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    expect(await screen.findByText('Theo dõi chuyên cần')).toBeInTheDocument();
+  });
 });

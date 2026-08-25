@@ -326,6 +326,13 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     // administrator-only route mapping for the management workspace.
     if (mod.id === 'club' && isStudent) return true;
 
+    // The record module is directly owned by READ_STUDENT_RECORD. Keep this
+    // explicit permission effective even when a legacy dynamic mapping still
+    // lists the old STUDENT_PAGE requirement.
+    if (mod.id === 'attendance' && hasPermission('READ_STUDENT_RECORD')) {
+      return true;
+    }
+
     // 2. Try dynamic database mapping
     const mapping = routeMappings.find(
       (m) => m.route_path === mod.href && m.is_active !== false
@@ -373,7 +380,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     }
 
     if (mod.id === 'attendance') {
-      return isStudent || isTeacher || hasPermission('STUDENT_PAGE');
+      return isStudent || isTeacher || hasPermission('STUDENT_PAGE') || hasPermission('READ_STUDENT_RECORD');
     }
 
     if (mod.id === 'events') {

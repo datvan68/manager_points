@@ -318,6 +318,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     }
 
     const fetchClasses = async () => {
+      if (!canAccessClassTab) return;
       try {
         let classList = [];
         try {
@@ -333,7 +334,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     fetchClasses();
 
     setIsLoading(false);
-  }, []);
+  }, [canAccessClassTab]);
 
   // Fetch student academic records
   const fetchAcademicRecords = async (pageToFetch = 1, isAppend = false) => {
@@ -529,6 +530,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   // Fetch class data
   const fetchClassReports = async () => {
+    if (!canAccessClassTab) return;
     setIsClassLoading(true);
     try {
       // Load criteria list to setup configuration
@@ -622,10 +624,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   }, [activeSubTab, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
 
   useEffect(() => {
-    if (activeSubTab === "class") {
+    if (activeSubTab === "class" && canAccessClassTab) {
       fetchClassReports();
     }
-  }, [activeSubTab, classCurrentPage, classItemsPerPage, debouncedClassSearchTerm, selectedClassId, selectedReportDateRange]);
+  }, [activeSubTab, canAccessClassTab, classCurrentPage, classItemsPerPage, debouncedClassSearchTerm, selectedClassId, selectedReportDateRange]);
 
   const fetchAcademicRecordsRef = useRef<any>(null);
   useEffect(() => {
@@ -4956,7 +4958,7 @@ export default function StudentRecordPage() {
         </div>
       }
     >
-      <RouteGuard requiredPermission={bypassGuard ? undefined : "STUDENT_PAGE"}>
+      <RouteGuard requiredPermission={bypassGuard ? undefined : "READ_STUDENT_RECORD"}>
         <StudentRecordPageContent />
       </RouteGuard>
     </Suspense>

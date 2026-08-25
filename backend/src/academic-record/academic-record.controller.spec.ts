@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import 'reflect-metadata';
+import { ValidationPipe, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AcademicRecordController } from './academic-record.controller';
 import { AcademicRecordService } from './academic-record.service';
 import {
@@ -8,12 +9,18 @@ import {
 } from './dto/import-academic-record.dto';
 import { IntentScoreDto } from './dto/intent-score.dto';
 import { Types } from 'mongoose';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+const guardsFor = (method: string) =>
+  (Reflect.getMetadata('__guards__', AcademicRecordController.prototype[method]) ||
+    Reflect.getMetadata('__guards__', AcademicRecordController.prototype, method) || []) as any[];
 
 describe('AcademicRecordController - Import Flow', () => {
   let controller: AcademicRecordController;
   let service: AcademicRecordService;
 
   const mockAcademicRecordService = {
+    findAll: jest.fn(),
     importPreview: jest.fn(),
     importCommit: jest.fn(),
     getImportProgress: jest.fn(),
@@ -64,6 +71,82 @@ describe('AcademicRecordController - Import Flow', () => {
 
       expect(service.importPreview).toHaveBeenCalledWith(dto.rows, req.user);
       expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('permission boundaries', () => {
+    it('allows a custom role with READ_STUDENT_RECORD to call the read endpoint', async () => {
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const Guard = guardsFor('findAll')[0];
+      const request = { user: { roleName: 'Records Reviewer', permissions: ['READ_STUDENT_RECORD'] } };
+      const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+
+      await expect(new Guard().canActivate(context)).resolves.toBe(true);
+      mockAcademicRecordService.findAll.mockResolvedValue({ data: [], meta: { total: 0 } });
+      await controller.findAll(request);
+      expect(service.findAll).toHaveBeenCalledWith(expect.anything(), request.user);
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it('denies a non-admin without READ_STUDENT_RECORD before the service is invoked', async () => {
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const Guard = guardsFor('findAll')[0];
+      const request = { user: { roleName: 'Records Reviewer', permissions: [] } };
+      const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+
+      await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.findAll).not.toHaveBeenCalled();
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it.each([
+      ['create', 'CREATE_STUDENT_RECORD'],
+      ['handleIntent', 'CREATE_STUDENT_RECORD'],
+      ['bulkCreate', 'CREATE_STUDENT_RECORD'],
+      ['importPreview', 'CREATE_STUDENT_RECORD'],
+      ['importCommit', 'CREATE_STUDENT_RECORD'],
+      ['getImportProgress', 'CREATE_STUDENT_RECORD'],
+      ['update', 'UPDATE_STUDENT_RECORD'],
+      ['restore', 'UPDATE_STUDENT_RECORD'],
+      ['remove', 'DELETE_STUDENT_RECORD'],
+      ['forceRemove', 'DELETE_STUDENT_RECORD'],
+    ])('%s requires %s and rejects view-only access', async (method, permission) => {
+      const Guard = guardsFor(method)[0];
+      expect(Guard).not.toBe(JwtAuthGuard);
+
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { roleName: 'Records Reviewer', permissions: ['READ_STUDENT_RECORD'] } }),
+        }),
+      } as any;
+
+      await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+
+      const allowedContext = {
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { roleName: 'Records Reviewer', permissions: [permission] } }),
+        }),
+      } as any;
+      await expect(new Guard().canActivate(allowedContext)).resolves.toBe(true);
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it.each(['handleIntent', 'remove'])('preserves Student self-service access for %s', async (method) => {
+      const Guard = guardsFor(method)[0];
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { roleName: 'Student', permissions: [] } }),
+        }),
+      } as any;
+
+      await expect(new Guard().canActivate(context)).resolves.toBe(true);
+      JwtAuthGuard.prototype.canActivate = original;
     });
   });
 

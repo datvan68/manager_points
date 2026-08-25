@@ -6,6 +6,8 @@ import { classApi } from '@/api/class-api';
 import { criteriaApi } from '@/api/criteria-api';
 import { dailyClassReportApi } from '@/api/daily-class-report-api';
 
+let mockRecordPermissions: Record<string, boolean> = {};
+
 // --- MOCKS ---
 
 
@@ -84,7 +86,8 @@ vi.mock('@/components/guards/RouteGuard', () => ({
     createClassRecord: true,
     editClassRecord: true,
     deleteClassRecord: true,
-    configRecord: true
+    configRecord: true,
+    ...mockRecordPermissions,
   })),
 }));
 
@@ -134,6 +137,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     (criteriaApi.getCriteria as any).mockResolvedValue([]);
     resolveFirstFetch = null;
     resolveSecondFetch = null;
+    mockRecordPermissions = {};
   });
   
   afterEach(() => {
@@ -254,5 +258,17 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getByText('Tình hình lớp học'));
 
     expect(await screen.findAllByText('Ghi chú đã lưu')).not.toHaveLength(0);
+  });
+
+  it('does not request class resources when READ_CLASS_RECORD is absent', async () => {
+    mockRecordPermissions = { viewClassRecord: false };
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalled();
+    });
+    expect(dailyClassReportApi.getDailyClassReports).not.toHaveBeenCalled();
+    expect(classApi.getClasses).not.toHaveBeenCalled();
   });
 });

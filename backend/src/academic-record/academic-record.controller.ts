@@ -9,6 +9,12 @@ import {
   UseGuards,
   Query,
   Request,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  mixin,
+  Type,
 } from '@nestjs/common';
 import { AcademicRecordService } from './academic-record.service';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
@@ -23,8 +29,62 @@ import {
 } from './dto/import-academic-record.dto';
 import { IntentScoreDto } from './dto/intent-score.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
-import { checkRole } from '../auth/guards/check-role.guard';
+import { checkPermission } from '../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { isAdminUser, isStudent } from '../auth/utils/role.util';
+
+function checkAcademicRecordReadAccess(): Type<CanActivate> {
+  @Injectable()
+  class AcademicRecordReadGuard extends JwtAuthGuard implements CanActivate {
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+      const isAuthenticated = await super.canActivate(context);
+      if (!isAuthenticated) return false;
+
+      const user = context.switchToHttp().getRequest().user;
+      if (!user) throw new ForbiddenException('Không thể xác thực người dùng');
+      if (isAdminUser(user) || isStudent(user)) return true;
+      if ((user.permissions || []).includes('READ_STUDENT_RECORD')) return true;
+
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Bạn không có quyền thực hiện hành động này. Thiếu quyền: READ_STUDENT_RECORD',
+        requiredPermissions: ['READ_STUDENT_RECORD'],
+        missingPermissions: ['READ_STUDENT_RECORD'],
+      });
+    }
+  }
+
+  return mixin(AcademicRecordReadGuard);
+}
+
+function checkAcademicRecordSelfServiceOrPermission(
+  ...requiredPermissions: string[]
+): Type<CanActivate> {
+  @Injectable()
+  class AcademicRecordActionGuard extends JwtAuthGuard implements CanActivate {
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+      const isAuthenticated = await super.canActivate(context);
+      if (!isAuthenticated) return false;
+
+      const user = context.switchToHttp().getRequest().user;
+      if (!user) throw new ForbiddenException('Không thể xác thực người dùng');
+      if (isAdminUser(user) || isStudent(user)) return true;
+      if (requiredPermissions.some((permission) => (user.permissions || []).includes(permission))) {
+        return true;
+      }
+
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: `Bạn không có quyền thực hiện hành động này. Thiếu quyền: ${requiredPermissions.join(', ')}`,
+        requiredPermissions,
+      });
+    }
+  }
+
+  return mixin(AcademicRecordActionGuard);
+}
 
 @ApiTags('Academic Records')
 @Controller('academic-records')
@@ -32,7 +92,7 @@ export class AcademicRecordController {
   constructor(private readonly academicRecordService: AcademicRecordService) {}
 
   @Post()
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -50,7 +110,7 @@ export class AcademicRecordController {
   }
 
   @Post('intent')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkAcademicRecordSelfServiceOrPermission('CREATE_STUDENT_RECORD', 'UPDATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -63,7 +123,7 @@ export class AcademicRecordController {
   }
 
   @Post('bulk')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -79,7 +139,7 @@ export class AcademicRecordController {
   }
 
   @Post('import/preview')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Preview and validate bulk import of student academic records',
@@ -94,7 +154,7 @@ export class AcademicRecordController {
   }
 
   @Post('import/commit')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Commit bulk import of student academic records' })
   @ApiBody({ type: ImportAcademicRecordCommitDto })
@@ -107,7 +167,7 @@ export class AcademicRecordController {
   }
 
   @Get('import/:sessionId/progress')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get progress of a bulk import session' })
   getImportProgress(
@@ -117,7 +177,7 @@ export class AcademicRecordController {
   }
 
   @Get()
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkAcademicRecordReadAccess())
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get all academic records with pagination and filters',
@@ -152,7 +212,7 @@ export class AcademicRecordController {
   }
 
   @Get('deleted/all')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('READ_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted academic records' })
   findDeleted(@Request() req: any) {
@@ -161,7 +221,7 @@ export class AcademicRecordController {
   }
 
   @Get(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkAcademicRecordReadAccess())
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic record by ID' })
   findOne(@Param('id') id: string, @Request() req: any) {
@@ -200,7 +260,7 @@ export class AcademicRecordController {
   }
 
   @Patch(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -223,7 +283,7 @@ export class AcademicRecordController {
   }
 
   @Delete(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkAcademicRecordSelfServiceOrPermission('DELETE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -240,7 +300,7 @@ export class AcademicRecordController {
   }
 
   @Patch(':id/restore')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -252,7 +312,7 @@ export class AcademicRecordController {
   }
 
   @Delete(':id/force')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('DELETE_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:

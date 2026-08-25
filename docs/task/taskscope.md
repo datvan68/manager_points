@@ -1,41 +1,41 @@
-task: "Fully hydrate Class Report edit in quick-selection mode"
+task: "Allow custom roles to view student records by permission"
 pipeline: bug_fix
-profile: Quick
-objective: "Opening an existing class report for edit must reproduce its saved form state, including the quick-selection roster and selected violations."
+profile: Full
+objective: "A user with READ_STUDENT_RECORD can open the student-record screen and load its permitted data regardless of the role's name."
 
 evidence:
-  current_behavior:
-    - "AddClassReportView maps linked academic records into addedViolations but does not restore selectedCriterionId or explicitly enter quick mode."
-    - "Setting classIds triggers the class-dependent effect, which clears criterion/input state while the edit form is hydrating."
-  expected_behavior:
-    - "Edit opens like the completed quick-entry view: saved general information is visible, the roster loads, and saved students are highlighted for the restored criterion."
+  root_cause: "The frontend checks READ_STUDENT_RECORD for content, but the page/module entry checks STUDENT_PAGE and GET /academic-records uses checkRole(Admin, Teacher, Supervisor, Student). A newly created role therefore reaches a 403 and the page shows 'Không thể tải dữ liệu ghi nhận HSSV'."
+  dependencies: ["The screen also loads authenticated criteria and class lookups", "AcademicRecordService applies requester-based data scoping"]
 
 scope:
   write:
-    - "frontend/src/components/grading/AddClassReportView.tsx"
-    - "frontend/src/components/grading/AddClassReportView.test.tsx"
-  preserve:
-    - "Create-form drafts, manual entry, explicit class changes, update payload, RBAC, and API contracts"
-  out:
-    - "Backend/schema changes and unfinished-edit persistence"
+    - "backend/src/academic-record/academic-record.controller.ts: replace fixed-role guards with matching READ/CREATE/UPDATE/DELETE_STUDENT_RECORD permission guards for staff operations"
+    - "backend/src/academic-record/academic-record.controller.spec.ts: assert custom-role allow, missing-permission deny, and service non-invocation on denial"
+    - "frontend/src/app/(dashboard)/students/record/page.tsx and page.test.tsx: align route/data loading with READ_STUDENT_RECORD and permission-gate optional class-record requests"
+    - "frontend/src/components/popups/SubsystemPopup.tsx and focused test: expose the record module when READ_STUDENT_RECORD is effective"
+  preserve: ["ADMIN bypass", "student self-service access and ownership checks", "multi-role permission union", "requester-based class/student data scope", "existing response payloads"]
+  out: ["Granting STUDENT_PAGE implicitly", "Changing role assignments or permission codes", "Redesigning the record UI", "Changing record schemas"]
 
 acceptance_criteria:
-  - "AC-01: Edit hydration retains the saved class, teacher, report date, class note, and every linked violation after class loading completes."
-  - "AC-02: Edit defaults to quick mode, restores a valid saved criterion, loads the class roster, and highlights/counts every student recorded under that criterion."
-  - "AC-03: Records with multiple criteria remain intact; changing the displayed criterion shows the matching saved selections without deleting other saved violations."
-  - "AC-04: A class explicitly changed by the user still clears incompatible dependent state; create/draft behavior and update contracts remain unchanged."
+  - "AC-01: A non-built-in custom role with READ_STUDENT_RECORD can see/open /students/record and GET /academic-records returns its scoped dataset instead of 403."
+  - "AC-02: A non-admin account without READ_STUDENT_RECORD cannot see/open the student-record view and the read API returns 403 without calling the service."
+  - "AC-03: The student tab loads independently; absence of READ_CLASS_RECORD does not request class-report data or produce a page-level load error."
+  - "AC-04: Create, update, delete, import, restore, and force-delete endpoints require their corresponding action permission; view permission alone cannot mutate data."
+  - "AC-05: Student self-service routes retain ownership restrictions, ADMIN remains allowed, and effective permissions merged from multiple roles are honored."
 
 execution:
-  - "E-01 [AC-01..AC-04] AddClassReportView.tsx -> add one-shot edit hydration, derive the initial criterion from loaded records, select quick mode, and separate hydration from user class changes."
-  - "E-02 [AC-01..AC-04] AddClassReportView.test.tsx -> cover complete edit restoration, roster reload, selection highlighting/counts, multiple criteria, and subsequent class change."
+  - "E-01 [AC-01,AC-02] align popup and page access with READ_STUDENT_RECORD."
+  - "E-02 [AC-01,AC-04,AC-05] replace role-name authorization in academic-record endpoints while preserving explicit self-service behavior."
+  - "E-03 [AC-03] fetch class-record resources only when READ_CLASS_RECORD is present and isolate optional lookup failures."
+  - "E-04 [AC-01..AC-05] add focused frontend and controller guard regressions."
 
+temporary_artifacts: {create: ["docs/task/taskscope.md"], cleanup: [], retain: ["docs/task/taskscope.md"]}
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx"
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck"
-  - "V-03 [AC-01..AC-03] Manual: edit a saved class report and compare all restored fields and selected student cards with its detail view."
+  - "npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' 'src/components/popups/SubsystemPopup.test.tsx'"
+  - "npm --prefix frontend run typecheck"
+  - "npm --prefix backend test -- src/academic-record/academic-record.controller.spec.ts --runInBand"
+  - "npm --prefix backend run build"
+  - "Manual: custom role with only READ_STUDENT_RECORD loads the student tab; mutation calls and class tab remain denied."
 
-risks:
-  - "Async class, roster, criteria, and record requests can overwrite one another; the hydration guard must be consumed once without suppressing later user changes."
-
-stop_conditions:
-  - "Stop if linked records lack stable student/criterion identifiers and require an API or schema change."
+risks: ["Replacing fixed-role guards without separating student self-service from staff operations could broaden access; retain service ownership checks and cover both paths."]
+stop_conditions: ["Stop for product direction if READ_STUDENT_RECORD is not intended to grant route access, or if a student self-service endpoint has no enforceable ownership boundary."]
