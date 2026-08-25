@@ -66,6 +66,8 @@ function StudentsPageContent() {
     canCreateDept: "DEPT_CREATE",
 
     canCreateClass: "CLASS_CREATE",
+    canUpdateClass: "CLASS_UPDATE",
+    canDeleteClass: "CLASS_DELETE",
   });
 
   const [deptsList, setDeptsList] = useState<Department[]>([]);
@@ -200,7 +202,7 @@ function StudentsPageContent() {
   };
 
   const handleClassDeleteConfirm = async () => {
-    if (!classToDelete) return;
+    if (!classToDelete || !permissions.canDeleteClass) return;
     try {
       await classApi.deleteClass(classToDelete.id);
       toast.success(`Đã xóa lớp ${classToDelete.name}`);
@@ -646,11 +648,12 @@ function StudentsPageContent() {
                                 className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
                               >
                                 {/* Action Hover overlay */}
-                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
+                                {(permissions.canUpdateClass || permissions.canDeleteClass) && <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
                                   <Action
                                     permissionEdit="CLASS_UPDATE"
                                     permissionDelete="CLASS_DELETE"
                                     onEdit={() => {
+                                      if (!permissions.canUpdateClass) return;
                                       setEditingClass({
                                         _id: cls.id,
                                         name: cls.name,
@@ -663,11 +666,12 @@ function StudentsPageContent() {
                                       setIsClassPopupOpen(true);
                                     }}
                                     onDelete={() => {
+                                      if (!permissions.canDeleteClass) return;
                                       setClassToDelete(cls);
                                       setIsClassDeleteModalOpen(true);
                                     }}
                                   />
-                                </div>
+                                </div>}
 
                                 <div className="flex items-start justify-between">
                                   <div
@@ -800,11 +804,12 @@ function StudentsPageContent() {
                                 className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
                               >
                                 {/* Action Hover overlay */}
-                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
+                                {(permissions.canUpdateClass || permissions.canDeleteClass) && <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
                                   <Action
                                     permissionEdit="CLASS_UPDATE"
                                     permissionDelete="CLASS_DELETE"
                                     onEdit={() => {
+                                      if (!permissions.canUpdateClass) return;
                                       setEditingClass({
                                         _id: cls.id,
                                         name: cls.name,
@@ -817,11 +822,12 @@ function StudentsPageContent() {
                                       setIsClassPopupOpen(true);
                                     }}
                                     onDelete={() => {
+                                      if (!permissions.canDeleteClass) return;
                                       setClassToDelete(cls);
                                       setIsClassDeleteModalOpen(true);
                                     }}
                                   />
-                                </div>
+                                </div>}
 
                                 <div className="flex items-start justify-between">
                                   <div
@@ -908,7 +914,7 @@ function StudentsPageContent() {
           </div>
         </main>
       <ClassPopup
-        isOpen={isClassPopupOpen}
+        isOpen={isClassPopupOpen && (editingClass?._id ? permissions.canUpdateClass : permissions.canCreateClass)}
         onClose={() => setIsClassPopupOpen(false)}
         initialData={editingClass}
         onSuccess={(data?: any) => {
@@ -969,7 +975,7 @@ function StudentsPageContent() {
       />
 
       <ImportClassPopup
-        isOpen={isImportClassPopupOpen}
+        isOpen={isImportClassPopupOpen && permissions.canCreateClass}
         onClose={() => setIsImportClassPopupOpen(false)}
         onSuccess={() => {
           fetchDepartments();

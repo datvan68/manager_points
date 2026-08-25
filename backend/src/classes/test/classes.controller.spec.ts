@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ClassesController } from '../classes.controller';
 import { ClassesService } from '../classes.service';
 import { BadRequestException } from '@nestjs/common';
+import { checkPermission } from '../../auth/guards/check-permission.guard';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 const mockClass = {
   _id: 'mock-class-id',
@@ -122,6 +124,62 @@ describe('ClassesController', () => {
       const result = await controller.confirmImport(dto);
       expect(result).toEqual(mockResult);
       expect(service.confirmImport).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  describe('mutation guards', () => {
+    const request = { user: { permissions: ['CLASS_READ'] } };
+    const context = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as any;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      request.user.permissions = ['CLASS_READ'];
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    it.each([
+      ['CLASS_CREATE', 'create'],
+      ['CLASS_CREATE', 'preview import'],
+      ['CLASS_CREATE', 'confirm import'],
+      ['CLASS_UPDATE', 'update'],
+      ['CLASS_DELETE', 'delete'],
+    ])('denies view-only users before %s %s service execution', async (permission) => {
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const guard = new (checkPermission(permission) as any)();
+
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        response: expect.objectContaining({ statusCode: 403 }),
+      });
+      expect(service.create).not.toHaveBeenCalled();
+      expect(service.previewImport).not.toHaveBeenCalled();
+      expect(service.confirmImport).not.toHaveBeenCalled();
+      expect(service.update).not.toHaveBeenCalled();
+      expect(service.remove).not.toHaveBeenCalled();
+    });
+
+    it('allows only the matching individual class action', async () => {
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      request.user.permissions = ['CLASS_UPDATE'];
+
+      await expect(new (checkPermission('CLASS_UPDATE') as any)().canActivate(context)).resolves.toBe(true);
+      await expect(new (checkPermission('CLASS_CREATE') as any)().canActivate(context)).rejects.toMatchObject({
+        response: expect.objectContaining({ statusCode: 403 }),
+      });
+      await expect(new (checkPermission('CLASS_DELETE') as any)().canActivate(context)).rejects.toMatchObject({
+        response: expect.objectContaining({ statusCode: 403 }),
+      });
+    });
+
+    it('preserves the union and admin bypass', async () => {
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      request.user.permissions = ['CLASS_CREATE', 'CLASS_UPDATE'];
+      await expect(new (checkPermission('CLASS_UPDATE') as any)().canActivate(context)).resolves.toBe(true);
+      await expect(new (checkPermission('CLASS_CREATE') as any)().canActivate(context)).resolves.toBe(true);
+
+      request.user = { permissions: ['ADMIN_FULL'] };
+      await expect(new (checkPermission('CLASS_DELETE') as any)().canActivate(context)).resolves.toBe(true);
     });
   });
 });

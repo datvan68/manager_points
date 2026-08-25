@@ -278,6 +278,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    const refreshEffectivePermissions = () => {
+      const token = tokenStorage.getAccessToken();
+      if (token) void loadUserPermissions(token);
+    };
+    window.addEventListener('authorization-denied', refreshEffectivePermissions);
+    return () => window.removeEventListener('authorization-denied', refreshEffectivePermissions);
+  }, [user]);
+
   const checkAuth = async () => {
     if (isAccessBootstrapRoute) {
       setUser(null);

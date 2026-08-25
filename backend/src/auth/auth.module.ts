@@ -76,6 +76,7 @@ import { StrictAdminGuard } from './guards/strict-admin.guard';
   providers: [
     AuthService,
     TokenService,
+    { provide: 'TOKEN_REVOCATION', useExisting: TokenService },
     PasswordService,
     RbacService,
     ImpersonationService,

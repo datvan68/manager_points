@@ -123,6 +123,31 @@ describe('AuthProvider session rehydration', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it('refreshes effective permissions after a rejected authorization response', async () => {
+    tokenStorage.setAccessToken('stored-access-token');
+    tokenStorage.setUser({ id: 'user-1', roleCode: 'USER', permissions: ['CLASS_UPDATE'] });
+    const fetchMock = vi.mocked(fetch);
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 'user-1',
+      user_name: 'student-1',
+      roleName: 'User',
+      roleCode: 'USER',
+      permissions: ['CLASS_READ'],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    window.dispatchEvent(new CustomEvent('authorization-denied'));
+
+    await waitFor(() => expect(tokenStorage.getUser()?.permissions).toEqual(['CLASS_READ']));
+  });
+
   it('does not refresh or hydrate the normal session on the access bootstrap route', async () => {
     pathnameState.current = '/access';
 

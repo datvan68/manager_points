@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -12,6 +13,7 @@ import {
   PermissionGroupDocument,
 } from '../schemas/permission-group.schema';
 import { User, UserDocument } from '../schemas/user.schema';
+import type { TokenService } from './token.service';
 import {
   RoutePermission,
   RoutePermissionDocument,
@@ -39,6 +41,7 @@ export class RbacService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(RoutePermission.name)
     private routePermissionModel: Model<RoutePermissionDocument>,
+    @Inject('TOKEN_REVOCATION') private tokenService: TokenService,
   ) {}
 
   async getRoles() {
@@ -307,12 +310,39 @@ export class RbacService {
     }
 
     if (dto.description !== undefined) role.description = dto.description;
-    if (dto.permissions)
+
+    const previousPermissionCodes = new Set(
+      (role.permissions || []).map((permission: any) =>
+        typeof permission === 'string'
+          ? permission
+          : permission?.code || permission?.toString?.(),
+      ),
+    );
+    if (dto.permissions !== undefined)
       role.permissions = dto.permissions.map(
         (id) => new Types.ObjectId(id),
       ) as any;
 
-    return role.save();
+    const savedRole = await role.save();
+
+    if (dto.permissions !== undefined) {
+      const permissionIds = new Set(dto.permissions.map(String));
+      const removedPermission = [...previousPermissionCodes].some(
+        (permission) => permission && !permissionIds.has(String(permission)),
+      );
+      if (removedPermission) {
+        const affectedUsers = await this.userModel.find({
+          $or: [{ role: role._id }, { roles: role._id }],
+        });
+        await Promise.all(
+          affectedUsers.map((user) =>
+            this.tokenService.revokeAllUserTokens(user._id.toString()),
+          ),
+        );
+      }
+    }
+
+    return savedRole;
   }
 
   async deleteRole(roleId: string) {

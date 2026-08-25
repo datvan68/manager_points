@@ -262,6 +262,9 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
+    if (res.status === 403 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('authorization-denied'));
+    }
     const message = Array.isArray(data.message)
       ? data.message.join(', ')
       : data.message || data.error || 'Đã xảy ra lỗi';
