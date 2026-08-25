@@ -263,6 +263,7 @@ export default function UserDetailPage() {
     return (
       <>
         <TabNavigation
+          responsiveScrollable
           tabs={[
             { id: "Người dùng", label: "Người dùng" },
             { id: "Vai trò", label: "Vai trò" },

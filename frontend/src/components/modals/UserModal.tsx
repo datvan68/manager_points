@@ -380,17 +380,17 @@ export default function UserModal({
               {/* Mode Switcher */}
               {!isEditing && !bulkResult && (
                 <div className="flex justify-center border-b border-white/60 bg-white/10 p-2">
-                  <div className="flex p-1 bg-white/40 rounded-lg">
+                  <div className="flex p-1 bg-white/40 rounded-xl border border-white/70">
                     <button
                       onClick={() => setMode("single")}
-                      className={`px-4 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-2 ${mode === "single" ? "bg-white text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 ease-out flex items-center gap-1.5 ${mode === "single" ? "bg-white/80 text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
                     >
                       <User className="w-4 h-4" />
                       Thêm 1 người dùng
                     </button>
                     <button
                       onClick={() => setMode("bulk")}
-                      className={`px-4 py-1.5 rounded-md text-xs font-bold transition-colors flex items-center gap-2 ${mode === "bulk" ? "bg-white text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-150 ease-out flex items-center gap-1.5 ${mode === "bulk" ? "bg-white/80 text-[#1A73E8] shadow-sm" : "text-[#64748B] hover:text-[#1E293B]"}`}
                     >
                       <Users className="w-4 h-4" />
                       Thêm nhiều người dùng
@@ -541,7 +541,7 @@ export default function UserModal({
                         <label htmlFor="useCommonPwd" className="text-xs font-bold text-slate-700 cursor-pointer">Dùng chung mật khẩu</label>
                       </div>
                       {useCommonPassword && (
-                        <input type="text" value={commonPassword} onChange={(e) => setCommonPassword(e.target.value)} placeholder="Nhập mật khẩu chung" className="px-3 py-1.5 text-xs border border-white/80 rounded-lg bg-white/50" />
+                        <input type="text" value={commonPassword} onChange={(e) => setCommonPassword(e.target.value)} placeholder="Nhập mật khẩu chung" className="px-3 py-1.5 text-xs border border-white/80 rounded-xl bg-white/50 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out" />
                       )}
                     </div>
 

@@ -1146,7 +1146,7 @@ function PermissionsPageContent() {
     // Reset to first page when searching, filtering, or changing page size
     setUserCurrentPage(1);
     setMobileVisibleCount(MOBILE_USER_BATCH_SIZE);
-    mobileScrollRef.current?.scrollTo({ top: 0 });
+    mobileScrollRef.current?.scrollTo?.({ top: 0 });
   }, [searchTerm, filterRole, filterStatuses, userPageSize]);
 
   // If current page is out of range after filters change, bring it back
@@ -1160,6 +1160,7 @@ function PermissionsPageContent() {
   const mobileUsers = getPermissionUsersForViewport(filteredUsers, true, mobileVisibleCount, userCurrentPage, userPageSize);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mediaQuery = window.matchMedia('(max-width: 767px)');
     const updateIsMobile = () => setIsMobile(mediaQuery.matches);
     updateIsMobile();
@@ -1313,16 +1314,18 @@ function PermissionsPageContent() {
       priority: 'action',
       className: 'text-right w-full md:w-[15%]',
       render: (_, perm) => (
-        <div className="flex items-center justify-end gap-1.5 opacity-100 transition-all duration-150" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1.5 opacity-100 transition-all duration-150 ease-out" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => handleOpenEditPermissionModal(perm)}
-            className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+            aria-label={`Chỉnh sửa quyền ${perm.name}`}
+            className="p-1.5 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handlePermissionDelete(perm)}
-            className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+            aria-label={`Xóa quyền ${perm.name}`}
+            className="p-1.5 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -1344,15 +1347,16 @@ function PermissionsPageContent() {
           ]}
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
+          responsiveScrollable
         />
-        <main className="flex-1 p-5 overflow-hidden flex flex-col bg-transparent relative">
+        <main className="flex-1 p-4 md:p-5 overflow-hidden flex flex-col bg-transparent relative">
           <AnimatePresence>
             {isRefreshing && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full shadow-md border border-white/90 text-xs font-bold text-[#1A73E8]"
+                className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/80 text-xs font-bold text-[#1A73E8]"
               >
                 <div className="w-3.5 h-3.5 border-2 border-[#1A73E8] border-t-transparent rounded-full animate-spin"></div>
                 Đang làm mới dữ liệu...
@@ -1365,8 +1369,8 @@ function PermissionsPageContent() {
             {activeTab === 'Người dùng' && (
               <>
                 {/* Toolbar */}
-                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-5 py-3 border-b border-white/40 bg-white/10 shrink-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
@@ -1374,32 +1378,32 @@ function PermissionsPageContent() {
                         placeholder="Tìm kiếm..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8.5 pr-3 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-full sm:w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70"
+                        className="pl-8.5 pr-3 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-full sm:w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
                       />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                      <label className="flex min-w-[145px] flex-1 items-center gap-2 text-[11px] font-bold text-[#64748B]">
-                        Vai trò
+                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                      <label className="flex min-w-[145px] flex-1 sm:flex-initial items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
+                        <span className="shrink-0 whitespace-nowrap">Vai trò</span>
                         <Select value={filterRole} onValueChange={setFilterRole}>
-                          <SelectTrigger aria-label="Vai trò" className="h-9 min-w-0 flex-1 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                          <SelectTrigger aria-label="Vai trò" className="h-9 min-w-[110px] w-full sm:w-32 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
                             <SelectValue placeholder="Tất cả" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
                             {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
-                              <SelectItem key={role} value={role}>{role}</SelectItem>
+                              <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </label>
-                      <label className="flex min-w-[165px] flex-1 items-center gap-2 text-[11px] font-bold text-[#64748B]">
-                        Trạng thái
+                      <label className="flex min-w-[165px] flex-1 sm:flex-initial items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
+                        <span className="shrink-0 whitespace-nowrap">Trạng thái</span>
                         <Select value={filterStatuses.join('|')} onValueChange={handleToggleStatus}>
-                          <SelectTrigger aria-label="Trạng thái" className="h-9 min-w-0 flex-1 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                          <SelectTrigger aria-label="Trạng thái" className="h-9 min-w-[120px] w-full sm:w-36 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
                             <SelectValue>{filterStatuses.join(', ')}</SelectValue>
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
                             {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => (
-                              <SelectItem key={status} value={status}>{status}</SelectItem>
+                              <SelectItem key={status} value={status} className="text-xs rounded-lg font-medium">{status}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1409,7 +1413,7 @@ function PermissionsPageContent() {
                     {selectedUserIds.length > 0 && (
                       <button
                         onClick={handleDeleteUsersBulk}
-                        className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-sm animate-fade-in"
+                        className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-xs animate-fade-in"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Xóa ({selectedUserIds.length})
@@ -1424,7 +1428,7 @@ function PermissionsPageContent() {
 
                     <button
                       onClick={handleOpenAddModal}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors"
+                      className="flex items-center gap-1.5 px-4 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shrink-0"
                     >
                       <Plus className="w-4 h-4" strokeWidth={3} />
                       Thêm người dùng
