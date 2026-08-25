@@ -15,6 +15,7 @@ import {
   IsBoolean,
   MaxLength,
   ArrayMaxSize,
+  ArrayNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -358,6 +359,9 @@ export class RestoreBackupImportDto {
   previewSessionId: string;
 
   @IsArray()
+  @ArrayNotEmpty({
+    message: 'Phải chọn ít nhất một collection để khôi phục',
+  })
   @IsString({ each: true })
   collections: string[];
 

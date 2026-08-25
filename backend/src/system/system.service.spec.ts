@@ -1171,6 +1171,21 @@ describe('SystemService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('should reject an empty collection selection before starting a restore job', async () => {
+      const dto = {
+        previewSessionId: 'sess',
+        collections: [],
+        mode: 'replace_selected_collections' as any,
+        confirmationText: 'RESTORE',
+      };
+
+      await expect(
+        service.restoreBackupImport(dto, mockUserId),
+      ).rejects.toThrow('Phải chọn ít nhất một collection để khôi phục');
+      expect(restoreJobModel.findOne).not.toHaveBeenCalled();
+      expect(backupJobModel.create).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundException if preview session does not exist', async () => {
       const dto = {
         previewSessionId: 'invalid-sess',
@@ -1308,6 +1323,8 @@ describe('SystemService', () => {
       );
       fs.writeFileSync(filePath, Buffer.from('fake'));
 
+      mockRestoreJob.collections = ['users'];
+
       // 2. Mock execFile to simulate mongorestore dryRun success (triggering mongorestore)
       (cp.execFile as any).mockImplementation((cmd, args, cb) => {
         cb(null, 'ok');
@@ -1333,9 +1350,34 @@ describe('SystemService', () => {
       // 'test' is from the mock ConfigService mongodb://localhost:27017/test
       expect(actualRestoreArgs).toContain('--nsTo=test.*');
       expect(actualRestoreArgs).toContain('--nsInclude=*.users');
-      expect(actualRestoreArgs).toContain('--nsInclude=*.posts');
+      expect(actualRestoreArgs).not.toContain('--nsInclude=*.posts');
 
       expect(mockRestoreJob.status).toBe('success');
+
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {}
+    });
+
+    it('should fail closed instead of restoring an archive when no collections are selected', async () => {
+      const filePath = path.resolve(
+        (service as any).importDir,
+        `import_sess_test.gz`,
+      );
+      fs.writeFileSync(filePath, Buffer.from('fake'));
+      mockRestoreJob.format = 'mongodump_archive';
+      mockRestoreJob.collections = [];
+
+      await (service as any).runBackupAndRestoreAsync(
+        mockRestoreJob._id.toString(),
+        mockPreBackupJob._id.toString(),
+      );
+
+      expect(cp.execFile).not.toHaveBeenCalled();
+      expect(mockRestoreJob.status).toBe('failed');
+      expect(mockRestoreJob.error_message).toContain(
+        'Không có collection nào được chọn',
+      );
 
       try {
         fs.unlinkSync(filePath);

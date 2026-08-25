@@ -1283,6 +1283,12 @@ export class SystemService {
       throw new BadRequestException('Vui lòng gõ chữ RESTORE để xác nhận');
     }
 
+    if (!dto.collections?.length) {
+      throw new BadRequestException(
+        'Phải chọn ít nhất một collection để khôi phục',
+      );
+    }
+
     const job = await this.restoreJobModel
       .findOne({ preview_session_id: dto.previewSessionId })
       .exec();
@@ -1430,6 +1436,12 @@ export class SystemService {
       }
 
       if (isArchive) {
+        if (!restoreJob.collections?.length) {
+          throw new Error(
+            'Không có collection nào được chọn; tiến trình khôi phục đã bị hủy để tránh khôi phục toàn bộ dữ liệu',
+          );
+        }
+
         // mongorestore
         const args = [`--uri=${mongoUri}`, `--archive=${filePath}`, '--gzip'];
 
