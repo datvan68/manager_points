@@ -191,7 +191,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     end: Date;
   } | null>(null);
   const [isCalendarDesktopOpen, setIsCalendarDesktopOpen] = useState(false);
-  const [isCalendarMobileOpen, setIsCalendarMobileOpen] = useState(false);
   const [isSelectingHistory, setIsSelectingHistory] = useState(false);
   const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>(
     [],
@@ -260,7 +259,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     end: Date;
   } | null>(null);
   const [isClassDateCalendarDesktopOpen, setIsClassDateCalendarDesktopOpen] = useState(false);
-  const [isClassDateCalendarMobileOpen, setIsClassDateCalendarMobileOpen] = useState(false);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [editingReport, setEditingReport] = useState<DailyClassReport | null>(
     null,
@@ -281,8 +279,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     string[]
   >([]);
   const [isGlobalConfigModalOpen, setIsGlobalConfigModalOpen] = useState(false);
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const [isClassSearchExpanded, setIsClassSearchExpanded] = useState(false);
   const [viewLayout, setViewLayout] = useState<"table" | "card">("table");
   const [creatorFilter, setCreatorFilter] = useState<
     "all" | "student" | "teacher" | "admin" | "supervisor"
@@ -1790,125 +1786,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               </div>
 
-              {/* Mobile View: Collapsible Search icon row */}
-              <div className="lg:hidden w-full">
-                {isSearchExpanded ? (
-                  <div className="flex items-center gap-1.5 w-full">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                      <input
-                        type="text"
-                        placeholder="Tìm kiếm..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        autoFocus
-                        className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        setIsSearchExpanded(false);
-                        setSearchTerm("");
-                      }}
-                      className="flex items-center justify-center p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-sm cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 w-full justify-between">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {/* Popover / Calendar for mobile */}
-                      <Popover open={isCalendarMobileOpen} onOpenChange={setIsCalendarMobileOpen}>
-                        <PopoverTrigger asChild>
-                          <button
-                            className={`flex items-center justify-center p-2 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shrink-0 ${filterDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
-                            title="Lọc ngày"
-                          >
-                            <CalendarIcon
-                              className={`w-4 h-4 ${filterDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
-                            />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
-                          align="start"
-                          side="bottom"
-                          sideOffset={6}
-                        >
-                          <CustomCalendar
-                            startDate={filterDateRange?.start || null}
-                            endDate={filterDateRange?.end || null}
-                            onRangeSelect={(start, end) =>
-                              setFilterDateRange({ start, end })
-                            }
-                            onCancel={() => {
-                              setFilterDateRange(null);
-                              setIsCalendarMobileOpen(false);
-                            }}
-                            onConfirm={() => setIsCalendarMobileOpen(false)}
-                          />
-                        </PopoverContent>
-                      </Popover>
-
-                      {/* Class Dropdown for mobile */}
-                      {!isStudent && (
-                        <div className="flex-1 min-w-[100px] max-w-[150px]">
-                          <Select
-                            value={selectedClassIdForStudent}
-                            onValueChange={(val: string) => {
-                              setSelectedClassIdForStudent(val);
-                              setCurrentPage(1);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-sm">
-                              <SelectValue placeholder="Lớp" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">Tất cả lớp</SelectItem>
-                              {classes.map((c) => (
-                                <SelectItem key={c._id} value={c._id}>
-                                  {c.class_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {ghiNhanAccess.configRecord && (
-                        <button
-                          onClick={() => setIsGlobalConfigModalOpen(true)}
-                          className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                          title="Cấu hình tiêu chí vắng mặt"
-                        >
-                          <Settings className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setIsSearchExpanded(true)}
-                        className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center"
-                        title="Tìm kiếm"
-                      >
-                        <Search className="w-4 h-4" />
-                      </button>
-
-                      {ghiNhanAccess.createStudentRecord && (
-                        <button
-                          onClick={handleCreate}
-                          className="flex items-center justify-center p-2 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer"
-                          title="Thêm ghi nhận"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Mobile View: Only 'Thêm ghi nhận' button */}
+              {ghiNhanAccess.createStudentRecord && (
+                <div className="lg:hidden w-full">
+                  <button
+                    onClick={handleCreate}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm ghi nhận</span>
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -2009,126 +1898,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               </div>
 
-              {/* Mobile View: Collapsible Search icon row */}
-              <div className="lg:hidden w-full">
-                {isClassSearchExpanded ? (
-                  <div className="flex items-center gap-1.5 w-full">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                      <input
-                        type="text"
-                        placeholder="Nhập tên giảng viên hoặc ghi chú lớp..."
-                        value={classSearchTerm}
-                        onChange={(e) => setClassSearchTerm(e.target.value)}
-                        autoFocus
-                        className="w-full pl-9 pr-3 py-1.5 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all duration-150 ease-out placeholder:text-slate-400 text-[#1E293B] shadow-sm"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        setIsClassSearchExpanded(false);
-                        setClassSearchTerm("");
-                      }}
-                      className="flex items-center justify-center p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-sm cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 w-full justify-between">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {/* Calendar Popover for mobile */}
-                      <Popover
-                        open={isClassDateCalendarMobileOpen}
-                        onOpenChange={setIsClassDateCalendarMobileOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <button
-                            className={`flex items-center justify-center p-2 bg-white/40 backdrop-blur-md border border-white/70 rounded-xl text-sm font-semibold transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shrink-0 ${selectedReportDateRange ? "border-[#1A73E8] bg-blue-50/50 text-[#1A73E8]" : "text-[#1E293B] hover:bg-white/70"}`}
-                            title="Lọc ngày"
-                          >
-                            <CalendarIcon
-                              className={`w-4 h-4 ${selectedReportDateRange ? "text-[#1A73E8]" : "text-slate-500"}`}
-                            />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
-                          align="start"
-                          side="bottom"
-                          sideOffset={6}
-                        >
-                          <CustomCalendar
-                            startDate={selectedReportDateRange?.start || null}
-                            endDate={selectedReportDateRange?.end || null}
-                            onRangeSelect={(start, end) =>
-                              setSelectedReportDateRange({ start, end })
-                            }
-                            onCancel={() => {
-                              setSelectedReportDateRange(null);
-                              setIsClassDateCalendarMobileOpen(false);
-                            }}
-                            onConfirm={() => setIsClassDateCalendarMobileOpen(false)}
-                          />
-                        </PopoverContent>
-                      </Popover>
-
-                      {/* Class Dropdown for mobile */}
-                      <div className="flex-1 min-w-[100px] max-w-[150px]">
-                        <Select
-                          value={selectedClassId}
-                          onValueChange={(val: string) => {
-                            setSelectedClassId(val);
-                            setClassCurrentPage(1);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 bg-white/40 border border-white/70 text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] font-semibold text-xs rounded-xl shadow-sm">
-                            <SelectValue placeholder="Lớp" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tất cả lớp</SelectItem>
-                            {classes.map((c) => (
-                              <SelectItem key={c._id} value={c._id}>
-                                {c.class_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {ghiNhanAccess.configRecord && (
-                        <button
-                          onClick={() => setIsGlobalConfigModalOpen(true)}
-                          className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-750 hover:text-rose-600 hover:bg-rose-50/50 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center outline-none"
-                          title="Cấu hình tiêu chí vắng mặt"
-                        >
-                          <Settings className="w-4 h-4" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setIsClassSearchExpanded(true)}
-                        className="p-2 bg-white/40 border border-white/70 rounded-xl text-slate-500 hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer flex items-center justify-center"
-                        title="Tìm kiếm"
-                      >
-                        <Search className="w-4 h-4" />
-                      </button>
-
-                      {ghiNhanAccess.createClassRecord && (
-                        <button
-                          onClick={handleCreate}
-                          className="flex items-center justify-center p-2 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm cursor-pointer"
-                          title="Thêm ghi nhận"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Mobile View: Only 'Thêm ghi nhận' button */}
+              {ghiNhanAccess.createClassRecord && (
+                <div className="lg:hidden w-full">
+                  <button
+                    onClick={handleCreate}
+                    className="w-full flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm ghi nhận</span>
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
