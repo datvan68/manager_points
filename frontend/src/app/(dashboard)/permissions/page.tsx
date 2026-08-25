@@ -8,7 +8,7 @@ import GroupModal from '@/components/modals/GroupModal';
 import PermissionModal from '@/components/modals/PermissionModal';
 import RoleModal from '@/components/modals/RoleModal';
 import RoutePermissionModal from '@/components/modals/RoutePermissionModal';
-import { Search, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2 } from 'lucide-react';
+import { Search, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,6 +53,13 @@ import {
 
 const getUserDisplayName = (user: any) =>
   user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
+
+const getUserStatusLabel = (status: string) => {
+  if (status === 'active') return 'Hoạt động';
+  if (status === 'inactive' || status === 'pending') return 'Chưa kích hoạt';
+  if (status === 'locked') return 'Bị khóa';
+  return status || 'Chưa kích hoạt';
+};
 
 function hasPersistedAdminRole(user: any): boolean {
   return [
@@ -162,9 +169,11 @@ function PermissionsPageContent() {
   const [userPageSize, setUserPageSize] = useState(20);
   const [userCurrentPage, setUserCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [mobileVisibleCount, setMobileVisibleCount] = useState(20);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Preview RBAC state
   const [selectedPreviewRole, setSelectedPreviewRole] = useState('');
@@ -1185,6 +1194,12 @@ function PermissionsPageContent() {
     return () => observer.disconnect();
   }, [isMobile, mobileVisibleCount, filteredUsers.length]);
 
+  useEffect(() => {
+    if (isMobileSearchOpen) {
+      mobileSearchInputRef.current?.focus();
+    }
+  }, [isMobileSearchOpen]);
+
   const userColumns: ResponsiveColumn<any>[] = [
     {
       key: 'name',
@@ -1346,7 +1361,10 @@ function PermissionsPageContent() {
             { id: 'Cấu hình', label: 'Cấu hình' }
           ]}
           activeTab={activeTab}
-          onTabChange={(id) => setActiveTab(id)}
+          onTabChange={(id) => {
+            setActiveTab(id);
+            setIsMobileSearchOpen(false);
+          }}
           responsiveScrollable
         />
         <main className="flex-1 p-4 md:p-5 overflow-hidden flex flex-col bg-transparent relative">
@@ -1369,72 +1387,120 @@ function PermissionsPageContent() {
             {activeTab === 'Người dùng' && (
               <>
                 {/* Toolbar */}
-                <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <div className="relative">
+                {isMobileSearchOpen ? (
+                  <div className="flex md:hidden w-full items-center gap-2 px-4 py-3 border-b border-white/50 bg-white/20 shrink-0">
+                    <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
+                        ref={mobileSearchInputRef}
                         type="text"
                         placeholder="Tìm kiếm..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8.5 pr-3 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-full sm:w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
+                        className="w-full pl-8.5 pr-8 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
                       />
+                      {searchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                          aria-label="Xóa nội dung tìm kiếm"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-                      <label className="flex min-w-[145px] flex-1 sm:flex-initial items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
-                        <span className="shrink-0 whitespace-nowrap">Vai trò</span>
-                        <Select value={filterRole} onValueChange={setFilterRole}>
-                          <SelectTrigger aria-label="Vai trò" className="h-9 min-w-[110px] w-full sm:w-32 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
-                            <SelectValue placeholder="Tất cả" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
-                            {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
-                              <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </label>
-                      <label className="flex min-w-[165px] flex-1 sm:flex-initial items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
-                        <span className="shrink-0 whitespace-nowrap">Trạng thái</span>
-                        <Select value={filterStatuses.join('|')} onValueChange={handleToggleStatus}>
-                          <SelectTrigger aria-label="Trạng thái" className="h-9 min-w-[120px] w-full sm:w-36 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
-                            <SelectValue>{filterStatuses.join(', ')}</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
-                            {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => (
-                              <SelectItem key={status} value={status} className="text-xs rounded-lg font-medium">{status}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </label>
-                    </div>
-
-                    {selectedUserIds.length > 0 && (
-                      <button
-                        onClick={handleDeleteUsersBulk}
-                        className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-xs animate-fade-in"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Xóa ({selectedUserIds.length})
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex w-full md:w-auto items-center justify-end gap-2 shrink-0">
-                    <button className="w-9 h-9 flex items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
-                      <Settings className="w-4 h-4" />
-                    </button>
-
                     <button
-                      onClick={handleOpenAddModal}
-                      className="flex items-center gap-1.5 px-4 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shrink-0"
+                      type="button"
+                      onClick={() => setIsMobileSearchOpen(false)}
+                      className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-white/80 bg-white/50 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-xs"
+                      title="Đóng tìm kiếm"
+                      aria-label="Đóng tìm kiếm"
                     >
-                      <Plus className="w-4 h-4" strokeWidth={3} />
-                      Thêm người dùng
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0 gap-2.5">
+                    {/* Mobile search icon trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSearchOpen(true)}
+                      className="flex md:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-xs"
+                      title="Tìm kiếm"
+                      aria-label="Mở tìm kiếm"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+
+                    {/* Desktop search & filters */}
+                    <div className="hidden md:flex flex-wrap items-center gap-2.5 flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
+                        <input
+                          type="text"
+                          placeholder="Tìm kiếm..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-8.5 pr-3 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <label className="flex items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
+                          <span className="shrink-0 whitespace-nowrap">Vai trò</span>
+                          <Select value={filterRole} onValueChange={setFilterRole}>
+                            <SelectTrigger aria-label="Vai trò" className="h-9 min-w-[110px] w-32 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
+                              <SelectValue placeholder="Tất cả" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
+                              {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
+                                <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </label>
+                        <label className="flex items-center gap-2 text-[11px] font-bold text-[#64748B] whitespace-nowrap">
+                          <span className="shrink-0 whitespace-nowrap">Trạng thái</span>
+                          <Select value={filterStatuses.join('|')} onValueChange={handleToggleStatus}>
+                            <SelectTrigger aria-label="Trạng thái" className="h-9 min-w-[120px] w-36 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-2 focus-within:ring-[#1A73E8]/30 shadow-none">
+                              <SelectValue>{filterStatuses.join(', ')}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
+                              {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => (
+                                <SelectItem key={status} value={status} className="text-xs rounded-lg font-medium">{status}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Right actions */}
+                    <div className="flex items-center justify-end gap-2 shrink-0 ml-auto">
+                      {selectedUserIds.length > 0 && (
+                        <button
+                          onClick={handleDeleteUsersBulk}
+                          className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-xs animate-fade-in"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Xóa</span> ({selectedUserIds.length})
+                        </button>
+                      )}
+
+                      <button className="hidden md:flex w-9 h-9 items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
+                        <Settings className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={handleOpenAddModal}
+                        className="flex items-center gap-1.5 px-3.5 sm:px-4 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shrink-0"
+                      >
+                        <Plus className="w-4 h-4" strokeWidth={3} />
+                        <span>Thêm người dùng</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <ResponsiveDataView
                   data={isMobile ? mobileUsers : paginatedUsers}
@@ -1444,6 +1510,77 @@ function PermissionsPageContent() {
                   mobileScrollRef={mobileScrollRef}
                   mobileVirtualization
                   hidePaginationOnMobile
+                  renderCard={(u) => (
+                    <div
+                      key={u._id || u.id}
+                      className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-3.5 shadow-sm flex flex-col gap-2.5 transition-all duration-150 ease-out hover:bg-white/60"
+                    >
+                      {/* Top: Name & Actions */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <span className="font-bold text-sm text-[#1E293B] truncate" title={getUserDisplayName(u)}>
+                          {getUserDisplayName(u)}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {hasPersistedAdminRole(authUser) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAccessUser(u)}
+                              disabled={accessingUserId !== null}
+                              className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                                u.is_under_impersonation
+                                  ? 'border-red-200/70 bg-red-50/70 text-red-700 hover:bg-red-100'
+                                  : 'border-blue-200/70 bg-blue-50/70 text-blue-700 hover:bg-blue-100'
+                              }`}
+                              aria-label={`${u.is_under_impersonation ? 'Kết thúc truy cập' : 'Truy cập tài khoản'} ${getUserDisplayName(u)}`}
+                              title={u.is_under_impersonation ? 'Kết thúc truy cập' : `Truy cập tài khoản ${getUserDisplayName(u)}`}
+                            >
+                              {accessingUserId === (u._id || u.id) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : u.is_under_impersonation ? (
+                                <span aria-hidden="true" className="text-base leading-none font-black">×</span>
+                              ) : (
+                                <LogIn className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          ) : null}
+                          <Action
+                            onView={() => router.push(`/permissions/${u._id || u.id}`)}
+                            onEdit={() => handleOpenEditModal(u)}
+                            onDelete={() => handleDeleteUser(u)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Bottom: Vai trò & Trạng thái */}
+                      <div className="flex items-center justify-between pt-2 border-t border-white/40 text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Vai trò:</span>
+                          {u.role ? (
+                            <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border truncate ${
+                              u.role.name === 'Admin'
+                                ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
+                            }`}>
+                              {u.role.name}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">Chưa gán</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Trạng thái:</span>
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${
+                            u.status === 'active'
+                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                              : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
+                          }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                            <span className="text-[10px] font-bold">{getUserStatusLabel(u.status)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   mobileFooter={
                     <div ref={mobileSentinelRef} className="h-8 flex items-center justify-center text-[11px] text-slate-400">
                       {isMobile && mobileVisibleCount < filteredUsers.length ? 'Đang tải thêm...' : null}

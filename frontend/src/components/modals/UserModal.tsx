@@ -348,11 +348,8 @@ export default function UserModal({
               <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/60 bg-white/10 shrink-0">
                 <div>
                   <h2 className="text-lg font-bold text-[#1E293B]">
-                    {isEditing ? "Sửa thông tin người dùng" : "Thêm người dùng"}
+                    {isEditing ? "Sửa" : "Thêm"}
                   </h2>
-                  <p className="text-[12.5px] font-medium text-[#64748B] mt-0.5">
-                    {mode === "single" ? "Cập nhật thông tin chi tiết và quyền hạn." : "Thêm hàng loạt người dùng vào hệ thống."}
-                  </p>
                 </div>
                 <div className="flex items-center gap-5">
                   {mode === "single" && (
@@ -379,7 +376,7 @@ export default function UserModal({
 
               {/* Mode Switcher */}
               {!isEditing && !bulkResult && (
-                <div className="flex justify-center border-b border-white/60 bg-white/10 p-2">
+                <div className="hidden md:flex justify-center border-b border-white/60 bg-white/10 p-2">
                   <div className="flex p-1 bg-white/40 rounded-xl border border-white/70">
                     <button
                       onClick={() => setMode("single")}
