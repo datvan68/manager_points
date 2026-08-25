@@ -1421,7 +1421,7 @@ function PermissionsPageContent() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0 gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0 gap-2.5">
                     {/* Mobile search icon trigger */}
                     <button
                       type="button"
@@ -1434,7 +1434,7 @@ function PermissionsPageContent() {
                     </button>
 
                     {/* Desktop search & filters */}
-                    <div className="hidden md:flex flex-wrap items-center gap-2.5 flex-1">
+                    <div className="hidden md:flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                         <input
@@ -1473,6 +1473,35 @@ function PermissionsPageContent() {
                           </Select>
                         </label>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 w-full md:hidden order-3">
+                      <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold text-[#64748B]">
+                        <span className="px-0.5">Vai trò</span>
+                        <Select value={filterRole} onValueChange={setFilterRole}>
+                          <SelectTrigger aria-label="Vai trò" className="h-9 w-full min-w-0 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                            <SelectValue placeholder="Tất cả" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
+                            {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
+                              <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
+                      <label className="flex min-w-0 flex-col gap-1 text-[11px] font-bold text-[#64748B]">
+                        <span className="px-0.5">Trạng thái</span>
+                        <Select value={filterStatuses.join('|')} onValueChange={handleToggleStatus}>
+                          <SelectTrigger aria-label="Trạng thái" className="h-9 w-full min-w-0 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                            <SelectValue>{filterStatuses.join(', ')}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-white/90 backdrop-blur-md border border-white/80 rounded-xl shadow-md">
+                            {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => (
+                              <SelectItem key={status} value={status} className="text-xs rounded-lg font-medium">{status}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
                     </div>
 
                     {/* Right actions */}
