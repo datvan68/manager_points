@@ -722,7 +722,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
                     {/* Mã lớp học: hỗ trợ chọn nhiều lớp */}
                     <div className="flex flex-col w-full relative">
-                      <RecordSelectionDialog label="Mã lớp học" title="Chọn mã lớp học" value={classIds} multiple placeholder="Chọn mã lớp học..." searchValue={classSearch} onSearchChange={setClassSearch} onConfirm={next => setClassIds(next as string[])}>
+                      <RecordSelectionDialog isMobile={isMobile} label="Mã lớp học" title="Chọn mã lớp học" value={classIds} multiple placeholder="Chọn mã lớp học..." searchValue={classSearch} onSearchChange={setClassSearch} onConfirm={next => setClassIds(next as string[])}>
                         {(draft, setDraft) => <div className="flex flex-col gap-1">{filterClassesBySearch(classes, classSearch).map(c => {
                           const selected = (draft as string[]).includes(c._id);
                           return <label key={c._id} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50'}`}><input type="checkbox" checked={selected} onChange={() => setDraft(toggleSelectionValue(draft as string[], c._id))} className="accent-blue-600" /><span>{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span></label>;
@@ -831,14 +831,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     <div className="grid grid-cols-12 gap-2.5 sm:gap-3 w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <RecordSelectionDialog label="Họ tên sinh viên" title="Chọn sinh viên" value={selectedStudentId} placeholder={classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...'} disabled={classIds.length === 0} searchValue={studentsSearch} onSearchChange={handleStudentSearch} loading={isStudentsLoading} hasMore={classIds.some(id => hasMoreStudents[id])} onLoadMore={handleLoadMoreStudents} onConfirm={next => setSelectedStudentId(next as string)}>
+                        <RecordSelectionDialog isMobile={isMobile} label="Họ tên sinh viên" title="Chọn sinh viên" value={selectedStudentId} displayValue={classStudents.find(s => s._id === selectedStudentId)?.full_name} placeholder={classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...'} disabled={classIds.length === 0} searchValue={studentsSearch} onSearchChange={handleStudentSearch} loading={isStudentsLoading} hasMore={classIds.some(id => hasMoreStudents[id])} onLoadMore={handleLoadMoreStudents} onConfirm={next => setSelectedStudentId(next as string)}>
                           {(draft, setDraft) => <div className="flex flex-col gap-1">{classStudents.map(s => <button type="button" role="option" aria-selected={draft === s._id} key={s._id} onClick={() => setDraft(s._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === s._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{s.full_name} ({s.student_code})</button>)}</div>}
                         </RecordSelectionDialog>
                       </div>
 
                       {/* Tiêu chí sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <RecordSelectionDialog label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
+                        <RecordSelectionDialog isMobile={isMobile} label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
                           {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
                         </RecordSelectionDialog>
                       </div>
@@ -870,7 +870,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       <div className="flex flex-col gap-2.5">
                         {/* Tiêu chí ghi nhận (full width, ẩn Tìm sinh viên) */}
                         <div className="w-full">
-                          <RecordSelectionDialog label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
+                          <RecordSelectionDialog isMobile={isMobile} label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
                             {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
                           </RecordSelectionDialog>
                         </div>
