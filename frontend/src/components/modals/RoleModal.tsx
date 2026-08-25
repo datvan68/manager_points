@@ -24,6 +24,7 @@ export default function RoleModal({
 }: RoleModalProps) {
   const [formData, setFormData] = useState({
     name: '',
+    role_code: '',
     description: '',
     permissions: [] as string[],
   });
@@ -42,12 +43,14 @@ export default function RoleModal({
         
         setFormData({
           name: initialData.name || '',
+          role_code: initialData.role_code || '',
           description: initialData.description || initialData.desc || '',
           permissions: permIds,
         });
       } else {
         setFormData({
           name: '',
+          role_code: '',
           description: '',
           permissions: [],
         });
@@ -94,6 +97,7 @@ export default function RoleModal({
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Vui lòng nhập Tên vai trò';
+    if (!formData.role_code.trim()) newErrors.role_code = 'Vui lòng nhập Mã vai trò';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -103,7 +107,10 @@ export default function RoleModal({
     if (validate()) {
       setIsSubmitting(true);
       try {
-        await onSave(formData);
+        await onSave({
+          ...formData,
+          role_code: formData.role_code.trim().toUpperCase(),
+        });
         onClose();
       } catch (error: any) {
         toast.error('Lỗi khi lưu: ' + error.message);
@@ -193,6 +200,22 @@ export default function RoleModal({
                           className={`w-full px-3 py-2 bg-white/50 backdrop-blur-sm border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 ${errors.name ? 'border-rose-500/50 focus:border-rose-500' : 'border-white/80 focus:border-[#1A73E8]/50 shadow-sm'}`}
                         />
                         {errors.name && <span className="text-xs font-medium text-rose-500 mt-1">{errors.name}</span>}
+                      </div>
+
+                      {/* Role Code */}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-xs font-bold text-[#1E293B]">
+                          Mã vai trò <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="role_code"
+                          value={formData.role_code}
+                          onChange={handleChange}
+                          placeholder="VD: QUAN_LY_DAO_TAO"
+                          className={`w-full px-3 py-2 bg-white/50 backdrop-blur-sm border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 ${errors.role_code ? 'border-rose-500/50 focus:border-rose-500' : 'border-white/80 focus:border-[#1A73E8]/50 shadow-sm'}`}
+                        />
+                        {errors.role_code && <span className="text-xs font-medium text-rose-500 mt-1">{errors.role_code}</span>}
                       </div>
 
                       {/* Description */}
