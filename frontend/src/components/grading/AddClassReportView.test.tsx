@@ -5,7 +5,7 @@ import {
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getViolationAddError, mergeStudentsById, isClassReportDraft, shouldResetClassDependentState } from './AddClassReportView';
+import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getInitialCriterionId, getViolationAddError, mapAcademicRecordsToViolations, mergeStudentsById, isClassReportDraft, shouldResetClassDependentState } from './AddClassReportView';
 import { quickGridClass } from './RecordSelectionUi';
 
 describe('AddClassReportView draft contract', () => {
@@ -126,6 +126,24 @@ describe('AddClassReportView violation selection', () => {
     const pending = createViolationItem({ _id: 'student-2', full_name: 'B', student_code: 'B' } as any, { _id: 'criterion-old', criterion_name: 'Cũ' } as any, 'quick');
 
     expect(clearPendingQuickViolations([preserved, pending], new Set(['student-2:criterion-old']))).toEqual([preserved]);
+  });
+
+  it('restores the first valid criterion while retaining records from every criterion', () => {
+    const restored = mapAcademicRecordsToViolations([
+      { _id: 'record-1', student_id: { _id: 'student-1', full_name: 'A', student_code: 'A' }, criterion_id: 'one', record_title: 'Một', description: 'n1', status: 'active' },
+      { _id: 'record-2', student_id: { _id: 'student-2', full_name: 'B', student_code: 'B' }, criterion_id: 'two', record_title: 'Hai', description: 'n2', status: 'active' },
+    ] as any, criteria as any, 'class-1');
+
+    expect(getInitialCriterionId(restored, criteria as any)).toBe('one');
+    expect(restored).toEqual(expect.arrayContaining([
+      expect.objectContaining({ student_id: 'student-1', class_id: 'class-1', criterion_id: 'one', class_note: 'n1' }),
+      expect.objectContaining({ student_id: 'student-2', class_id: 'class-1', criterion_id: 'two', class_note: 'n2' }),
+    ]));
+  });
+
+  it('resets class-dependent state for an explicit class change after edit hydration', () => {
+    expect(shouldResetClassDependentState(false, true)).toBe(false);
+    expect(shouldResetClassDependentState(false, false)).toBe(true);
   });
 
   it('keeps the quick violation viewport complete through the six-card boundary', () => {

@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { orderCriteriaByUsage, readCriterionUsage } from './criterion-usage';
-import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft, shouldResetClassDependentState } from './AddRecordView';
+import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, consumeClassHydrationMarker, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft, shouldResetClassDependentState } from './AddRecordView';
 
 describe('AddRecordView draft contract', () => {
-  it('refetches restored classes without resetting restored state', () => {
+  it('refetches hydrated classes without resetting hydrated state', () => {
     expect(shouldResetClassDependentState(true)).toBe(false);
-    expect(shouldResetClassDependentState(false)).toBe(true);
+  });
+
+  it('keeps the next user-driven class change destructive', () => {
+    const marker = { current: true };
+
+    expect(shouldResetClassDependentState(consumeClassHydrationMarker(marker))).toBe(false);
+    expect(shouldResetClassDependentState(consumeClassHydrationMarker(marker))).toBe(true);
   });
 
   it('builds the latest source state for navigation persistence', () => {

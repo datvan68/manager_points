@@ -121,6 +121,12 @@ export function shouldResetClassDependentState(isRestoringDraft: boolean): boole
   return !isRestoringDraft;
 }
 
+export function consumeClassHydrationMarker(marker: { current: boolean }): boolean {
+  const isHydrating = marker.current;
+  marker.current = false;
+  return isHydrating;
+}
+
 export function clearPendingQuickViolations(violations: ViolationItem[], pendingKeys: Set<string>): ViolationItem[] {
   return violations.filter(violation => !pendingKeys.has(`${violation.student_id}:${violation.evaluation_detail_id}`));
 }
@@ -199,14 +205,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     validate: isStudentRecordDraft,
   });
   const draftRestoredRef = React.useRef(false);
-  const restoringDraftRef = React.useRef(false);
+  const restoringClassDependentStateRef = React.useRef(false);
   const dataReadyRef = React.useRef(false);
 
   useEffect(() => {
     if (!draftHydrated || draftRestoredRef.current) return;
     draftRestoredRef.current = true;
     if (!draft || isEditMode) return;
-    restoringDraftRef.current = true;
+    restoringClassDependentStateRef.current = true;
     const restoredDate = new Date(draft.reportDate);
     if (draft.classIds.length > 0) {
       setClassId(draft.classIds[0]);
@@ -302,6 +308,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             : recordToEdit.semester_id;
 
           if (classIdFromRecord) {
+            restoringClassDependentStateRef.current = true;
             setClassId(classIdFromRecord);
             setClassIds(classIdFromRecord ? [classIdFromRecord] : []);
           }
@@ -409,8 +416,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
   // Lọc sinh viên theo lớp học đang chọn từ backend
   useEffect(() => {
-    const isRestoringDraft = restoringDraftRef.current;
-    restoringDraftRef.current = false;
+    const isRestoringClassDependentState = consumeClassHydrationMarker(restoringClassDependentStateRef);
     classIdsRef.current = classIds;
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setStudentsSearch("");
@@ -419,18 +425,18 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       const studentClassId = typeof student.class_id === 'object' ? student.class_id?._id : student.class_id;
       return classIds.includes(studentClassId || '');
     }));
-    if (shouldResetClassDependentState(isRestoringDraft)) {
+    if (shouldResetClassDependentState(isRestoringClassDependentState)) {
       setSelectedStudentId('');
       setViolationNote('');
     }
     if (classIds.length > 0) {
       void Promise.all(classIds.map(id => fetchClassStudents(id, 1, "")));
-      if (!isRestoringDraft && !isEditMode) {
+      if (!isRestoringClassDependentState && !isEditMode) {
         setAddedViolations(prev => prev.filter(violation => !violation.class_id || classIds.includes(violation.class_id)));
       }
     } else {
       setClassStudents([]);
-      if (!isRestoringDraft && !isEditMode) setAddedViolations([]);
+      if (!isRestoringClassDependentState && !isEditMode) setAddedViolations([]);
     }
   }, [classIds, isEditMode]);
 
