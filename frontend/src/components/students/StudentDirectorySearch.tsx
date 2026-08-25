@@ -27,6 +27,22 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? "Chưa cập nhật" : date.toLocaleDateString("vi-VN");
 }
 
+function formatGender(gender?: string) {
+  if (!gender) return "Chưa cập nhật";
+  if (gender === "Male" || gender.toLowerCase() === "nam") return "Nam";
+  if (gender === "Female" || gender.toLowerCase() === "nữ") return "Nữ";
+  return gender;
+}
+
+function formatStatus(status?: string) {
+  if (!status) return "Chưa cập nhật";
+  if (status.toLowerCase() === "studying" || status === "Đang học") return "Đang học";
+  if (status.toLowerCase() === "reserved" || status === "Bảo lưu") return "Bảo lưu";
+  if (status.toLowerCase() === "suspended" || status.toLowerCase() === "dropped" || status === "Thôi học") return "Thôi học";
+  if (status.toLowerCase() === "graduated" || status === "Tốt nghiệp") return "Tốt nghiệp";
+  return status;
+}
+
 export default function StudentDirectorySearch({ onOpenDetail }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StudentWithClass[]>([]);
@@ -90,28 +106,42 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
   return (
     <div className="relative w-full">
       <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
-      <div className="flex items-center gap-2 rounded-xl border border-white/70 bg-white/60 px-3 py-2 shadow-sm">
-        <Search size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+      <div className="flex items-center gap-2 rounded-xl border border-white/70 bg-white/50 px-3 py-2 shadow-sm shadow-slate-300/20 backdrop-blur-sm transition-all duration-150 focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
+        <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
         <input
           id="student-directory-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Tìm kiếm sinh viên..."
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-sm text-[#1E293B] outline-none placeholder:text-[#64748B]"
           autoComplete="off"
         />
-        {loading && <Loader2 size={15} className="shrink-0 animate-spin text-blue-600" aria-label="Đang tìm kiếm" />}
+        {loading && <Loader2 size={15} className="shrink-0 animate-spin text-[#1A73E8]" aria-label="Đang tìm kiếm" />}
       </div>
 
       {query.trim().length >= 2 && (
-        <div className="mt-2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg" aria-live="polite">
-          {error ? <p className="px-2 py-3 text-sm text-rose-600">{error}</p> : loading ? <p className="px-2 py-3 text-sm text-slate-500">Đang tìm kiếm...</p> : results.length === 0 ? <p className="px-2 py-3 text-sm text-slate-500">Không tìm thấy sinh viên phù hợp.</p> : (
+        <div className="mt-2 rounded-xl border border-white/75 bg-white/80 p-1.5 shadow-sm shadow-slate-300/40 backdrop-blur-md" aria-live="polite">
+          {error ? (
+            <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-xs font-medium text-rose-700">{error}</p>
+          ) : loading ? (
+            <p className="px-3 py-2.5 text-xs text-[#64748B]">Đang tìm kiếm...</p>
+          ) : results.length === 0 ? (
+            <p className="px-3 py-2.5 text-xs text-[#64748B]">Không tìm thấy sinh viên phù hợp.</p>
+          ) : (
             <ul className="space-y-1" aria-label="Kết quả tìm kiếm sinh viên">
               {results.map((student) => (
                 <li key={student._id}>
-                  <button type="button" onClick={() => setSelected(student)} className="w-full rounded-lg px-2 py-2 text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <span className="block truncate text-sm font-semibold text-slate-800">{student.full_name}</span>
-                    <span className="block truncate text-xs text-slate-500">{student.student_code} · {classNameOf(student)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(student)}
+                    className="group w-full rounded-xl px-3 py-2 text-left transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+                  >
+                    <span className="block truncate text-sm font-semibold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors">
+                      {student.full_name}
+                    </span>
+                    <span className="block truncate text-xs text-[#64748B] mt-0.5">
+                      {student.student_code} · {classNameOf(student)}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -121,25 +151,95 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="student-preview-title" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs"
+          role="presentation"
+          onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-preview-title"
+            className="w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"
+          >
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Thông tin cơ bản</p><h2 id="student-preview-title" className="mt-1 text-lg font-bold text-slate-900">{selected.full_name}</h2></div>
-              <button ref={dialogCloseRef} type="button" onClick={() => setSelected(null)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Đóng thông tin sinh viên"><X size={18} /></button>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
+                <h2 id="student-preview-title" className="mt-1 text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+              </div>
+              <button
+                ref={dialogCloseRef}
+                type="button"
+                onClick={() => setSelected(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+                aria-label="Đóng thông tin sinh viên"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <div><dt className="text-slate-500">Mã sinh viên</dt><dd className="font-semibold text-slate-800">{selected.student_code}</dd></div>
-              <div><dt className="text-slate-500">Lớp</dt><dd className="font-semibold text-slate-800">{classNameOf(selected)}</dd></div>
-              <div><dt className="text-slate-500">Ngày sinh</dt><dd className="font-semibold text-slate-800">{formatDate(selected.date_bir)}</dd></div>
-              <div><dt className="text-slate-500">Giới tính</dt><dd className="font-semibold text-slate-800">{selected.sex || "Chưa cập nhật"}</dd></div>
-              <div className="col-span-2"><dt className="text-slate-500">Email</dt><dd className="break-all font-semibold text-slate-800">{selected.email || "Chưa cập nhật"}</dd></div>
-              <div className="col-span-2"><dt className="text-slate-500">Trạng thái học tập</dt><dd className="font-semibold text-slate-800">{selected.status || "Chưa cập nhật"}</dd></div>
+
+            <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Lớp</dt>
+                <dd className="mt-0.5 truncate text-xs font-semibold text-[#1E293B]" title={classNameOf(selected)}>{classNameOf(selected)}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Ngày sinh</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatDate(selected.date_bir)}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Giới tính</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
+              </div>
+              <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Email</dt>
+                <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{selected.email || "Chưa cập nhật"}</dd>
+              </div>
+              <div className="col-span-2 flex items-center justify-between rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <div>
+                  <dt className="text-[11px] font-medium text-[#64748B]">Trạng thái học tập</dt>
+                  <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatStatus(selected.status)}</dd>
+                </div>
+                {selected.status && (
+                  <span className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-[#1A73E8]">
+                    {formatStatus(selected.status)}
+                  </span>
+                )}
+              </div>
             </dl>
+
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Đóng</button>
-              <button type="button" disabled={!canOpenDetail} title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined} onClick={() => { if (canOpenDetail) { setSelected(null); onOpenDetail(selected); } }} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300">Chi tiết <ArrowRight size={15} /></button>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="rounded-xl border border-white/75 bg-white/50 px-4 py-2 text-xs font-semibold text-[#64748B] shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/80 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={!canOpenDetail}
+                title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined}
+                onClick={() => {
+                  if (canOpenDetail) {
+                    setSelected(null);
+                    onOpenDetail(selected);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none disabled:hover:scale-100 cursor-pointer"
+              >
+                Chi tiết <ArrowRight size={14} />
+              </button>
             </div>
-            {!canOpenDetail && <p className="mt-2 text-right text-xs text-amber-700">Sinh viên chưa có lớp để mở trang chi tiết.</p>}
+            {!canOpenDetail && (
+              <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
+                Sinh viên chưa có lớp để mở trang chi tiết.
+              </p>
+            )}
           </div>
         </div>
       )}
