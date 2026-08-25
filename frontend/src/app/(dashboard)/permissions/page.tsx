@@ -8,7 +8,7 @@ import GroupModal from '@/components/modals/GroupModal';
 import PermissionModal from '@/components/modals/PermissionModal';
 import RoleModal from '@/components/modals/RoleModal';
 import RoutePermissionModal from '@/components/modals/RoutePermissionModal';
-import { Search, Filter, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2 } from 'lucide-react';
+import { Search, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,44 +87,40 @@ function getImpersonationErrorMessage(error: unknown): string {
   }
 }
 
+export const MOBILE_USER_BATCH_SIZE = 20;
+
+export function filterPermissionUsers(users: any[], searchTerm: string, filterRole: string, filterStatuses: string[]) {
+  const query = searchTerm.toLowerCase();
+  return users.filter((u) => {
+    const matchesSearch =
+      (u.user_name || '').toLowerCase().includes(query) ||
+      (u.email || '').toLowerCase().includes(query) ||
+      (u.display_name || '').toLowerCase().includes(query) ||
+      (u.student_profile?.full_name || '').toLowerCase().includes(query) ||
+      (u.student_profile?.student_code || '').toLowerCase().includes(query);
+    const matchesRole = filterRole === 'Tất cả' || (u.role?.name || 'User') === filterRole;
+    const userStatus = u.status || 'active';
+    const matchesStatus = filterStatuses.includes('Tất cả') || filterStatuses.some((status) => {
+      if (status === 'Hoạt động') return userStatus === 'active';
+      if (status === 'Chưa kích hoạt') return userStatus === 'inactive' || userStatus === 'pending' || !u.status;
+      if (status === 'Bị khóa') return userStatus === 'locked';
+      return false;
+    });
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+}
+
+export function getPermissionUsersForViewport(users: any[], isMobile: boolean, visibleCount: number, page: number, pageSize: number) {
+  return isMobile
+    ? users.slice(0, visibleCount)
+    : users.slice((page - 1) * pageSize, page * pageSize);
+}
+
 function PermissionsPageContent() {
   const [activeTab, setActiveTab] = useState('Người dùng');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('Tất cả');
   const [filterStatuses, setFilterStatuses] = useState<string[]>(['Tất cả']);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isStatusSelectOpen, setIsStatusSelectOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-      if (filterRef.current && !filterRef.current.contains(target)) {
-        // Check if the click is inside a Select dropdown portal
-        let isInsideSelectPortal = false;
-        let current: HTMLElement | null = target;
-        while (current) {
-          if (current.getAttribute && current.getAttribute('data-select-content') === 'true') {
-            isInsideSelectPortal = true;
-            break;
-          }
-          current = current.parentElement;
-        }
-
-        if (!isInsideSelectPortal) {
-          setIsFilterOpen(false);
-          setIsStatusSelectOpen(false);
-        }
-      }
-    }
-
-    if (isFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isFilterOpen]);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -165,6 +161,10 @@ function PermissionsPageContent() {
   // Pagination for users table
   const [userPageSize, setUserPageSize] = useState(20);
   const [userCurrentPage, setUserCurrentPage] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(20);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
 
   // Preview RBAC state
   const [selectedPreviewRole, setSelectedPreviewRole] = useState('');
@@ -1138,34 +1138,15 @@ function PermissionsPageContent() {
   }, [selectedGroup, activeTab]);
 
 
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = 
-      (u.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.student_profile?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.student_profile?.student_code || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-    const userRole = u.role?.name || 'User';
-    const matchesRole = filterRole === 'Tất cả' || userRole === filterRole;
-    
-    const userStatus = u.status || 'active';
-    const matchesStatus = filterStatuses.includes('Tất cả') || 
-      filterStatuses.some(status => {
-        if (status === 'Hoạt động') return userStatus === 'active';
-        if (status === 'Chưa kích hoạt') return userStatus === 'inactive' || userStatus === 'pending' || !u.status;
-        if (status === 'Bị khóa') return userStatus === 'locked';
-        return false;
-      });
-      
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const filteredUsers = filterPermissionUsers(users, searchTerm, filterRole, filterStatuses);
 
   // Pagination derived data for users table
   const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / userPageSize));
   React.useEffect(() => {
     // Reset to first page when searching, filtering, or changing page size
     setUserCurrentPage(1);
+    setMobileVisibleCount(MOBILE_USER_BATCH_SIZE);
+    mobileScrollRef.current?.scrollTo({ top: 0 });
   }, [searchTerm, filterRole, filterStatuses, userPageSize]);
 
   // If current page is out of range after filters change, bring it back
@@ -1175,10 +1156,33 @@ function PermissionsPageContent() {
     }
   }, [filteredUsers.length, totalUserPages, userCurrentPage]);
 
-  const paginatedUsers = filteredUsers.slice(
-    (userCurrentPage - 1) * userPageSize,
-    userCurrentPage * userPageSize,
-  );
+  const paginatedUsers = getPermissionUsersForViewport(filteredUsers, false, mobileVisibleCount, userCurrentPage, userPageSize);
+  const mobileUsers = getPermissionUsersForViewport(filteredUsers, true, mobileVisibleCount, userCurrentPage, userPageSize);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateIsMobile = () => setIsMobile(mediaQuery.matches);
+    updateIsMobile();
+    mediaQuery.addEventListener('change', updateIsMobile);
+    return () => mediaQuery.removeEventListener('change', updateIsMobile);
+  }, []);
+
+  useEffect(() => {
+    const sentinel = mobileSentinelRef.current;
+    const root = mobileScrollRef.current;
+    if (!isMobile || !sentinel || !root || mobileVisibleCount >= filteredUsers.length) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setMobileVisibleCount((count) => Math.min(count + MOBILE_USER_BATCH_SIZE, filteredUsers.length));
+        }
+      },
+      { root, rootMargin: '240px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isMobile, mobileVisibleCount, filteredUsers.length]);
 
   const userColumns: ResponsiveColumn<any>[] = [
     {
@@ -1370,119 +1374,42 @@ function PermissionsPageContent() {
                         placeholder="Tìm kiếm..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70"
+                        className="pl-8.5 pr-3 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 w-full sm:w-60 transition-all duration-150 ease-out placeholder:text-[#64748B]/70"
                       />
                     </div>
-                    <div className="relative" ref={filterRef}>
-                      <button
-                        onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] shadow-sm select-none ${
-                          isFilterOpen 
-                            ? 'bg-white/70 text-[#1A73E8] border-[#1A73E8]/30 shadow-[#1A73E8]/5' 
-                            : 'text-[#1E293B] bg-white/50 border-white/70 hover:bg-white/70'
-                        }`}
-                      >
-                        <Filter className="w-4 h-4" strokeWidth={2.5} />
-                        Bộ lọc
-                        {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
-                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        )}
-                      </button>
-
-                      <AnimatePresence>
-                        {isFilterOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 8 }}
-                            className="absolute left-0 mt-2 w-64 bg-white/85 backdrop-blur-md rounded-xl shadow-md shadow-slate-300/30 border border-white/70 z-50 p-3.5"
-                          >
-                            <div className="space-y-3.5">
-                              <div>
-                                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest mb-1.5">Vai trò</h4>
-                                <Select value={filterRole} onValueChange={setFilterRole}>
-                                  <SelectTrigger className="w-full h-8 text-xs font-bold text-[#1E293B] border-white/70 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30 bg-white/60 backdrop-blur-sm transition-all">
-                                    <SelectValue placeholder="Chọn vai trò" />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[60] bg-white/95 backdrop-blur-md border border-slate-100/60 shadow-xl rounded-xl">
-                                    {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
-                                      <SelectItem
-                                        key={role}
-                                        value={role}
-                                        className="text-xs font-bold text-[#1E293B] hover:bg-white/60 rounded-lg cursor-pointer"
-                                      >
-                                        {role}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              <div className="border-t border-white/40 pt-2.5 relative">
-                                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest mb-1.5">Trạng thái</h4>
-                                <div className="relative">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setIsStatusSelectOpen(!isStatusSelectOpen);
-                                    }}
-                                    className="flex items-center justify-between w-full h-8 px-3 text-xs font-bold text-[#1E293B] border border-white/70 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30 bg-white/60 backdrop-blur-sm shadow-sm transition-all"
-                                  >
-                                    <span className="truncate">{filterStatuses.join(', ')}</span>
-                                    <span className="text-[9px] text-[#64748B]">▼</span>
-                                  </button>
-                                  
-                                  {isStatusSelectOpen && (
-                                    <div className="absolute left-0 right-0 mt-1 bg-white/90 backdrop-blur-md border border-white/70 shadow-md rounded-xl p-1.5 z-[70] space-y-0.5">
-                                      {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => {
-                                        const isChecked = filterStatuses.includes(status);
-                                        return (
-                                          <div
-                                            key={status}
-                                            onClick={() => handleToggleStatus(status)}
-                                            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-[#1E293B] hover:bg-white/60 cursor-pointer select-none"
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={() => {}}
-                                              className="rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer w-3.5 h-3.5"
-                                            />
-                                            {status}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
-                                <div className="border-t border-white/40 pt-2.5 flex justify-between items-center">
-                                  <span className="text-[10px] font-bold text-[#64748B]">Đang lọc nhanh</span>
-                                  <button
-                                    onClick={() => {
-                                      setFilterRole('Tất cả');
-                                      setFilterStatuses(['Tất cả']);
-                                      setIsFilterOpen(false);
-                                      setIsStatusSelectOpen(false);
-                                    }}
-                                    className="text-[11px] font-bold text-red-500 hover:text-red-600 transition-all"
-                                  >
-                                    Xóa bộ lọc
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                      <label className="flex min-w-[145px] flex-1 items-center gap-2 text-[11px] font-bold text-[#64748B]">
+                        Vai trò
+                        <Select value={filterRole} onValueChange={setFilterRole}>
+                          <SelectTrigger aria-label="Vai trò" className="h-9 min-w-0 flex-1 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                            <SelectValue placeholder="Tất cả" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['Tất cả', ...(roles || []).map((r: any) => r.name).filter(Boolean)].map((role) => (
+                              <SelectItem key={role} value={role}>{role}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
+                      <label className="flex min-w-[165px] flex-1 items-center gap-2 text-[11px] font-bold text-[#64748B]">
+                        Trạng thái
+                        <Select value={filterStatuses.join('|')} onValueChange={handleToggleStatus}>
+                          <SelectTrigger aria-label="Trạng thái" className="h-9 min-w-0 flex-1 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:bg-white/70 focus-within:ring-0 focus-within:border-white/80 shadow-none">
+                            <SelectValue>{filterStatuses.join(', ')}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => (
+                              <SelectItem key={status} value={status}>{status}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </label>
                     </div>
 
                     {selectedUserIds.length > 0 && (
                       <button
                         onClick={handleDeleteUsersBulk}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-sm animate-fade-in"
+                        className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-sm animate-fade-in"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Xóa ({selectedUserIds.length})
@@ -1490,8 +1417,8 @@ function PermissionsPageContent() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 shrink-0">
-                    <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
+                  <div className="flex w-full md:w-auto items-center justify-end gap-2 shrink-0">
+                    <button className="w-9 h-9 flex items-center justify-center text-[#64748B] bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.05] active:scale-[0.95] rounded-xl border border-white/70 shadow-xs transition-all duration-150 ease-out">
                       <Settings className="w-4 h-4" />
                     </button>
 
@@ -1506,15 +1433,23 @@ function PermissionsPageContent() {
                 </div>
 
                 <ResponsiveDataView
-                  data={paginatedUsers}
+                  data={isMobile ? mobileUsers : paginatedUsers}
                   columns={userColumns}
                   isLoading={isInitialLoading}
                   keyExtractor={(u) => u._id || u.id}
+                  mobileScrollRef={mobileScrollRef}
+                  mobileVirtualization
+                  hidePaginationOnMobile
+                  mobileFooter={
+                    <div ref={mobileSentinelRef} className="h-8 flex items-center justify-center text-[11px] text-slate-400">
+                      {isMobile && mobileVisibleCount < filteredUsers.length ? 'Đang tải thêm...' : null}
+                    </div>
+                  }
                   selection={{
                     selectedKeys: selectedUserIds,
                     onSelectRow: (id) => toggleSelectUser(id),
-                    onSelectAll: () => toggleSelectAllUsers(paginatedUsers),
-                    allSelected: paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u._id || u.id))
+                    onSelectAll: () => toggleSelectAllUsers(isMobile ? mobileUsers : paginatedUsers),
+                    allSelected: (isMobile ? mobileUsers : paginatedUsers).length > 0 && (isMobile ? mobileUsers : paginatedUsers).every(u => selectedUserIds.includes(u._id || u.id))
                   }}
                   pagination={
                     <CustomPagination
