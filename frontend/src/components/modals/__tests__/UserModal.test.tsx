@@ -99,4 +99,35 @@ describe('UserModal - Component', () => {
       }));
     });
   });
+
+  it('hydrates multiple roles and primary role correctly', async () => {
+    const initialData = {
+      _id: 'user_2',
+      username: 'admin_teacher',
+      email: 'admin_teacher@example.com',
+      role: { _id: 'role_admin', name: 'Admin', role_code: 'ADMIN' },
+      roles: [
+        { _id: 'role_admin', name: 'Admin', role_code: 'ADMIN' },
+        { _id: 'role_teacher', name: 'Giáo viên', role_code: 'TEACHER' }
+      ],
+      status: 'active',
+      advisor_class_ids: []
+    };
+
+    render(
+      <UserModal
+        isOpen={true}
+        onClose={vi.fn()}
+        isEditing={true}
+        initialData={initialData}
+        roles={mockRoles}
+        classes={mockClasses}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('admin_teacher')).toBeInTheDocument();
+      expect(screen.getByText('2 vai trò đã chọn (Admin)')).toBeInTheDocument();
+    });
+  });
 });

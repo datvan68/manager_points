@@ -29,9 +29,240 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export const isTeacherRole = (role: any) =>
   role?.role_code === "TEACHER" || /Teacher|Giáo viên|Giảng viên|GVCN/i.test(role?.name || "");
 
+const MultiRoleSelect = ({
+  roles,
+  selectedRoleIds,
+  primaryRoleId,
+  onChange,
+  disabled,
+  error,
+  placeholder = "Chọn vai trò...",
+}: {
+  roles: any[];
+  selectedRoleIds: string[];
+  primaryRoleId: string;
+  onChange: (roleIds: string[], primaryId: string) => void;
+  disabled?: boolean;
+  error?: string;
+  placeholder?: string;
+}) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filteredRoles = roles?.filter((r: any) => {
+    const name = r.name || "";
+    const code = r.role_code || "";
+    const query = searchQuery.toLowerCase();
+    return name.toLowerCase().includes(query) || code.toLowerCase().includes(query);
+  }) || [];
+
+  const handleToggleRole = (roleId: string) => {
+    const isChecked = selectedRoleIds.includes(roleId);
+    let nextRoleIds: string[];
+    let nextPrimaryId = primaryRoleId;
+
+    if (isChecked) {
+      nextRoleIds = selectedRoleIds.filter((id) => id !== roleId);
+      if (nextPrimaryId === roleId) {
+        nextPrimaryId = nextRoleIds[0] || "";
+      }
+    } else {
+      nextRoleIds = [...selectedRoleIds, roleId];
+      if (!nextPrimaryId || nextRoleIds.length === 1) {
+        nextPrimaryId = roleId;
+      }
+    }
+
+    onChange(nextRoleIds, nextPrimaryId);
+  };
+
+  const handleSetPrimaryRole = (e: React.MouseEvent, roleId: string) => {
+    e.stopPropagation();
+    let nextRoleIds = selectedRoleIds;
+    if (!selectedRoleIds.includes(roleId)) {
+      nextRoleIds = [...selectedRoleIds, roleId];
+    }
+    onChange(nextRoleIds, roleId);
+  };
+
+  const handleRemoveRole = (e: React.MouseEvent, roleId: string) => {
+    e.stopPropagation();
+    const nextRoleIds = selectedRoleIds.filter((id) => id !== roleId);
+    const nextPrimaryId = primaryRoleId === roleId ? (nextRoleIds[0] || "") : primaryRoleId;
+    onChange(nextRoleIds, nextPrimaryId);
+  };
+
+  const selectedRoles = roles.filter((r) => selectedRoleIds.includes(r._id || r.id));
+  const primaryRole = roles.find((r) => (r._id || r.id) === primaryRoleId);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className={`relative flex min-h-[38px] w-full items-center justify-between rounded-xl border bg-white/50 backdrop-blur-sm px-3 py-2 text-xs transition-all ${
+              error
+                ? "border-rose-400 focus:ring-2 focus:ring-rose-300"
+                : "border-white/80 focus:ring-2 focus:ring-[#1A73E8]/30"
+            } ${
+              disabled
+                ? "cursor-not-allowed opacity-50 bg-slate-50/50"
+                : "hover:bg-white/60 focus:outline-none"
+            }`}
+          >
+            <div className="flex flex-1 flex-wrap items-center gap-1.5 min-w-0 pr-2">
+              {selectedRoles.length === 0 ? (
+                <span className="text-slate-400 font-medium">{placeholder}</span>
+              ) : selectedRoles.length === 1 ? (
+                <div className="flex items-center gap-1.5 text-[#1E293B] font-semibold">
+                  <span>{selectedRoles[0].name}</span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200/80 px-1.5 py-0.5 rounded-md">
+                    Chính
+                  </span>
+                </div>
+              ) : (
+                <span className="font-semibold text-[#1E293B] truncate">
+                  {selectedRoles.length} vai trò đã chọn
+                  {primaryRole ? ` (${primaryRole.name})` : ""}
+                </span>
+              )}
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 opacity-60 ml-auto" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[280px] p-2 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 z-[9999]"
+          align="start"
+        >
+          {roles.length > 5 && (
+            <div className="px-1 pb-2 pt-0.5">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm vai trò..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 w-full rounded-lg border border-slate-200 bg-white/60 pl-8 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#1A73E8] focus:outline-none focus:ring-1 focus:ring-[#1A73E8]"
+                />
+              </div>
+            </div>
+          )}
+          <div className="max-h-[220px] overflow-y-auto space-y-1 scrollbar-hover">
+            {filteredRoles.length === 0 ? (
+              <div className="py-3 text-center text-xs text-slate-400">
+                Không tìm thấy vai trò
+              </div>
+            ) : (
+              filteredRoles.map((role: any) => {
+                const roleId = role._id || role.id;
+                const isChecked = selectedRoleIds.includes(roleId);
+                const isPrimary = primaryRoleId === roleId;
+
+                return (
+                  <div
+                    key={roleId}
+                    onClick={() => handleToggleRole(roleId)}
+                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                      isChecked
+                        ? "bg-blue-50/70 hover:bg-blue-100/70 text-blue-950"
+                        : "hover:bg-slate-100/80 text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                          isChecked
+                            ? "bg-[#1A73E8] border-[#1A73E8] text-white"
+                            : "border-slate-300 bg-white"
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="text-xs font-semibold truncate">
+                        {role.name}
+                      </span>
+                    </div>
+
+                    {isChecked && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleSetPrimaryRole(e, roleId)}
+                        className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md transition-all ${
+                          isPrimary
+                            ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-xs"
+                            : "text-slate-400 hover:text-amber-700 hover:bg-amber-50"
+                        }`}
+                        title={isPrimary ? "Vai trò chính" : "Đặt làm vai trò chính"}
+                      >
+                        {isPrimary ? "★ Chính" : "Đặt chính"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Selected Role Badges */}
+      {selectedRoles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          {selectedRoles.map((role: any) => {
+            const roleId = role._id || role.id;
+            const isPrimary = primaryRoleId === roleId;
+
+            return (
+              <div
+                key={roleId}
+                className={`group inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold border transition-all duration-150 ${
+                  isPrimary
+                    ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/30 shadow-xs"
+                    : "bg-slate-100/90 text-slate-700 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => handleSetPrimaryRole(e, roleId)}
+                  className={`flex items-center gap-1 transition-colors ${
+                    isPrimary
+                      ? "text-[#1A73E8]"
+                      : "text-slate-500 hover:text-amber-600"
+                  }`}
+                  title={isPrimary ? "Vai trò chính hiện tại" : "Nhấp để đặt làm vai trò chính"}
+                >
+                  <span className={isPrimary ? "text-amber-500 font-bold" : "text-slate-400"}>★</span>
+                  <span>{role.name}</span>
+                  {isPrimary && (
+                    <span className="text-[9px] font-extrabold uppercase tracking-wide bg-blue-100 text-blue-800 px-1 py-0.2 rounded">
+                      Chính
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveRole(e, roleId)}
+                  className="ml-0.5 text-slate-400 hover:text-rose-600 p-0.5 rounded-full hover:bg-slate-200/60 transition-colors"
+                  title={`Bỏ chọn ${role.name}`}
+                  aria-label={`Bỏ chọn ${role.name}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholder = "Không gán", className }: { selectedIds: string[], onChange: (ids: string[]) => void, classes: any[], disabled?: boolean, placeholder?: string, className?: string }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [open, setOpen] = useState(false);
 
   const filteredClasses = classes?.filter(cls => {
     const name = cls.class_name || cls.name || '';
@@ -39,58 +270,78 @@ const MultiClassSelect = ({ selectedIds, onChange, classes, disabled, placeholde
   }) || [];
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" disabled={disabled} className={`relative flex items-center justify-between transition-all text-left ${className || 'h-10 w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-xs'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/60 focus:ring-2 focus:ring-[#1A73E8]/30'}`}>
-          <span className="truncate text-slate-700 font-medium">
+        <button
+          type="button"
+          disabled={disabled}
+          className={`relative flex min-h-[38px] w-full items-center justify-between transition-all text-left ${className || 'h-10 w-full rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm px-3 py-2 text-xs'} ${
+            disabled
+              ? 'opacity-50 cursor-not-allowed bg-slate-50/50'
+              : 'hover:bg-white/60 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30'
+          }`}
+        >
+          <span className={`truncate font-semibold ${selectedIds.length > 0 ? 'text-[#1E293B]' : 'text-slate-400'}`}>
             {selectedIds.length > 0
               ? `${selectedIds.length} lớp đã chọn`
               : placeholder}
           </span>
-          <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1 text-slate-500" />
+          <ChevronDown className="h-4 w-4 opacity-60 shrink-0 ml-1 text-slate-500" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-[220px] p-1.5 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-200 z-[9999]" align="start">
-        <div className="px-1.5 pb-1.5 pt-0.5">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm lớp..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-full rounded-md border border-slate-200 bg-white/50 pl-7 pr-2 text-xs focus:border-[#1A73E8] focus:outline-none focus:ring-1 focus:ring-[#1A73E8]"
-            />
+      <PopoverContent className="w-[240px] p-2 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 z-[9999]" align="start">
+        {classes?.length > 5 && (
+          <div className="px-1 pb-2 pt-0.5">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm lớp..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 w-full rounded-lg border border-slate-200 bg-white/60 pl-8 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#1A73E8] focus:outline-none focus:ring-1 focus:ring-[#1A73E8]"
+              />
+            </div>
           </div>
-        </div>
-        <div className="max-h-[180px] overflow-y-auto space-y-0.5 scrollbar-hover">
+        )}
+        <div className="max-h-[190px] overflow-y-auto space-y-1 scrollbar-hover">
           {filteredClasses.length === 0 ? (
-            <div className="py-2 text-center text-[11px] text-slate-400">Không có lớp nào</div>
+            <div className="py-3 text-center text-xs text-slate-400">Không có lớp nào</div>
           ) : (
-            filteredClasses.map(cls => (
-              <div 
-                key={cls._id || cls.id} 
-                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const id = cls._id || cls.id;
-                  if (selectedIds.includes(id)) {
-                    onChange(selectedIds.filter(i => i !== id));
-                  } else {
-                    onChange([...selectedIds, id]);
-                  }
-                }}
-              >
-                <input 
-                  type="checkbox" 
-                  checked={selectedIds.includes(cls._id || cls.id)} 
-                  readOnly
-                  className="w-3.5 h-3.5 text-[#1A73E8] rounded border-slate-300"
-                />
-                <span className="text-xs text-slate-700 font-medium">{cls.class_name || cls.name}</span>
-              </div>
-            ))
+            filteredClasses.map(cls => {
+              const id = cls._id || cls.id;
+              const isChecked = selectedIds.includes(id);
+              return (
+                <div 
+                  key={id} 
+                  className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${
+                    isChecked
+                      ? 'bg-blue-50/70 hover:bg-blue-100/70 text-blue-950 font-semibold'
+                      : 'hover:bg-slate-100/80 text-slate-700 font-medium'
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (isChecked) {
+                      onChange(selectedIds.filter(i => i !== id));
+                    } else {
+                      onChange([...selectedIds, id]);
+                    }
+                  }}
+                >
+                  <div
+                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                      isChecked
+                        ? "bg-[#1A73E8] border-[#1A73E8] text-white"
+                        : "border-slate-300 bg-white"
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
+                  <span className="text-xs truncate">{cls.class_name || cls.name}</span>
+                </div>
+              );
+            })
           )}
         </div>
       </PopoverContent>
@@ -497,57 +748,63 @@ export default function UserModal({
                       <div className="h-px bg-white/40" />
                       <div className="flex flex-col gap-3.5">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <Settings className="w-4.5 h-4.5 text-[#1A73E8]" />
+                          <div className="p-1 rounded-lg bg-blue-50/80 border border-blue-200/60 text-[#1A73E8]">
+                            <Settings className="w-3.5 h-3.5" />
+                          </div>
                           <h3 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Cấu hình</h3>
                         </div>
                         {isLoading ? (
                           <div className="flex flex-col gap-1.5"><Skeleton className="h-4.5 w-14" /><Skeleton className="h-9 w-full rounded-xl" /></div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                             <div className="flex flex-col gap-1.5">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">Vai trò <span className="text-red-500">*</span></label>
-                              <Select value={formData.role} onValueChange={(value: string) => {
-                                const nextRoleIds = formData.roleIds.includes(value) ? formData.roleIds : [...formData.roleIds, value];
-                                const isTeacher = isTeacherRole(roles.find(r => r._id === formData.primaryRoleId));
-                                setFormData({ ...formData, role: formData.primaryRoleId || value, roleIds: nextRoleIds, advisorClassIds: isTeacher ? formData.advisorClassIds : [] });
-                              }}>
-                                <SelectTrigger className={`w-full h-9 px-3 py-1.5 bg-white/50 border ${errors.role ? "border-rose-400" : "border-white/80"} rounded-xl text-xs font-semibold text-[#1E293B]`}>
-                                  <SelectValue placeholder="Chọn vai trò..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white/95 rounded-xl shadow-md z-[60]">
-                                  {roles.map((role) => (
-                                    <SelectItem key={role._id} value={role._id} className="text-xs font-semibold text-[#1E293B]">{role.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg border border-slate-200 bg-white/40 p-2">
-                                {roles.map((role) => {
-                                  const roleId = role._id || role.id;
-                                  const checked = formData.roleIds.includes(roleId);
-                                  return <label key={roleId} className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                                    <input type="checkbox" checked={checked} onChange={() => setFormData(prev => {
-                                      const roleIds = checked ? prev.roleIds.filter(id => id !== roleId) : [...prev.roleIds, roleId];
-                                      const primaryRoleId = roleIds.includes(prev.primaryRoleId) ? prev.primaryRoleId : (roleIds[0] || '');
-                                      return { ...prev, roleIds, primaryRoleId, role: primaryRoleId, advisorClassIds: isTeacherRole(roles.find(r => (r._id || r.id) === primaryRoleId)) ? prev.advisorClassIds : [] };
-                                    })} />
-                                    {role.name}
-                                  </label>;
-                                })}
-                              </div>
-                              <Select value={formData.primaryRoleId || formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value, primaryRoleId: value, roleIds: prev.roleIds.includes(value) ? prev.roleIds : [...prev.roleIds, value] }))}>
-                                <SelectTrigger className="mt-1 h-8 rounded-xl border border-blue-200 bg-blue-50/60 px-3 text-[11px] font-semibold"><SelectValue placeholder="Chọn vai trò chính..." /></SelectTrigger>
-                                <SelectContent>{roles.filter(role => formData.roleIds.includes(role._id || role.id)).map(role => <SelectItem key={role._id || role.id} value={role._id || role.id} className="text-xs">Chính: {role.name}</SelectItem>)}</SelectContent>
-                              </Select>
+                              <label className="text-[12.5px] font-semibold text-[#64748B] flex items-center justify-between">
+                                <span>Vai trò <span className="text-red-500">*</span></span>
+                                {formData.roleIds.length > 1 && (
+                                  <span className="text-[11px] font-medium text-slate-400">
+                                    {formData.roleIds.length} vai trò đã chọn
+                                  </span>
+                                )}
+                              </label>
+                              <MultiRoleSelect
+                                roles={roles}
+                                selectedRoleIds={formData.roleIds}
+                                primaryRoleId={formData.primaryRoleId || formData.role}
+                                onChange={(roleIds, primaryRoleId) => {
+                                  const isTeacher = isTeacherRole(roles.find(r => (r._id || r.id) === primaryRoleId)) ||
+                                    roleIds.some(id => isTeacherRole(roles.find(r => (r._id || r.id) === id)));
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    roleIds,
+                                    primaryRoleId,
+                                    role: primaryRoleId,
+                                    advisorClassIds: isTeacher ? prev.advisorClassIds : []
+                                  }));
+                                  if (errors.role) {
+                                    setErrors(prev => {
+                                      const next = { ...prev };
+                                      delete next.role;
+                                      return next;
+                                    });
+                                  }
+                                }}
+                                error={errors.role}
+                              />
                               {errors.role && <span className="text-[11px] text-rose-600 font-medium ml-1">{errors.role}</span>}
                             </div>
                             <div className="flex flex-col gap-1.5">
-                              <label className="text-[12.5px] font-semibold text-[#64748B]">GVCN lớp</label>
+                              <label className="text-[12.5px] font-semibold text-[#64748B] flex items-center justify-between">
+                                <span>GVCN lớp</span>
+                                {!isTeacherRole(roles.find(r => (r._id || r.id) === (formData.primaryRoleId || formData.role))) && (
+                                  <span className="text-[11px] font-normal text-slate-400">Chỉ áp dụng cho Giáo viên</span>
+                                )}
+                              </label>
                               <MultiClassSelect 
                                 selectedIds={formData.advisorClassIds} 
                                 onChange={(ids) => setFormData(prev => ({ ...prev, advisorClassIds: ids }))} 
                                 classes={classes} 
-                                disabled={!isTeacherRole(roles.find(r => r._id === (formData.primaryRoleId || formData.role)))}
-                                className="w-full h-9 px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
+                                disabled={!isTeacherRole(roles.find(r => (r._id || r.id) === (formData.primaryRoleId || formData.role)))}
+                                className="w-full min-h-[38px] px-3 py-1.5 bg-white/50 border border-white/80 rounded-xl text-xs font-semibold text-[#1E293B]"
                               />
                             </div>
                           </div>
@@ -593,21 +850,20 @@ export default function UserModal({
                               </td>
                               <td className="px-2 py-2">
                                 <Select value={u.role} onValueChange={(val) => {
-                                  const isTeacher = isTeacherRole(roles.find(r => r._id === val));
+                                  const isTeacher = isTeacherRole(roles.find(r => (r._id || r.id) === val));
                                   const roleIds = u.roleIds?.includes(val) ? u.roleIds : [...(u.roleIds || []), val];
                                   updateBulkRow(u.id, 'role', val);
                                   updateBulkRow(u.id, 'roleIds', roleIds);
                                   updateBulkRow(u.id, 'primaryRoleId', val);
                                   if (!isTeacher) updateBulkRow(u.id, 'advisorClassIds', []);
                                 }}>
-                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80"><SelectValue /></SelectTrigger>
+                                  <SelectTrigger className="w-full h-7 px-2 py-1 text-[11px] border-slate-200 bg-white/80 rounded-lg">
+                                    <SelectValue placeholder="Chọn vai trò" />
+                                  </SelectTrigger>
                                   <SelectContent>
-                                    {roles.map(r => <SelectItem key={r._id} value={r._id} className="text-[11px]">{r.name}</SelectItem>)}
+                                    {roles.map(r => <SelectItem key={r._id || r.id} value={r._id || r.id} className="text-[11px]">{r.name}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {roles.map(r => { const id = r._id || r.id; return <label key={id} className="flex items-center gap-1 text-[10px]"><input type="checkbox" checked={u.roleIds?.includes(id) || false} onChange={() => { const next = u.roleIds?.includes(id) ? u.roleIds.filter((x: string) => x !== id) : [...(u.roleIds || []), id]; updateBulkRow(u.id, 'roleIds', next); if (!next.includes(u.primaryRoleId)) updateBulkRow(u.id, 'primaryRoleId', next[0] || ''); }} />{r.name}</label>; })}
-                                </div>
                               </td>
                               <td className="px-2 py-2">
                                 <MultiClassSelect
