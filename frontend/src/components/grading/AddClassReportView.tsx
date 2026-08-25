@@ -20,6 +20,7 @@ import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
+import { RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
 
 export interface ViolationItem {
   student_id: string;
@@ -721,41 +722,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
                     {/* Mã lớp học: hỗ trợ chọn nhiều lớp */}
                     <div className="flex flex-col w-full relative">
-                      <label className="text-xs font-medium text-[#414754] mb-1 ml-1">Mã lớp học</label>
-                      <Popover open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3 text-left text-xs sm:text-[12.5px] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out">
-                            <span className={`truncate ${classIds.length > 0 ? 'font-semibold text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
-                              {classIds.length > 0 ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ') : 'Chọn mã lớp học...'}
-                            </span>
-                            <span className="ml-2 text-slate-400">⌄</span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="z-[100] w-[var(--radix-popover-trigger-width)] rounded-xl border border-white/70 bg-white/90 backdrop-blur-md p-2 shadow-xl" align="start">
-                          <Input
-                            type="search"
-                            role="combobox"
-                            aria-expanded={isClassPickerOpen}
-                            aria-label="Tìm lớp học"
-                            value={classSearch}
-                            onChange={e => setClassSearch(e.target.value)}
-                            placeholder="Nhập tên hoặc mã lớp..."
-                            className="mb-2 h-8 sm:h-9 rounded-xl text-xs bg-white/40 border-white/70 backdrop-blur-sm placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:bg-white/70"
-                          />
-                          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Danh sách lớp học">
-                            {filterClassesBySearch(classes, classSearch).map(c => {
-                              const selected = classIds.includes(c._id);
-                              return (
-                                <label key={c._id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${selected ? 'bg-blue-50/80 text-blue-800' : 'hover:bg-white/60 text-slate-700'}`}>
-                                  <input type="checkbox" checked={selected} onChange={() => setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id])} className="accent-blue-600" />
-                                  <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
-                                </label>
-                              );
-                            })}
-                            {filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-3 text-center text-xs text-slate-400">Không tìm thấy lớp.</span>}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <RecordSelectionDialog label="Mã lớp học" title="Chọn mã lớp học" value={classIds} multiple placeholder="Chọn mã lớp học..." searchValue={classSearch} onSearchChange={setClassSearch} onConfirm={next => setClassIds(next as string[])}>
+                        {(draft, setDraft) => <div className="flex flex-col gap-1">{filterClassesBySearch(classes, classSearch).map(c => {
+                          const selected = (draft as string[]).includes(c._id);
+                          return <label key={c._id} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50'}`}><input type="checkbox" checked={selected} onChange={() => setDraft(toggleSelectionValue(draft as string[], c._id))} className="accent-blue-600" /><span>{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span></label>;
+                        })}{filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-6 text-center text-sm text-slate-400">Không tìm thấy lớp.</span>}</div>}
+                      </RecordSelectionDialog>
                       <span className="mt-1 ml-1 text-[11px] text-slate-500" aria-live="polite">
                         {classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn mã lớp học...'}
                       </span>
@@ -859,59 +831,16 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     <div className="grid grid-cols-12 gap-2.5 sm:gap-3 w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <Select
-                          value={selectedStudentId}
-                          onValueChange={setSelectedStudentId}
-                          onSearchQueryChange={handleStudentSearch}
-                          label="Họ tên sinh viên"
-                          error={""}
-                        >
-                          <SelectTrigger
-                            className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
-                            disabled={classIds.length === 0}
-                          >
-                            <SelectValue placeholder={classIds.length > 0 ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
-                          </SelectTrigger>
-                          <SelectContent 
-                            lazyLoad 
-                            onLoadMore={handleLoadMoreStudents}
-                            className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70"
-                          >
-                            {classStudents.map(s => (
-                              <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
-                            ))}
-                            {isStudentsLoading && (
-                              <div className="flex items-center justify-center p-2 text-xs text-slate-400">
-                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                                Đang tải thêm...
-                              </div>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <RecordSelectionDialog label="Họ tên sinh viên" title="Chọn sinh viên" value={selectedStudentId} placeholder={classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...'} disabled={classIds.length === 0} searchValue={studentsSearch} onSearchChange={handleStudentSearch} loading={isStudentsLoading} hasMore={classIds.some(id => hasMoreStudents[id])} onLoadMore={handleLoadMoreStudents} onConfirm={next => setSelectedStudentId(next as string)}>
+                          {(draft, setDraft) => <div className="flex flex-col gap-1">{classStudents.map(s => <button type="button" role="option" aria-selected={draft === s._id} key={s._id} onClick={() => setDraft(s._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === s._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{s.full_name} ({s.student_code})</button>)}</div>}
+                        </RecordSelectionDialog>
                       </div>
 
                       {/* Tiêu chí sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <Select
-                          value={selectedCriterionId}
-                          onValueChange={handleCriterionChange}
-                          label="Tiêu chí ghi nhận"
-                          error={""}
-                        >
-                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
-                            <SelectValue placeholder="Chọn tiêu chí..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
-                            {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
-                            {orderedCriteria.frequent.map(c => (
-                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
-                            ))}
-                            {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
-                            {orderedCriteria.remaining.map(c => (
-                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <RecordSelectionDialog label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
+                          {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
+                        </RecordSelectionDialog>
                       </div>
 
                       {/* Ghi chú chi tiết sử dụng Input Component */}
@@ -941,22 +870,9 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       <div className="flex flex-col gap-2.5">
                         {/* Tiêu chí ghi nhận (full width, ẩn Tìm sinh viên) */}
                         <div className="w-full">
-                          <Select
-                            value={selectedCriterionId}
-                            onValueChange={handleCriterionChange}
-                            label="Tiêu chí ghi nhận"
-                            error=""
-                          >
-                            <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs hover:bg-white/60 transition-all duration-150 ease-out">
-                              <SelectValue placeholder="Chọn tiêu chí..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans">
-                              {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
-                              {orderedCriteria.frequent.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
-                              {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
-                              {orderedCriteria.remaining.map(c => <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <RecordSelectionDialog label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
+                            {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
+                          </RecordSelectionDialog>
                         </div>
 
                         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-0.5">
@@ -965,7 +881,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         </div>
 
                         {/* Danh sách sinh viên tinh gọn */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 max-h-[300px] sm:max-h-[340px] lg:max-h-[260px] xl:max-h-[300px] overflow-y-auto pr-1" aria-label="Danh sách sinh viên">
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
                           {classStudents.map(student => {
                             const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
                             return (
@@ -978,7 +894,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 className={`text-left rounded-lg border min-h-[52px] sm:min-h-[56px] lg:min-h-0 p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
                                   selected
                                     ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
-                                    : 'border-white/70 bg-white/50 backdrop-blur-2xs hover:border-blue-400/60 hover:bg-white/80 text-[#1E293B]'
+                                    : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
                                 } disabled:cursor-not-allowed disabled:opacity-60`}
                               >
                                 <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
