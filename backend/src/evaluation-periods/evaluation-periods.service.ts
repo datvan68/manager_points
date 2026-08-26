@@ -73,7 +73,7 @@ export class EvaluationPeriodsService {
 
     if (dto.semester_id !== undefined)
       (period as any).semester_id = new Types.ObjectId(dto.semester_id);
-    if (dto.status === 'closed' && period.status !== 'closed') await this.archiveLockedSnapshots(period);
+    if (dto.status === 'closed') await this.archiveLockedSnapshots(period);
     if (dto.status !== undefined) period.status = dto.status;
     if (dto.sv_deadline !== undefined)
       period.sv_deadline = new Date(dto.sv_deadline);
@@ -92,9 +92,23 @@ export class EvaluationPeriodsService {
     if (all.some((s: any) => !lockedByStudent.has(s.student_id.toString()))) throw new BadRequestException('Không thể đóng kỳ khi còn bảng điểm chưa chốt');
     const lockedAt = new Date();
     for (const summary of summaries) {
+      if (!summary.student_id || !summary.semester_id || !summary.period_id) {
+        throw new BadRequestException('Bảng điểm đã chốt thiếu sinh viên, học kỳ hoặc kỳ đánh giá');
+      }
       const snapshot = { semester_id: summary.semester_id, period_id: summary.period_id, total_score: summary.total_score, grading: summary.grading, rank_tier: summary.rank_tier, rank_label: summary.rank_label, locked_at: summary.rank_locked_at || lockedAt };
-      await this.studentModel.updateOne({ _id: summary.student_id }, { $pull: { training_point_history: { period_id: summary.period_id } } }).exec();
-      await this.studentModel.updateOne({ _id: summary.student_id }, { $push: { training_point_history: snapshot } }).exec();
+      await this.studentModel.updateOne(
+        { _id: summary.student_id },
+        [{
+          $set: {
+            training_point_history: {
+              $concatArrays: [
+                { $filter: { input: { $ifNull: ['$training_point_history', []] }, as: 'snapshot', cond: { $ne: ['$$snapshot.period_id', summary.period_id] } } },
+                [snapshot],
+              ],
+            },
+          },
+        }],
+      ).exec();
     }
   }
 

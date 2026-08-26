@@ -50,7 +50,9 @@
     "migration:storage:dry-run": "ts-node scripts/migrate-uploaded-images.ts --dry-run",
     "migration:storage:execute": "ts-node scripts/migrate-uploaded-images.ts --execute",
     "migration:storage:verify": "ts-node scripts/migrate-uploaded-images.ts --verify",
-    "migration:storage:rollback": "ts-node scripts/migrate-uploaded-images.ts --rollback"
+    "migration:storage:rollback": "ts-node scripts/migrate-uploaded-images.ts --rollback",
+    "migration:training-point-history:dry-run": "ts-node scripts/backfill-training-point-history.ts",
+    "migration:training-point-history:execute": "ts-node scripts/backfill-training-point-history.ts --execute"
   },
 
   "dependencies": {

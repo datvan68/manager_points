@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { Semester, SemesterDocument } from './schemas/semester.schema';
 import { CreateSemesterDto } from './dto/create-semester.dto';
 import { UpdateSemesterDto } from './dto/update-semester.dto';
@@ -13,8 +13,18 @@ export class SemestersService {
   ) {}
 
   async create(createSemesterDto: CreateSemesterDto): Promise<Semester> {
-    const createdSemester = new this.semesterModel(createSemesterDto);
-    return createdSemester.save();
+    return this.withTransaction(async (session) => {
+      // The schema defaults an omitted status to active, so preserve the same invariant here.
+      if (!createSemesterDto.status || createSemesterDto.status === 'active') {
+        await this.semesterModel.updateMany(
+          { status: 'active' },
+          { $set: { status: 'inactive' } },
+          { session },
+        ).exec();
+      }
+      const createdSemester = new this.semesterModel(createSemesterDto);
+      return createdSemester.save({ session });
+    });
   }
 
   async findAll(): Promise<Semester[]> {
@@ -33,13 +43,35 @@ export class SemestersService {
     id: string,
     updateSemesterDto: UpdateSemesterDto,
   ): Promise<Semester> {
-    const updatedSemester = await this.semesterModel
-      .findByIdAndUpdate(id, updateSemesterDto, { returnDocument: 'after' })
-      .exec();
-    if (!updatedSemester) {
-      throw new NotFoundException(`Semester with ID ${id} not found`);
+    return this.withTransaction(async (session) => {
+      if (updateSemesterDto.status === 'active') {
+        await this.semesterModel.updateMany(
+          { _id: { $ne: id }, status: 'active' },
+          { $set: { status: 'inactive' } },
+          { session },
+        ).exec();
+      }
+      const updatedSemester = await this.semesterModel
+        .findByIdAndUpdate(id, updateSemesterDto, { returnDocument: 'after', session })
+        .exec();
+      if (!updatedSemester) {
+        throw new NotFoundException(`Semester with ID ${id} not found`);
+      }
+      return updatedSemester;
+    });
+  }
+
+  private async withTransaction<T>(work: (session: ClientSession) => Promise<T>): Promise<T> {
+    const session = await this.semesterModel.db.startSession();
+    try {
+      let result!: T;
+      await session.withTransaction(async () => {
+        result = await work(session);
+      });
+      return result;
+    } finally {
+      await session.endSession();
     }
-    return updatedSemester;
   }
 
   async remove(id: string): Promise<Semester> {
