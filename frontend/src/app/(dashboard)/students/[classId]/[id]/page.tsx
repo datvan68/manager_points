@@ -78,6 +78,27 @@ function formatRecordDate(dateStr?: string): string {
   }
 }
 
+export function getRankBadgeStyle(rank?: string): string {
+  if (!rank) return 'bg-slate-500/10 text-[#64748B] border-slate-500/20';
+  const lower = rank.toLowerCase();
+  if (lower.includes('xuất sắc') || lower.includes('xuat sac') || lower.includes('excellent')) {
+    return 'bg-purple-500/10 text-purple-700 border-purple-500/20';
+  }
+  if (lower.includes('tốt') || lower.includes('tot') || lower.includes('good')) {
+    return 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20';
+  }
+  if (lower.includes('khá') || lower.includes('kha') || lower.includes('fair')) {
+    return 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20';
+  }
+  if (lower.includes('trung bình') || lower.includes('trung binh') || lower.includes('average')) {
+    return 'bg-amber-500/10 text-amber-700 border-amber-500/20';
+  }
+  if (lower.includes('yếu') || lower.includes('yeu') || lower.includes('kém') || lower.includes('kem') || lower.includes('poor')) {
+    return 'bg-rose-500/10 text-rose-700 border-rose-500/20';
+  }
+  return 'bg-slate-500/10 text-[#64748B] border-slate-500/20';
+}
+
 export function getArchivedTrainingScores(student: Student, summaries: any[]): NonNullable<Student['training_point_history']> {
   if (student.training_point_history?.length) return student.training_point_history;
 
@@ -124,6 +145,7 @@ export default function StudentProfilePage() {
   const [dormData, setDormData] = useState<SelfDormitoryRosterResponse | null>(null);
   const [personalExpanded, setPersonalExpanded] = useMobileCardExpanded();
   const [academicExpanded, setAcademicExpanded] = useMobileCardExpanded();
+  const [archivedExpanded, setArchivedExpanded] = useMobileCardExpanded();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -557,42 +579,104 @@ export default function StudentProfilePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.2 }}
-              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 w-full min-w-0"
+              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col gap-3 sm:gap-4 w-full min-w-0"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
-                <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px]">Điểm rèn luyện đã chốt theo học kỳ</h2>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={archivedExpanded}
+                aria-controls="student-archived-scores"
+                onClick={() => setArchivedExpanded(value => !value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setArchivedExpanded(value => !value);
+                  }
+                }}
+                className="flex cursor-pointer items-center justify-between w-full"
+              >
+                <div className="flex items-center gap-[8px]">
+                  <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                  <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px] tracking-tight leading-[24px]">
+                    Điểm rèn luyện đã chốt theo học kỳ
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  {student?.training_point_history?.length ? (
+                    <span className="font-sans text-[11px] sm:text-[12px] font-semibold text-[#1A73E8] bg-blue-500/10 px-2 py-0.5 rounded-xl border border-blue-500/20">
+                      {student.training_point_history.length} kỳ
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 text-[#64748B] transition-transform sm:hidden ${archivedExpanded ? 'rotate-180' : ''}`}
+                  />
+                </div>
               </div>
-              {student?.training_point_history?.length ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[...student.training_point_history]
+
+              <div
+                id="student-archived-scores"
+                className={`${archivedExpanded ? 'flex' : 'hidden'} sm:flex flex-col gap-2.5 w-full min-w-0`}
+              >
+                {student?.training_point_history?.length ? (
+                  [...student.training_point_history]
                     .sort((a, b) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())
                     .map((snapshot, index) => {
                       const semesterId = typeof snapshot.semester_id === 'object' ? snapshot.semester_id._id : snapshot.semester_id;
                       const semesterName = typeof snapshot.semester_id === 'object' && snapshot.semester_id.semester_name
                         ? snapshot.semester_id.semester_name
                         : semesters.find(item => item._id === semesterId)?.semester_name || 'Học kỳ đã lưu trữ';
+                      const rank = snapshot.rank_label || snapshot.grading || snapshot.rank_tier || 'Chưa cập nhật';
+
                       return (
-                        <div key={`${semesterId}-${snapshot.period_id}-${index}`} className="rounded-xl border border-white/80 bg-white/50 p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-bold text-[#1E293B] text-[14px]">{semesterName}</p>
-                              <p className="text-[11px] text-[#64748B] mt-1">Đã chốt: {formatRecordDate(snapshot.locked_at)}</p>
+                        <div
+                          key={`${semesterId}-${snapshot.period_id}-${index}`}
+                          className="bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl p-3 sm:p-3.5 shadow-sm shadow-slate-300/30 hover:scale-[1.01] transition-all duration-150 ease-out flex flex-col gap-2 min-w-0"
+                        >
+                          {/* Row 1: Semester Title & Score */}
+                          <div className="flex items-center justify-between gap-3 min-w-0">
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span
+                                className="font-sans font-bold text-[#1E293B] text-[13px] sm:text-[14px] leading-tight truncate"
+                                title={semesterName}
+                              >
+                                {semesterName}
+                              </span>
+                              <div className="flex items-center gap-1 mt-1 text-[11px] font-medium text-[#64748B]">
+                                <Calendar className="w-[12px] h-[12px] text-[#64748B] shrink-0" />
+                                <span>Đã chốt: {formatRecordDate(snapshot.locked_at)}</span>
+                              </div>
                             </div>
-                            <span className="font-bold text-[#1A73E8] text-[22px] leading-none">{snapshot.total_score}/100</span>
+                            <div className="flex items-baseline gap-0.5 shrink-0 bg-white/60 px-2.5 py-1 rounded-xl border border-white/70 shadow-xs">
+                              <span className="font-sans font-bold text-[#1A73E8] text-[18px] sm:text-[20px] leading-none">
+                                {snapshot.total_score}
+                              </span>
+                              <span className="font-sans font-medium text-[#64748B] text-[11px] leading-none">
+                                /100
+                              </span>
+                            </div>
                           </div>
-                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#64748B]">
-                            <span>Xếp loại: {snapshot.rank_label || snapshot.grading || snapshot.rank_tier || 'Chưa cập nhật'}</span>
+
+                          {/* Row 2: Rank classification badge */}
+                          <div className="pt-2 border-t border-white/50 flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-sans font-medium text-[#64748B]">
+                              Xếp loại
+                            </span>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-xl border text-[11px] font-bold tracking-wide ${getRankBadgeStyle(rank)}`}
+                            >
+                              {rank}
+                            </span>
                           </div>
                         </div>
                       );
-                    })}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-[13px] text-[#64748B]">
-                  Chưa có điểm rèn luyện đã chốt theo học kỳ.
-                </div>
-              )}
+                    })
+                ) : (
+                  <div className="rounded-xl border border-dashed border-white/80 bg-white/30 backdrop-blur-sm p-4 text-center text-[12px] font-medium text-[#64748B]">
+                    Chưa có điểm rèn luyện đã chốt theo học kỳ.
+                  </div>
+                )}
+              </div>
             </motion.div>
 
             {/* ── Thông tin KTX (AC4: only rendered when linked registration exists) ── */}
