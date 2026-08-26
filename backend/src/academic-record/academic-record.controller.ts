@@ -335,6 +335,14 @@ export class AcademicRecordController {
     return this.academicRecordService.restore(id, requester);
   }
 
+  @Delete('bulk/force')
+  @UseGuards(checkPermission('DELETE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Permanently delete multiple academic records' })
+  bulkForceRemove(@Body() dto: BulkDeleteAcademicRecordDto, @Request() req: any) {
+    return this.academicRecordService.bulkForceRemove(dto.ids, req.user, true);
+  }
+
   @Delete(':id/force')
   @UseGuards(checkPermission('DELETE_STUDENT_RECORD'))
   @ApiBearerAuth()
@@ -350,13 +358,5 @@ export class AcademicRecordController {
     const bypass = bypassDailyReportCheck === 'true';
     const requester = req.user;
     return this.academicRecordService.forceRemove(id, requester, bypass);
-  }
-
-  @Delete('bulk/force')
-  @UseGuards(checkPermission('DELETE_STUDENT_RECORD'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Permanently delete multiple academic records' })
-  bulkForceRemove(@Body() dto: BulkDeleteAcademicRecordDto, @Request() req: any) {
-    return this.academicRecordService.bulkForceRemove(dto.ids, req.user, true);
   }
 }

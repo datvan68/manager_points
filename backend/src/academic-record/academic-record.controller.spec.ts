@@ -1,6 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import 'reflect-metadata';
-import { ValidationPipe, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  ValidationPipe,
+  BadRequestException,
+  ForbiddenException,
+  INestApplication,
+} from '@nestjs/common';
+import request from 'supertest';
 import { AcademicRecordController } from './academic-record.controller';
 import { AcademicRecordService } from './academic-record.service';
 import {
@@ -18,6 +24,7 @@ const guardsFor = (method: string) =>
 describe('AcademicRecordController - Import Flow', () => {
   let controller: AcademicRecordController;
   let service: AcademicRecordService;
+  let testingModule: TestingModule;
 
   const mockAcademicRecordService = {
     findAll: jest.fn(),
@@ -26,10 +33,11 @@ describe('AcademicRecordController - Import Flow', () => {
     getImportProgress: jest.fn(),
     bulkRemove: jest.fn(),
     bulkForceRemove: jest.fn(),
+    forceRemove: jest.fn(),
   };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    testingModule = await Test.createTestingModule({
       controllers: [AcademicRecordController],
       providers: [
         {
@@ -39,8 +47,8 @@ describe('AcademicRecordController - Import Flow', () => {
       ],
     }).compile();
 
-    controller = module.get<AcademicRecordController>(AcademicRecordController);
-    service = module.get<AcademicRecordService>(AcademicRecordService);
+    controller = testingModule.get<AcademicRecordController>(AcademicRecordController);
+    service = testingModule.get<AcademicRecordService>(AcademicRecordService);
   });
 
   afterEach(() => {
@@ -165,6 +173,75 @@ describe('AcademicRecordController - Import Flow', () => {
 
     expect(service.bulkRemove).toHaveBeenCalledWith(dto.ids, req.user);
     expect(service.bulkForceRemove).toHaveBeenCalledWith(dto.ids, req.user, true);
+  });
+
+  it('resolves bulk and single permanent-delete URLs to their matching handlers', async () => {
+    class AllowGuard {
+      canActivate(_context: any) {
+        return true;
+      }
+    }
+
+    const guardedMethods = ['bulkForceRemove', 'forceRemove'];
+    const originalGuards = new Map(
+      guardedMethods.map((method) => [
+        method,
+        Reflect.getMetadata('__guards__', AcademicRecordController.prototype[method]),
+      ]),
+    );
+
+    guardedMethods.forEach((method) => {
+      Reflect.defineMetadata(
+        '__guards__',
+        [AllowGuard],
+        AcademicRecordController.prototype[method],
+      );
+    });
+
+    const app: INestApplication = testingModule.createNestApplication();
+    app.use((req: any, _res: any, next: () => void) => {
+      req.user = { roleName: 'Admin' };
+      next();
+    });
+
+    try {
+      await app.init();
+      mockAcademicRecordService.bulkForceRemove.mockResolvedValue({ requested: 2 });
+      mockAcademicRecordService.forceRemove.mockResolvedValue({ id: 'record-1' });
+
+      await request(app.getHttpServer())
+        .delete('/academic-records/bulk/force')
+        .send({ ids: ['record-1', 'record-2'] })
+        .expect(200);
+      await request(app.getHttpServer())
+        .delete('/academic-records/record-1/force?bypassDailyReportCheck=true')
+        .expect(200);
+
+      expect(service.bulkForceRemove).toHaveBeenCalledWith(
+        ['record-1', 'record-2'],
+        { roleName: 'Admin' },
+        true,
+      );
+      expect(service.forceRemove).toHaveBeenCalledWith(
+        'record-1',
+        { roleName: 'Admin' },
+        true,
+      );
+      expect(service.forceRemove).not.toHaveBeenCalledWith(
+        'bulk',
+        expect.anything(),
+        expect.anything(),
+      );
+    } finally {
+      await app.close();
+      guardedMethods.forEach((method) => {
+        Reflect.defineMetadata(
+          '__guards__',
+          originalGuards.get(method),
+          AcademicRecordController.prototype[method],
+        );
+      });
+    }
   });
 
   describe('importCommit', () => {
