@@ -1,13 +1,21 @@
 services:
   mongodb:
     image: mongo:latest
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - db-data:/data/db
+      - ./infra/mongo/init:/docker-entrypoint-initdb.d:ro
     networks:
       - manager-point-network
     restart: always
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "const h = db.adminCommand({ hello: 1 }); if (h.setName !== 'rs0' || !h.isWritablePrimary) quit(1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   redis:
     image: redis:alpine
@@ -52,13 +60,15 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=8001
-      - MONGO_URI=mongodb://mongodb:27017/manager-point
+      - MONGO_URI=mongodb://mongodb:27017/manager-point?replicaSet=rs0
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - FRONTEND_URL=http://localhost:3000
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - manager-point-network
 

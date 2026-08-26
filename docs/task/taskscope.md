@@ -1,34 +1,28 @@
-task: "Hard-delete student with transactional dependent-data cleanup"
-pipeline: feature_development
+task: "Keep MongoDB reachable across development Compose entrypoints"
+pipeline: devops_infra
 profile: Full
-objective: "Deleting a student permanently removes or deliberately detaches every approved dependent record, so no Student/User reference becomes orphaned."
+objective: "Running the infra-only Compose entrypoint cannot strand MongoDB outside the network used by an existing containerized backend."
 
 evidence:
-  current_behavior: "backend/src/students/students.service.ts:remove deletes only Student and linked User; backend/src/students/students.service.ts:update deletes only SummaryPoint when status leaves Studying. Inbound Student/User references exist in grading, activities, attendance, dormitory, tasks, tokens, notifications, and audit collections."
-  expected_behavior: "The product has no graduation transition as an exit path; the approved deletion action is atomic, permission-protected, and leaves no unapproved dangling Student/User references."
-  root_cause: "StudentsService has no dependency inventory, transaction, cascade policy, or cleanup of User-linked records."
+  current_behavior: "08/26/2026 container log shows MongooseServerSelectionError getaddrinfo ENOTFOUND mongodb from /app. docker inspect identifies manager_points-mongodb-1 from docker-compose.dev-infra.yml on manager_points_default, while manager_points-backend-1 from docker-compose.yml + docker-compose.dev.yml is on manager_points_manager-point-network; docker exec manager_points-backend-1 getent hosts mongodb exits 1."
+  expected_behavior: "MongoDB and Redis created by either development Compose entrypoint share manager-point-network with the containerized backend; hostname mongodb resolves before Nest starts."
+  root_cause: "docker-compose.dev-infra.yml uses the same Compose project/service names as the full stack but declares no networks. Starting its mongodb service recreates the shared service on the implicit default network and disconnects it from the backend network."
 
 scope:
-  inspect: ["backend/src/students/students.service.ts:remove/update", "backend/src/students/students.module.ts:MongooseModule.forFeature", "backend/src/**/schemas/*: Student/User inbound references", "frontend/src/components/popups/StudentPopup.tsx:status transition UI and student deletion confirmation"]
-  write: ["backend/src/students/dto/delete-student.dto.ts:new confirmed-deletion input", "backend/src/students/students.controller.ts:DELETE contract", "backend/src/students/student-cascade-deletion.service.ts:new transactional preflight/cascade owner", "backend/src/students/students.service.ts:remove and status-transition guard", "backend/src/students/students.module.ts:model registrations/provider", "backend/src/students/test/students.service.spec.ts and backend/src/students/student-cascade-deletion.service.spec.ts", "frontend/src/api/student-api.ts:confirmed-delete request", "frontend/src/app/(dashboard)/students/[classId]/page.tsx and page.test.tsx:delete impact confirmation/refresh", "frontend/src/components/popups/StudentPopup.tsx:remove graduation-transition UI if Human Gate approves removal"]
-  preserve: ["DELETE /students/:id permission STUDENT_DELETE", "unrelated student CRUD and RBAC", "activities/classes/rooms/criteria themselves; only their student-specific relations may change", "rollback on any cleanup failure"]
-  out: ["bulk deletion, production execution, database migration, changes to semester/evaluation-period deletion"]
+  inspect: ["docker-compose.yml:mongodb/redis/backend network contract", "docker-compose.dev.yml:development overlay", "docker-compose.dev-infra.yml:mongodb/redis network omission", "scripts/dev-host.sh:infra-only Compose invocation"]
+  write: ["docker-compose.dev-infra.yml:attach mongodb and redis to manager-point-network and declare the same network key", "README.md:document entrypoint compatibility and safe ENOTFOUND recovery"]
+  preserve: ["MONGO_URI mongodb://mongodb:27017/manager-point?replicaSet=rs0 inside containers", "localhost URI for host-run Nest", "existing MongoDB/Redis volumes and replica-set state", "unrelated dirty changes and all .env files"]
+  out: ["production deployment", "volume deletion/recreation", "application retry changes", "custom DNS, external MongoDB, or multi-node topology"]
 
 acceptance_criteria:
-  - "AC-01: DELETE /students/:id preflights every approved dependent collection and rejects deletion when the required destructive confirmation/policy input is absent."
-  - "AC-02: After confirmed deletion, no approved collection contains the deleted student ID; StudentTask.targetStudentIds and notification read/recipient references are pulled or handled by the approved policy."
-  - "AC-03: The linked User and approved user-owned security records are removed in the same transaction; retained audit records contain no dangling User reference."
-  - "AC-04: An injected failure rolls back all deletions and preserves the Student, User, and dependencies."
-  - "AC-05: The UI no longer offers transition to Graduated if the Human Gate confirms removal of that lifecycle state."
+  - "AC-01: Rendered dev-infra configuration attaches mongodb and redis to the same manager-point-network key used by the full development stack."
+  - "AC-02: After infra-only mongodb is started under project manager_points, backend and MongoDB have a common network and getent hosts mongodb succeeds inside backend."
+  - "AC-03: Nest connects without ENOTFOUND mongodb; MongoDB remains an rs0 writable primary and existing named volumes are unchanged."
+  - "AC-04: README gives a recovery command that recreates services without down -v or data deletion."
 
 execution:
-  - "E-01 [AC-01] backend/src/students/student-cascade-deletion.service.ts → enumerate/count SummaryPoint, AcademicRecord, activity member/transfer/registration/attendance/check-in/award, dormitory roster/contract/violation/invoice, task progress/target arrays, and User-owned token/session/notification/audit references; return a redacted deletion impact."
-  - "E-02 [AC-01, AC-02, AC-03, AC-04] backend/src/students/dto/delete-student.dto.ts + students.controller.ts + students.service.ts:remove → require explicit confirmed-delete input and delegate to the cascade service; retain STUDENT_DELETE authorization."
-  - "E-03 [AC-01, AC-02, AC-03, AC-04] backend/src/students/student-cascade-deletion.service.ts → execute the approved delete, $pull/null/snapshot policy, and Student/User deletion in one MongoDB transaction; no independent best-effort catch after Student deletion."
-  - "E-04 [AC-01, AC-02] backend/src/students/students.module.ts → register only models used by the cascade service; retain one write owner for every collection."
-  - "E-05 [AC-01..AC-04] backend/src/students/*spec.ts → test dependency inventory, confirmed cleanup, non-confirmed refusal, array-reference cleanup, and rollback."
-  - "E-06 [AC-01, AC-02] frontend/src/api/student-api.ts + frontend/src/app/(dashboard)/students/[classId]/page.tsx → request and display redacted impact before the final confirmation, then refresh only after successful deletion."
-  - "E-07 [AC-05] frontend/src/components/popups/StudentPopup.tsx and its focused test → remove the graduation transition only after the gate; retain explicit permanent-delete confirmation."
+  - "E-01 [AC-01..AC-03] docker-compose.dev-infra.yml:mongodb/redis/networks → bind both services to manager-point-network using the same project-scoped network contract as docker-compose.yml."
+  - "E-02 [AC-04] README.md:development troubleshooting → record the mixed-entrypoint failure signature and a no-volume-delete service recreation procedure."
 
 temporary_artifacts:
   create: []
@@ -36,9 +30,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix backend test -- students/test/students.service.spec.ts --runInBand → deletion/cascade/rollback cases pass."
-  - "V-02 [AC-01..AC-04] npm --prefix backend run build → Nest dependency injection and TypeScript compile pass."
-  - "V-03 [AC-05] npm --prefix frontend test -- <affected-student-popup-test> → no graduation transition and delete confirmation behavior pass."
+  - "V-01 [AC-01] docker compose -f docker-compose.dev-infra.yml config -q → exits 0; rendered mongodb/redis networks include manager-point-network."
+  - "V-02 [AC-02, AC-03] docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb redis backend; docker compose -f docker-compose.dev-infra.yml up -d mongodb; docker exec manager_points-backend-1 getent hosts mongodb → exits 0 after the exact previously failing sequence."
+  - "V-03 [AC-03] docker exec manager_points-mongodb-1 mongosh --quiet --eval 'const h=db.adminCommand({hello:1}); if(h.setName!==\"rs0\"||!h.isWritablePrimary) quit(1)' → exits 0; backend logs contain no new ENOTFOUND mongodb retry."
+  - "V-04 [AC-04] git diff --check -- docker-compose.dev-infra.yml README.md → exits 0."
 
-risks: ["Irreversible deletion of grading, attendance, dormitory, and account data.", "MongoDB transactions require the deployed database topology to support transactions.", "Invoices, violations, login/audit history, and notifications may be subject to retention obligations; deleting them without an approved policy is unsafe.", "Removing every non-Studying status would alter reports, filters, imports, and historical records beyond this deletion feature."]
-stop_conditions: ["HUMAN GATE: approve one policy for invoices, violations, notifications, login/audit records, and files: delete, anonymize/snapshot, or retain with null reference.", "HUMAN GATE: clarify whether 'only tồn tại/mất đi' removes just Graduated or every non-Studying status; existing Reserved/Dropped/Suspended records require an explicit migration/compatibility decision.", "Stop before mutation if MongoDB transactions are unavailable or an inbound Student/User reference is found outside the approved cleanup policy."]
+risks: ["Compose project-name overrides must remain consistent; different -p values create different physical networks even when YAML keys match."]
+stop_conditions: ["Stop before any command that removes volumes or persistent data.", "Stop if the failing backend and MongoDB intentionally use different Compose projects; choose an explicit external-network contract instead of assuming shared project scope.", "Stop if DNS succeeds but MongoDB returns authentication, TLS, replica-set, or connection-refused errors; diagnose that separate failure."]

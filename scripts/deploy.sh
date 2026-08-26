@@ -24,6 +24,8 @@ fi
 REGISTRY="${REGISTRY:-$(read_env_value REGISTRY)}"
 NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$(read_env_value NEXT_PUBLIC_API_URL)}"
 APP_VERSION="${APP_VERSION:-$(read_env_value APP_VERSION)}"
+MONGO_ROOT_USERNAME="${MONGO_ROOT_USERNAME:-$(read_env_value MONGO_INITDB_ROOT_USERNAME)}"
+MONGO_ROOT_PASSWORD="${MONGO_ROOT_PASSWORD:-$(read_env_value MONGO_INITDB_ROOT_PASSWORD)}"
 
 : "${REGISTRY:?REGISTRY must be set in $ENV_FILE}"
 : "${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in $ENV_FILE}"
@@ -31,7 +33,7 @@ APP_VERSION="${APP_VERSION:-$(read_env_value APP_VERSION)}"
 if [ -z "${APP_VERSION:-}" ]; then
   APP_VERSION="$(git rev-parse --short HEAD)"
 fi
-export APP_VERSION REGISTRY NEXT_PUBLIC_API_URL
+export APP_VERSION REGISTRY NEXT_PUBLIC_API_URL MONGO_ROOT_USERNAME MONGO_ROOT_PASSWORD
 
 echo "Building images with version $APP_VERSION..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend frontend
@@ -45,6 +47,13 @@ echo "Pulling the approved application images..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull backend frontend
 
 echo "Deploying..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d \
+  --remove-orphans \
+  mongodb redis
+
+COMPOSE_FILE="$COMPOSE_FILE" ENV_FILE="$ENV_FILE" MONGO_ROOT_USERNAME="$MONGO_ROOT_USERNAME" MONGO_ROOT_PASSWORD="$MONGO_ROOT_PASSWORD" MONGO_WAIT_TIMEOUT="${DEPLOY_WAIT_TIMEOUT:-180}" \
+  bash ./scripts/ensure-mongo-replica-set.sh
+
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d \
   --remove-orphans \
   --wait \

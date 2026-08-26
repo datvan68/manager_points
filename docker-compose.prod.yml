@@ -134,7 +134,7 @@ services:
 
   mongodb:
     image: mongo:7.0
-    command: mongod --wiredTigerCacheSizeGB 0.25
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.25"]
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -149,7 +149,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "const h = db.adminCommand({ hello: 1 }); if (h.setName !== 'rs0' || !h.isWritablePrimary) quit(1)"]
       interval: 10s
       timeout: 5s
       retries: 10

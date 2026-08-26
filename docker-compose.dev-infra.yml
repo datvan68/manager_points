@@ -1,17 +1,32 @@
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:latest
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - db-data:/data/db
+    networks:
+      - manager-point-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "const h = db.adminCommand({ hello: 1 }); if (h.setName !== 'rs0' || !h.isWritablePrimary) quit(1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   redis:
     image: redis:7.2-alpine
     ports:
       - "6379:6379"
+    networks:
+      - manager-point-network
     restart: unless-stopped
+
+networks:
+  manager-point-network:
+    driver: bridge
 
 volumes:
   db-data:

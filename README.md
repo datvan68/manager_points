@@ -42,6 +42,8 @@ Khởi động môi trường phát triển:
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+Các luồng Docker bật MongoDB replica set một nút `rs0`, vì backend sử dụng transaction. URI nội bộ phải giữ `?replicaSet=rs0`; không dùng `directConnection=true` trong container.
+
 Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:8001`. Thay đổi trong `frontend/` hoặc `backend/` sẽ được framework biên dịch lại mà không cần build hay khởi động lại container.
 
 Khi `package-lock.json` thay đổi, cập nhật hai volume dependency riêng thay vì dùng `down -v` (lệnh đó có thể xóa cả volume database):
@@ -64,6 +66,18 @@ npm --prefix backend ci
 ```
 
 Script chỉ khởi động MongoDB và Redis bằng `docker-compose.dev-infra.yml`; frontend chạy ở `http://localhost:3000`, backend ở `http://localhost:8001`. Full-Docker ở trên vẫn là luồng tương thích cho CI và môi trường cần container ứng dụng.
+
+`dev-host.sh` tự khởi tạo và kiểm tra `rs0` trước khi chạy Nest. URI mặc định trên host dùng `replicaSet=rs0&directConnection=true` để kết nối qua `localhost`; không cần sửa `.env` nếu dùng cổng mặc định. Với volume đã tồn tại, chạy `bash ./scripts/ensure-mongo-replica-set.sh --compose-file docker-compose.dev-infra.yml`; script chỉ khởi tạo volume chưa có replica-set và dừng khi phát hiện topology khác.
+
+Khi chạy Node/Nest trên máy host, dùng `mongodb://localhost:27017/manager-point?replicaSet=rs0&directConnection=true`. Khi chạy backend bằng Compose, dùng `mongodb://mongodb:27017/manager-point?replicaSet=rs0`; tên `mongodb` chỉ phân giải được bên trong mạng Compose. Nếu host báo `getaddrinfo ENOTFOUND mongodb`, đổi `MONGO_URI` của tiến trình host về URI `localhost` ở trên rồi khởi động lại backend (không sửa URI `mongodb` của service Compose).
+
+Nếu đã chạy `docker-compose.dev-infra.yml` trước full development stack và backend báo `ENOTFOUND mongodb`, tạo lại chỉ hai service hạ tầng để chúng tham gia mạng hiện hữu (không dùng `down -v`):
+
+```bash
+docker compose -p manager_points -f docker-compose.dev-infra.yml up -d --force-recreate mongodb redis
+```
+
+Production phải khởi động MongoDB và chạy verifier trước backend. Trước khi áp dụng trên volume production hiện hữu, cần backup và phê duyệt Human Gate; không dùng lệnh xóa volume. `MONGO_URI` production phải trỏ tới member `mongodb:27017` và có `replicaSet=rs0` khi dùng service Compose này.
 
 Đo cold/warm navigation và lưu báo cáo Markdown:
 
