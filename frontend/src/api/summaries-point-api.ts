@@ -117,6 +117,10 @@ export const summariesPointApi = {
     });
     return handleResponse<SummaryPoint>(res);
   },
+  async deleteSummariesPointsByPeriod(periodId: string): Promise<{ deleted: number; periodId: string }> {
+    const res = await httpClient(`${API_BASE}/summaries-points/bulk/period/${periodId}`, { method: 'DELETE' });
+    return handleResponse(res);
+  },
 
   async approveGrading(id: string): Promise<SummaryPoint> {
     const res = await httpClient(`${API_BASE}/summaries-points/${id}/approve`, {

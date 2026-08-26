@@ -22,6 +22,7 @@ import {
 import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { SummariesPointModule } from '../summaries-point/summaries-point.module';
+import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/schemas/evaluation-period.schema';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SummariesPointModule } from '../summaries-point/summaries-point.module'
       { name: Criterion.name, schema: CriterionSchema },
       { name: Student.name, schema: StudentSchema },
       { name: Class.name, schema: ClassSchema },
+      { name: EvaluationPeriod.name, schema: EvaluationPeriodSchema },
     ]),
   ],
   controllers: [AcademicRecordController],

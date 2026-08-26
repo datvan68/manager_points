@@ -51,6 +51,7 @@ import {
   assertCanAccessClass,
   assertCanAccessStudent,
 } from '../auth/utils/grading-access.util';
+import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 
 /**
  * Tính toán hạng (rank tier) và nhãn hạng (rank label) dựa trên tổng điểm và trạng thái của bảng điểm.
@@ -116,12 +117,30 @@ export class SummariesPointService {
     private readonly semesterModel: Model<SemesterDocument>,
     @InjectModel(AcademicRecord.name)
     private readonly academicRecordModel: Model<AcademicRecordDocument>,
+    @InjectModel(EvaluationPeriod.name) private readonly evaluationPeriodModel: Model<any>,
     @Inject(forwardRef(() => AcademicRecordService))
     private readonly academicRecordService: AcademicRecordService,
   ) {}
 
   private isTeacher(requester?: any) {
     return getGradingRole(requester) === 'teacher';
+  }
+
+  async removeBulkByPeriod(periodId: string, requester: any) {
+    if (requester?.roleCode !== 'ADMIN' && !requester?.permissions?.includes('ADMIN_FULL')) throw new ForbiddenException('Cần quyền ADMIN_FULL');
+    if (!Types.ObjectId.isValid(periodId)) throw new BadRequestException('periodId không hợp lệ');
+    const period = await this.evaluationPeriodModel.findById(periodId).lean().exec();
+    if (!period || period.status !== 'closed') throw new BadRequestException('Chỉ được xóa bảng điểm của kỳ đã đóng');
+    const summaries = await (this.summaryPointModel as any).find({ period_id: periodId }).lean().exec();
+    const students = await this.studentModel.find({ _id: { $in: summaries.map((s: any) => s.student_id) } }).select('training_point_history').lean().exec();
+    const snapshotByStudent = new Map(students.map((s: any) => [s._id.toString(), (s.training_point_history || []).find((x: any) => x.period_id?.toString() === periodId)]));
+    const incomplete = summaries.some((s: any) => {
+      const snapshot = snapshotByStudent.get(s.student_id.toString());
+      return !snapshot || snapshot.total_score !== s.total_score || snapshot.grading !== s.grading;
+    });
+    if (incomplete) throw new BadRequestException('Không thể xóa khi snapshot hồ sơ còn thiếu hoặc không khớp');
+    const result = await (this.summaryPointModel as any).deleteMany({ period_id: periodId }).exec();
+    return { deleted: result.deletedCount || 0, periodId };
   }
 
   private async getTeacherClassIds(requester?: any) {
@@ -1440,7 +1459,11 @@ export class SummariesPointService {
       .exec();
 
     if (!summary) {
-      return null;
+      const snapshot = (student.training_point_history || [])
+        .filter((item: any) => (!semesterId || item.semester_id?.toString() === semesterId) && (!periodId || item.period_id?.toString() === periodId))
+        .sort((a: any, b: any) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())[0];
+      if (!snapshot) return null;
+      return { _id: `snapshot:${student._id}:${snapshot.period_id}`, status: 'locked', total_score: snapshot.total_score, grading: snapshot.grading, rank_tier: snapshot.rank_tier, rank_label: snapshot.rank_label, semester: snapshot.semester_id, period: snapshot.period_id, locked_at: snapshot.locked_at, studentName: student.full_name || 'Sinh viên', className, student: { full_name: student.full_name || 'Sinh viên', student_code: student.student_code || '', class_id: student.class_id ? { _id: classObj?._id || student.class_id, class_name: className } : null } } as any;
     }
 
     // 4. Format response cho profile

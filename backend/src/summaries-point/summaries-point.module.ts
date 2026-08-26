@@ -23,6 +23,7 @@ import {
 } from '../departments/schemas/department.schema';
 import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
 import { AcademicRecordModule } from '../academic-record/academic-record.module';
+import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/schemas/evaluation-period.schema';
 import {
   AcademicRecord,
   AcademicRecordSchema,
@@ -40,6 +41,7 @@ import {
       { name: Department.name, schema: DepartmentSchema },
       { name: Semester.name, schema: SemesterSchema },
       { name: AcademicRecord.name, schema: AcademicRecordSchema },
+      { name: EvaluationPeriod.name, schema: EvaluationPeriodSchema },
     ]),
   ],
   controllers: [SummariesPointController],

@@ -56,7 +56,6 @@ export function getViolationAddError(
   studentId: string,
   criterionId: string,
 ): 'duplicate' | 'limit' | null {
-  if (violations.length >= 10) return 'limit';
   if (violations.some(item => item.student_id === studentId && item.criterion_id === criterionId)) return 'duplicate';
   return null;
 }

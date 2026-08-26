@@ -183,7 +183,8 @@ export default function StudentProfilePage() {
           activeSummary = sorted[0];
         }
 
-        const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(studentData.training_point_id);
+        const latestSnapshot = [...(studentData.training_point_history || [])].sort((a, b) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())[0];
+        const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(latestSnapshot) ?? resolveDrlScore(studentData.training_point_id);
         setResolvedDrl(scoreVal);
 
         // Handle initial records

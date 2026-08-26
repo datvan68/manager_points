@@ -93,7 +93,7 @@ describe('AddClassReportView violation selection', () => {
     });
   });
 
-  it('rejects duplicate student/criterion pairs and the eleventh item', () => {
+  it('rejects duplicate student/criterion pairs without limiting the roster', () => {
     const existing = [createViolationItem(student, criterion, '')];
     expect(getViolationAddError(existing, 'student-1', 'criterion-1')).toBe('duplicate');
 
@@ -101,7 +101,7 @@ describe('AddClassReportView violation selection', () => {
       ...existing[0],
       student_id: `student-${index}`,
     }));
-    expect(getViolationAddError(tenItems, 'student-11', 'criterion-1')).toBe('limit');
+    expect(getViolationAddError(tenItems, 'student-11', 'criterion-1')).toBeNull();
   });
 
   it('merges rosters from selected classes without duplicate student IDs', () => {

@@ -349,6 +349,17 @@ function GradingPage() {
 
   const executeDeleteBulk = async (summaryIds: string[]) => {
     setDeleteBulkConfirm(prev => ({ ...prev, isOpen: false }));
+    const periodIds = Array.from(new Set(summaryIds.map(id => (apiSummariesPoints || []).find(s => s._id === id)?.period_id).filter(Boolean).map(String)));
+    if (periodIds.length === 1) {
+      try {
+        const result = await summariesPointApi.deleteSummariesPointsByPeriod(periodIds[0]);
+        toast.success(`Đã xóa ${result.deleted} bảng điểm sau khi kiểm tra snapshot.`);
+        await fetchSummaries(1, false, appliedClass, selectedSemester);
+      } catch (error: any) {
+        toast.error(error?.message || 'Không thể xóa bảng điểm của kỳ này');
+      }
+      return;
+    }
     setDeleteProgress({ isOpen: true, total: summaryIds.length, completed: 0 });
 
     let successCount = 0;

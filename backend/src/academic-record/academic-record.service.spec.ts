@@ -6,6 +6,7 @@ import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
 import { Criterion } from '../criteria/schemas/criterion.schema';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
+import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import {
   BadRequestException,
@@ -67,6 +68,9 @@ describe('AcademicRecordService - Import Flow', () => {
   const mockClassModel: any = {
     find: jest.fn(),
   };
+  const mockEvaluationPeriodModel: any = {
+    find: jest.fn().mockReturnValue({ select: jest.fn().mockReturnThis(), lean: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue([]) }),
+  };
   const mockSummariesPointService: any = {
     recomputeTotalScore: jest.fn(),
   };
@@ -98,6 +102,10 @@ describe('AcademicRecordService - Import Flow', () => {
         {
           provide: getModelToken(Class.name),
           useValue: mockClassModel,
+        },
+        {
+          provide: getModelToken(EvaluationPeriod.name),
+          useValue: mockEvaluationPeriodModel,
         },
         {
           provide: SummariesPointService,

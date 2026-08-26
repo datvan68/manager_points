@@ -32,6 +32,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { isAdminUser, isStudent } from '../auth/utils/role.util';
+import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 
 function checkAcademicRecordReadAccess(): Type<CanActivate> {
   @Injectable()
@@ -218,6 +219,20 @@ export class AcademicRecordController {
   findDeleted(@Request() req: any) {
     const requester = req.user;
     return this.academicRecordService.findDeleted(requester);
+  }
+
+  @Post('purge/preview')
+  @UseGuards(checkPermission('ADMIN_FULL'))
+  @ApiBearerAuth()
+  previewPurge(@Body() dto: PurgeAcademicRecordsDto, @Request() req: any) {
+    return this.academicRecordService.previewPurge(dto, req.user);
+  }
+
+  @Post('purge')
+  @UseGuards(checkPermission('ADMIN_FULL'))
+  @ApiBearerAuth()
+  purge(@Body() dto: PurgeAcademicRecordsDto, @Request() req: any) {
+    return this.academicRecordService.purge(dto, req.user);
   }
 
   @Get(':id')

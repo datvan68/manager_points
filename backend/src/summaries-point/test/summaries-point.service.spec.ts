@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { AcademicRecord } from '../../academic-record/schemas/academic-record.schema';
 import { AcademicRecordService } from '../../academic-record/academic-record.service';
+import { EvaluationPeriod } from '../../evaluation-periods/schemas/evaluation-period.schema';
 
 describe('resolveRankTier', () => {
   it('should return unranked if status is not locked', () => {
@@ -140,6 +141,9 @@ describe('SummariesPointService', () => {
     find: jest.fn(),
     countDocuments: jest.fn(),
   };
+  const mockEvaluationPeriodModel = {
+    findById: jest.fn(),
+  };
 
   const mockAcademicRecordService = {
     syncMultipleStudentCriterionScores: jest
@@ -188,6 +192,10 @@ describe('SummariesPointService', () => {
         {
           provide: getModelToken(AcademicRecord.name),
           useValue: mockAcademicRecordModel,
+        },
+        {
+          provide: getModelToken(EvaluationPeriod.name),
+          useValue: mockEvaluationPeriodModel,
         },
         {
           provide: AcademicRecordService,

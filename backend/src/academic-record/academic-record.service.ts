@@ -53,6 +53,8 @@ import {
   CountResolutionService,
   detectConflict,
 } from './count-resolution.service';
+import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
+import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -79,6 +81,8 @@ export class AcademicRecordService {
     private readonly studentModel: Model<any>,
     @InjectModel(Class.name)
     private readonly classModel: Model<any>,
+    @InjectModel(EvaluationPeriod.name)
+    private readonly evaluationPeriodModel: Model<any>,
     @Inject(forwardRef(() => SummariesPointService))
     private readonly summariesPointService: SummariesPointService,
     private readonly scoreEngineService: ScoreEngineService,
@@ -86,6 +90,62 @@ export class AcademicRecordService {
   ) {}
 
   private importSessions = new Map<string, any>();
+
+  private assertFullAdmin(requester: any): void {
+    if (requester?.roleCode === 'ADMIN' || requester?.permissions?.includes('ADMIN_FULL')) return;
+    throw new ForbiddenException('Cần quyền ADMIN_FULL');
+  }
+
+  private purgeDates(dto: PurgeAcademicRecordsDto): { start: Date; end: Date } {
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      throw new BadRequestException('Khoảng ngày không hợp lệ');
+    }
+    end.setUTCHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
+  private async getPurgePlan(dto: PurgeAcademicRecordsDto) {
+    const { start, end } = this.purgeDates(dto);
+    const records = await this.academicRecordModel.find({
+      recorded_at: { $gte: start, $lte: end },
+    }).select('_id daily_report_id semester_id').lean().exec();
+    const activePeriods = await this.evaluationPeriodModel.find({
+      status: { $in: ['sv_phase', 'gv_phase', 'admin_phase'] },
+    }).select('semester_id status').lean().exec();
+    const activeSemesterIds = new Set(activePeriods.map((p: any) => p.semester_id?.toString()));
+    const eligible = records.filter((r: any) => !r.daily_report_id && !activeSemesterIds.has(r.semester_id?.toString()));
+    return {
+      startDate: start.toISOString(), endDate: end.toISOString(),
+      eligible: eligible.map((r: any) => r._id),
+      counts: {
+        eligible: eligible.length,
+        protectedClassReport: records.filter((r: any) => !!r.daily_report_id).length,
+        protectedActiveGrading: records.filter((r: any) => !r.daily_report_id && activeSemesterIds.has(r.semester_id?.toString())).length,
+      },
+    };
+  }
+
+  async previewPurge(dto: PurgeAcademicRecordsDto, requester: any) {
+    this.assertFullAdmin(requester);
+    const plan = await this.getPurgePlan(dto);
+    return { ...plan, eligible: plan.counts.eligible };
+  }
+
+  async purge(dto: PurgeAcademicRecordsDto, requester: any) {
+    this.assertFullAdmin(requester);
+    const plan = await this.getPurgePlan(dto);
+    const result = await this.academicRecordModel.deleteMany({ _id: { $in: plan.eligible } }).exec();
+    return {
+      deleted: result.deletedCount || 0,
+      skipped: {
+        protectedClassReport: plan.counts.protectedClassReport,
+        protectedActiveGrading: plan.counts.protectedActiveGrading,
+      },
+      counts: plan.counts,
+    };
+  }
 
   private async checkSummaryLocked(
     studentId: any,

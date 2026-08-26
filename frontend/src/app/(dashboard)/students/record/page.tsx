@@ -279,10 +279,32 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     string[]
   >([]);
   const [isGlobalConfigModalOpen, setIsGlobalConfigModalOpen] = useState(false);
+  const [purgeStartDate, setPurgeStartDate] = useState('');
+  const [purgeEndDate, setPurgeEndDate] = useState('');
+  const [purgePreview, setPurgePreview] = useState<any>(null);
+  const [isPurgeLoading, setIsPurgeLoading] = useState(false);
   const [viewLayout, setViewLayout] = useState<"table" | "card">("table");
   const [creatorFilter, setCreatorFilter] = useState<
     "all" | "student" | "teacher" | "admin" | "supervisor"
   >("all");
+
+  const previewAcademicRecordPurge = async () => {
+    try { setIsPurgeLoading(true); setPurgePreview(await academicRecordApi.previewPurgeAcademicRecords(purgeStartDate, purgeEndDate)); }
+    catch (error: any) { toast.error(error?.message || 'Khoảng ngày không hợp lệ'); }
+    finally { setIsPurgeLoading(false); }
+  };
+
+  const executeAcademicRecordPurge = async () => {
+    if (!purgePreview || !window.confirm(`Xóa ${purgePreview.eligible} ghi nhận trong khoảng ${purgeStartDate} đến ${purgeEndDate}?`)) return;
+    try {
+      setIsPurgeLoading(true);
+      const result = await academicRecordApi.purgeAcademicRecords(purgeStartDate, purgeEndDate);
+      toast.success(`Đã xóa ${result.deleted} ghi nhận; bỏ qua ${result.skipped.protectedClassReport + result.skipped.protectedActiveGrading}.`);
+      setPurgePreview(null);
+      await fetchAcademicRecords();
+    } catch (error: any) { toast.error(error?.message || 'Không thể dọn ghi nhận'); }
+    finally { setIsPurgeLoading(false); }
+  };
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -4014,6 +4036,17 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                 Tiện ích
               </h4>
+              {activeSubTab === 'student' && user?.permissions?.includes('ADMIN_FULL') && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                  <div className="text-[13px] font-bold text-amber-900">Dọn ghi nhận HSSV</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input aria-label="Từ ngày" type="date" value={purgeStartDate} onChange={e => setPurgeStartDate(e.target.value)} className="rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs" />
+                    <input aria-label="Đến ngày" type="date" value={purgeEndDate} onChange={e => setPurgeEndDate(e.target.value)} className="rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs" />
+                  </div>
+                  <button disabled={!purgeStartDate || !purgeEndDate || isPurgeLoading} onClick={previewAcademicRecordPurge} className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">Xem trước</button>
+                  {purgePreview && <div className="mt-2 text-xs text-amber-950">Có thể xóa: <b>{purgePreview.eligible}</b>; báo cáo lớp: {purgePreview.counts.protectedClassReport}; đang chấm: {purgePreview.counts.protectedActiveGrading}<button onClick={executeAcademicRecordPurge} disabled={isPurgeLoading} className="ml-2 font-bold underline">Xác nhận dọn</button></div>}
+                </div>
+              )}
               <button
                 onClick={() => {
                   setIsGlobalConfigModalOpen(false);

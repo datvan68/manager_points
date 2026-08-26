@@ -264,6 +264,11 @@ export class SummariesPointController {
     return this.summariesPointService.remove(id, req.user);
   }
 
+  @Delete('bulk/period/:periodId')
+  async removeBulkByPeriod(@Param('periodId') periodId: string, @Request() req: any) {
+    return this.summariesPointService.removeBulkByPeriod(periodId, req.user);
+  }
+
   @Patch(':id/approve')
   @UseGuards(checkRole('Admin', 'Supervisor'))
   @ApiOperation({ summary: 'Phê duyệt điểm rèn luyện' })

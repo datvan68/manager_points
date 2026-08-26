@@ -13,12 +13,16 @@ import {
   CreateEvaluationPeriodDto,
   UpdateEvaluationPeriodDto,
 } from './dto/evaluation-period.dto';
+import { SummaryPoint } from '../summaries-point/schemas/summary-point.schema';
+import { Student } from '../students/schemas/student.schema';
 
 @Injectable()
 export class EvaluationPeriodsService {
   constructor(
     @InjectModel(EvaluationPeriod.name)
     private periodModel: Model<EvaluationPeriodDocument>,
+    @InjectModel(SummaryPoint.name) private summaryPointModel: Model<any>,
+    @InjectModel(Student.name) private studentModel: Model<any>,
   ) {}
 
   async findAll() {
@@ -69,6 +73,7 @@ export class EvaluationPeriodsService {
 
     if (dto.semester_id !== undefined)
       (period as any).semester_id = new Types.ObjectId(dto.semester_id);
+    if (dto.status === 'closed' && period.status !== 'closed') await this.archiveLockedSnapshots(period);
     if (dto.status !== undefined) period.status = dto.status;
     if (dto.sv_deadline !== undefined)
       period.sv_deadline = new Date(dto.sv_deadline);
@@ -78,6 +83,19 @@ export class EvaluationPeriodsService {
       period.admin_deadline = new Date(dto.admin_deadline);
 
     return period.save();
+  }
+
+  private async archiveLockedSnapshots(period: EvaluationPeriodDocument): Promise<void> {
+    const summaries = await this.summaryPointModel.find({ period_id: period._id, status: 'locked' }).lean().exec();
+    const all = await this.summaryPointModel.find({ period_id: period._id }).select('student_id').lean().exec();
+    const lockedByStudent = new Map(summaries.map((s: any) => [s.student_id.toString(), s]));
+    if (all.some((s: any) => !lockedByStudent.has(s.student_id.toString()))) throw new BadRequestException('Không thể đóng kỳ khi còn bảng điểm chưa chốt');
+    const lockedAt = new Date();
+    for (const summary of summaries) {
+      const snapshot = { semester_id: summary.semester_id, period_id: summary.period_id, total_score: summary.total_score, grading: summary.grading, rank_tier: summary.rank_tier, rank_label: summary.rank_label, locked_at: summary.rank_locked_at || lockedAt };
+      await this.studentModel.updateOne({ _id: summary.student_id }, { $pull: { training_point_history: { period_id: summary.period_id } } }).exec();
+      await this.studentModel.updateOne({ _id: summary.student_id }, { $push: { training_point_history: snapshot } }).exec();
+    }
   }
 
   async remove(id: string) {

@@ -20,6 +20,15 @@ export interface Student {
     rank_tier?: string | null;
     rank_label?: string | null;
   } | string | null;
+  training_point_history?: Array<{
+    semester_id: string;
+    period_id: string;
+    total_score: number;
+    grading?: string | null;
+    rank_tier?: string | null;
+    rank_label?: string | null;
+    locked_at: string;
+  }>;
   user_id?: { _id: string; user_name?: string; email?: string; status?: string } | string;
   account_status?: 'active' | 'inactive' | 'locked';
   createdAt?: string;
