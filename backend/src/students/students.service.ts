@@ -27,6 +27,7 @@ import { Role, RoleDocument } from '../auth/schemas/role.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { DormitoryRosterEntry } from '../dormitory/schemas/dormitory-roster-entry.schema';
 import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-roster-identity.service';
+import { StudentCascadeDeletionService } from './student-cascade-deletion.service';
 import {
   getRequesterRoleName,
   isStudent,
@@ -87,6 +88,7 @@ export class StudentsService implements OnModuleInit {
     private refreshTokenModel: Model<RefreshTokenDocument>,
     @InjectModel(DormitoryRosterEntry.name) private rosterModel: Model<any>,
     private configService: ConfigService,
+    private readonly studentCascadeDeletionService: StudentCascadeDeletionService,
     @Optional() private readonly rosterIdentityService?: DormitoryRosterIdentityService,
   ) {}
 
@@ -1525,7 +1527,7 @@ export class StudentsService implements OnModuleInit {
     return this.attachAccountStatus(student);
   }
 
-  async remove(id: string, requester?: any): Promise<Student> {
+  async remove(id: string, requester?: any, confirmed?: boolean): Promise<any> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
@@ -1536,30 +1538,10 @@ export class StudentsService implements OnModuleInit {
     if (!student) {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
-
-    await this.studentModel.findByIdAndDelete(id).exec();
-
-    try {
-      const linkedUserId = this.getLinkedUserId(student);
-      const userDelResult = linkedUserId
-        ? await this.userModel.deleteOne({ _id: linkedUserId })
-        : await this.userModel.deleteOne({
-            email: this.getStudentEmail(student),
-          });
-
-      if (userDelResult.deletedCount > 0) {
-        this.logger.log(
-          `Auto-deleted linked user for removed student ${student.full_name} (${student.student_code}).`,
-        );
-      }
-    } catch (userErr) {
-      this.logger.error(
-        `Failed to auto-delete linked user for removed student ${student.full_name}:`,
-        userErr,
-      );
+    if (typeof confirmed !== 'boolean') {
+      throw new BadRequestException('Xác nhận xóa vĩnh viễn là bắt buộc.');
     }
-
-    return student as any;
+    return this.studentCascadeDeletionService.remove(id, confirmed);
   }
 
   getDefaultPasswordFromDob(dateBir: Date | string | null | undefined): string {

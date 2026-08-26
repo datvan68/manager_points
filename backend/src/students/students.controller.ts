@@ -14,6 +14,7 @@ import { Throttle } from '@nestjs/throttler';
 import { StudentsService } from './students.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
+import { DeleteStudentDto } from './dto/delete-student.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
@@ -188,7 +189,7 @@ export class StudentsController {
 
   @Delete(':id')
   @UseGuards(checkPermission('STUDENT_DELETE'))
-  remove(@Param('id') id: string, @Request() req: any) {
-    return this.studentsService.remove(id, req.user);
+  remove(@Param('id') id: string, @Body() body: DeleteStudentDto, @Request() req: any) {
+    return this.studentsService.remove(id, req.user, body?.confirmed);
   }
 }

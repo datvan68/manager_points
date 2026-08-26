@@ -39,10 +39,17 @@ const formSchema = z.object({
     studentId: z.string().min(1, { message: "Mã sinh viên bắt buộc nhập" }),
     department: z.string().min(1, { message: "Khoa bắt buộc nhập" }),
     classId: z.string().min(1, { message: "Lớp bắt buộc nhập" }),
-    status: z.enum(['Studying', 'Reserved', 'Dropped', 'Graduated', 'Suspended']),
+    status: z.enum(['Studying', 'Reserved', 'Dropped', 'Suspended']),
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+export const STUDENT_STATUS_OPTIONS = [
+    { value: 'Studying', label: 'Đang học' },
+    { value: 'Reserved', label: 'Bảo lưu' },
+    { value: 'Dropped', label: 'Thôi học' },
+    { value: 'Suspended', label: 'Đình chỉ' },
+] as const;
 
 export default function StudentPopup({ isOpen, onClose, initialData, defaultClassId, onSuccess }: StudentPopupProps) {
     const [classesList, setClassesList] = useState<Class[]>([]);
@@ -401,21 +408,11 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                         <SelectValue placeholder="Chọn trạng thái" />
                                     </SelectTrigger>
                                     <SelectContent position="popper" className="z-[100] min-w-[var(--radix-select-trigger-width)] bg-white/85 backdrop-blur-md rounded-xl shadow-lg shadow-slate-300/40 border border-white/70 p-1">
-                                        <SelectItem value="Studying" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
-                                            Đang học
-                                        </SelectItem>
-                                        <SelectItem value="Reserved" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
-                                            Bảo lưu
-                                        </SelectItem>
-                                        <SelectItem value="Dropped" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
-                                            Thôi học
-                                        </SelectItem>
-                                        <SelectItem value="Graduated" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
-                                            Tốt nghiệp
-                                        </SelectItem>
-                                        <SelectItem value="Suspended" className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
-                                            Đình chỉ
-                                        </SelectItem>
+                                        {STUDENT_STATUS_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value} className="rounded-xl cursor-pointer focus:bg-[#1A73E8]/10 focus:text-[#1A73E8] text-[#1E293B] font-medium transition-colors">
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             )}

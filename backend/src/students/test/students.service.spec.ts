@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { StudentsService } from '../students.service';
+import { StudentCascadeDeletionService } from '../student-cascade-deletion.service';
 import { Student } from '../schemas/student.schema';
 import { Semester } from '../../semesters/schemas/semester.schema';
 import { SummaryPoint } from '../../summaries-point/schemas/summary-point.schema';
@@ -50,6 +51,7 @@ describe('StudentsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StudentsService,
+        { provide: StudentCascadeDeletionService, useValue: { remove: jest.fn().mockResolvedValue(getCloneMockStudent()) } },
         {
           provide: ConfigService,
           useValue: {
@@ -732,7 +734,7 @@ describe('StudentsService', () => {
 
   describe('remove', () => {
     it('should delete and return the deleted student', async () => {
-      const result = await service.remove('507f1f77bcf86cd799439011');
+      const result = await service.remove('507f1f77bcf86cd799439011', undefined, true);
       expect(result).toBeDefined();
     });
 
@@ -756,6 +758,12 @@ describe('StudentsService', () => {
       await expect(service.remove('invalid-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should reject deletion when permanent confirmation is missing', async () => {
+      await expect(
+        service.remove('507f1f77bcf86cd799439011'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

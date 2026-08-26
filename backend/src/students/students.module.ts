@@ -18,6 +18,7 @@ import { Role, RoleSchema } from '../auth/schemas/role.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { DormitoryRosterEntry, DormitoryRosterEntrySchema } from '../dormitory/schemas/dormitory-roster-entry.schema';
 import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-roster-identity.service';
+import { StudentCascadeDeletionService } from './student-cascade-deletion.service';
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-
     ]),
   ],
   controllers: [StudentsController, StudentAccountSyncController],
-  providers: [StudentsService, DormitoryRosterIdentityService],
+  providers: [StudentsService, StudentCascadeDeletionService, DormitoryRosterIdentityService],
   exports: [StudentsService],
 })
 export class StudentsModule {}

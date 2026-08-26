@@ -36,6 +36,12 @@ export interface Student {
   has_dormitory_roster?: boolean;
 }
 
+export interface StudentDeletionImpact {
+  studentId: string;
+  userLinked: boolean;
+  dependentRecords: Record<string, number>;
+}
+
 export const studentApi = {
   async getStudents(params?: {
     page?: number;
@@ -113,11 +119,13 @@ export const studentApi = {
     return handleResponse<Student>(res);
   },
 
-  async deleteStudent(id: string): Promise<Student> {
+  async deleteStudent(id: string, confirmed: boolean): Promise<Student | StudentDeletionImpact> {
     const res = await httpClient(`${API_BASE}/students/${id}`, {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmed }),
     });
-    return handleResponse<Student>(res);
+    return handleResponse<Student | StudentDeletionImpact>(res);
   },
 
   async activateStudent(id: string): Promise<Student> {

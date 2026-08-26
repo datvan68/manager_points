@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classApi, Class } from '@/api/class-api';
-import { studentApi, Student } from '@/api/student-api';
+import { studentApi, Student, StudentDeletionImpact } from '@/api/student-api';
 import { authApi, tokenStorage } from '@/api/auth-api';
 import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
@@ -471,54 +471,74 @@ function ClassStudentsPageContent() {
     };
 
     // Xóa danh sách sinh viên được chọn (Xóa hàng loạt)
-    const handleDelete = () => {
+    const formatDeletionImpact = (impacts: StudentDeletionImpact[]) => {
+        const total = impacts.reduce((sum, impact) => sum + Object.values(impact.dependentRecords).reduce((n, count) => n + count, 0), 0);
+        const linkedUsers = impacts.filter((impact) => impact.userLinked).length;
+        return `Xóa vĩnh viễn sẽ xóa ${total} bản ghi phụ thuộc${linkedUsers ? ` và ${linkedUsers} tài khoản liên kết` : ''}. Hành động này không thể hoàn tác.`;
+    };
+
+    const handleDelete = async () => {
         if (selectedStudentIds.length === 0) return;
-        setConfirmConfig({
-            title: 'Xác nhận xóa nhiều sinh viên',
-            message: `Bạn có chắc chắn muốn xóa ${selectedStudentIds.length} sinh viên đã chọn? Hành động này sẽ không thể hoàn tác.`,
-            variant: 'danger',
-            confirmLabel: 'Xóa sinh viên',
-            onConfirm: async () => {
-                setIsDataLoading(true);
-                try {
-                    await Promise.all(selectedStudentIds.map(id => studentApi.deleteStudent(id)));
-                    toast.success(`Đã xóa ${selectedStudentIds.length} sinh viên thành công.`);
-                    setSelectedStudentIds([]);
-                    fetchStudents();
-                } catch (err: any) {
-                    console.error('Lỗi khi xóa nhiều sinh viên:', err);
-                    toast.error('Một hoặc nhiều sinh viên không thể xóa');
-                } finally {
-                    setIsDataLoading(false);
+        setIsDataLoading(true);
+        try {
+            const impacts = await Promise.all(selectedStudentIds.map(async (id) => await studentApi.deleteStudent(id, false) as StudentDeletionImpact));
+            setConfirmConfig({
+                title: 'Xác nhận xóa vĩnh viễn',
+                message: formatDeletionImpact(impacts),
+                variant: 'danger',
+                confirmLabel: 'Xóa vĩnh viễn',
+                onConfirm: async () => {
+                    setIsDataLoading(true);
+                    try {
+                        await Promise.all(selectedStudentIds.map(id => studentApi.deleteStudent(id, true)));
+                        toast.success(`Đã xóa ${selectedStudentIds.length} sinh viên thành công.`);
+                        setSelectedStudentIds([]);
+                        fetchStudents();
+                    } catch (err: any) {
+                        toast.error('Một hoặc nhiều sinh viên không thể xóa');
+                    } finally {
+                        setIsDataLoading(false);
+                    }
                 }
-            }
-        });
-        setIsConfirmOpen(true);
+            });
+            setIsConfirmOpen(true);
+        } catch (err: any) {
+            toast.error(err.message || 'Không thể kiểm tra dữ liệu liên quan');
+        } finally {
+            setIsDataLoading(false);
+        }
     };
 
     // Xóa sinh viên đơn lẻ
-    const handleDeleteSingle = (id: string, name: string) => {
-        setConfirmConfig({
-            title: 'Xác nhận xóa sinh viên',
-            message: `Bạn có chắc chắn muốn xóa sinh viên ${name}? Hành động này sẽ không thể hoàn tác.`,
-            variant: 'danger',
-            confirmLabel: 'Xóa sinh viên',
-            onConfirm: async () => {
-                setIsDataLoading(true);
-                try {
-                    await studentApi.deleteStudent(id);
-                    toast.success(`Đã xóa sinh viên ${name} thành công.`);
-                    setOpenDrawerId(null);
-                    fetchStudents();
-                } catch (err: any) {
-                    console.error('Lỗi khi xóa sinh viên:', err);
-                    toast.error(err.message || 'Xóa sinh viên thất bại');
-                } finally {
-                    setIsDataLoading(false);
+    const handleDeleteSingle = async (id: string, name: string) => {
+        setIsDataLoading(true);
+        try {
+            const impact = await studentApi.deleteStudent(id, false) as StudentDeletionImpact;
+            setConfirmConfig({
+                title: 'Xác nhận xóa vĩnh viễn',
+                message: `Sinh viên ${name}: ${formatDeletionImpact([impact])}`,
+                variant: 'danger',
+                confirmLabel: 'Xóa vĩnh viễn',
+                onConfirm: async () => {
+                    setIsDataLoading(true);
+                    try {
+                        await studentApi.deleteStudent(id, true);
+                        toast.success(`Đã xóa sinh viên ${name} thành công.`);
+                        setOpenDrawerId(null);
+                        fetchStudents();
+                    } catch (err: any) {
+                        toast.error(err.message || 'Xóa sinh viên thất bại');
+                    } finally {
+                        setIsDataLoading(false);
+                    }
                 }
-            }
-        });
-        setIsConfirmOpen(true);
+            });
+            setIsConfirmOpen(true);
+        } catch (err: any) {
+            toast.error(err.message || 'Không thể kiểm tra dữ liệu liên quan');
+        } finally {
+            setIsDataLoading(false);
+        }
     };
 
     // Mở popup chỉnh sửa sinh viên
