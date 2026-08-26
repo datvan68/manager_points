@@ -2433,8 +2433,6 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    await this.checkSummaryLocked(record.student_id, record.semester_id);
-
     if (record.daily_report_id && !bypassDailyReportCheck) {
       throw new BadRequestException(
         'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể xoá trực tiếp. Vui lòng chỉnh sửa hoặc xoá qua báo cáo ngày tương ứng.',
@@ -2521,8 +2519,6 @@ export class AcademicRecordService {
         `AcademicRecord with ID ${id} not found or already deleted`,
       );
     }
-
-    await this.checkSummaryLocked(record.student_id, record.semester_id);
 
     if (
       !bypassDailyReportCheck &&

@@ -1,44 +1,38 @@
-task: "Bỏ Dọn ghi nhận HSSV khỏi modal và tăng phân trang lên 500"
-pipeline: feature_development
-profile: Quick
-objective: "Ẩn hoàn toàn tiện ích xóa theo khoảng ngày khỏi modal Cấu hình và cho phép tab Tình hình HSSV chọn tối đa 500 bản ghi mỗi trang."
+task: "Allow academic-record deletion after grading is locked"
+pipeline: bug_fix
+profile: Full
+objective: "Authorized users can soft-delete and permanently delete academic records after grading is locked without changing the locked score shown on the student profile."
 
 evidence:
-  - "frontend/src/app/(dashboard)/students/record/page.tsx:GhiNhanTab đang render khối `Dọn ghi nhận HSSV` trong Dialog `Cấu hình & Tiện ích hệ thống` và giữ state/handler riêng cho preview/execute."
-  - "CustomPagination của tab `student` đang dùng pageSizeOptions `[5,10,20,40,50,100]`; fetchAcademicRecords chuyển itemsPerPage trực tiếp thành query limit."
-  - "backend/src/academic-record/academic-record.controller.ts và service nhận limit trực tiếp, không áp trần 100."
+  current_behavior: "backend/src/academic-record/academic-record.service.ts:remove/forceRemove call checkSummaryLocked and return GRADING_SUMMARY_LOCKED before deletion."
+  expected_behavior: "Locked grading remains immutable, but its source academic records may be deleted under existing RBAC and daily-report rules."
+  root_cause: "AcademicRecordService applies the mutation lock to deletion methods although safeSync already skips locked SummaryPoint documents."
 
 scope:
-  write:
-    - "frontend/src/app/(dashboard)/students/record/page.tsx: GhiNhanTab, modal cấu hình và phân trang tab student"
-    - "frontend/src/app/(dashboard)/students/record/page.test.tsx: kiểm thử modal/phân trang 500"
-  preserve:
-    - "Bộ lọc, mặc định 40 dòng, phân trang/infinite scroll hiện hữu và tab Tình hình lớp học."
-    - "Backend purge endpoints, RBAC và quy tắc xóa dữ liệu; yêu cầu chỉ bỏ entry point trong modal."
-  out:
-    - "Thay đổi API/schema/backend hoặc phân trang các tab khác."
+  inspect: ["backend/src/evaluation-periods/evaluation-periods.service.ts:archiveLockedSnapshots", "backend/src/summaries-point/summaries-point.service.ts:findLatestForStudent"]
+  write: ["backend/src/academic-record/academic-record.service.ts:remove/forceRemove", "backend/src/academic-record/academic-record.service.spec.ts:Summary Lock Protection"]
+  preserve: ["create, bulkCreate, update, restore, and score-intent lock protection", "hierarchy permissions, daily-report guards, soft/permanent-delete preconditions", "locked SummaryPoint and student.training_point_history profile data"]
+  out: ["UI changes", "schema/API changes", "deleting locked summaries or snapshots"]
 
 acceptance_criteria:
-  - "AC-01: Modal Cấu hình không còn hiển thị `Dọn ghi nhận HSSV`, chọn khoảng ngày, xem trước hoặc xác nhận dọn; state/handler/import chỉ phục vụ UI này được loại bỏ."
-  - "AC-02: Phân trang desktop của tab `Tình hình HSSV` có tùy chọn 500 và không có tùy chọn lớn hơn 500; mặc định vẫn là 40."
-  - "AC-03: Chọn 500 đặt trang về 1 và lần tải tiếp theo gọi getAcademicRecords với `{ page: 1, limit: 500 }`; tổng số/trang hiển thị theo response hiện hữu."
-  - "AC-04: Phân trang tab `Tình hình lớp học` và quyền truy cập modal không đổi."
+  - "AC-01: remove succeeds for a record whose SummaryPoint is locked when existing permission and daily-report checks pass."
+  - "AC-02: forceRemove succeeds for an eligible trashed record whose SummaryPoint is locked."
+  - "AC-03: either deletion leaves locked SummaryPoint/snapshot values unchanged; profile lookup can still return the locked score."
+  - "AC-04: non-delete mutations remain blocked with GRADING_SUMMARY_LOCKED, and existing delete RBAC/report guards remain effective."
 
 execution:
-  - "E-01 [AC-01] Gỡ khối purge khỏi Dialog và dọn code UI không còn tham chiếu; không xóa backend/client contract dùng ngoài modal."
-  - "E-02 [AC-02,AC-03] Thêm 500 vào pageSizeOptions của CustomPagination tab student và giữ reset page hiện hữu."
-  - "E-03 [AC-01..AC-04] Điều chỉnh test tập trung, đồng thời bảo toàn các thay đổi worktree không thuộc scope."
+  - "E-01 [AC-01,AC-02,AC-03] academic-record.service.ts:remove/forceRemove -> bypass only the summary-lock rejection; retain safeSync, which ignores locked summaries."
+  - "E-02 [AC-01..AC-04] academic-record.service.spec.ts:Summary Lock Protection -> replace deletion-block expectations with successful deletion/unchanged-locked-score regressions; retain mutation-block tests."
 
-verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx'"
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck"
-  - "V-03 [AC-01..AC-04] git diff --check"
-
-risks:
-  - "Worktree đang có thay đổi dở từ task trước tại page/test/API; chỉ chỉnh hunk thuộc scope, không hoàn nguyên hàng loạt."
-
-stop_conditions: []
 temporary_artifacts:
-  create: ["docs/task/taskscope.md"]
+  create: []
   cleanup: []
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
+
+verification:
+  - "V-01 [AC-01..AC-04] npm --prefix backend test -- academic-record/academic-record.service.spec.ts --runInBand -> focused suite passes."
+  - "V-02 [AC-03] npm --prefix backend test -- summaries-point/test/summaries-point.service.spec.ts --runInBand -> locked-summary/snapshot profile tests pass."
+  - "V-03 [AC-01..AC-04] npm --prefix backend run build -> Nest build exits 0."
+
+risks: ["Deletion is persistent-data behavior; implementation requires independent review of RBAC and locked-score immutability."]
+stop_conditions: ["Stop if deletion requires changing snapshot/summary schemas, weakening RBAC, or deleting daily-report-owned records outside the existing bypass contract."]

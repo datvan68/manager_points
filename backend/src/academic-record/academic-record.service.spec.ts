@@ -1740,19 +1740,34 @@ describe('AcademicRecordService - Import Flow', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should block remove when summary is locked', async () => {
+    it('should remove when summary is locked without mutating the locked summary', async () => {
       const existingRecord = {
+        _id: new Types.ObjectId(),
         student_id: studentId,
         semester_id: semesterId,
         criterion_id: criterionId,
+        status: 'active',
+        is_deleted: false,
       };
       mockAcademicRecordModel.findOne = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(existingRecord),
       });
+      const deletedRecord = { ...existingRecord, status: 'inactive', is_deleted: true };
+      mockAcademicRecordModel.findByIdAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(deletedRecord),
+      });
+      const syncSpy = jest
+        .spyOn(service, 'syncStudentCriterionScore')
+        .mockResolvedValue(undefined as any);
+      const lockSpy = jest.spyOn(service as any, 'checkSummaryLocked');
+
       await expect(
-        service.remove('507f1f77bcf86cd799439011', {} as any),
-      ).rejects.toThrow(BadRequestException);
+        service.remove('507f1f77bcf86cd799439011', { roleName: 'Admin' } as any),
+      ).resolves.toBe(deletedRecord);
+      expect(mockAcademicRecordModel.findByIdAndUpdate).toHaveBeenCalled();
+      expect(lockSpy).not.toHaveBeenCalled();
+      expect(syncSpy).toHaveBeenCalledWith(studentId, semesterId, criterionId);
     });
 
     it('should block restore when summary is locked', async () => {
@@ -1770,19 +1785,35 @@ describe('AcademicRecordService - Import Flow', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should block forceRemove when summary is locked', async () => {
+    it('should permanently remove an eligible trashed record when summary is locked', async () => {
       const existingRecord = {
+        _id: new Types.ObjectId(),
         student_id: studentId,
         semester_id: semesterId,
         criterion_id: criterionId,
+        status: 'inactive',
+        is_deleted: true,
       };
       mockAcademicRecordModel.findById = jest.fn().mockReturnValue({
         populate: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(existingRecord),
       });
+      mockAcademicRecordModel.findByIdAndDelete = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(existingRecord),
+      });
+      const syncSpy = jest
+        .spyOn(service, 'syncStudentCriterionScore')
+        .mockResolvedValue(undefined as any);
+      const lockSpy = jest.spyOn(service as any, 'checkSummaryLocked');
+
       await expect(
-        service.forceRemove('507f1f77bcf86cd799439011', {} as any),
-      ).rejects.toThrow(BadRequestException);
+        service.forceRemove('507f1f77bcf86cd799439011', { roleName: 'Admin' } as any),
+      ).resolves.toBe(existingRecord);
+      expect(mockAcademicRecordModel.findByIdAndDelete).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+      );
+      expect(lockSpy).not.toHaveBeenCalled();
+      expect(syncSpy).toHaveBeenCalledWith(studentId, semesterId, criterionId);
     });
 
     it('should block handleScoreIntent when summary is locked', async () => {
