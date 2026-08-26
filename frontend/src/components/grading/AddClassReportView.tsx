@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar as CalendarIcon, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Save, Settings, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Save, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -273,6 +273,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   // Student Violation inputs
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
+  const [isCriterionPickerOpen, setIsCriterionPickerOpen] = useState(false);
+  const [criterionSearch, setCriterionSearch] = useState('');
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
   const [pendingQuickViolationKeys, setPendingQuickViolationKeys] = useState<Set<string>>(new Set());
@@ -871,14 +873,104 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
 
                   <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
-                    {/* Mã lớp học: hỗ trợ chọn nhiều lớp */}
+                    {/* Mã lớp học: hỗ trợ chọn nhiều lớp trên mobile qua popover, select trên desktop */}
                     <div className="flex flex-col w-full relative">
-                      <RecordSelectionDialog isMobile={isMobile} label="Mã lớp học" title="Chọn mã lớp học" value={classIds} multiple placeholder="Chọn mã lớp học..." searchValue={classSearch} onSearchChange={setClassSearch} onConfirm={next => setClassIds(next as string[])}>
-                        {(draft, setDraft) => <div className="flex flex-col gap-1">{filterClassesBySearch(classes, classSearch).map(c => {
-                          const selected = (draft as string[]).includes(c._id);
-                          return <label key={c._id} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${selected ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50'}`}><input type="checkbox" checked={selected} onChange={() => setDraft(toggleSelectionValue(draft as string[], c._id))} className="accent-blue-600" /><span>{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span></label>;
-                        })}{filterClassesBySearch(classes, classSearch).length === 0 && <span className="px-2 py-6 text-center text-sm text-slate-400">Không tìm thấy lớp.</span>}</div>}
-                      </RecordSelectionDialog>
+                      {!isMobile ? (
+                        <Select
+                          value={classIds[0] || ''}
+                          onValueChange={(val: string) => {
+                            setClassIds(val ? [val] : []);
+                          }}
+                          label="Mã lớp học"
+                        >
+                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                            <SelectValue placeholder="Chọn mã lớp học..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
+                            {classes.map(c => (
+                              <SelectItem key={c._id} value={c._id}>
+                                {c.class_name}{c.class_year ? ` (${c.class_year})` : ''}
+                              </SelectItem>
+                            ))}
+                            {classes.length === 0 && (
+                              <div className="py-4 text-center text-xs text-slate-400">Không có lớp học nào</div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex flex-col w-full">
+                          <label className="text-xs font-medium text-[#414754] mb-1 ml-1">Mã lớp học</label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsClassPickerOpen(true)}
+                            className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
+                          >
+                            <span className={`truncate ${classIds.length > 0 ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
+                              {classIds.length > 0
+                                ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ')
+                                : 'Chọn mã lớp học...'}
+                            </span>
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+                          </Button>
+                          <Dialog open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
+                            <DialogContent
+                              showCloseButton={false}
+                              onOpenAutoFocus={(e) => e.preventDefault()}
+                              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[calc(100vw-2.5rem)] max-w-md max-h-[75vh] flex flex-col gap-3 rounded-2xl border border-white/80 bg-white/95 backdrop-blur-md p-4 shadow-2xl overflow-hidden"
+                            >
+                              <DialogTitle className="sr-only">Chọn mã lớp học</DialogTitle>
+                              <DialogDescription className="sr-only">Danh sách mã lớp học</DialogDescription>
+                              <Input
+                                type="search"
+                                role="combobox"
+                                aria-expanded={isClassPickerOpen}
+                                aria-label="Tìm lớp học"
+                                value={classSearch}
+                                onChange={e => setClassSearch(e.target.value)}
+                                placeholder="Nhập tên hoặc mã lớp..."
+                                className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                              />
+                              <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" aria-label="Danh sách lớp học">
+                                {filterClassesBySearch(classes, classSearch).map(c => {
+                                  const selected = classIds.includes(c._id);
+                                  return (
+                                    <label
+                                      key={c._id}
+                                      className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
+                                        selected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={() => {
+                                          setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id]);
+                                        }}
+                                        className="accent-blue-600 rounded"
+                                      />
+                                      <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
+                                    </label>
+                                  );
+                                })}
+                                {filterClassesBySearch(classes, classSearch).length === 0 && (
+                                  <span className="px-2 py-6 text-center text-xs text-slate-400">Không tìm thấy lớp.</span>
+                                )}
+                              </div>
+                              <div className="flex justify-end pt-2 border-t border-slate-100">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => setIsClassPickerOpen(false)}
+                                  className="h-8 px-4 rounded-xl text-xs font-bold bg-[#005bbf] text-white hover:bg-[#004ca0]"
+                                >
+                                  Xong
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      )}
                       <span className="mt-1 ml-1 text-[11px] text-slate-500" aria-live="polite">
                         {classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn mã lớp học...'}
                       </span>
@@ -982,16 +1074,59 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     <div className="grid grid-cols-12 gap-2.5 sm:gap-3 w-full">
                       {/* Họ tên sinh viên sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <RecordSelectionDialog isMobile={isMobile} label="Họ tên sinh viên" title="Chọn sinh viên" value={selectedStudentId} displayValue={classStudents.find(s => s._id === selectedStudentId)?.full_name} placeholder={classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...'} disabled={classIds.length === 0} searchValue={studentsSearch} onSearchChange={handleStudentSearch} loading={isStudentsLoading} hasMore={classIds.some(id => hasMoreStudents[id])} onLoadMore={handleLoadMoreStudents} onConfirm={next => setSelectedStudentId(next as string)}>
-                          {(draft, setDraft) => <div className="flex flex-col gap-1">{classStudents.map(s => <button type="button" role="option" aria-selected={draft === s._id} key={s._id} onClick={() => setDraft(s._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === s._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{s.full_name} ({s.student_code})</button>)}</div>}
-                        </RecordSelectionDialog>
+                        <Select
+                          value={selectedStudentId}
+                          onValueChange={setSelectedStudentId}
+                          onSearchQueryChange={handleStudentSearch}
+                          label="Họ tên sinh viên"
+                          error={""}
+                        >
+                          <SelectTrigger
+                            className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
+                            disabled={classIds.length === 0}
+                          >
+                            <SelectValue placeholder={classIds.length > 0 ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
+                          </SelectTrigger>
+                          <SelectContent 
+                            lazyLoad 
+                            onLoadMore={handleLoadMoreStudents}
+                            className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70"
+                          >
+                            {classStudents.map(s => (
+                              <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
+                            ))}
+                            {isStudentsLoading && (
+                              <div className="flex items-center justify-center p-2 text-xs text-slate-400">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                Đang tải thêm...
+                              </div>
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Tiêu chí sử dụng Select Component */}
                       <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <RecordSelectionDialog isMobile={isMobile} label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
-                          {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
-                        </RecordSelectionDialog>
+                        <Select
+                          value={selectedCriterionId}
+                          onValueChange={handleCriterionChange}
+                          label="Tiêu chí ghi nhận"
+                          error={""}
+                        >
+                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                            <SelectValue placeholder="Chọn tiêu chí..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
+                            {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                            {orderedCriteria.frequent.map(c => (
+                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
+                            ))}
+                            {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                            {orderedCriteria.remaining.map(c => (
+                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Ghi chú chi tiết sử dụng Input Component */}
@@ -1021,9 +1156,102 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       <div className="flex flex-col gap-2.5">
                         {/* Tiêu chí ghi nhận (full width, ẩn Tìm sinh viên) */}
                         <div className="w-full">
-                          <RecordSelectionDialog isMobile={isMobile} label="Tiêu chí ghi nhận" title="Chọn tiêu chí" value={selectedCriterionId} displayValue={criteria.find(c => c._id === selectedCriterionId)?.criterion_name} placeholder="Chọn tiêu chí..." searchable onConfirm={next => handleCriterionChange(next as string)}>
-                            {(draft, setDraft, query) => <div className="flex flex-col gap-1">{orderedCriteria.frequent.length > 0 && <div className="px-3 py-2 text-xs font-bold text-slate-500">Sử dụng nhiều</div>}{[...orderedCriteria.frequent, ...orderedCriteria.remaining].filter(c => c.criterion_name.toLowerCase().includes(query.toLowerCase())).map(c => <button type="button" role="option" aria-selected={draft === c._id} key={c._id} onClick={() => setDraft(c._id)} className={`rounded-xl px-3 py-3 text-left text-sm ${draft === c._id ? 'bg-blue-50 font-bold text-blue-800' : 'hover:bg-slate-50'}`}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</button>)}</div>}
-                          </RecordSelectionDialog>
+                          {!isMobile ? (
+                            <Select
+                              value={selectedCriterionId}
+                              onValueChange={handleCriterionChange}
+                              label="Tiêu chí ghi nhận"
+                            >
+                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                                <SelectValue placeholder="Chọn tiêu chí..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
+                                {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                                {orderedCriteria.frequent.map(c => (
+                                  <SelectItem key={c._id} value={c._id}>
+                                    {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
+                                  </SelectItem>
+                                ))}
+                                {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                                {orderedCriteria.remaining.map(c => (
+                                  <SelectItem key={c._id} value={c._id}>
+                                    {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex flex-col w-full">
+                              <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsCriterionPickerOpen(true)}
+                                className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
+                              >
+                                <span className={`truncate ${selectedCriterionId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
+                                  {criteria.find(c => c._id === selectedCriterionId)?.criterion_name || 'Chọn tiêu chí...'}
+                                </span>
+                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+                              </Button>
+                              <Dialog open={isCriterionPickerOpen} onOpenChange={setIsCriterionPickerOpen}>
+                                <DialogContent
+                                  showCloseButton={false}
+                                  onOpenAutoFocus={(e) => e.preventDefault()}
+                                  className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[calc(100vw-2.5rem)] max-w-md max-h-[75vh] flex flex-col gap-3 rounded-2xl border border-white/80 bg-white/95 backdrop-blur-md p-4 shadow-2xl overflow-hidden"
+                                >
+                                  <DialogTitle className="sr-only">Chọn tiêu chí</DialogTitle>
+                                  <DialogDescription className="sr-only">Danh sách tiêu chí ghi nhận</DialogDescription>
+                                  <Input
+                                    type="search"
+                                    role="combobox"
+                                    aria-expanded={isCriterionPickerOpen}
+                                    aria-label="Tìm tiêu chí"
+                                    value={criterionSearch}
+                                    onChange={e => setCriterionSearch(e.target.value)}
+                                    placeholder="Tìm tiêu chí..."
+                                    className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                                  />
+                                  <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách tiêu chí">
+                                    {orderedCriteria.frequent.length > 0 && !criterionSearch && (
+                                      <div className="px-2.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Sử dụng nhiều
+                                      </div>
+                                    )}
+                                    {[...orderedCriteria.frequent, ...orderedCriteria.remaining]
+                                      .filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase()))
+                                      .map(c => {
+                                        const isSelected = selectedCriterionId === c._id;
+                                        return (
+                                          <button
+                                            key={c._id}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={isSelected}
+                                            onClick={() => {
+                                              handleCriterionChange(c._id);
+                                              setIsCriterionPickerOpen(false);
+                                              setCriterionSearch('');
+                                            }}
+                                            className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
+                                              isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                                            }`}
+                                          >
+                                            <span className="truncate">{c.criterion_name}</span>
+                                            <span className="ml-2 shrink-0 text-[11px] text-slate-400 font-mono">
+                                              ({c.score_per_unit || c.min_score || -5}đ)
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    {criteria.filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase())).length === 0 && (
+                                      <div className="py-6 text-center text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
+                                    )}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-0.5">
