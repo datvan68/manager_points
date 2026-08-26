@@ -75,6 +75,14 @@ export interface UpdateAcademicRecordDto {
   status?: 'active' | 'inactive';
 }
 
+export interface BulkDeleteAcademicRecordsResult {
+  requested: number;
+  succeeded: string[];
+  failed: Array<{ id: string; message: string }>;
+  succeededCount: number;
+  failedCount: number;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
@@ -225,6 +233,19 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecord>(res);
   },
 
+  async bulkDeleteAcademicRecords(ids: string[]): Promise<BulkDeleteAcademicRecordsResult> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/bulk`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ ids }),
+    });
+    return handleResponse<BulkDeleteAcademicRecordsResult>(res);
+  },
+
   async getDeletedAcademicRecords(): Promise<AcademicRecord[]> {
     const token = tokenStorage.getAccessToken() || '';
     const res = await fetch(`${API_BASE}/academic-records/deleted/all`, {
@@ -256,6 +277,19 @@ export const academicRecordApi = {
       },
     });
     return handleResponse<AcademicRecord>(res);
+  },
+
+  async bulkForceDeleteAcademicRecords(ids: string[]): Promise<BulkDeleteAcademicRecordsResult> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/bulk/force`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ ids }),
+    });
+    return handleResponse<BulkDeleteAcademicRecordsResult>(res);
   },
   async previewPurgeAcademicRecords(startDate: string, endDate: string): Promise<any> {
     const token = tokenStorage.getAccessToken() || '';

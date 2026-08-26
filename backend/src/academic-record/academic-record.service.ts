@@ -2462,6 +2462,40 @@ export class AcademicRecordService {
     return deleted;
   }
 
+  private async bulkDelete(
+    ids: string[],
+    operation: (id: string) => Promise<AcademicRecord>,
+  ) {
+    const requested = Array.from(new Set(ids));
+    const succeeded: string[] = [];
+    const failed: Array<{ id: string; message: string }> = [];
+
+    for (const id of requested) {
+      try {
+        await operation(id);
+        succeeded.push(id);
+      } catch (error: any) {
+        const response = error?.getResponse?.();
+        const message = typeof response === 'string'
+          ? response
+          : response?.message || error?.message || 'Không thể xoá ghi nhận';
+        failed.push({ id, message: Array.isArray(message) ? message.join(', ') : message });
+      }
+    }
+
+    return {
+      requested: requested.length,
+      succeeded,
+      failed,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    };
+  }
+
+  async bulkRemove(ids: string[], requester: any) {
+    return this.bulkDelete(ids, (id) => this.remove(id, requester));
+  }
+
   async restore(id: string, requester?: any): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
@@ -2551,6 +2585,16 @@ export class AcademicRecordService {
     await this.safeSync(deleted);
 
     return deleted;
+  }
+
+  async bulkForceRemove(
+    ids: string[],
+    requester: any,
+    bypassDailyReportCheck = false,
+  ) {
+    return this.bulkDelete(ids, (id) =>
+      this.forceRemove(id, requester, bypassDailyReportCheck),
+    );
   }
 
   private checkHierarchyPermission(record: any, requester: any): void {

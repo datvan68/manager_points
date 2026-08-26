@@ -33,6 +33,7 @@ import { checkPermission } from '../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { isAdminUser, isStudent } from '../auth/utils/role.util';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
+import { BulkDeleteAcademicRecordDto } from './dto/bulk-delete-academic-record.dto';
 
 function checkAcademicRecordReadAccess(): Type<CanActivate> {
   @Injectable()
@@ -297,6 +298,14 @@ export class AcademicRecordController {
     );
   }
 
+  @Delete('bulk')
+  @UseGuards(checkAcademicRecordSelfServiceOrPermission('DELETE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Soft-delete multiple academic records' })
+  bulkRemove(@Body() dto: BulkDeleteAcademicRecordDto, @Request() req: any) {
+    return this.academicRecordService.bulkRemove(dto.ids, req.user);
+  }
+
   @Delete(':id')
   @UseGuards(checkAcademicRecordSelfServiceOrPermission('DELETE_STUDENT_RECORD'))
   @ApiBearerAuth()
@@ -341,5 +350,13 @@ export class AcademicRecordController {
     const bypass = bypassDailyReportCheck === 'true';
     const requester = req.user;
     return this.academicRecordService.forceRemove(id, requester, bypass);
+  }
+
+  @Delete('bulk/force')
+  @UseGuards(checkPermission('DELETE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Permanently delete multiple academic records' })
+  bulkForceRemove(@Body() dto: BulkDeleteAcademicRecordDto, @Request() req: any) {
+    return this.academicRecordService.bulkForceRemove(dto.ids, req.user, true);
   }
 }

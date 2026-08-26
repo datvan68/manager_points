@@ -93,6 +93,7 @@ export default function StudentProfilePage() {
   const [targetClass, setTargetClass] = useState<Class | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
   const [resolvedDrl, setResolvedDrl] = useState<number | null>(null);
+  const [semesters, setSemesters] = useState<Array<{ _id: string; semester_name: string }>>([]);
 
   // ─── Paginated Academic Records State ───
   const [records, setRecords] = useState<AcademicRecord[]>([]);
@@ -161,6 +162,7 @@ export default function StudentProfilePage() {
       .then(([classData, studentData, semestersData, summariesDataRes, recordsRes, dormRes]) => {
         setTargetClass(classData);
         setStudent(studentData);
+        setSemesters(semestersData);
         setDormData(dormRes as SelfDormitoryRosterResponse);
 
         // Tìm học kỳ active và điểm rèn luyện tương ứng
@@ -531,6 +533,49 @@ export default function StudentProfilePage() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+
+            {/* ── Archived training scores ── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="bg-white/40 backdrop-blur-md border border-white/70 p-4 sm:p-6 rounded-2xl shadow-sm shadow-slate-300/40 w-full min-w-0"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-[#1A73E8] h-[20px] w-[5px] rounded-full" />
+                <h2 className="font-sans font-bold text-[#1E293B] text-[15px] sm:text-[16px]">Điểm rèn luyện đã chốt theo học kỳ</h2>
+              </div>
+              {student?.training_point_history?.length ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[...student.training_point_history]
+                    .sort((a, b) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())
+                    .map((snapshot, index) => {
+                      const semesterId = typeof snapshot.semester_id === 'object' ? snapshot.semester_id._id : snapshot.semester_id;
+                      const semesterName = typeof snapshot.semester_id === 'object' && snapshot.semester_id.semester_name
+                        ? snapshot.semester_id.semester_name
+                        : semesters.find(item => item._id === semesterId)?.semester_name || 'Học kỳ đã lưu trữ';
+                      return (
+                        <div key={`${semesterId}-${snapshot.period_id}-${index}`} className="rounded-xl border border-white/80 bg-white/50 p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-[#1E293B] text-[14px]">{semesterName}</p>
+                              <p className="text-[11px] text-[#64748B] mt-1">Đã chốt: {formatRecordDate(snapshot.locked_at)}</p>
+                            </div>
+                            <span className="font-bold text-[#1A73E8] text-[22px] leading-none">{snapshot.total_score}/100</span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[#64748B]">
+                            <span>Xếp loại: {snapshot.rank_label || snapshot.grading || snapshot.rank_tier || 'Chưa cập nhật'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-[13px] text-[#64748B]">
+                  Chưa có điểm rèn luyện đã chốt theo học kỳ.
+                </div>
+              )}
             </motion.div>
 
             {/* ── Thông tin KTX (AC4: only rendered when linked registration exists) ── */}

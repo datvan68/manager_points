@@ -35,4 +35,19 @@ describe('academic record purge API', () => {
       }),
     );
   });
+
+  it('sends one authenticated bulk request with the selected IDs', async () => {
+    const result = { requested: 2, succeeded: ['a'], failed: [{ id: 'b', message: 'blocked' }], succeededCount: 1, failedCount: 1 };
+    mockFetch.mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(result) });
+
+    await expect(academicRecordApi.bulkDeleteAcademicRecords(['a', 'b'])).resolves.toEqual(result);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/academic-records/bulk'),
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({ Authorization: 'Bearer admin-token' }),
+        body: JSON.stringify({ ids: ['a', 'b'] }),
+      }),
+    );
+  });
 });

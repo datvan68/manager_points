@@ -21,7 +21,7 @@ export interface Student {
     rank_label?: string | null;
   } | string | null;
   training_point_history?: Array<{
-    semester_id: string;
+    semester_id: { _id: string; semester_name?: string } | string;
     period_id: string;
     total_score: number;
     grading?: string | null;

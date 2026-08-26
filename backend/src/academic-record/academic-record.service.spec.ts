@@ -2246,5 +2246,23 @@ describe('AcademicRecordService - Import Flow', () => {
 
       await expect(service.findByStudentId(studentId, teacherUser)).rejects.toThrow(ForbiddenException);
     });
+
+    it('deduplicates bulk IDs and returns partial failures without touching snapshots', async () => {
+      const removeSpy = jest.spyOn(service, 'remove')
+        .mockResolvedValueOnce({ _id: 'ok' } as any)
+        .mockRejectedValueOnce(new BadRequestException('locked'));
+
+      const result = await service.bulkRemove(['ok', 'ok', 'blocked'], { roleName: 'Admin' });
+
+      expect(removeSpy).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        requested: 2,
+        succeeded: ['ok'],
+        failed: [{ id: 'blocked', message: 'locked' }],
+        succeededCount: 1,
+        failedCount: 1,
+      });
+      expect(mockStudentModel.updateOne).toBeUndefined();
+    });
   });
 });

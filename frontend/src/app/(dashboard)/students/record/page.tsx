@@ -60,7 +60,7 @@ import {
   DailyClassReport,
 } from "@/api/daily-class-report-api";
 import { classApi, Class } from "@/api/class-api";
-import { academicRecordApi, AcademicRecord } from "@/api/academic-record-api";
+import { academicRecordApi, AcademicRecord, BulkDeleteAcademicRecordsResult } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -220,6 +220,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [isTrashLoading, setIsTrashLoading] = useState(false);
   const [isDeleteAllRecordsConfirmOpen, setIsDeleteAllRecordsConfirmOpen] = useState(false);
   const [isDeleteAllReportsConfirmOpen, setIsDeleteAllReportsConfirmOpen] = useState(false);
+  const [isDeletingRecords, setIsDeletingRecords] = useState(false);
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ processed: 0, total: 0, failed: [] as Array<{ id: string; message: string }> });
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ failed: Array<{ id: string; message: string }> } | null>(null);
   const [isImportRecordPopupOpen, setIsImportRecordPopupOpen] = useState(false);
   const [isImportClassRecordPopupOpen, setIsImportClassRecordPopupOpen] = useState(false);
   const [trashTab, setTrashTab] = useState<"student" | "class">("student");
@@ -822,26 +825,57 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     );
   };
 
-  const handleDelete = async () => {
+  const runBulkRecordDelete = async (ids: string[], permanent = false) => {
+    const uniqueIds = Array.from(new Set(ids));
+    if (isDeletingRecords || uniqueIds.length === 0) return;
+    setIsDeletingRecords(true);
+    setBulkDeleteResult(null);
+    setBulkDeleteProgress({ processed: 0, total: uniqueIds.length, failed: [] });
+    const failed: Array<{ id: string; message: string }> = [];
+    let processed = 0;
     try {
-      if (!ghiNhanAccess.deleteStudentRecord || selectedIds.length === 0) {
-        toast.error("Bạn không có quyền xóa các ghi nhận đã chọn.");
-        return;
+      for (let offset = 0; offset < uniqueIds.length; offset += 25) {
+        const batch = uniqueIds.slice(offset, offset + 25);
+        let result: BulkDeleteAcademicRecordsResult;
+        try {
+          result = permanent
+            ? await academicRecordApi.bulkForceDeleteAcademicRecords(batch)
+            : await academicRecordApi.bulkDeleteAcademicRecords(batch);
+          failed.push(...result.failed);
+        } catch (error: any) {
+          failed.push(...batch.map(id => ({ id, message: error?.message || 'Không thể xoá ghi nhận' })));
+        }
+        processed += batch.length;
+        setBulkDeleteProgress({ processed, total: uniqueIds.length, failed: [...failed] });
       }
-      // Xóa tuần tự từng bản ghi để bắt chính xác lỗi từ backend
-      for (const id of selectedIds) {
-        await academicRecordApi.deleteAcademicRecord(id);
+
+      const failedIds = new Set(failed.map(item => item.id));
+      if (permanent) {
+        setDeletedRecords(prev => prev.filter(record => !uniqueIds.includes(record._id) || failedIds.has(record._id)));
+        await fetchDeletedItems();
+      } else {
+        setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
+        await fetchAcademicRecords();
       }
-      toast.success(`Đã xóa thành công ${selectedIds.length} ghi nhận.`);
-      setSelectedIds([]);
-      fetchAcademicRecords();
-    } catch (err: any) {
-      console.error("Lỗi khi xóa ghi nhận:", err);
-      const errMsg = err.message || "Có lỗi xảy ra khi xóa ghi nhận.";
-      setErrorModalTitle("Không thể xóa ghi nhận");
-      setErrorModalMessage(errMsg);
-      setIsErrorModalOpen(true);
+      if (failed.length > 0) {
+        toast.warning(`Đã xử lý ${uniqueIds.length - failed.length}/${uniqueIds.length} ghi nhận; còn ${failed.length} ghi nhận thất bại.`);
+      } else {
+        toast.success(`Đã ${permanent ? 'xóa vĩnh viễn' : 'xóa'} thành công ${uniqueIds.length} ghi nhận.`);
+        if (!permanent) setSelectedIds([]);
+      }
+      setBulkDeleteResult({ failed: [...failed] });
+    } finally {
+      setIsDeletingRecords(false);
     }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleteConfirmOpen(false);
+    if (!ghiNhanAccess.deleteStudentRecord || selectedIds.length === 0) {
+      toast.error("Bạn không có quyền xóa các ghi nhận đã chọn.");
+      return;
+    }
+    await runBulkRecordDelete(selectedIds);
   };
 
   const handleDeleteRecordSingle = async (id: string) => {
@@ -1020,26 +1054,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const handleForceDeleteAllRecords = async () => {
     setIsDeleteAllRecordsConfirmOpen(false);
     if (deletedRecords.length === 0) return;
-    const toastId = toast.loading("Đang xóa vĩnh viễn tất cả ghi nhận vi phạm...");
-    try {
-      const results = await Promise.allSettled(
-        deletedRecords.map((rec) =>
-          academicRecordApi.forceDeleteAcademicRecord(rec._id, true),
-        ),
-      );
-      const successCount = results.filter((r) => r.status === "fulfilled").length;
-      const failCount = results.filter((r) => r.status === "rejected").length;
-
-      if (failCount > 0) {
-        toast.warning(`Đã xóa vĩnh viễn ${successCount} ghi nhận. Thất bại ${failCount} ghi nhận.`, { id: toastId });
-      } else {
-        toast.success("Đã xóa vĩnh viễn tất cả ghi nhận vi phạm thành công!", { id: toastId });
-      }
-      fetchDeletedItems();
-    } catch (err: any) {
-      console.error("Lỗi khi xóa vĩnh viễn tất cả ghi nhận:", err);
-      toast.error(err.message || "Xóa vĩnh viễn thất bại.", { id: toastId });
-    }
+    await runBulkRecordDelete(deletedRecords.map(rec => rec._id), true);
   };
 
   const handleForceDeleteAllReports = async () => {
@@ -2499,39 +2514,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                             if (
                                               selectedHistoryItems.length > 0
                                             ) {
-                                              setIsLoading(true);
-                                              try {
-                                                const deletePromises =
-                                                  selectedHistoryItems.map(
-                                                    (idx) => {
-                                                      const targetRecord =
-                                                        drawerHistory[idx];
-                                                      return academicRecordApi.deleteAcademicRecord(
-                                                        targetRecord.id,
-                                                      );
-                                                    },
-                                                  );
-                                                await Promise.all(
-                                                  deletePromises,
-                                                );
-                                                toast.success(
-                                                  `Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`,
-                                                );
-                                                setIsSelectingHistory(false);
-                                                setSelectedHistoryItems([]);
-                                                fetchAcademicRecords();
-                                              } catch (err: any) {
-                                                console.error(
-                                                  "Lỗi khi xóa ghi nhận lịch sử:",
-                                                  err,
-                                                );
-                                                toast.error(
-                                                  err.message ||
-                                                    "Có lỗi xảy ra khi xóa ghi nhận.",
-                                                );
-                                              } finally {
-                                                setIsLoading(false);
-                                              }
+                                              await runBulkRecordDelete(
+                                                selectedHistoryItems.map((idx) => drawerHistory[idx].id),
+                                              );
+                                              setIsSelectingHistory(false);
+                                              setSelectedHistoryItems([]);
                                             }
                                           }}
                                           disabled={
@@ -3138,39 +3125,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                 if (
                                                   selectedHistoryItems.length > 0
                                                 ) {
-                                                  setIsLoading(true);
-                                                  try {
-                                                    const deletePromises =
-                                                      selectedHistoryItems.map(
-                                                        (idx) => {
-                                                          const targetRecord =
-                                                            drawerHistory[idx];
-                                                          return academicRecordApi.deleteAcademicRecord(
-                                                            targetRecord.id,
-                                                          );
-                                                        },
-                                                      );
-                                                    await Promise.all(
-                                                      deletePromises,
-                                                    );
-                                                    toast.success(
-                                                      `Đã xóa thành công ${selectedHistoryItems.length} ghi nhận.`,
-                                                    );
-                                                    setIsSelectingHistory(false);
-                                                    setSelectedHistoryItems([]);
-                                                    fetchAcademicRecords();
-                                                  } catch (err: any) {
-                                                    console.error(
-                                                      "Lỗi khi xóa ghi nhận lịch sử:",
-                                                      err,
-                                                    );
-                                                    toast.error(
-                                                      err.message ||
-                                                        "Có lỗi xảy ra khi xóa ghi nhận.",
-                                                    );
-                                                  } finally {
-                                                    setIsLoading(false);
-                                                  }
+                                                  await runBulkRecordDelete(
+                                                    selectedHistoryItems.map((idx) => drawerHistory[idx].id),
+                                                  );
+                                                  setIsSelectingHistory(false);
+                                                  setSelectedHistoryItems([]);
                                                 }
                                               }}
                                               disabled={
@@ -3986,6 +3945,48 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       />
 
       {/* Modal thông báo lỗi từ backend */}
+      <Dialog
+        open={isDeletingRecords || bulkDeleteResult !== null}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingRecords) setBulkDeleteResult(null);
+        }}
+      >
+        <DialogContent
+          onPointerDownOutside={(event) => {
+            if (isDeletingRecords) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (isDeletingRecords) event.preventDefault();
+          }}
+          className="max-w-md rounded-2xl"
+        >
+          <DialogTitle className="font-bold text-[#1E293B]">{isDeletingRecords ? 'Đang xoá ghi nhận' : 'Kết quả xoá ghi nhận'}</DialogTitle>
+          <DialogDescription>
+            {isDeletingRecords
+              ? `Đã xử lý ${bulkDeleteProgress.processed}/${bulkDeleteProgress.total} (${bulkDeleteProgress.total ? Math.round((bulkDeleteProgress.processed / bulkDeleteProgress.total) * 100) : 0}%).`
+              : bulkDeleteResult?.failed.length
+                ? `Có ${bulkDeleteResult.failed.length} ghi nhận chưa xoá được và vẫn được giữ lại trong danh sách chọn.`
+                : 'Đã xoá thành công toàn bộ ghi nhận đã chọn.'}
+          </DialogDescription>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100" aria-label="Tiến độ xoá">
+            <div
+              className="h-full bg-[#1A73E8] transition-all"
+              style={{ width: `${bulkDeleteProgress.total ? Math.round((bulkDeleteProgress.processed / bulkDeleteProgress.total) * 100) : 0}%` }}
+            />
+          </div>
+          {!!(bulkDeleteResult?.failed.length || bulkDeleteProgress.failed.length) && (
+            <div className="max-h-28 overflow-y-auto rounded-lg bg-rose-50 p-3 text-xs text-rose-700">
+              {(bulkDeleteResult?.failed || bulkDeleteProgress.failed).map(item => (
+                <div key={item.id}>{item.id}: {item.message}</div>
+              ))}
+            </div>
+          )}
+          {!isDeletingRecords && (
+            <Button type="button" onClick={() => setBulkDeleteResult(null)}>Đóng</Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ConfirmModal
         isOpen={isErrorModalOpen}
         onClose={() => setIsErrorModalOpen(false)}
