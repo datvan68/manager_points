@@ -67,7 +67,7 @@ vi.mock('@/api/daily-class-report-api', () => ({
 
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: vi.fn(() => ({
-    user: { id: 'user1', role: 'teacher' },
+    user: { id: 'user1', role: 'teacher', permissions: [] },
   })),
 }));
 
@@ -270,5 +270,41 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
     expect(dailyClassReportApi.getDailyClassReports).not.toHaveBeenCalled();
     expect(classApi.getClasses).not.toHaveBeenCalled();
+  });
+
+  it('does not render the purge utility in the configuration modal', async () => {
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+
+    expect(await screen.findByText('Cấu hình & Tiện ích hệ thống')).toBeInTheDocument();
+    expect(screen.queryByText('Dọn ghi nhận HSSV')).not.toBeInTheDocument();
+    expect(screen.queryByText('Xem trước')).not.toBeInTheDocument();
+    expect(screen.queryByText('Xác nhận dọn')).not.toBeInTheDocument();
+  });
+
+  it('offers 500 rows for student pagination and refetches page one', async () => {
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [],
+      meta: { total: 501 },
+    });
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, limit: 40 }),
+      );
+    });
+
+    fireEvent.click(screen.getAllByRole('combobox').at(-1)!);
+    expect(await screen.findByRole('option', { name: '500' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '1000' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: '500' }));
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, limit: 500 }),
+      );
+    });
   });
 });

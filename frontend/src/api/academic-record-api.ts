@@ -258,11 +258,27 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecord>(res);
   },
   async previewPurgeAcademicRecords(startDate: string, endDate: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/academic-records/purge/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate }) });
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/purge/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ startDate, endDate }),
+    });
     return handleResponse<any>(res);
   },
   async purgeAcademicRecords(startDate: string, endDate: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/academic-records/purge`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate }) });
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/purge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ startDate, endDate }),
+    });
     return handleResponse<any>(res);
   },
   async previewImportRecords(rows: any[]): Promise<any> {
