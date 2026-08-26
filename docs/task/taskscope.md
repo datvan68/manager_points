@@ -1,28 +1,27 @@
-task: "Restore finalized training-score history and activate the new semester"
+task: "Expose latest locked training score on student profile"
 pipeline: bug_fix
-profile: Full
-objective: "Student profiles show every finalized semester score, including an inactive old semester, while exactly one newly selected semester is active."
+profile: Quick
+objective: "A student profile distinguishes a failed latest-score request from no locked score and continues to show the most recent locked prior-semester result."
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/students/[classId]/[id]/page.tsx renders only student.training_point_history; existing finalized semesters can therefore show an empty state. backend/src/semesters/semesters.service.ts creates/updates status independently, allowing the old semester to remain active or multiple active semesters."
-  expected_behavior: "Locked scores from closed periods are stored once in training_point_history and remain visible after their semester becomes inactive; activating the new semester deactivates every previous active semester."
-  root_cause: "backend/src/evaluation-periods/evaluation-periods.service.ts:archiveLockedSnapshots runs only on a new transition to closed, so already-closed periods are not backfilled; SemestersService has no single-active invariant."
+  current_behavior: "Runtime data for Nguyễn Lê Hoàng Thọ has a locked HK2 2025-2026 summary (85, Tốt) and an active HK1 2026-2027 draft; frontend/src/app/(dashboard)/profile/page.tsx previously mapped both API failures and null to the same empty label."
+  expected_behavior: "The latest locked summary, including one from an inactive semester, is displayed; an API failure is visibly reported; null remains a valid empty state."
+  root_cause: "frontend/src/app/(dashboard)/profile/page.tsx:fetchProfile swallowed getMyLatestSummary errors. backend/src/summaries-point/summaries-point.service.ts:findLatestForStudent already queries the student's latest locked summary without restricting it to the active semester."
 
 scope:
-  inspect: ["backend/src/summaries-point/schemas/summary-point.schema.ts:locked score fields", "frontend/src/app/(dashboard)/students/[classId]/[id]/page.tsx:archived score cards"]
-  write: ["backend/src/evaluation-periods/evaluation-periods.service.ts:archiveLockedSnapshots", "backend/src/evaluation-periods/evaluation-periods.service.spec.ts", "backend/src/semesters/semesters.service.ts:create/update", "backend/src/semesters/semesters.service.spec.ts", "backend/scripts/backfill-training-point-history.ts", "backend/package.json:migration scripts"]
-  preserve: ["closed-period validation", "historical semester status", "snapshot values and locked_at", "semester CRUD routes and RBAC"]
-  out: ["redesigning the student profile card", "deleting summaries", "automatic date-based semester activation"]
+  inspect: ["frontend/src/app/(dashboard)/profile/page.tsx:fetchProfile and latest-score render", "backend/src/summaries-point/summaries-point.service.ts:findLatestForStudent"]
+  write: ["frontend/src/app/(dashboard)/profile/page.tsx:resolveLatestSummaryState/fetchProfile/render", "frontend/src/app/(dashboard)/profile/page.test.tsx:latest-score state tests"]
+  preserve: ["GET /summaries-points/me/latest contract and its no-semester-filter behavior", "locked-score rank, total, and semester display", "null as the legitimate no-locked-score state"]
+  out: ["MongoDB data changes, summary locking workflow, semester status changes, API/RBAC contract changes"]
 
 acceptance_criteria:
-  - "AC-01: Closing a period idempotently upserts one snapshot per student+period; an inactive semester snapshot remains available to the profile."
-  - "AC-02: Dry-run reports missing/mismatched snapshots for existing closed periods without writing; execute repairs only eligible locked summaries and is rerunnable without duplicates."
-  - "AC-03: Creating or updating semester B as active changes every other active semester to inactive and leaves exactly B active."
+  - "AC-01: A locked summary from a prior inactive semester renders its rank, score, and semester."
+  - "AC-02: A null API response renders 'Chưa có điểm rèn luyện đã chốt'."
+  - "AC-03: A latest-summary request failure renders a loading-error message, not the empty-data message."
 
 execution:
-  - "E-01 [AC-01] Make snapshot persistence an idempotent upsert and add service regression coverage."
-  - "E-02 [AC-02] Add dry-run/execute backfill with counts for scanned, repaired, skipped, and mismatched records; require explicit --execute."
-  - "E-03 [AC-03] Enforce the single-active invariant in SemestersService and test create/update transitions."
+  - "E-01 [AC-01, AC-02, AC-03] frontend/src/app/(dashboard)/profile/page.tsx:resolveLatestSummaryState/fetchProfile → retain request errors separately and render locked, empty, and error states distinctly."
+  - "E-02 [AC-01, AC-02, AC-03] frontend/src/app/(dashboard)/profile/page.test.tsx → cover locked prior-semester input, null, and error states."
 
 temporary_artifacts:
   create: []
@@ -30,10 +29,7 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01] npm --prefix backend test -- evaluation-periods/evaluation-periods.service.spec.ts --runInBand -> pass"
-  - "V-02 [AC-03] npm --prefix backend test -- semesters/semesters.service.spec.ts --runInBand -> pass"
-  - "V-03 [AC-02] npm --prefix backend run migration:training-point-history:dry-run -> zero writes and deterministic counts"
-  - "V-04 [AC-01,AC-02,AC-03] npm --prefix backend run build -> pass"
+  - "V-01 [AC-01, AC-02, AC-03] npm --prefix frontend test -- src/app/(dashboard)/profile/page.test.tsx → all latest-score state tests pass."
 
-risks: ["Backfill changes persistent student history; mismatched snapshots must be reported, not overwritten.", "Concurrent semester updates require transaction/session support or a stop for a safe uniqueness design."]
-stop_conditions: ["Human approval is required before running backfill with --execute.", "Stop if locked summaries are missing required semester/period/student identifiers or multiple snapshots disagree with finalized scores."]
+risks: ["The already-locked prior-semester record is correctly selected by the backend; any remaining live failure is likely API/auth/network related and must be observed without changing data."]
+stop_conditions: ["The authenticated endpoint returns null or an error despite the confirmed linked student and locked summary; stop for a scoped API/auth investigation rather than altering persistent data."]

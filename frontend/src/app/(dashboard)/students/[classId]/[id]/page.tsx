@@ -78,6 +78,22 @@ function formatRecordDate(dateStr?: string): string {
   }
 }
 
+export function getArchivedTrainingScores(student: Student, summaries: any[]): NonNullable<Student['training_point_history']> {
+  if (student.training_point_history?.length) return student.training_point_history;
+
+  return summaries
+    .filter((summary) => summary.status === 'locked')
+    .map((summary) => ({
+      semester_id: summary.semester_id,
+      period_id: typeof summary.period_id === 'object' ? summary.period_id?._id : summary.period_id,
+      total_score: summary.total_score,
+      grading: summary.grading,
+      rank_tier: summary.rank_tier,
+      rank_label: summary.rank_label,
+      locked_at: summary.rank_locked_at || summary.updatedAt || summary.createdAt,
+    }));
+}
+
 export default function StudentProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -155,19 +171,20 @@ export default function StudentProfilePage() {
       classApi.getClass(classId),
       studentApi.getStudent(studentId),
       semesterApi.getSemesters(),
-      summariesPointApi.getSummariesPoints({ studentId }),
+      summariesPointApi.getSummariesPoints({ studentId, limit: 100 }),
       academicRecordApi.getAcademicRecordsByStudent(studentId, { page: 1, limit: 10 }),
       dormitoryApi.roster.getByStudent(studentId).catch(() => ({ has_dormitory_roster: false, roster_entry: null, history: [] })),
     ])
       .then(([classData, studentData, semestersData, summariesDataRes, recordsRes, dormRes]) => {
         setTargetClass(classData);
-        setStudent(studentData);
         setSemesters(semestersData);
         setDormData(dormRes as SelfDormitoryRosterResponse);
 
         // Tìm học kỳ active và điểm rèn luyện tương ứng
         const activeSemester = semestersData.find(s => s.status === 'active');
         const summariesList = summariesDataRes?.data || [];
+        const archivedTrainingScores = getArchivedTrainingScores(studentData, summariesList);
+        setStudent({ ...studentData, training_point_history: archivedTrainingScores });
         let activeSummary = null;
         if (activeSemester) {
           activeSummary = summariesList.find((item: any) => {
@@ -185,7 +202,7 @@ export default function StudentProfilePage() {
           activeSummary = sorted[0];
         }
 
-        const latestSnapshot = [...(studentData.training_point_history || [])].sort((a, b) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())[0];
+        const latestSnapshot = [...archivedTrainingScores].sort((a, b) => new Date(b.locked_at).getTime() - new Date(a.locked_at).getTime())[0];
         const scoreVal = resolveDrlScore(activeSummary) ?? resolveDrlScore(latestSnapshot) ?? resolveDrlScore(studentData.training_point_id);
         setResolvedDrl(scoreVal);
 

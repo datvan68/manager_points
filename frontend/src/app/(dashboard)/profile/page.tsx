@@ -43,6 +43,12 @@ import { normalizeProfile, NormalizedProfile } from "./_lib/normalize-profile";
 import { StudentDormitorySection } from "@/components/profile/StudentDormitorySection";
 import { useLocationPermission } from "@/hooks/useLocationPermission";
 
+export function resolveLatestSummaryState(summary: any, error: string | null) {
+  if (error) return "error" as const;
+  if (summary && summary.status === "locked") return "locked" as const;
+  return "empty" as const;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { checkAuth, logout } = useAuth();
@@ -55,6 +61,7 @@ export default function ProfilePage() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [latestSummary, setLatestSummary] = useState<any>(null);
+  const [latestSummaryError, setLatestSummaryError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [editValues, setEditValues] = useState({
@@ -122,12 +129,17 @@ export default function ProfilePage() {
       const isStudent = isStudentRole(data);
       
       if (isStudent) {
+        setLatestSummary(null);
+        setLatestSummaryError(null);
         try {
           const summary = await summariesPointApi.getMyLatestSummary();
           setLatestSummary(summary);
-        } catch (err) {
-          // Ignore
+        } catch (err: any) {
+          setLatestSummaryError(err?.message || "Không thể tải điểm rèn luyện đã chốt.");
         }
+      } else {
+        setLatestSummary(null);
+        setLatestSummaryError(null);
       }
     } catch (error: any) {
       setLoadError(error.message || "Lỗi khi tải thông tin hồ sơ.");
@@ -359,7 +371,14 @@ export default function ProfilePage() {
 
                     {/* Điểm rèn luyện / Xếp hạng */}
                     {isStudentRole(profile) && (
-                      latestSummary && latestSummary.status === 'locked' ? (() => {
+                      resolveLatestSummaryState(latestSummary, latestSummaryError) === "error" ? (
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl border shadow-sm bg-red-50/70 border-red-200 text-red-700">
+                          <AlertTriangle className="w-4 h-4 shrink-0" />
+                          <span className="text-[13px] font-bold">
+                            Không thể tải điểm rèn luyện đã chốt
+                          </span>
+                        </div>
+                      ) : resolveLatestSummaryState(latestSummary, latestSummaryError) === "locked" ? (() => {
                         const style = getRankStyle(latestSummary.rank_tier);
                         return (
                           <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border shadow-sm ${style.glassBg || style.bg} ${style.glassBorder || style.border}`}>
