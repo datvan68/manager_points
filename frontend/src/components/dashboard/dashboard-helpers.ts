@@ -36,6 +36,7 @@ export interface StudentHighlightItem {
   latestRecordTitle?: string;
   latestRecordAt?: string;
   dominantCriterionName?: string;
+  groupedRecords?: Array<{ label: string; count: number }>;
   type: 'khen_thuong' | 'cong_diem' | 'ky_luat' | 'score' | 'progress';
   href?: string;
 }
@@ -68,6 +69,7 @@ export interface DashboardMetrics {
     totalDepartments: number;
     averageScore: number;
     pendingMyReviewCount: number; // for teachers (students awaiting review) or students (self awaiting submission)
+    studentAttentionCount: number;
     urgentTasksCount: number;
     unreadNotificationsCount: number;
     
@@ -430,6 +432,11 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
     totalPointsEffect: number;
   }>();
 
+  const getRecordQuantity = (record: AcademicRecord) => {
+    const quantity = Number(record.quantity);
+    return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+  };
+
   filteredRecords.forEach(r => {
     if (r.status !== 'active' || r.is_deleted) return;
     
@@ -467,17 +474,18 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
     }
     
     const agg = studentAggregates.get(studentId)!;
-    agg.records.push({ record: r, crit, pointsEffect });
+    const quantity = getRecordQuantity(r);
+    agg.records.push({ record: r, crit, pointsEffect, quantity });
     agg.totalPointsEffect += pointsEffect;
 
     if (critType === 'khen_thuong') {
-      agg.khenThuongCount++;
+      agg.khenThuongCount += quantity;
     } else if (critType === 'cong_diem' || pointsEffect > 0) {
       agg.congDiemPoints += pointsEffect;
     }
     
     if (critType === 'ky_luat' || pointsEffect < 0) {
-      agg.kyLuatCount++;
+      agg.kyLuatCount += quantity;
     }
   });
 
@@ -495,6 +503,16 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
     };
   };
 
+  const getGroupedRecords = (records: any[]) => {
+    const groups = new Map<string, number>();
+    records.forEach(({ record, crit, quantity }: any) => {
+      const label = crit?.criterion_name || record.record_title || 'Ghi nhận';
+      groups.set(label, (groups.get(label) || 0) + (quantity || 1));
+    });
+    return Array.from(groups, ([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'vi'));
+  };
+
   // Top Khen Thuong
   const topRewards: StudentHighlightItem[] = Array.from(studentAggregates.values())
     .filter(agg => agg.khenThuongCount > 0)
@@ -506,6 +524,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       
       const rewardRecords = agg.records.filter(r => r.crit?.criterion_type === 'khen_thuong');
       const latest = getLatestRecordInfo(rewardRecords);
+      const groupedRecords = getGroupedRecords(rewardRecords);
       const rewardImpactScore = rewardRecords.reduce((sum, r) => sum + r.pointsEffect, 0);
       
       const classId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
@@ -523,6 +542,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
         recordCount: agg.khenThuongCount,
         impactScore: rewardImpactScore,
         ...latest,
+        groupedRecords,
         type: 'khen_thuong' as const,
         href: classId ? `/students/${classId}/${s._id}` : `/students`
       };
@@ -546,6 +566,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       
       const bonusRecords = agg.records.filter(r => r.crit?.criterion_type === 'cong_diem' || r.pointsEffect > 0);
       const latest = getLatestRecordInfo(bonusRecords);
+      const groupedRecords = getGroupedRecords(bonusRecords);
       const bonusImpactScore = bonusRecords.reduce((sum, r) => sum + r.pointsEffect, 0);
       
       const classId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
@@ -560,16 +581,17 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
         className,
         currentScore: score,
         grading,
-        recordCount: bonusRecords.length,
+        recordCount: bonusRecords.reduce((sum, r) => sum + r.quantity, 0),
         impactScore: bonusImpactScore,
         ...latest,
+        groupedRecords,
         type: 'cong_diem' as const,
         href: classId ? `/students/${classId}/${s._id}` : `/students`
       };
     })
     .sort((a, b) => {
-      if (b.impactScore !== a.impactScore) return b.impactScore - a.impactScore;
       if (b.recordCount !== a.recordCount) return b.recordCount - a.recordCount;
+      if (b.impactScore !== a.impactScore) return b.impactScore - a.impactScore;
       const timeA = a.latestRecordAt ? new Date(a.latestRecordAt).getTime() : 0;
       const timeB = b.latestRecordAt ? new Date(b.latestRecordAt).getTime() : 0;
       return timeB - timeA;
@@ -586,6 +608,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       
       const disciplineRecords = agg.records.filter(r => r.crit?.criterion_type === 'ky_luat' || r.pointsEffect < 0);
       const latest = getLatestRecordInfo(disciplineRecords);
+      const groupedRecords = getGroupedRecords(disciplineRecords);
       const disciplineImpactScore = disciplineRecords.reduce((sum, r) => sum + r.pointsEffect, 0);
       
       const classId = typeof s.class_id === 'object' ? s.class_id?._id : s.class_id;
@@ -603,6 +626,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
         recordCount: agg.kyLuatCount,
         impactScore: disciplineImpactScore,
         ...latest,
+        groupedRecords,
         type: 'ky_luat' as const,
         href: classId ? `/students/${classId}/${s._id}` : `/students`
       };
@@ -636,7 +660,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
         className,
         currentScore: score,
         grading,
-        recordCount: agg?.records.length || 0,
+        recordCount: agg?.records.reduce((sum, r) => sum + r.quantity, 0) || 0,
         impactScore: agg?.totalPointsEffect || 0,
         ...latest,
         type: 'score' as const,
@@ -673,7 +697,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
           className,
           currentScore: score,
           grading,
-          recordCount: 1,
+          recordCount: r.quantity,
           impactScore: r.pointsEffect,
           ...latest,
           type: (r.crit?.criterion_type === 'ky_luat' || r.pointsEffect < 0) ? ('ky_luat' as const) : ('cong_diem' as const),
@@ -720,6 +744,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       totalDepartments: departments.length,
       averageScore: avgScore,
       pendingMyReviewCount,
+      studentAttentionCount: topDiscipline.filter(item => item.recordCount > 3).length,
       urgentTasksCount: urgentTasks.length,
       unreadNotificationsCount: unreadCount,
       

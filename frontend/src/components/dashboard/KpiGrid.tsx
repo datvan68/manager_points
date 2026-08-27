@@ -195,11 +195,11 @@ export default function KpiGrid({ metrics }: KpiGridProps) {
         onClick: () => handleNav('/grading')
       },
       {
-        title: isTeacher ? "Hồ sơ chờ phê duyệt" : "Hồ sơ cần xử lý",
-        value: kpis.pendingMyReviewCount,
-        description: kpis.pendingMyReviewCount > 0 ? `${kpis.pendingMyReviewCount} hồ sơ chờ duyệt` : "Đã duyệt hết",
+        title: isTeacher ? "Hồ sơ chờ phê duyệt" : "Sinh viên cần xử lý",
+        value: isTeacher ? kpis.pendingMyReviewCount : kpis.studentAttentionCount,
+        description: isTeacher ? (kpis.pendingMyReviewCount > 0 ? `${kpis.pendingMyReviewCount} hồ sơ chờ duyệt` : "Đã duyệt hết") : (kpis.studentAttentionCount > 0 ? `${kpis.studentAttentionCount} sinh viên có trên 3 lượt` : "Không có sinh viên vượt ngưỡng"),
         icon: Clock,
-        color: kpis.pendingMyReviewCount > 0 ? "bg-amber-500/10 text-amber-700 border-amber-500/20" : "bg-slate-500/10 text-[#64748B] border-slate-500/20",
+        color: (isTeacher ? kpis.pendingMyReviewCount : kpis.studentAttentionCount) > 0 ? "bg-amber-500/10 text-amber-700 border-amber-500/20" : "bg-slate-500/10 text-[#64748B] border-slate-500/20",
         onClick: () => handleNav(isTeacher ? '/grading/score' : '/grading')
       }
     ];

@@ -1,28 +1,30 @@
-task: "Keep MongoDB reachable across development Compose entrypoints"
-pipeline: devops_infra
+task: "Ưu tiên bảng học sinh cần chú ý theo số lượt ghi nhận"
+pipeline: feature_development
 profile: Full
-objective: "Running the infra-only Compose entrypoint cannot strand MongoDB outside the network used by an existing containerized backend."
+objective: "Dashboard mở tab Kỷ luật & Chú ý đầu tiên, hiển thị số lượt thực tế theo từng loại ghi nhận và đếm đúng sinh viên có hơn 3 lượt kỷ luật/chú ý trong học kỳ đang chọn."
 
 evidence:
-  current_behavior: "08/26/2026 container log shows MongooseServerSelectionError getaddrinfo ENOTFOUND mongodb from /app. docker inspect identifies manager_points-mongodb-1 from docker-compose.dev-infra.yml on manager_points_default, while manager_points-backend-1 from docker-compose.yml + docker-compose.dev.yml is on manager_points_manager-point-network; docker exec manager_points-backend-1 getent hosts mongodb exits 1."
-  expected_behavior: "MongoDB and Redis created by either development Compose entrypoint share manager-point-network with the containerized backend; hostname mongodb resolves before Nest starts."
-  root_cause: "docker-compose.dev-infra.yml uses the same Compose project/service names as the full stack but declares no networks. Starting its mongodb service recreates the shared service on the implicit default network and disconnects it from the backend network."
+  current_behavior: "frontend/src/components/dashboard/StudentSpotlightPanel.tsx mặc định rewards, render dạng thẻ và chỉ hiện ghi nhận mới nhất; frontend/src/components/dashboard/dashboard-helpers.ts tăng mỗi AcademicRecord đúng 1, dù backend AcademicRecord.quantity biểu diễn số lần, và tab Điểm cộng ưu tiên tổng điểm; KpiGrid.tsx dùng pendingMyReviewCount cho 'Hồ sơ cần xử lý'."
+  expected_behavior: "Admin/giảng viên thấy Kỷ luật & Chú ý là tab đầu/mặc định; các tab Kỷ luật, Khen thưởng và Điểm cộng nhóm số lượt theo loại ghi nhận, xếp sinh viên giảm dần theo tổng số lượt; KPI admin là 'Sinh viên cần xử lý' và bằng số sinh viên có tổng lượt kỷ luật/chú ý > 3 trong phạm vi học kỳ/quyền hiện tại."
+  root_cause: "AcademicRecord.quantity chưa có trong frontend/src/api/academic-record-api.ts và dashboard-helpers.ts đang dùng số document thay cho tổng quantity; StudentHighlightItem chỉ mang latestRecordTitle nên UI không thể trình bày các loại ghi nhận đã gộp."
 
 scope:
-  inspect: ["docker-compose.yml:mongodb/redis/backend network contract", "docker-compose.dev.yml:development overlay", "docker-compose.dev-infra.yml:mongodb/redis network omission", "scripts/dev-host.sh:infra-only Compose invocation"]
-  write: ["docker-compose.dev-infra.yml:attach mongodb and redis to manager-point-network and declare the same network key", "README.md:document entrypoint compatibility and safe ENOTFOUND recovery"]
-  preserve: ["MONGO_URI mongodb://mongodb:27017/manager-point?replicaSet=rs0 inside containers", "localhost URI for host-run Nest", "existing MongoDB/Redis volumes and replica-set state", "unrelated dirty changes and all .env files"]
-  out: ["production deployment", "volume deletion/recreation", "application retry changes", "custom DNS, external MongoDB, or multi-node topology"]
+  inspect: ["backend/src/academic-record/schemas/academic-record.schema.ts:quantity contract", "frontend/src/components/dashboard/dashboard-helpers.ts:buildDashboardOverview", "frontend/src/components/dashboard/StudentSpotlightPanel.tsx:admin/teacher tabs", "frontend/src/components/dashboard/KpiGrid.tsx:admin KPI"]
+  write: ["frontend/src/api/academic-record-api.ts:AcademicRecord.quantity", "frontend/src/components/dashboard/dashboard-helpers.ts:StudentHighlightItem/buildDashboardOverview aggregation", "frontend/src/components/dashboard/StudentSpotlightPanel.tsx:tab order/default and table columns", "frontend/src/components/dashboard/KpiGrid.tsx:admin attention KPI", "frontend/src/components/dashboard/dashboard-helpers.test.tsx:aggregation and UI regression coverage"]
+  preserve: ["semester, role, active/deleted record filters", "teacher 'Hồ sơ chờ phê duyệt' semantics", "student/system dashboard variants", "Điểm rèn luyện cao remains ordered by currentScore", "routes and backend/API schema"]
+  out: ["backend mutation or migration", "threshold configuration UI", "dashboard redesign outside the spotlight/KPI panels"]
 
 acceptance_criteria:
-  - "AC-01: Rendered dev-infra configuration attaches mongodb and redis to the same manager-point-network key used by the full development stack."
-  - "AC-02: After infra-only mongodb is started under project manager_points, backend and MongoDB have a common network and getent hosts mongodb succeeds inside backend."
-  - "AC-03: Nest connects without ENOTFOUND mongodb; MongoDB remains an rs0 writable primary and existing named volumes are unchanged."
-  - "AC-04: README gives a recovery command that recreates services without down -v or data deletion."
+  - "AC-01: Kỷ luật & Chú ý is the first visible and initially active tab."
+  - "AC-02: Discipline rows expose Họ và tên, Lớp, Số lượt, Điểm bị trừ, Ghi nhận; repeated records of one criterion are represented once with summed quantity."
+  - "AC-03: Kỷ luật, Khen thưởng and Điểm cộng rank by total quantity descending, with existing domain score/date rules used only as ties; Điểm rèn luyện cao keeps score ordering."
+  - "AC-04: Admin KPI title is 'Sinh viên cần xử lý' and value is the distinct in-scope student count with discipline/warning recordCount > 3; exactly 3 is excluded. Teacher approval KPI is unchanged."
 
 execution:
-  - "E-01 [AC-01..AC-03] docker-compose.dev-infra.yml:mongodb/redis/networks → bind both services to manager-point-network using the same project-scoped network contract as docker-compose.yml."
-  - "E-02 [AC-04] README.md:development troubleshooting → record the mixed-entrypoint failure signature and a no-volume-delete service recreation procedure."
+  - "E-01 [AC-02..AC-04] academic-record-api.ts/dashboard-helpers.ts → type quantity, normalize invalid/missing quantity to 1, aggregate per student and criterion, expose grouped labels/counts, and derive the >3 count from topDiscipline."
+  - "E-02 [AC-01..AC-03] StudentSpotlightPanel.tsx → reorder/default tabs and render the requested discipline columns; reuse grouped-count presentation for Khen thưởng/Điểm cộng without changing score-tab ranking."
+  - "E-03 [AC-04] KpiGrid.tsx → replace only the admin card label/value/description with the derived student-attention metric."
+  - "E-04 [AC-01..AC-04] dashboard-helpers.test.tsx → cover quantity grouping, descending order, threshold boundaries, default tab/columns, and teacher KPI preservation."
 
 temporary_artifacts:
   create: []
@@ -30,10 +32,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01] docker compose -f docker-compose.dev-infra.yml config -q → exits 0; rendered mongodb/redis networks include manager-point-network."
-  - "V-02 [AC-02, AC-03] docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d mongodb redis backend; docker compose -f docker-compose.dev-infra.yml up -d mongodb; docker exec manager_points-backend-1 getent hosts mongodb → exits 0 after the exact previously failing sequence."
-  - "V-03 [AC-03] docker exec manager_points-mongodb-1 mongosh --quiet --eval 'const h=db.adminCommand({hello:1}); if(h.setName!==\"rs0\"||!h.isWritablePrimary) quit(1)' → exits 0; backend logs contain no new ENOTFOUND mongodb retry."
-  - "V-04 [AC-04] git diff --check -- docker-compose.dev-infra.yml README.md → exits 0."
+  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/dashboard/dashboard-helpers.test.tsx → focused Vitest suite passes."
+  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck → exits 0."
+  - "V-03 [AC-01..AC-04] git diff --check -- frontend/src/api/academic-record-api.ts frontend/src/components/dashboard/dashboard-helpers.ts frontend/src/components/dashboard/StudentSpotlightPanel.tsx frontend/src/components/dashboard/KpiGrid.tsx frontend/src/components/dashboard/dashboard-helpers.test.tsx → exits 0."
 
-risks: ["Compose project-name overrides must remain consistent; different -p values create different physical networks even when YAML keys match."]
-stop_conditions: ["Stop before any command that removes volumes or persistent data.", "Stop if the failing backend and MongoDB intentionally use different Compose projects; choose an explicit external-network contract instead of assuming shared project scope.", "Stop if DNS succeeds but MongoDB returns authentication, TLS, replica-set, or connection-refused errors; diagnose that separate failure."]
+risks: ["quantity is a backend occurrence count while points_effect may already be the total score impact; multiply points only if repository fixtures prove it is per-unit, otherwise preserve points_effect to avoid double counting."]
+
+stop_conditions: ["Stop if product expects the >3 threshold across all positive and negative records rather than discipline/warning records.", "Stop if grouped 'Ghi nhận' must support drill-down or editing, which expands navigation/API scope.", "Stop if implementing quantity requires a backend contract or migration change."]
