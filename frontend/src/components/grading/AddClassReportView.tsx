@@ -830,34 +830,21 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     >
       <div className="flex flex-col gap-3.5 sm:gap-4 mx-auto w-full md:flex-1 md:min-h-0">
         {/* Page Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
-          <div className="flex gap-2.5 sm:gap-3 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleBack}
-              className="backdrop-blur-md bg-white/45 border border-white/70 rounded-xl min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 w-11 h-11 md:w-9 md:h-9 md:sm:w-10 md:sm:h-10 p-0 flex items-center justify-center cursor-pointer hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.05] shadow-xs shrink-0"
-              title="Quay lại"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-700" />
-            </Button>
-
-            <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-xs shrink-0 w-9 h-9 sm:w-10 sm:h-10">
-              <FileText className="w-4 h-4 text-[#005bbf]" />
+        <div className="flex items-center justify-between gap-3 w-full">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleBack}
+            className="group bg-white/45 backdrop-blur-md border border-white/70 hover:bg-white/80 text-[#005bbf] font-bold text-xs sm:text-sm h-auto py-1 px-1.5 pr-3.5 rounded-xl uppercase tracking-wide flex items-center gap-2 shadow-xs shadow-slate-300/30 transition-all duration-150 ease-out hover:scale-[1.02] cursor-pointer"
+            title="Quay lại"
+          >
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/60 border border-white/80 flex items-center justify-center shrink-0 group-hover:bg-white/90 transition-all">
+              <ArrowLeft className="w-4 h-4 text-slate-700 group-hover:text-[#005bbf] transition-colors" />
             </div>
-
-            <div className="flex flex-col items-start min-w-0">
-              <h2 className="font-bold text-[18px] sm:text-[20px] lg:text-[22px] text-[#005bbf] leading-tight truncate">
-                {reportToEdit ? 'Chỉnh sửa ghi nhận lớp' : 'Ghi nhận lớp'}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-[#005bbf]/5 text-[#005bbf] font-bold text-[11px] px-3 py-1.5 rounded-xl uppercase tracking-wider border border-[#005bbf]/10 flex items-center gap-1.5 shadow-xs bg-white/40 backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#005bbf] animate-pulse" />
-              <span>Hệ thống ghi nhận</span>
-            </div>
-          </div>
+            <div className="h-4 w-px bg-slate-300/60 shrink-0" />
+            <Sparkles className="w-4 h-4 text-[#005bbf] animate-pulse shrink-0" />
+            <span className="truncate">{reportToEdit ? 'Hệ thống chỉnh sửa ghi nhận lớp' : 'Hệ thống ghi nhận lớp'}</span>
+          </Button>
         </div>
 
         {/* Loading Spinner */}

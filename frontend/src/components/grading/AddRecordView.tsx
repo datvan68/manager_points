@@ -694,34 +694,21 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
     >
       <div className="flex flex-col gap-4 sm:gap-5 mx-auto w-full md:flex-1 md:min-h-0">
         {/* Page Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-          <div className="flex gap-3 items-center">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleBack}
-              className="backdrop-blur-md bg-white/50 border border-white/80 rounded-xl min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 w-11 h-11 md:w-9 md:h-9 p-0 flex items-center justify-center cursor-pointer hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs shrink-0"
-              title="Quay lại"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-700" />
-            </Button>
-
-            <div className="hidden xs:flex backdrop-blur-md bg-white/50 border border-white/80 items-center justify-center rounded-xl shadow-xs shrink-0 w-9 h-9">
-              <FileText className="w-4 h-4 text-[#1A73E8]" />
+        <div className="flex items-center justify-between gap-4 w-full">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleBack}
+            className="group bg-white/50 backdrop-blur-md border border-white/80 hover:bg-white/80 text-[#1A73E8] font-bold text-xs sm:text-sm h-auto py-1 px-1.5 pr-3.5 rounded-xl uppercase tracking-wide flex items-center gap-2 shadow-xs shadow-slate-300/30 transition-all duration-150 ease-out hover:scale-[1.02] cursor-pointer"
+            title="Quay lại"
+          >
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/60 border border-white/80 flex items-center justify-center shrink-0 group-hover:bg-white/90 transition-all">
+              <ArrowLeft className="w-4 h-4 text-slate-700 group-hover:text-[#1A73E8] transition-colors" />
             </div>
-
-            <div className="flex flex-col items-start min-w-0">
-              <h2 className="font-bold text-lg lg:text-xl text-[#1A73E8] leading-tight truncate">
-                {isEditMode ? 'Chỉnh sửa ghi nhận HSSV' : 'Ghi nhận HSSV'}
-              </h2>
-            </div>
-          </div>
-          <div className="flex items-center sm:justify-end shrink-0">
-            <div className="bg-white/50 backdrop-blur-md border border-white/80 text-[#1A73E8] font-bold text-[11px] px-3.5 py-1.5 rounded-xl uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-[#1A73E8] animate-pulse" />
-              <span>Hệ thống ghi nhận</span>
-            </div>
-          </div>
+            <div className="h-4 w-px bg-slate-300/60 shrink-0" />
+            <Sparkles className="w-4 h-4 text-[#1A73E8] animate-pulse shrink-0" />
+            <span className="truncate">{isEditMode ? 'Hệ thống chỉnh sửa ghi nhận HSSV' : 'Hệ thống ghi nhận HSSV'}</span>
+          </Button>
         </div>
 
         {isLoadingData ? (
