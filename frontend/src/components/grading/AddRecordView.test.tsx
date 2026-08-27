@@ -25,17 +25,34 @@ describe('AddRecordView draft contract', () => {
     }));
   });
 
-  it('accepts the create-form fields and rejects malformed values', () => {
+  it('accepts the create-form fields and rejects malformed values, supporting legacy drafts', () => {
     expect(isStudentRecordDraft({
       classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', criterionId: 'criterion-1',
       selectedStudentId: 'student-1', entryMode: 'quick', pendingQuickViolationKeys: [],
       violationNote: 'note', addedViolations: [],
     })).toBe(true);
+
+    // Legacy draft missing selectedStudentId or entryMode
+    expect(isStudentRecordDraft({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', criterionId: 'criterion-1',
+      pendingQuickViolationKeys: [], violationNote: 'note', addedViolations: [],
+    })).toBe(true);
+
     expect(isStudentRecordDraft({ classIds: ['class-1'], reportDate: 123 })).toBe(false);
     expect(isStudentRecordDraft({
       classIds: [], reportDate: '2026-08-25T00:00:00.000Z', criterionId: '', selectedStudentId: '',
       entryMode: 'quick', pendingQuickViolationKeys: [], violationNote: '', addedViolations: [{}],
     })).toBe(false);
+  });
+
+  it('buildStudentRecordDraft defaults entryMode to quick and selectedStudentId to empty string', () => {
+    const draft = buildStudentRecordDraft({
+      classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'),
+      criterionId: 'criterion-1', pendingQuickViolationKeys: new Set(),
+      violationNote: 'note', addedViolations: [],
+    });
+    expect(draft.entryMode).toBe('quick');
+    expect(draft.selectedStudentId).toBe('');
   });
 });
 

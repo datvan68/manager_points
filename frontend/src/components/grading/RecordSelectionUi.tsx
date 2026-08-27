@@ -61,10 +61,11 @@ export function RecordOptionRow({
   );
 }
 
-interface RecordSelectionDialogProps {
+export interface RecordSelectionDialogProps {
   label: string;
   title: string;
   description?: string;
+  hideHeader?: boolean;
   value: SelectionValue;
   displayValue?: string;
   multiple?: boolean;
@@ -82,7 +83,7 @@ interface RecordSelectionDialogProps {
 }
 
 export function RecordSelectionDialog({
-  label, title, description, value, displayValue, multiple = false, disabled, placeholder, searchValue = '', onSearchChange,
+  label, title, description, hideHeader = false, value, displayValue, multiple = false, disabled, placeholder, searchValue = '', onSearchChange,
   onConfirm, loading, onLoadMore, hasMore, searchable = false, isMobile = false, children,
 }: RecordSelectionDialogProps) {
   const [open, setOpen] = useState(false);
@@ -105,13 +106,29 @@ export function RecordSelectionDialog({
 
   const selectionContent = (
     <div className="mx-auto flex min-h-0 h-full w-full max-w-4xl flex-col gap-3.5 sm:gap-4 overflow-hidden">
-      <div className="flex items-start justify-between gap-4 pr-8">
-        <div>
-          {isMobile ? <DialogTitle className="text-base font-bold text-slate-800">{title}</DialogTitle> : <h2 className="text-base lg:text-lg font-semibold leading-none tracking-tight">{title}</h2>}
-          {isMobile ? <DialogDescription className="mt-1 text-xs text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</DialogDescription> : <p className="mt-1 text-sm text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</p>}
+      {hideHeader ? (
+        <div className="sr-only">
+          {isMobile ? (
+            <>
+              <DialogTitle className="sr-only">{title}</DialogTitle>
+              <DialogDescription className="sr-only">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</DialogDescription>
+            </>
+          ) : (
+            <>
+              <h2 className="sr-only">{title}</h2>
+              <p className="sr-only">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</p>
+            </>
+          )}
         </div>
-        <X className="sr-only" aria-hidden="true" />
-      </div>
+      ) : (
+        <div className="flex items-start justify-between gap-4 pr-8">
+          <div>
+            {isMobile ? <DialogTitle className="text-base font-bold text-slate-800">{title}</DialogTitle> : <h2 className="text-base lg:text-lg font-semibold leading-none tracking-tight">{title}</h2>}
+            {isMobile ? <DialogDescription className="mt-1 text-xs text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</DialogDescription> : <p className="mt-1 text-sm text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</p>}
+          </div>
+          <X className="sr-only" aria-hidden="true" />
+        </div>
+      )}
       {(onSearchChange || searchable) && (
         <Input
           autoFocus
@@ -180,5 +197,195 @@ export function RecordSelectionDialog({
         </Popover>
       )}
     </div>
+  );
+}
+
+export interface StudentOptionItem {
+  _id: string;
+  full_name: string;
+  student_code: string;
+  class_id?: any;
+}
+
+export interface MobileStudentSelectionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title?: string;
+  description?: string;
+  criterionName?: string;
+  students: StudentOptionItem[];
+  selectedStudentIds: string[];
+  onConfirm: (selectedIds: string[]) => void;
+  onCancel: () => void;
+  loading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+}
+
+export function MobileStudentSelectionDialog({
+  open,
+  onOpenChange,
+  title = 'Chọn sinh viên',
+  description = 'Chọn danh sách sinh viên rồi nhấn Xác nhận để lưu ghi nhận.',
+  criterionName,
+  students,
+  selectedStudentIds,
+  onConfirm,
+  onCancel,
+  loading = false,
+  hasMore = false,
+  onLoadMore,
+  searchQuery = '',
+  onSearchChange,
+}: MobileStudentSelectionDialogProps) {
+  const [draftSelectedIds, setDraftSelectedIds] = useState<string[]>(selectedStudentIds);
+  const [internalSearch, setInternalSearch] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setDraftSelectedIds(selectedStudentIds);
+      setInternalSearch('');
+    }
+  }, [open, selectedStudentIds]);
+
+  const toggleStudent = (id: string) => {
+    setDraftSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id],
+    );
+  };
+
+  const handleConfirm = () => {
+    onConfirm(draftSelectedIds);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onCancel();
+    onOpenChange(false);
+  };
+
+  const activeSearch = onSearchChange ? searchQuery : internalSearch;
+  const filteredStudents = onSearchChange
+    ? students
+    : students.filter(s =>
+        `${s.full_name} ${s.student_code}`.toLowerCase().includes(activeSearch.toLowerCase()),
+      );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className="left-1/2 top-1/2 h-[min(82dvh,600px)] max-h-[calc(100dvh-2.5rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-0 bg-slate-50/95 p-3.5 sm:p-4 shadow-2xl"
+      >
+        <div className="mx-auto flex min-h-0 h-full w-full flex-col gap-3 overflow-hidden">
+          <div className="sr-only">
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+            <div className="min-w-0 flex-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiêu chí ghi nhận</span>
+              <p className="truncate text-sm font-bold text-[#005bbf]">{criterionName || 'Ghi nhận rèn luyện'}</p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold text-slate-600" aria-live="polite">
+              Đã chọn: <strong className="text-[#005bbf]">{draftSelectedIds.length}</strong> / {students.length}
+            </span>
+          </div>
+
+          <Input
+            autoFocus
+            type="search"
+            role="combobox"
+            aria-label="Tìm sinh viên"
+            value={activeSearch}
+            onChange={e =>
+              onSearchChange ? onSearchChange(e.target.value) : setInternalSearch(e.target.value)
+            }
+            placeholder="Tìm tên hoặc MSSV..."
+            className="h-11 min-h-[44px] rounded-xl bg-white text-sm"
+          />
+
+          <div
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2"
+            role="listbox"
+            aria-label="Danh sách sinh viên"
+          >
+            <div className="flex flex-col gap-1.5">
+              {filteredStudents.map(student => {
+                const isSelected = draftSelectedIds.includes(student._id);
+                return (
+                  <button
+                    key={student._id}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => toggleStudent(student._id)}
+                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-left font-semibold transition-colors min-h-[48px] text-sm ${
+                      isSelected
+                        ? 'border border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
+                        : 'border border-slate-100 bg-white hover:bg-slate-50 text-slate-800'
+                    }`}
+                  >
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate text-sm font-bold leading-tight">{student.full_name}</span>
+                      <span className="text-xs text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {isSelected && (
+                        <span className="text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
+                          Đã chọn
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {!loading && filteredStudents.length === 0 && (
+                <div className="py-8 text-center text-sm text-slate-400 italic">Không tìm thấy sinh viên.</div>
+              )}
+              {loading && (
+                <div className="flex items-center justify-center gap-2 p-4 text-xs text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Đang tải...
+                </div>
+              )}
+              {hasMore && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onLoadMore}
+                  disabled={loading}
+                  className="mx-auto mt-2 flex h-11 min-h-[44px] text-sm"
+                >
+                  Tải thêm sinh viên
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              className="h-11 min-h-[44px] px-5 text-sm font-bold"
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirm}
+              className="h-11 min-h-[44px] px-5 text-sm font-bold bg-[#005bbf] text-white hover:bg-[#004ca0]"
+            >
+              <Check className="h-4 w-4 mr-1.5" />
+              Xác nhận
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

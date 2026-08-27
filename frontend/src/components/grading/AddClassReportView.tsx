@@ -20,7 +20,7 @@ import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
-import { RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
+import { RecordSelectionDialog, quickGridClass, toggleSelectionValue, MobileStudentSelectionDialog } from './RecordSelectionUi';
 import { useRecordDraft } from '@/hooks/useRecordDraft';
 
 export interface ViolationItem {
@@ -193,22 +193,22 @@ interface ClassReportDraft {
   reportDate: string;
   teacherName: string;
   classNote: string;
-  selectedStudentId: string;
+  selectedStudentId?: string;
   selectedCriterionId: string;
   violationNote: string;
   addedViolations: ViolationItem[];
   pendingQuickViolationKeys: string[];
-  entryMode: 'manual' | 'quick';
+  entryMode?: 'manual' | 'quick';
 }
 
 export function buildClassReportDraft({
-  classIds, reportDate, teacherName, classNote, selectedStudentId, selectedCriterionId,
-  violationNote, addedViolations, pendingQuickViolationKeys, entryMode,
+  classIds, reportDate, teacherName, classNote, selectedStudentId = '', selectedCriterionId,
+  violationNote, addedViolations, pendingQuickViolationKeys, entryMode = 'quick',
 }: {
   classIds: string[]; reportDate: Date; teacherName: string; classNote: string;
-  selectedStudentId: string; selectedCriterionId: string; violationNote: string;
+  selectedStudentId?: string; selectedCriterionId: string; violationNote: string;
   addedViolations: ViolationItem[]; pendingQuickViolationKeys: Set<string>;
-  entryMode: 'manual' | 'quick';
+  entryMode?: 'manual' | 'quick';
 }): ClassReportDraft {
   return {
     classIds, reportDate: reportDate.toISOString(), teacherName, classNote,
@@ -238,13 +238,13 @@ export function isClassReportDraft(value: unknown): value is ClassReportDraft {
     && typeof draft.reportDate === 'string'
     && typeof draft.teacherName === 'string'
     && typeof draft.classNote === 'string'
-    && typeof draft.selectedStudentId === 'string'
+    && (draft.selectedStudentId === undefined || typeof draft.selectedStudentId === 'string')
     && typeof draft.selectedCriterionId === 'string'
     && typeof draft.violationNote === 'string'
     && validViolations
     && Array.isArray(draft.pendingQuickViolationKeys)
     && draft.pendingQuickViolationKeys.every(item => typeof item === 'string')
-    && (draft.entryMode === 'manual' || draft.entryMode === 'quick');
+    && (draft.entryMode === undefined || draft.entryMode === 'manual' || draft.entryMode === 'quick');
 }
 
 export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: AddClassReportViewProps) {
@@ -269,15 +269,15 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [totalAbsent, setTotalAbsent] = useState<number>(0);
 
   // Student Violation inputs
-  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [isCriterionPickerOpen, setIsCriterionPickerOpen] = useState(false);
   const [criterionSearch, setCriterionSearch] = useState('');
   const [violationNote, setViolationNote] = useState('');
   const [addedViolations, setAddedViolations] = useState<ViolationItem[]>([]);
   const [pendingQuickViolationKeys, setPendingQuickViolationKeys] = useState<Set<string>>(new Set());
-  const [entryMode, setEntryMode] = useState<'manual' | 'quick'>('quick');
   const [isMobile, setIsMobile] = useState(false);
+  const [isMobileStudentOverlayOpen, setIsMobileStudentOverlayOpen] = useState(false);
+  const handledPrereqKeyRef = React.useRef('');
 
   useEffect(() => {
     setCriterionUsage(readCriterionUsage(user?.id));
@@ -312,12 +312,10 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     setClassIds(draft.classIds);
     setTeacherName(draft.teacherName);
     setClassNote(draft.classNote);
-    setSelectedStudentId(draft.selectedStudentId);
     setSelectedCriterionId(draft.selectedCriterionId);
     setViolationNote(draft.violationNote);
     setAddedViolations(draft.addedViolations);
     setPendingQuickViolationKeys(new Set(draft.pendingQuickViolationKeys));
-    setEntryMode(draft.entryMode);
     if (!Number.isNaN(restoredDate.getTime())) setReportDate(restoredDate);
   }, [draft, draftHydrated, isEditMode]);
 
@@ -328,16 +326,15 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       reportDate,
       teacherName,
       classNote,
-      selectedStudentId,
       selectedCriterionId,
       violationNote,
       addedViolations,
       pendingQuickViolationKeys,
-      entryMode,
+      entryMode: 'quick',
     }));
-  }, [addedViolations, classIds, classNote, draftHydrated, entryMode, isEditMode,
+  }, [addedViolations, classIds, classNote, draftHydrated, isEditMode,
     pendingQuickViolationKeys, reportDate, saveDraft, selectedCriterionId,
-    selectedStudentId, teacherName, violationNote]);
+    teacherName, violationNote]);
 
   // Load classes, students, criteria and editing data
   useEffect(() => {
@@ -411,7 +408,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             const violationsMapped = mapAcademicRecordsToViolations(records, criteria, classIdStr || '');
             setAddedViolations(violationsMapped);
             setSelectedCriterionId(getInitialCriterionId(violationsMapped, criteria));
-            setEntryMode('quick');
           } catch (e) {
             console.error('Lỗi tải vi phạm của báo cáo lớp:', e);
           }
@@ -438,15 +434,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(max-width: 1023px)');
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
     const updateMobile = () => {
-      const mobile = mediaQuery.matches;
-      setIsMobile(mobile);
-      if (mobile) setEntryMode('quick');
+      setIsMobile(mediaQuery.matches);
     };
     updateMobile();
-    mediaQuery.addEventListener('change', updateMobile);
-    return () => mediaQuery.removeEventListener('change', updateMobile);
+    mediaQuery.addEventListener?.('change', updateMobile);
+    return () => mediaQuery.removeEventListener?.('change', updateMobile);
   }, []);
 
   const fetchClassStudents = async (classId: string, page: number, searchVal: string, append: boolean = false) => {
@@ -501,7 +496,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     setTotalStudentsCount(0);
     setClassStudents(prev => prev.filter(student => classIds.includes(getIdValue(student.class_id))));
     if (shouldResetClassDependentState(isRestoringDraft, isHydratingEdit)) {
-      setSelectedStudentId('');
       setSelectedCriterionId('');
       setViolationNote('');
     }
@@ -545,10 +539,9 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     void Promise.all(classIds.filter(id => hasMoreStudents[id]).map(id => fetchClassStudents(id, nextPages[id], studentsSearch, true)));
   };
 
-  // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt (vi phạm vắng học được cấu hình)
+  // Tự động tính toán sĩ số dựa trên danh sách sinh viên vắng mặt
   useEffect(() => {
     if (totalStudentsCount > 0) {
-      // Chỉ đếm những vi phạm thuộc tiêu chí được cấu hình tính vắng mặt hoặc có chứa từ khóa "vắng"
       const absentViolations = addedViolations.filter(v => 
         absentCriteriaIds.includes(v.criterion_id) || 
         v.criterion_name.toLowerCase().includes('vắng')
@@ -563,57 +556,16 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     }
   }, [addedViolations, totalStudentsCount, absentCriteriaIds]);
 
-  // Thêm vi phạm vào danh sách tạm
-  const handleAddViolationToList = () => {
-    if (classIds.length === 0) {
-      toast.error('Vui lòng chọn lớp học trước!');
-      return;
+  // Auto open mobile student overlay when class and criterion are committed
+  useEffect(() => {
+    if (!isMobile || isEditMode) return;
+    if (classIds.length === 0 || !selectedCriterionId) return;
+    const prereqKey = `${classIds.slice().sort().join(',')}:${selectedCriterionId}`;
+    if (prereqKey !== handledPrereqKeyRef.current) {
+      handledPrereqKeyRef.current = prereqKey;
+      setIsMobileStudentOverlayOpen(true);
     }
-    if (!selectedStudentId) {
-      toast.error('Vui lòng chọn sinh viên vi phạm!');
-      return;
-    }
-    if (!selectedCriterionId) {
-      toast.error('Vui lòng chọn tiêu chí vi phạm!');
-      return;
-    }
-
-    const addError = getViolationAddError(addedViolations, selectedStudentId, selectedCriterionId);
-    if (addError === 'limit') {
-      toast.error('Chỉ được ghi nhận tối đa 10 mục vi phạm!');
-      return;
-    }
-
-    // Check trùng vi phạm cùng sinh viên
-    if (addError === 'duplicate') {
-      toast.error('Sinh viên này đã bị ghi nhận tiêu chí vi phạm này!');
-      return;
-    }
-
-    const student = classStudents.find(s => s._id === selectedStudentId);
-    const criterion = criteria.find(c => c._id === selectedCriterionId);
-
-    if (!student) {
-      toast.error('Không tìm thấy sinh viên đã chọn, vui lòng tải lại danh sách');
-      return;
-    }
-
-    if (!criterion) {
-      toast.error('Không tìm thấy tiêu chí đã chọn, vui lòng tải lại danh sách tiêu chí');
-      return;
-    }
-
-    if (student && criterion) {
-      const newViolation = createViolationItem(student, criterion, violationNote);
-
-      setAddedViolations([...addedViolations, newViolation]);
-
-      // Reset inputs
-      setSelectedStudentId('');
-      setSelectedCriterionId('');
-      toast.success('Đã thêm vi phạm vào danh sách!');
-    }
-  };
+  }, [classIds, selectedCriterionId, isMobile, isEditMode]);
 
   const handleToggleQuickStudent = (student: Student) => {
     if (classIds.length === 0) {
@@ -663,20 +615,37 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   const orderedCriteria = orderCriteriaByUsage(criteria, criterionUsage);
 
-  // Xóa vi phạm khỏi danh sách tạm
-  const handleRemoveViolationFromList = (index: number) => {
-    setAddedViolations(prev => prev.filter((_, i) => i !== index));
-    toast.success('Đã xóa vi phạm khỏi danh sách tạm.');
+  const handleMobileRosterConfirm = async (confirmedStudentIds: string[]) => {
+    if (!selectedCriterionId) return;
+    const criterion = criteria.find(c => c._id === selectedCriterionId);
+    if (!criterion) return;
+
+    const otherViolations = addedViolations.filter(v => v.criterion_id !== selectedCriterionId);
+    const newViolations = confirmedStudentIds.map(studentId => {
+      const existing = addedViolations.find(v => v.student_id === studentId && v.criterion_id === selectedCriterionId);
+      if (existing) return existing;
+      const student = classStudents.find(s => s._id === studentId);
+      if (!student) return null;
+      return createViolationItem(student, criterion, violationNote);
+    }).filter(Boolean) as ViolationItem[];
+
+    const nextViolations = [...otherViolations, ...newViolations];
+    setAddedViolations(nextViolations);
+    setPendingQuickViolationKeys(new Set());
+    setIsMobileStudentOverlayOpen(false);
+
+    await handleSave(undefined, nextViolations);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent, overrideViolations?: ViolationItem[]) => {
+    if (e) e.preventDefault();
     if (classIds.length === 0) {
       toast.error('Vui lòng chọn lớp học!');
       return;
     }
     setIsSaving(true);
     const dateFormatted = reportDate.toISOString();
+    const currentViolations = overrideViolations ?? addedViolations;
 
     try {
       const reportIdsByClass = new Map<string, string>();
@@ -684,7 +653,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
       if (reportToEdit) {
         // --- CHẾ ĐỘ CHỈNH SỬA ---
-        // 1. Cập nhật báo cáo lớp học
         await dailyClassReportApi.updateDailyClassReport(reportToEdit._id, {
           class_id: classIds[0],
           report_date: dateFormatted,
@@ -696,7 +664,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         reportIdsByClass.set(classIds[0], reportToEdit._id);
         dailyReportId = reportToEdit._id;
 
-        // 2. Xóa toàn bộ các academic_records cũ của daily report này để ghi đè sạch sẽ
         try {
           const oldRecords = await academicRecordApi.getAcademicRecordsByDailyReport(dailyReportId);
           await Promise.all(oldRecords.map(rec => academicRecordApi.deleteAcademicRecord(rec._id, true)));
@@ -707,16 +674,15 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         toast.success('Cập nhật thông tin chung thành công!');
       } else {
         // --- CHẾ ĐỘ TẠO MỚI ---
-        // 1. Tạo mới báo cáo lớp học hàng ngày
         const newReport = await dailyClassReportApi.createDailyClassReport({
           class_id: classIds[0],
-          reported_by: user?.id || '60d0fe4f5311236168a109ca', // use logged-in user or fallback
+          reported_by: user?.id || '60d0fe4f5311236168a109ca',
           report_date: dateFormatted,
           teacher_name: teacherName.trim(),
-          total_present: Math.max(0, (classStudentTotals[classIds[0]] || totalStudentsCount) - new Set(addedViolations.filter(violation =>
+          total_present: Math.max(0, (classStudentTotals[classIds[0]] || totalStudentsCount) - new Set(currentViolations.filter(violation =>
             (violation.class_id || classIds[0]) === classIds[0] && (absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng')),
           ).map(violation => violation.student_id)).size),
-          total_absent: new Set(addedViolations.filter(violation =>
+          total_absent: new Set(currentViolations.filter(violation =>
             (violation.class_id || classIds[0]) === classIds[0] && (absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng')),
           ).map(violation => violation.student_id)).size,
           class_notes: classNote.trim(),
@@ -724,7 +690,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         dailyReportId = newReport._id;
         reportIdsByClass.set(classIds[0], newReport._id);
         for (const selectedClassId of classIds.slice(1)) {
-          const classViolations = addedViolations.filter(violation => violation.class_id === selectedClassId);
+          const classViolations = currentViolations.filter(violation => violation.class_id === selectedClassId);
           const absentCount = new Set(classViolations.filter(violation =>
             absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng'),
           ).map(violation => violation.student_id)).size;
@@ -743,9 +709,9 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         toast.success('Tạo báo cáo lớp học hàng ngày thành công!');
       }
 
-      // 2. Lưu các bản ghi vi phạm bằng batch API
-      if (addedViolations.length > 0) {
-        const recordsToCreate = addedViolations.map(violation => {
+      // Lưu các bản ghi vi phạm bằng batch API
+      if (currentViolations.length > 0) {
+        const recordsToCreate = currentViolations.map(violation => {
           const dailyReportId = reportIdsByClass.get(violation.class_id || classIds[0]);
           const resolvedCriterion = criteria.find(c => c._id === violation.criterion_id) || resolveCriterionByName(criteria, [violation.criterion_name]);
           if (!resolvedCriterion) {
@@ -798,8 +764,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
   const handleBack = () => {
     if (!isEditMode) saveDraft(buildClassReportDraft({
-      classIds, reportDate, teacherName, classNote, selectedStudentId, selectedCriterionId,
-      violationNote, addedViolations, pendingQuickViolationKeys, entryMode,
+      classIds, reportDate, teacherName, classNote, selectedCriterionId,
+      violationNote, addedViolations, pendingQuickViolationKeys, entryMode: 'quick',
     }));
     onBack();
   };
@@ -820,7 +786,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         {/* Page Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
           <div className="flex gap-2.5 sm:gap-3 items-center">
-            {/* Back Button Pill Glassmorphism using Custom Button */}
             <Button
               type="button"
               variant="ghost"
@@ -831,7 +796,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               <ArrowLeft className="w-4 h-4 text-slate-700" />
             </Button>
 
-            {/* Figma Icon Block */}
             <div className="hidden xs:flex backdrop-blur-md bg-white/45 border border-white/70 items-center justify-center rounded-xl shadow-xs shrink-0 w-9 h-9 sm:w-10 sm:h-10">
               <FileText className="w-4 h-4 text-[#005bbf]" />
             </div>
@@ -861,8 +825,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             {/* Main Grid Layout (12 Columns) */}
             <div className="grid grid-cols-12 gap-3.5 sm:gap-4 w-full">
 
-              {/* Left Column: Core Info (col-span-4) */}
-              <div className="col-span-12 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
+              {/* Left Column: Core Info (col-span-12 md:col-span-5 lg:col-span-4) */}
+              <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
                 {/* Section 1: Thông tin cơ bản */}
                 <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
                   <div className="flex gap-2 items-center text-[#005bbf]">
@@ -871,12 +835,13 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
 
                   <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
-                    {/* Mã lớp học: Hỗ trợ chọn nhiều lớp trên desktop và mobile với RecordSelectionDialog */}
+                    {/* Mã lớp học */}
                     <div className="flex flex-col w-full relative">
                       <RecordSelectionDialog
                         label="Mã lớp học"
                         title="Chọn mã lớp học"
                         description={isEditMode ? 'Chọn một lớp học cho báo cáo này.' : 'Chọn một hoặc nhiều lớp học rồi nhấn Xác nhận để áp dụng.'}
+                        hideHeader={true}
                         value={isEditMode ? (classIds[0] || '') : classIds}
                         displayValue={
                           isEditMode
@@ -944,7 +909,107 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       )}
                     </div>
 
-                    {/* Tên giảng viên sử dụng Input Component */}
+                    {/* Tiêu chí ghi nhận (AC-03: rendered exactly once inside Thông tin cơ bản) */}
+                    <div className="flex flex-col w-full">
+                      <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
+                      {!isMobile ? (
+                        <Select
+                          value={selectedCriterionId}
+                          onValueChange={handleCriterionChange}
+                        >
+                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                            <SelectValue placeholder="Chọn tiêu chí..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
+                            {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
+                            {orderedCriteria.frequent.map(c => (
+                              <SelectItem key={c._id} value={c._id}>
+                                {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
+                              </SelectItem>
+                            ))}
+                            {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
+                            {orderedCriteria.remaining.map(c => (
+                              <SelectItem key={c._id} value={c._id}>
+                                {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsCriterionPickerOpen(true)}
+                            className="min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
+                          >
+                            <span className={`truncate ${selectedCriterionId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
+                              {criteria.find(c => c._id === selectedCriterionId)?.criterion_name || 'Chọn tiêu chí...'}
+                            </span>
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+                          </Button>
+                          <Dialog open={isCriterionPickerOpen} onOpenChange={setIsCriterionPickerOpen}>
+                            <DialogContent
+                              showCloseButton={false}
+                              onOpenAutoFocus={(e) => e.preventDefault()}
+                              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[calc(100vw-2.5rem)] max-w-md max-h-[75vh] flex flex-col gap-3 rounded-2xl border border-white/80 bg-white/95 backdrop-blur-md p-4 shadow-2xl overflow-hidden"
+                            >
+                              <DialogTitle className="sr-only">Chọn tiêu chí</DialogTitle>
+                              <DialogDescription className="sr-only">Danh sách tiêu chí ghi nhận</DialogDescription>
+                              <Input
+                                autoFocus
+                                type="search"
+                                role="combobox"
+                                aria-expanded={isCriterionPickerOpen}
+                                aria-label="Tìm tiêu chí"
+                                value={criterionSearch}
+                                onChange={e => setCriterionSearch(e.target.value)}
+                                placeholder="Tìm tiêu chí..."
+                                className="min-h-[44px] md:min-h-0 h-11 md:h-9.5 rounded-xl text-sm md:text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                              />
+                              <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách tiêu chí">
+                                {orderedCriteria.frequent.length > 0 && !criterionSearch && (
+                                  <div className="px-2.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Sử dụng nhiều
+                                  </div>
+                                )}
+                                {[...orderedCriteria.frequent, ...orderedCriteria.remaining]
+                                  .filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase()))
+                                  .map(c => {
+                                    const isSelected = selectedCriterionId === c._id;
+                                    return (
+                                      <button
+                                        key={c._id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        onClick={() => {
+                                          handleCriterionChange(c._id);
+                                          setIsCriterionPickerOpen(false);
+                                          setCriterionSearch('');
+                                        }}
+                                        className={`flex items-center justify-between rounded-xl px-3.5 py-3 md:py-2.5 text-left text-sm md:text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
+                                          isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                                        }`}
+                                      >
+                                        <span className="truncate">{c.criterion_name}</span>
+                                        <span className="ml-2 shrink-0 text-xs md:text-[11px] text-slate-400 font-mono">
+                                          ({c.score_per_unit || c.min_score || -5}đ)
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                {criteria.filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase())).length === 0 && (
+                                  <div className="py-6 text-center text-sm md:text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
+                                )}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Tên giảng viên */}
                     <Input
                       type="text"
                       label="Tên giảng viên"
@@ -987,366 +1052,103 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     </div>
                   </div>
                 </div>
-
-                {/* Section 2: Ghi chú lớp học */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
-                  <div className="flex gap-2 items-center text-[#005bbf]">
-                    <FileText className="w-4 h-4 shrink-0" />
-                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Ghi chú lớp học</h3>
-                  </div>
-
-                  <Input
-                    multiline
-                    value={classNote}
-                    onChange={(e) => setClassNote(e.target.value)}
-                    placeholder="Nhập nhận xét chung về tình hình lớp học, mức độ tiếp thu..."
-                    className="bg-white/40 border-white/70 backdrop-blur-sm rounded-xl p-3 min-h-[95px] text-sm md:text-xs md:sm:text-[13px] text-[#1E293B] outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 transition-all duration-150 ease-out w-full resize-none shadow-xs font-semibold leading-relaxed placeholder:text-[#64748B]/60 placeholder:font-normal"
-                    containerClassName="w-full"
-                  />
-                </div>
               </div>
 
-              {/* Right Column: Violations Section (col-span-8) */}
-              <div className="col-span-12 lg:col-span-8 flex flex-col gap-3.5 sm:gap-4">
-                <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chế độ nhập vi phạm">
-                  <Button
-                    type="button"
-                    variant={entryMode === 'manual' ? 'default' : 'outline'}
-                    aria-pressed={entryMode === 'manual'}
-                    disabled={isMobile}
-                    onClick={() => { if (!isMobile) setEntryMode('manual'); }}
-                    className={`rounded-xl min-h-[44px] md:min-h-0 h-11 md:h-8 px-4 md:px-3.5 text-sm md:text-xs font-bold transition-all duration-150 ease-out ${entryMode === 'manual' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
-                  >
-                    Nhập thủ công
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={entryMode === 'quick' ? 'default' : 'outline'}
-                    aria-pressed={entryMode === 'quick'}
-                    onClick={() => setEntryMode('quick')}
-                    className={`rounded-xl min-h-[44px] md:min-h-0 h-11 md:h-8 px-4 md:px-3.5 text-sm md:text-xs font-bold transition-all duration-150 ease-out ${entryMode === 'quick' ? 'bg-[#005bbf] text-white hover:bg-[#004ca0]' : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'}`}
-                  >
-                    Chọn nhanh nhiều sinh viên
-                  </Button>
-                </div>
-
+              {/* Right Column: Desktop Roster Section (AC-04: visible >=768px, one card only) */}
+              <div className="hidden md:flex col-span-12 md:col-span-7 lg:col-span-8 flex-col gap-3.5 sm:gap-4">
                 <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
-                  <div className="flex gap-2 items-center text-[#005bbf]">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Ghi nhận sinh viên vi phạm (nếu có)</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-2 items-center text-[#005bbf]">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <h3 className="font-bold text-sm lg:text-[15px] leading-none">Danh sách sinh viên</h3>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                      <span aria-live="polite">
+                        Đã chọn: <strong className="text-[#005bbf]">{addedViolations.filter(v => v.criterion_id === selectedCriterionId).length}</strong> / {totalStudentsCount || classStudents.length}
+                      </span>
+                      {isStudentsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" aria-label="Đang tải sinh viên" />}
+                    </div>
                   </div>
 
-                  {/* Entry Form: Tinh gọn không bị lồng nhiều lớp */}
-                  <div className="bg-white/35 backdrop-blur-xs border border-white/60 rounded-xl p-3 sm:p-3.5 w-full relative z-20">
-                    {entryMode === 'manual' ? (
-                    <div className="grid grid-cols-12 gap-2.5 sm:gap-3 w-full">
-                      {/* Họ tên sinh viên sử dụng Select Component */}
-                      <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <Select
-                          value={selectedStudentId}
-                          onValueChange={setSelectedStudentId}
-                          onSearchQueryChange={handleStudentSearch}
-                          label="Họ tên sinh viên"
-                          error={""}
-                        >
-                          <SelectTrigger
-                            className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans"
-                            disabled={classIds.length === 0}
-                          >
-                            <SelectValue placeholder={classIds.length > 0 ? "Tìm tên..." : "Vui lòng chọn lớp trước..."} />
-                          </SelectTrigger>
-                          <SelectContent 
-                            lazyLoad 
-                            onLoadMore={handleLoadMoreStudents}
-                            className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70"
-                          >
-                            {classStudents.map(s => (
-                              <SelectItem key={s._id} value={s._id}>{s.full_name} ({s.student_code})</SelectItem>
-                            ))}
-                            {isStudentsLoading && (
-                              <div className="flex items-center justify-center p-2 text-xs text-slate-400">
-                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                                Đang tải thêm...
-                              </div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Tiêu chí sử dụng Select Component */}
-                      <div className="col-span-12 md:col-span-6 flex flex-col items-start w-full relative">
-                        <Select
-                          value={selectedCriterionId}
-                          onValueChange={handleCriterionChange}
-                          label="Tiêu chí ghi nhận"
-                          error={""}
-                        >
-                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
-                            <SelectValue placeholder="Chọn tiêu chí..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
-                            {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
-                            {orderedCriteria.frequent.map(c => (
-                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
-                            ))}
-                            {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
-                            {orderedCriteria.remaining.map(c => (
-                              <SelectItem key={c._id} value={c._id}>{c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Ghi chú chi tiết sử dụng Input Component */}
-                      <Input
-                        type="text"
-                        label="Ghi chú chi tiết"
-                        value={violationNote}
-                        onChange={(e) => setViolationNote(e.target.value)}
-                        placeholder="VD: Nhắc nhở lần 1..."
-                        className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
-                        containerClassName="col-span-12 md:col-span-9 w-full"
-                      />
-
-                      {/* Nút Thêm sử dụng Button Component */}
-                      <div className="col-span-12 md:col-span-3 flex items-end w-full">
-                        <Button
+                  {/* Student Card Grid */}
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
+                    {classStudents.map(student => {
+                      const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
+                      return (
+                        <button
+                          key={student._id}
                           type="button"
-                          onClick={handleAddViolationToList}
-                          className="bg-[#005bbf] hover:bg-[#004ca0] text-white font-bold min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-sm md:text-xs md:sm:text-[12.5px]"
+                          role="option"
+                          aria-selected={selected}
+                          disabled={!selectedCriterionId}
+                          onClick={() => handleToggleQuickStudent(student)}
+                          className={`h-full text-left rounded-xl border min-h-[52px] sm:min-h-[56px] lg:min-h-[52px] p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
+                            selected
+                              ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
+                              : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
                         >
-                          <Plus className="w-3.5 h-3.5 shrink-0" />
-                          <span>Thêm</span>
-                        </Button>
-                      </div>
-                    </div>
-                    ) : (
-                      <div className="flex flex-col gap-2.5">
-                        {/* Tiêu chí ghi nhận (full width, ẩn Tìm sinh viên) */}
-                        <div className="w-full">
-                          {!isMobile ? (
-                            <Select
-                              value={selectedCriterionId}
-                              onValueChange={handleCriterionChange}
-                              label="Tiêu chí ghi nhận"
-                            >
-                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
-                                <SelectValue placeholder="Chọn tiêu chí..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
-                                {orderedCriteria.frequent.length > 0 && <SelectLabel>Sử dụng nhiều</SelectLabel>}
-                                {orderedCriteria.frequent.map(c => (
-                                  <SelectItem key={c._id} value={c._id}>
-                                    {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
-                                  </SelectItem>
-                                ))}
-                                {orderedCriteria.frequent.length > 0 && orderedCriteria.remaining.length > 0 && <SelectSeparator />}
-                                {orderedCriteria.remaining.map(c => (
-                                  <SelectItem key={c._id} value={c._id}>
-                                    {c.criterion_name} ({c.score_per_unit || c.min_score || -5}đ)
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="flex flex-col w-full">
-                              <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => setIsCriterionPickerOpen(true)}
-                                className="min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
-                              >
-                                <span className={`truncate ${selectedCriterionId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
-                                  {criteria.find(c => c._id === selectedCriterionId)?.criterion_name || 'Chọn tiêu chí...'}
-                                </span>
-                                <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-                              </Button>
-                              <Dialog open={isCriterionPickerOpen} onOpenChange={setIsCriterionPickerOpen}>
-                                <DialogContent
-                                  showCloseButton={false}
-                                  onOpenAutoFocus={(e) => e.preventDefault()}
-                                  className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[calc(100vw-2.5rem)] max-w-md max-h-[75vh] flex flex-col gap-3 rounded-2xl border border-white/80 bg-white/95 backdrop-blur-md p-4 shadow-2xl overflow-hidden"
-                                >
-                                  <DialogTitle className="sr-only">Chọn tiêu chí</DialogTitle>
-                                  <DialogDescription className="sr-only">Danh sách tiêu chí ghi nhận</DialogDescription>
-                                  <Input
-                                    type="search"
-                                    role="combobox"
-                                    aria-expanded={isCriterionPickerOpen}
-                                    aria-label="Tìm tiêu chí"
-                                    value={criterionSearch}
-                                    onChange={e => setCriterionSearch(e.target.value)}
-                                    placeholder="Tìm tiêu chí..."
-                                    className="min-h-[44px] md:min-h-0 h-11 md:h-9.5 rounded-xl text-sm md:text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
-                                  />
-                                  <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách tiêu chí">
-                                    {orderedCriteria.frequent.length > 0 && !criterionSearch && (
-                                      <div className="px-2.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                                        Sử dụng nhiều
-                                      </div>
-                                    )}
-                                    {[...orderedCriteria.frequent, ...orderedCriteria.remaining]
-                                      .filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase()))
-                                      .map(c => {
-                                        const isSelected = selectedCriterionId === c._id;
-                                        return (
-                                          <button
-                                            key={c._id}
-                                            type="button"
-                                            role="option"
-                                            aria-selected={isSelected}
-                                            onClick={() => {
-                                              handleCriterionChange(c._id);
-                                              setIsCriterionPickerOpen(false);
-                                              setCriterionSearch('');
-                                            }}
-                                            className={`flex items-center justify-between rounded-xl px-3.5 py-3 md:py-2.5 text-left text-sm md:text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
-                                              isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                                            }`}
-                                          >
-                                            <span className="truncate">{c.criterion_name}</span>
-                                            <span className="ml-2 shrink-0 text-xs md:text-[11px] text-slate-400 font-mono">
-                                              ({c.score_per_unit || c.min_score || -5}đ)
-                                            </span>
-                                          </button>
-                                        );
-                                      })}
-                                    {criteria.filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase())).length === 0 && (
-                                      <div className="py-6 text-center text-sm md:text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
-                                    )}
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
+                          <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
+                            <span className="block text-sm md:text-[13.5px] lg:text-xs font-bold leading-tight break-words">{student.full_name}</span>
+                            <span className="block text-xs md:text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
+                          </div>
+                          {selected && (
+                            <span className="shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
+                              Đã chọn
+                            </span>
                           )}
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-0.5">
-                          <span aria-live="polite">Đã chọn: <strong className="text-[#005bbf]">{addedViolations.filter(v => v.criterion_id === selectedCriterionId).length}</strong> / {totalStudentsCount || classStudents.length}</span>
-                          {isStudentsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" aria-label="Đang tải sinh viên" />}
-                        </div>
-
-                        {/* Danh sách sinh viên tinh gọn */}
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
-                          {classStudents.map(student => {
-                            const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
-                            return (
-                              <button
-                                key={student._id}
-                                type="button"
-                                aria-pressed={selected}
-                                disabled={!selectedCriterionId}
-                                onClick={() => handleToggleQuickStudent(student)}
-                                className={`h-full text-left rounded-xl border min-h-[52px] sm:min-h-[56px] lg:min-h-[52px] p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
-                                  selected
-                                    ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
-                                    : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
-                                } disabled:cursor-not-allowed disabled:opacity-60`}
-                              >
-                                <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-                                  <span className="block text-sm md:text-[13.5px] lg:text-xs font-bold leading-tight break-words">{student.full_name}</span>
-                                  <span className="block text-xs md:text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
-                                </div>
-                                {selected && (
-                                  <span className="hidden lg:inline-flex shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
-                                    Đã chọn
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-5 text-center text-sm md:text-xs text-slate-400 italic">Không tìm thấy sinh viên.</div>}
-                        </div>
-                        {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
-                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl text-sm md:text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
-                        )}
-                        <p className="hidden lg:block text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
+                        </button>
+                      );
+                    })}
+                    {!isStudentsLoading && classStudents.length === 0 && (
+                      <div className="col-span-full py-5 text-center text-sm md:text-xs text-slate-400 italic">
+                        {classIds.length === 0 ? 'Vui lòng chọn lớp học để xem danh sách sinh viên.' : 'Không tìm thấy sinh viên.'}
                       </div>
                     )}
                   </div>
 
-                  {entryMode === 'manual' && <>
-                  {/* Violation Table */}
-                  <div className="border border-white/60 rounded-xl overflow-hidden w-full shadow-xs bg-white/15 backdrop-blur-2xs">
-                    <table className="w-full text-left border-collapse min-w-max">
-                      <thead>
-                        <tr className="bg-white/40 backdrop-blur-sm border-b border-white/60">
-                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">HỌ TÊN</th>
-                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">TIÊU CHÍ</th>
-                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase">GHI CHÚ</th>
-                          <th className="px-3.5 py-2 font-bold text-[#005bbf] text-[11px] tracking-[0.5px] uppercase text-center w-24">THAO TÁC</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/20">
-                        {addedViolations.map((violation, idx) => {
-                          const criterion = criteria.find(c => c._id === violation.criterion_id);
-                          const type = criterion?.criterion_type || (violation.points_effect > 0 ? 'cong_diem' : 'ky_luat');
-
-                          let badgeClass = 'bg-blue-50 text-blue-600 border border-blue-100';
-                          if (type === 'khen_thuong') {
-                            badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
-                          } else if (type === 'ky_luat') {
-                            badgeClass = 'bg-rose-50 text-rose-600 border border-rose-100';
-                          }
-
-                          return (
-                            <tr key={idx} className="hover:bg-white/50 transition-all duration-150 ease-out">
-                              <td className="px-3.5 py-2 font-semibold text-[#111c2d] text-xs">
-                                <div className="flex flex-col">
-                                  <span>{violation.student_name}</span>
-                                  <span className="text-slate-400 text-[10px] font-medium font-mono">MSSV: {violation.student_code}</span>
-                                </div>
-                              </td>
-                              <td className="px-3.5 py-2">
-                                <span className={`font-bold rounded-lg px-2 py-0.5 text-[11px] inline-block tracking-wide ${badgeClass}`}>
-                                  {violation.criterion_name}
-                                </span>
-                              </td>
-                              <td className="px-3.5 py-2 font-normal text-[#414754] text-xs max-w-[200px] truncate" title={violation.class_note}>
-                                {violation.class_note}
-                              </td>
-                              <td className="px-3.5 py-2 text-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveViolationFromList(idx)}
-                                  className="min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 h-11 w-11 md:h-7 md:w-7 rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-xs outline-none cursor-pointer mx-auto"
-                                  title="Xóa vi phạm"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {addedViolations.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-3.5 py-4 text-center text-xs text-slate-500 italic bg-white/10">
-                              Chưa có ghi nhận sinh viên vi phạm trong buổi học này.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  </>}
-
+                  {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleLoadMoreStudents}
+                      disabled={isStudentsLoading}
+                      className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl text-sm md:text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out"
+                    >
+                      Tải thêm sinh viên
+                    </Button>
+                  )}
+                  <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                 </div>
               </div>
             </div>
 
+            {/* Mobile Student Selection Overlay (AC-05, AC-06) */}
+            {isMobile && !isEditMode && (
+              <MobileStudentSelectionDialog
+                open={isMobileStudentOverlayOpen}
+                onOpenChange={setIsMobileStudentOverlayOpen}
+                criterionName={criteria.find(c => c._id === selectedCriterionId)?.criterion_name}
+                students={classStudents}
+                selectedStudentIds={addedViolations.filter(v => v.criterion_id === selectedCriterionId).map(v => v.student_id)}
+                onConfirm={handleMobileRosterConfirm}
+                onCancel={() => setIsMobileStudentOverlayOpen(false)}
+                loading={isStudentsLoading}
+                hasMore={classIds.some(id => hasMoreStudents[id])}
+                onLoadMore={handleLoadMoreStudents}
+                searchQuery={studentsSearch}
+                onSearchChange={handleStudentSearch}
+              />
+            )}
+
             {/* Footer Actions Panel */}
             <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full">
-              {/* Reset/Placeholder info */}
               <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
               </div>
 
               {/* Action Buttons */}
               <div className="flex gap-2.5 items-center justify-end w-full sm:w-auto ml-auto">
-                {/* Hủy bỏ */}
                 <Button
                   type="button"
                   variant="outline"
@@ -1356,7 +1158,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   Hủy bỏ
                 </Button>
 
-                {/* Lưu ghi nhận */}
                 <Button
                   type="submit"
                   disabled={isSaving}

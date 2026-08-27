@@ -27,18 +27,36 @@ describe('AddClassReportView draft contract', () => {
     expect(draft).not.toHaveProperty('totalPresent');
   });
 
-  it('accepts create-form fields without derived attendance totals', () => {
+  it('accepts create-form fields without derived attendance totals and supports legacy drafts', () => {
     expect(isClassReportDraft({
       classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', teacherName: 'Teacher', classNote: 'note',
       selectedStudentId: 'student-1', selectedCriterionId: 'criterion-1', violationNote: 'absence',
       addedViolations: [], pendingQuickViolationKeys: [], entryMode: 'manual',
     })).toBe(true);
+
+    // Legacy draft missing entryMode or selectedStudentId
+    expect(isClassReportDraft({
+      classIds: ['class-1'], reportDate: '2026-08-25T00:00:00.000Z', teacherName: 'Teacher', classNote: 'note',
+      selectedCriterionId: 'criterion-1', violationNote: 'absence',
+      addedViolations: [], pendingQuickViolationKeys: [],
+    })).toBe(true);
+
     expect(isClassReportDraft({ classIds: ['class-1'], totalPresent: 10 })).toBe(false);
     expect(isClassReportDraft({
       classIds: [], reportDate: '2026-08-25T00:00:00.000Z', teacherName: '', classNote: '',
       selectedStudentId: '', selectedCriterionId: '', violationNote: '', addedViolations: [{}],
       pendingQuickViolationKeys: [], entryMode: 'quick',
     })).toBe(false);
+  });
+
+  it('buildClassReportDraft defaults entryMode to quick and selectedStudentId to empty string', () => {
+    const draft = buildClassReportDraft({
+      classIds: ['class-1'], reportDate: new Date('2026-08-25T00:00:00.000Z'), teacherName: 'Teacher', classNote: 'note',
+      selectedCriterionId: 'criterion-1', violationNote: 'note', addedViolations: [],
+      pendingQuickViolationKeys: new Set(),
+    });
+    expect(draft.entryMode).toBe('quick');
+    expect(draft.selectedStudentId).toBe('');
   });
 });
 
