@@ -177,8 +177,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
   const [isStudentsLoading, setIsStudentsLoading] = useState(false);
   const [classId, setClassId] = useState('');
   const [classIds, setClassIds] = useState<string[]>([]);
-  const [classSearch, setClassSearch] = useState('');
-  const [isClassPickerOpen, setIsClassPickerOpen] = useState(false);
   const classIdsRef = React.useRef<string[]>([]);
   const [criterionId, setCriterionId] = useState('');
   const [isCriterionPickerOpen, setIsCriterionPickerOpen] = useState(false);
@@ -694,7 +692,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               type="button"
               variant="ghost"
               onClick={handleBack}
-              className="backdrop-blur-md bg-white/50 border border-white/80 rounded-xl w-9 h-9 p-0 flex items-center justify-center cursor-pointer hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs shrink-0"
+              className="backdrop-blur-md bg-white/50 border border-white/80 rounded-xl min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 w-11 h-11 md:w-9 md:h-9 p-0 flex items-center justify-center cursor-pointer hover:bg-white/70 hover:scale-[1.01] transition-all duration-150 ease-out shadow-xs shrink-0"
               title="Quay lại"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
@@ -739,142 +737,74 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   </div>
 
                   <div className="flex flex-col gap-3 w-full">
-                    {/* Lớp học: create hỗ trợ chọn nhiều, edit giữ một lớp */}
+                    {/* Lớp học: create hỗ trợ chọn nhiều với RecordSelectionDialog, edit giữ một lớp */}
                     <div className="flex flex-col w-full relative">
-                      {!isMobile ? (
-                        <Select
-                          value={isEditMode ? (classId || '') : (classIds[0] || '')}
-                          onValueChange={(val: string) => {
-                            if (isEditMode) {
-                              handleClassChange(val);
-                            } else {
-                              setClassIds(val ? [val] : []);
-                            }
-                          }}
-                          label="Lớp học"
-                        >
-                          <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
-                            <SelectValue placeholder="Chọn lớp học..." />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
-                            {classes.map(c => (
-                              <SelectItem key={c._id} value={c._id}>
-                                {c.class_name}{c.class_year ? ` (${c.class_year})` : ''}
-                              </SelectItem>
-                            ))}
-                            {classes.length === 0 && (
-                              <div className="py-4 text-center text-xs text-slate-400">Không có lớp học nào</div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="flex flex-col w-full">
-                          <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Lớp học</label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setIsClassPickerOpen(true)}
-                            className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
-                          >
-                            <span className={`truncate ${isEditMode ? (classId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60') : (classIds.length > 0 ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60')}`}>
-                              {isEditMode
-                                ? (classes.find(c => c._id === classId)?.class_name || 'Chọn lớp học...')
-                                : (classIds.length > 0
-                                  ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ')
-                                  : 'Chọn lớp học...')}
-                            </span>
-                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-                          </Button>
-                          <Dialog open={isClassPickerOpen} onOpenChange={setIsClassPickerOpen}>
-                            <DialogContent
-                              showCloseButton={false}
-                              onOpenAutoFocus={(e) => e.preventDefault()}
-                              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] w-[calc(100vw-2.5rem)] max-w-md max-h-[75vh] flex flex-col gap-3 rounded-2xl border border-white/80 bg-white/95 backdrop-blur-md p-4 shadow-2xl overflow-hidden"
-                            >
-                              <DialogTitle className="sr-only">Chọn lớp học</DialogTitle>
-                              <DialogDescription className="sr-only">Danh sách lớp học</DialogDescription>
-                              <Input
-                                type="search"
-                                role="combobox"
-                                aria-expanded={isClassPickerOpen}
-                                aria-label="Tìm lớp học"
-                                value={classSearch}
-                                onChange={e => setClassSearch(e.target.value)}
-                                placeholder="Nhập tên hoặc mã lớp..."
-                                className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
-                              />
-                              <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" aria-label="Danh sách lớp học">
-                                {isEditMode ? (
-                                  classes
-                                    .filter(c => `${c.class_name} ${c.class_year || ''} ${c._id}`.toLowerCase().includes(classSearch.toLowerCase()))
-                                    .map(c => {
-                                      const isSelected = classId === c._id;
-                                      return (
-                                        <button
-                                          key={c._id}
-                                          type="button"
-                                          role="option"
-                                          aria-selected={isSelected}
-                                          onClick={() => {
-                                            handleClassChange(c._id);
-                                            setIsClassPickerOpen(false);
-                                            setClassSearch('');
-                                          }}
-                                          className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
-                                            isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                                          }`}
-                                        >
-                                          <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
-                                        </button>
-                                      );
-                                    })
-                                ) : (
-                                  classes
-                                    .filter(c => `${c.class_name} ${c.class_year || ''} ${c._id}`.toLowerCase().includes(classSearch.toLowerCase()))
-                                    .map(c => {
-                                      const selected = classIds.includes(c._id);
-                                      return (
-                                        <label
-                                          key={c._id}
-                                          className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
-                                            selected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                                          }`}
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={selected}
-                                            onChange={() => {
-                                              setClassIds(prev => selected ? prev.filter(id => id !== c._id) : [...prev, c._id]);
-                                            }}
-                                            className="accent-[#1A73E8] rounded"
-                                          />
-                                          <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
-                                        </label>
-                                      );
-                                    })
-                                )}
-                                {classes.filter(c => `${c.class_name} ${c.class_year || ''} ${c._id}`.toLowerCase().includes(classSearch.toLowerCase())).length === 0 && (
-                                  <span className="px-2 py-6 text-center text-xs text-slate-400">Không tìm thấy lớp.</span>
-                                )}
-                              </div>
-                              {!isEditMode && (
-                                <div className="flex justify-end pt-2 border-t border-slate-100">
-                                  <Button
+                      <RecordSelectionDialog
+                        label="Lớp học"
+                        title="Chọn lớp học"
+                        description={isEditMode ? 'Chọn một lớp học cho bản ghi này.' : 'Chọn một hoặc nhiều lớp học rồi nhấn Xác nhận để áp dụng.'}
+                        value={isEditMode ? (classId || '') : classIds}
+                        displayValue={
+                          isEditMode
+                            ? (classes.find(c => c._id === (classId || ''))?.class_name || '')
+                            : (classIds.length > 0
+                                ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ')
+                                : '')
+                        }
+                        multiple={!isEditMode}
+                        placeholder="Chọn lớp học..."
+                        searchable
+                        isMobile={isMobile}
+                        onConfirm={(val) => {
+                          if (isEditMode) {
+                            const singleId = Array.isArray(val) ? val[0] || '' : val;
+                            handleClassChange(singleId);
+                          } else {
+                            const nextIds = Array.isArray(val) ? val : (val ? [val] : []);
+                            setClassIds(nextIds);
+                          }
+                        }}
+                      >
+                        {(draftValue, setDraftValue, searchQuery) => {
+                          const filtered = classes.filter(c => `${c.class_name} ${c.class_year || ''} ${c._id}`.toLowerCase().includes(searchQuery.toLowerCase()));
+                          const currentSelected = Array.isArray(draftValue) ? draftValue : (draftValue ? [draftValue] : []);
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {filtered.map(c => {
+                                const isSelected = isEditMode ? draftValue === c._id : currentSelected.includes(c._id);
+                                return (
+                                  <button
+                                    key={c._id}
                                     type="button"
-                                    size="sm"
-                                    onClick={() => setIsClassPickerOpen(false)}
-                                    className="h-8 px-4 rounded-xl text-xs font-bold bg-[#1A73E8] text-white hover:bg-[#1557b0]"
+                                    role="option"
+                                    aria-selected={isSelected}
+                                    onClick={() => {
+                                      if (isEditMode) {
+                                        setDraftValue(c._id);
+                                      } else {
+                                        setDraftValue(toggleSelectionValue(currentSelected, c._id));
+                                      }
+                                    }}
+                                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 md:py-2 text-left font-semibold transition-colors min-h-[44px] md:min-h-0 text-sm md:text-xs ${
+                                      isSelected
+                                        ? 'bg-blue-50 text-blue-800 font-bold'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
                                   >
-                                    Xong
-                                  </Button>
-                                </div>
+                                    <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
+                                    {isSelected && <Check className="h-4 w-4 shrink-0 text-[#1A73E8] ml-2" />}
+                                  </button>
+                                );
+                              })}
+                              {filtered.length === 0 && (
+                                <div className="py-6 text-center text-sm md:text-xs text-slate-400">Không tìm thấy lớp.</div>
                               )}
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      )}
+                            </div>
+                          );
+                        }}
+                      </RecordSelectionDialog>
                       {!isEditMode && (
-                        <span className="mt-1 ml-1 text-[11px] text-slate-500" aria-live="polite">
+                        <span className="mt-1 ml-1 text-xs md:text-[11px] text-slate-500" aria-live="polite">
                           {classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn lớp học...'}
                         </span>
                       )}
@@ -882,13 +812,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
 
                     {/* Ngày ghi nhận */}
                     <div className="flex flex-col w-full">
-                      <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Ngày ghi nhận</label>
+                      <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Ngày ghi nhận</label>
                       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/40 border border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 hover:scale-[1.005] transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
+                            className="bg-white/40 border border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 hover:scale-[1.005] transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
                             <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
@@ -924,7 +854,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                       aria-pressed={entryMode === 'manual'}
                       disabled={isMobile}
                       onClick={() => { if (!isMobile) setEntryMode('manual'); }}
-                      className={`rounded-xl h-8 px-3.5 text-xs font-bold transition-all duration-150 ease-out ${
+                      className={`rounded-xl min-h-[44px] md:min-h-0 h-11 md:h-8 px-4 md:px-3.5 text-sm md:text-xs font-bold transition-all duration-150 ease-out ${
                         entryMode === 'manual'
                           ? 'bg-[#1A73E8] text-white hover:bg-[#1557b0]'
                           : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'
@@ -937,7 +867,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                       variant={entryMode === 'quick' ? 'default' : 'outline'}
                       aria-pressed={entryMode === 'quick'}
                       onClick={() => setEntryMode('quick')}
-                      className={`rounded-xl h-8 px-3.5 text-xs font-bold transition-all duration-150 ease-out ${
+                      className={`rounded-xl min-h-[44px] md:min-h-0 h-11 md:h-8 px-4 md:px-3.5 text-sm md:text-xs font-bold transition-all duration-150 ease-out ${
                         entryMode === 'quick'
                           ? 'bg-[#1A73E8] text-white hover:bg-[#1557b0]'
                           : 'border-white/70 bg-white/40 backdrop-blur-sm text-[#1E293B] hover:bg-white/60'
@@ -967,7 +897,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                               disabled={classIds.length === 0}
                               label="Họ tên sinh viên"
                             >
-                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans disabled:opacity-50">
+                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans disabled:opacity-50">
                                 <SelectValue placeholder={classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...'} />
                               </SelectTrigger>
                               <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
@@ -985,13 +915,13 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                             </Select>
                           ) : (
                             <div className="flex flex-col w-full">
-                              <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Họ tên sinh viên</label>
+                              <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Họ tên sinh viên</label>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 disabled={classIds.length === 0}
                                 onClick={() => setIsStudentPickerOpen(true)}
-                                className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out disabled:opacity-50"
+                                className="min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out disabled:opacity-50"
                               >
                                 <span className={`truncate ${selectedStudentId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
                                   {classStudents.find(s => s._id === selectedStudentId)?.full_name || (classIds.length > 0 ? 'Tìm tên...' : 'Vui lòng chọn lớp trước...')}
@@ -1014,7 +944,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                     value={studentsSearch}
                                     onChange={e => handleStudentSearch(e.target.value)}
                                     placeholder="Tìm tên hoặc mã sinh viên..."
-                                    className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                                    className="min-h-[44px] md:min-h-0 h-11 md:h-9.5 rounded-xl text-sm md:text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
                                   />
                                   <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách sinh viên">
                                     {classStudents
@@ -1031,19 +961,19 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                               setSelectedStudentId(s._id);
                                               setIsStudentPickerOpen(false);
                                             }}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
+                                            className={`flex items-center justify-between rounded-xl px-3.5 py-3 md:py-2.5 text-left text-sm md:text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
                                               isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
                                             }`}
                                           >
                                             <span className="truncate">{s.full_name}</span>
-                                            <span className="ml-2 shrink-0 text-[11px] text-slate-400 font-mono">
+                                            <span className="ml-2 shrink-0 text-xs md:text-[11px] text-slate-400 font-mono">
                                               ({s.student_code})
                                             </span>
                                           </button>
                                         );
                                       })}
                                     {classStudents.filter(s => `${s.full_name} ${s.student_code}`.toLowerCase().includes(studentsSearch.toLowerCase())).length === 0 && (
-                                      <div className="py-6 text-center text-xs text-slate-400">
+                                      <div className="py-6 text-center text-sm md:text-xs text-slate-400">
                                         {isStudentsLoading ? 'Đang tải sinh viên...' : 'Không tìm thấy sinh viên.'}
                                       </div>
                                     )}
@@ -1062,7 +992,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                               onValueChange={handleCriterionChange}
                               label="Tiêu chí ghi nhận"
                             >
-                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
                                 <SelectValue placeholder="Chọn tiêu chí..." />
                               </SelectTrigger>
                               <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
@@ -1082,12 +1012,12 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                             </Select>
                           ) : (
                             <div className="flex flex-col w-full">
-                              <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
+                              <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={() => setIsCriterionPickerOpen(true)}
-                                className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
+                                className="min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
                               >
                                 <span className={`truncate ${criterionId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
                                   {criteria.find(c => c._id === criterionId)?.criterion_name || 'Chọn tiêu chí...'}
@@ -1110,7 +1040,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                     value={criterionSearch}
                                     onChange={e => setCriterionSearch(e.target.value)}
                                     placeholder="Tìm tiêu chí..."
-                                    className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                                    className="min-h-[44px] md:min-h-0 h-11 md:h-9.5 rounded-xl text-sm md:text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
                                   />
                                   <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách tiêu chí">
                                     {orderedCriteria.frequent.length > 0 && !criterionSearch && (
@@ -1133,19 +1063,19 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                               setIsCriterionPickerOpen(false);
                                               setCriterionSearch('');
                                             }}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
+                                            className={`flex items-center justify-between rounded-xl px-3.5 py-3 md:py-2.5 text-left text-sm md:text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
                                               isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
                                             }`}
                                           >
                                             <span className="truncate">{c.criterion_name}</span>
-                                            <span className="ml-2 shrink-0 text-[11px] text-slate-400 font-mono">
+                                            <span className="ml-2 shrink-0 text-xs md:text-[11px] text-slate-400 font-mono">
                                               ({c.score_per_unit || c.min_score || 0}đ)
                                             </span>
                                           </button>
                                         );
                                       })}
                                     {criteria.filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase())).length === 0 && (
-                                      <div className="py-6 text-center text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
+                                      <div className="py-6 text-center text-sm md:text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
                                     )}
                                   </div>
                                 </DialogContent>
@@ -1161,7 +1091,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                           value={violationNote}
                           onChange={(e) => setViolationNote(e.target.value)}
                           placeholder="VD: Khen thưởng, vi phạm lần đầu..."
-                          className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
+                          className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
                           containerClassName={isEditMode ? "col-span-12 w-full" : "col-span-12 md:col-span-9 w-full"}
                         />
 
@@ -1171,7 +1101,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                             <Button
                               type="button"
                               onClick={handleAddViolationToList}
-                              className="bg-[#1A73E8] hover:bg-[#1557b0] text-white font-bold h-9 sm:h-10 rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-xs sm:text-[12.5px]"
+                              className="bg-[#1A73E8] hover:bg-[#1557b0] text-white font-bold min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] border-none outline-none w-full text-sm md:text-xs md:sm:text-[12.5px]"
                             >
                               <Plus className="w-3.5 h-3.5 shrink-0" />
                               <span>Thêm</span>
@@ -1189,7 +1119,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                               onValueChange={handleCriterionChange}
                               label="Tiêu chí ghi nhận"
                             >
-                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm h-9 sm:h-10 rounded-xl px-3.5 text-xs sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
+                              <SelectTrigger className="bg-white/40 border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[12.5px] text-[#1E293B] font-semibold outline-none w-full shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150 ease-out hover:bg-white/60 cursor-pointer font-sans">
                                 <SelectValue placeholder="Chọn tiêu chí..." />
                               </SelectTrigger>
                               <SelectContent className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl border border-white/70 font-sans max-h-60">
@@ -1209,12 +1139,12 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                             </Select>
                           ) : (
                             <div className="flex flex-col w-full">
-                              <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
+                              <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={() => setIsCriterionPickerOpen(true)}
-                                className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
+                                className="min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 transition-all duration-150 ease-out"
                               >
                                 <span className={`truncate ${criterionId ? 'text-[#1E293B]' : 'font-normal text-[#64748B]/60'}`}>
                                   {criteria.find(c => c._id === criterionId)?.criterion_name || 'Chọn tiêu chí...'}
@@ -1237,7 +1167,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                     value={criterionSearch}
                                     onChange={e => setCriterionSearch(e.target.value)}
                                     placeholder="Tìm tiêu chí..."
-                                    className="h-9.5 rounded-xl text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
+                                    className="min-h-[44px] md:min-h-0 h-11 md:h-9.5 rounded-xl text-sm md:text-xs bg-slate-50 border-slate-200 placeholder:text-[#64748B]/60"
                                   />
                                   <div className="flex flex-1 max-h-60 flex-col gap-1 overflow-y-auto overscroll-contain" role="listbox" aria-label="Danh sách tiêu chí">
                                     {orderedCriteria.frequent.length > 0 && !criterionSearch && (
@@ -1260,19 +1190,19 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                               setIsCriterionPickerOpen(false);
                                               setCriterionSearch('');
                                             }}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
+                                            className={`flex items-center justify-between rounded-xl px-3.5 py-3 md:py-2.5 text-left text-sm md:text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
                                               isSelected ? 'bg-blue-50 text-blue-800 font-bold' : 'hover:bg-slate-50 text-slate-700'
                                             }`}
                                           >
                                             <span className="truncate">{c.criterion_name}</span>
-                                            <span className="ml-2 shrink-0 text-[11px] text-slate-400 font-mono">
+                                            <span className="ml-2 shrink-0 text-xs md:text-[11px] text-slate-400 font-mono">
                                               ({c.score_per_unit || c.min_score || 0}đ)
                                             </span>
                                           </button>
                                         );
                                       })}
                                     {criteria.filter(c => c.criterion_name.toLowerCase().includes(criterionSearch.toLowerCase())).length === 0 && (
-                                      <div className="py-6 text-center text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
+                                      <div className="py-6 text-center text-sm md:text-xs text-slate-400">Không tìm thấy tiêu chí.</div>
                                     )}
                                   </div>
                                 </DialogContent>
@@ -1297,15 +1227,15 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                 aria-pressed={selected}
                                 disabled={!criterionId}
                                 onClick={() => handleToggleQuickStudent(student)}
-                                className={`text-left rounded-lg border min-h-[52px] sm:min-h-[56px] lg:min-h-0 p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
+                                className={`text-left rounded-xl border min-h-[52px] sm:min-h-[56px] lg:min-h-[52px] p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
                                   selected
                                     ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
                                     : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
                                 } disabled:cursor-not-allowed disabled:opacity-60`}
                               >
                                 <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-                                  <span className="block text-[13.5px] sm:text-sm lg:text-xs font-bold truncate leading-tight">{student.full_name}</span>
-                                  <span className="block text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
+                                  <span className="block text-sm md:text-[13.5px] lg:text-xs font-bold truncate leading-tight">{student.full_name}</span>
+                                  <span className="block text-xs md:text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
                                 </div>
                                 {selected && (
                                   <span className="hidden lg:inline-flex shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
@@ -1315,10 +1245,10 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                               </button>
                             );
                           })}
-                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-5 text-center text-xs text-slate-400 italic">Không tìm thấy sinh viên.</div>}
+                          {!isStudentsLoading && classStudents.length === 0 && <div className="col-span-full py-5 text-center text-sm md:text-xs text-slate-400 italic">Không tìm thấy sinh viên.</div>}
                         </div>
                         {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
-                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center h-7.5 rounded-lg text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
+                          <Button type="button" variant="outline" onClick={handleLoadMoreStudents} disabled={isStudentsLoading} className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl text-sm md:text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out">Tải thêm sinh viên</Button>
                         )}
                         <p className="hidden lg:block text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                       </div>
@@ -1375,7 +1305,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                     type="button"
                                     variant="ghost"
                                     onClick={() => handleRemoveViolationFromList(idx)}
-                                    className="w-7 h-7 rounded-lg hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-xs outline-none cursor-pointer mx-auto"
+                                    className="min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 h-11 w-11 md:h-7 md:w-7 rounded-xl hover:bg-rose-100/80 hover:text-rose-600 p-0 flex items-center justify-center text-rose-500 transition-all duration-150 ease-out hover:scale-[1.05] bg-white/40 border border-white/70 shadow-xs outline-none cursor-pointer mx-auto"
                                     title="Xóa ghi nhận"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1428,7 +1358,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                   type="button"
                   variant="outline"
                   onClick={handleCancel}
-                  className="border border-white/70 bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#1E293B] font-bold text-xs sm:text-[13px] h-9 sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
+                  className="border border-white/70 bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#1E293B] font-bold text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
                 >
                   Hủy bỏ
                 </Button>
@@ -1436,7 +1366,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 <Button
                   type="submit"
                   disabled={isSaving}
-                  className="relative bg-[#1A73E8] text-white font-bold px-6 sm:px-8 py-2 rounded-xl shadow-xs hover:bg-[#1557b0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-1.5 border-none outline-none cursor-pointer text-xs sm:text-[13px] h-9 sm:h-9.5 disabled:opacity-75 disabled:cursor-not-allowed"
+                  className="relative bg-[#1A73E8] text-white font-bold px-6 sm:px-8 py-2 rounded-xl shadow-xs hover:bg-[#1557b0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-1.5 border-none outline-none cursor-pointer text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {isSaving ? (
                     <>

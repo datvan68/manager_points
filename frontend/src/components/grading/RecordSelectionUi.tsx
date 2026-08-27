@@ -17,6 +17,50 @@ export function quickGridClass(itemCount: number): string {
     : 'max-h-none overflow-visible';
 }
 
+export interface RecordOptionRowProps {
+  id: string;
+  label: string;
+  subLabel?: string;
+  badge?: string;
+  selected: boolean;
+  onClick: () => void;
+  className?: string;
+}
+
+export function RecordOptionRow({
+  id,
+  label,
+  subLabel,
+  badge,
+  selected,
+  onClick,
+  className = '',
+}: RecordOptionRowProps) {
+  return (
+    <button
+      key={id}
+      type="button"
+      role="option"
+      aria-selected={selected}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 md:py-2 text-left font-semibold transition-colors min-h-[44px] md:min-h-0 text-sm md:text-xs ${
+        selected
+          ? 'bg-blue-50 text-blue-800 font-bold'
+          : 'hover:bg-slate-50 text-slate-700'
+      } ${className}`}
+    >
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="truncate">{label}</span>
+        {subLabel && <span className="text-xs md:text-[11px] text-slate-500 font-normal">{subLabel}</span>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ml-2">
+        {badge && <span className="text-xs md:text-[11px] text-slate-400 font-mono">{badge}</span>}
+        {selected && <Check className="h-4 w-4 shrink-0 text-blue-600" />}
+      </div>
+    </button>
+  );
+}
+
 interface RecordSelectionDialogProps {
   label: string;
   title: string;
@@ -46,46 +90,71 @@ export function RecordSelectionDialog({
   const [internalSearch, setInternalSearch] = useState('');
 
   useEffect(() => {
-    if (open) setDraftValue(value);
+    if (open) {
+      setDraftValue(value);
+      setInternalSearch('');
+    }
   }, [open, value]);
 
   const committedLabel = displayValue || (Array.isArray(value) ? (value.length ? `${value.length} mục đã chọn` : placeholder) : (value || placeholder));
-  const setDraft = (next: SelectionValue) => setDraftValue(multiple ? (Array.isArray(next) ? next : [next]) : (Array.isArray(next) ? next[0] || '' : next));
+  const setDraft = (next: SelectionValue) => setDraftValue(multiple ? (Array.isArray(next) ? next : [next].filter(Boolean)) : (Array.isArray(next) ? next[0] || '' : next));
   const handleConfirm = () => {
     onConfirm(draftValue);
     setOpen(false);
   };
 
   const selectionContent = (
-    <div className="mx-auto flex min-h-0 h-full w-full max-w-4xl flex-col gap-4 overflow-hidden">
+    <div className="mx-auto flex min-h-0 h-full w-full max-w-4xl flex-col gap-3.5 sm:gap-4 overflow-hidden">
       <div className="flex items-start justify-between gap-4 pr-8">
-        <div>{isMobile ? <DialogTitle>{title}</DialogTitle> : <h2 className="text-lg font-semibold leading-none tracking-tight">{title}</h2>}{isMobile ? <DialogDescription>{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</DialogDescription> : <p className="mt-1 text-sm text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</p>}</div>
+        <div>
+          {isMobile ? <DialogTitle className="text-base font-bold text-slate-800">{title}</DialogTitle> : <h2 className="text-base lg:text-lg font-semibold leading-none tracking-tight">{title}</h2>}
+          {isMobile ? <DialogDescription className="mt-1 text-xs text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</DialogDescription> : <p className="mt-1 text-sm text-muted-foreground">{description || 'Chọn giá trị rồi nhấn Xác nhận để áp dụng.'}</p>}
+        </div>
         <X className="sr-only" aria-hidden="true" />
       </div>
-      {(onSearchChange || searchable) && <Input autoFocus type="search" role="combobox" aria-label={`Tìm ${label.toLowerCase()}`} value={onSearchChange ? searchValue : internalSearch} onChange={e => onSearchChange ? onSearchChange(e.target.value) : setInternalSearch(e.target.value)} placeholder={`Tìm ${label.toLowerCase()}...`} className="h-10 rounded-xl bg-white" />}
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-3" role="listbox" aria-label={`Danh sách ${label.toLowerCase()}`}>
+      {(onSearchChange || searchable) && (
+        <Input
+          autoFocus
+          type="search"
+          role="combobox"
+          aria-label={`Tìm ${label.toLowerCase()}`}
+          value={onSearchChange ? searchValue : internalSearch}
+          onChange={e => onSearchChange ? onSearchChange(e.target.value) : setInternalSearch(e.target.value)}
+          placeholder={`Tìm ${label.toLowerCase()}...`}
+          className="h-11 md:h-10 min-h-[44px] md:min-h-0 rounded-xl bg-white text-sm md:text-xs"
+        />
+      )}
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3" role="listbox" aria-label={`Danh sách ${label.toLowerCase()}`}>
         {children(draftValue, setDraft, onSearchChange ? searchValue : internalSearch)}
         {loading && <div className="flex items-center justify-center gap-2 p-4 text-xs text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Đang tải...</div>}
-        {hasMore && <Button type="button" variant="outline" onClick={onLoadMore} disabled={loading} className="mx-auto mt-3 flex">Tải thêm</Button>}
+        {hasMore && <Button type="button" variant="outline" onClick={onLoadMore} disabled={loading} className="mx-auto mt-3 flex h-11 md:h-9 min-h-[44px] md:min-h-0 text-sm md:text-xs">Tải thêm</Button>}
       </div>
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-        <Button type="button" variant="outline" onClick={() => setOpen(false)}>Hủy</Button>
-        <Button type="button" onClick={handleConfirm}><Check className="h-4 w-4" />Xác nhận</Button>
+      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 sm:pt-4">
+        <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-11 md:h-9 min-h-[44px] md:min-h-0 px-4 text-sm md:text-xs">Hủy</Button>
+        <Button type="button" onClick={handleConfirm} className="h-11 md:h-9 min-h-[44px] md:min-h-0 px-4 text-sm md:text-xs bg-[#005bbf] text-white hover:bg-[#004ca0]"><Check className="h-4 w-4" />Xác nhận</Button>
       </div>
     </div>
   );
 
   return (
     <div className="flex flex-col w-full">
-      <label className="text-xs font-semibold text-slate-600 mb-1 ml-1">{label}</label>
+      <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">{label}</label>
       {isMobile ? (
         <>
-          <Button type="button" variant="ghost" disabled={disabled} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={disabled}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onClick={() => setOpen(true)}
+            className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60"
+          >
             <span className={`truncate ${committedLabel === placeholder ? 'font-normal text-[#64748B]/60' : ''}`}>{committedLabel}</span>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="left-1/2 top-1/2 h-[min(78dvh,560px)] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-0 bg-slate-50/95 p-3 sm:p-4">
+            <DialogContent className="left-1/2 top-1/2 h-[min(78dvh,560px)] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-0 bg-slate-50/95 p-3 sm:p-4">
               {selectionContent}
             </DialogContent>
           </Dialog>
@@ -93,7 +162,14 @@ export function RecordSelectionDialog({
       ) : (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" disabled={disabled} aria-haspopup="dialog" aria-expanded={open} className="h-9 sm:h-10 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-xs sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={disabled}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60"
+            >
               <span className={`truncate ${committedLabel === placeholder ? 'font-normal text-[#64748B]/60' : ''}`}>{committedLabel}</span>
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
             </Button>

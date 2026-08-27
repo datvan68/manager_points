@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
+import { RecordOptionRow, RecordSelectionDialog, quickGridClass, toggleSelectionValue } from './RecordSelectionUi';
 
 describe('RecordSelectionUi', () => {
   it('keeps a single selection as draft until confirmation and rolls back on cancel', () => {
@@ -54,5 +54,45 @@ describe('RecordSelectionUi', () => {
     fireEvent.click(screen.getByRole('option'));
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
     expect(onConfirm).toHaveBeenCalledWith('id-2');
+  });
+
+  it('renders RecordOptionRow with option role, aria-selected, checkmark and no checkboxes', () => {
+    const onClick = vi.fn();
+    const { rerender, container } = render(
+      <RecordOptionRow
+        id="class-1"
+        label="CNTT-01"
+        subLabel="Khóa 2025"
+        badge="-5đ"
+        selected={false}
+        onClick={onClick}
+      />
+    );
+
+    const option = screen.getByRole('option', { name: /CNTT-01/i });
+    expect(option).toHaveAttribute('aria-selected', 'false');
+    expect(option.className).toContain('min-h-[44px]');
+    expect(option.className).toContain('text-sm');
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+
+    fireEvent.click(option);
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <RecordOptionRow
+        id="class-1"
+        label="CNTT-01"
+        subLabel="Khóa 2025"
+        badge="-5đ"
+        selected={true}
+        onClick={onClick}
+      />
+    );
+
+    const selectedOption = screen.getByRole('option', { name: /CNTT-01/i });
+    expect(selectedOption).toHaveAttribute('aria-selected', 'true');
+    expect(selectedOption.className).toContain('bg-blue-50');
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
   });
 });
