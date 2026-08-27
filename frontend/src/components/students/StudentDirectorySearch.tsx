@@ -2,15 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search, Loader2, X, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { studentApi, Student } from "@/api/student-api";
 import { ApiError } from "@/api/http-client";
 
-type StudentWithClass = Student & {
+export type StudentWithClass = Student & {
   class_id?: { _id?: string; class_name?: string } | string;
 };
 
-interface Props {
-  onOpenDetail: (student: StudentWithClass) => void;
+export interface StudentDirectorySearchProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onOpenDetail?: (student: StudentWithClass) => void;
+  className?: string;
+  autoFocus?: boolean;
 }
 
 function classNameOf(student: StudentWithClass) {
@@ -43,7 +48,14 @@ function formatStatus(status?: string) {
   return status;
 }
 
-export default function StudentDirectorySearch({ onOpenDetail }: Props) {
+export default function StudentDirectorySearch({
+  isOpen = true,
+  onClose,
+  onOpenDetail,
+  className = "",
+  autoFocus = true,
+}: StudentDirectorySearchProps = {}) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StudentWithClass[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,6 +63,17 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
   const [selected, setSelected] = useState<StudentWithClass | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const dialogCloseRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen && autoFocus) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, autoFocus]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -71,7 +94,7 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
       try {
         const response = await studentApi.getStudents({
           page: 1,
-          limit: 8,
+          limit: 20,
           search: trimmed,
           fields: "slider",
           signal: controller.signal,
@@ -92,23 +115,53 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
   }, [query]);
 
   useEffect(() => {
-    if (!selected) return;
-    dialogCloseRef.current?.focus();
+    if (!isOpen) return;
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelected(null);
+      if (event.key === "Escape") {
+        if (selected) {
+          setSelected(null);
+        } else {
+          onClose?.();
+        }
+      }
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, selected, onClose]);
+
+  useEffect(() => {
+    if (!selected) return;
+    dialogCloseRef.current?.focus();
   }, [selected]);
+
+  if (!isOpen) return null;
 
   const canOpenDetail = Boolean(selected && classIdOf(selected));
 
+  const handleNavigateDetail = () => {
+    if (!selected) return;
+    const currentSelected = selected;
+    setSelected(null);
+    onClose?.();
+    if (onOpenDetail) {
+      onOpenDetail(currentSelected);
+    } else {
+      const classId = classIdOf(currentSelected);
+      if (classId && currentSelected._id) {
+        router.push(`/students/${classId}/${currentSelected._id}`);
+      }
+    }
+  };
+
   return (
-    <div className="relative w-full">
+    <div ref={containerRef} className={`relative w-full ${className}`}>
       <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
       <div className="flex items-center gap-2 rounded-xl border border-white/70 bg-white/50 px-3 py-2 shadow-sm shadow-slate-300/20 backdrop-blur-sm transition-all duration-150 focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
         <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
         <input
+          ref={inputRef}
           id="student-directory-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -117,9 +170,19 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
           autoComplete="off"
         />
         {loading && <Loader2 size={15} className="shrink-0 animate-spin text-[#1A73E8]" aria-label="Đang tìm kiếm" />}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng tìm kiếm"
+            className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-0.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
 
-      {query.trim().length >= 2 && (
+      {query.trim().length >= 2 && !selected && (
         <div className="mt-2 rounded-xl border border-white/75 bg-white/80 p-1.5 shadow-sm shadow-slate-300/40 backdrop-blur-md" aria-live="polite">
           {error ? (
             <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-xs font-medium text-rose-700">{error}</p>
@@ -128,7 +191,10 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
           ) : results.length === 0 ? (
             <p className="px-3 py-2.5 text-xs text-[#64748B]">Không tìm thấy sinh viên phù hợp.</p>
           ) : (
-            <ul className="space-y-1" aria-label="Kết quả tìm kiếm sinh viên">
+            <ul
+              className="space-y-1 max-h-[384px] overflow-y-auto scrollbar-hover"
+              aria-label="Kết quả tìm kiếm sinh viên"
+            >
               {results.map((student) => (
                 <li key={student._id}>
                   <button
@@ -224,12 +290,7 @@ export default function StudentDirectorySearch({ onOpenDetail }: Props) {
                 type="button"
                 disabled={!canOpenDetail}
                 title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined}
-                onClick={() => {
-                  if (canOpenDetail) {
-                    setSelected(null);
-                    onOpenDetail(selected);
-                  }
-                }}
+                onClick={handleNavigateDetail}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none disabled:hover:scale-100 cursor-pointer"
               >
                 Chi tiết <ArrowRight size={14} />

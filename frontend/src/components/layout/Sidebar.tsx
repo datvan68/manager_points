@@ -13,7 +13,9 @@ import {
   User,
   Shield,
   Compass,
+  Search,
 } from "lucide-react";
+import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
 import { authApi } from "@/api/auth-api";
@@ -128,7 +130,21 @@ const Sidebar = () => {
   const [visibleItems, setVisibleItems] = useState<typeof allMenuItems>([]);
   const [isSidebarLoading, setIsSidebarLoading] = useState(true);
   const [isResolvingProfile, setIsResolvingProfile] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const isTeacherUser = isTeacherRole(user);
+  const isStudentUser = isStudentRole(user);
+  const canSearchStudents = Boolean(
+    user && (
+      isAdminUser(user) ||
+      isStudentUser ||
+      isTeacherUser ||
+      hasPermission("STUDENT_READ") ||
+      hasPermission("STUDENT_PAGE") ||
+      hasPermission("READ_STUDENT_TASK")
+    )
+  );
 
   // Invalidate cache and trigger reload on update event
   useEffect(() => {
@@ -152,9 +168,8 @@ const Sidebar = () => {
     }
 
     setIsResolvingProfile(true);
-    const isStudent = isStudentRole(user);
 
-    if (isStudent) {
+    if (isStudentUser) {
       try {
         const student = await studentApi.getMyStudent();
         const classId = typeof student.class_id === 'object'
@@ -194,9 +209,6 @@ const Sidebar = () => {
     }
 
     (async () => {
-      const isStudentUser = isStudentRole(user);
-      const isTeacherUser = isTeacherRole(user);
-
       try {
         if (isAdminUser(user)) {
           setVisibleItems(allMenuItems);
@@ -205,7 +217,6 @@ const Sidebar = () => {
         }
         const token = typeof window !== 'undefined' ? (sessionStorage.getItem('access_token') || '') : '';
         const mappings = await fetchSidebarMappings(token);
-
 
         // Filter menu items based on route-permission mappings
         const filtered = allMenuItems.filter((item) => {
@@ -287,6 +298,39 @@ const Sidebar = () => {
       }
     })();
   }, [user, authLoading, refreshTrigger]);
+
+  type MobileNavItem =
+    | { type: 'link'; key: string; item: (typeof allMenuItems)[0]; isActive: boolean; targetHref: string }
+    | { type: 'search'; key: string }
+    | { type: 'profile'; key: string };
+
+  const baseMobileItems: MobileNavItem[] = visibleItems.map((item, index) => {
+    const targetHref = (item.href === "/students" && isStudent) ? "/students/tasks" : item.href;
+    const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+    return {
+      type: 'link' as const,
+      key: `link-${index}-${item.href}`,
+      item,
+      isActive,
+      targetHref,
+    };
+  });
+
+  if (!isAdminUser(user)) {
+    baseMobileItems.push({
+      type: 'profile' as const,
+      key: 'profile',
+    });
+  }
+
+  const mobileItems: MobileNavItem[] = [...baseMobileItems];
+  if (canSearchStudents) {
+    const centerIndex = Math.floor(baseMobileItems.length / 2);
+    mobileItems.splice(centerIndex, 0, {
+      type: 'search' as const,
+      key: 'search',
+    });
+  }
 
   return (
     <>
@@ -397,43 +441,77 @@ const Sidebar = () => {
             <div key={index} aria-hidden="true" className="mobile-bottom-nav-skeleton animate-pulse" />
           ))
         ) : (
-          <>
-            {visibleItems.map((item, index) => {
-              const targetHref = (item.href === "/students" && isStudent) ? "/students/tasks" : item.href;
-              const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+          mobileItems.map((item) => {
+            if (item.type === 'link') {
               return (
                 <Link
-                  key={index}
-                  href={targetHref}
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-label={item.label}
-                  title={item.label}
-                  className={`mobile-bottom-nav-item ${isActive ? "mobile-bottom-nav-item-active" : ""}`}
+                  key={item.key}
+                  href={item.targetHref}
+                  aria-current={item.isActive ? 'page' : undefined}
+                  aria-label={item.item.label}
+                  title={item.item.label}
+                  className={`mobile-bottom-nav-item ${item.isActive ? "mobile-bottom-nav-item-active" : ""}`}
                 >
-                  <item.icon size={25} strokeWidth={2.25} aria-hidden="true" />
+                  <item.item.icon size={25} strokeWidth={2.25} aria-hidden="true" />
                 </Link>
               );
-            })}
-
-            {!isAdminUser(user) && <button
-              onClick={handleProfileClick}
-              disabled={isResolvingProfile}
-              aria-label="Mở hồ sơ cá nhân"
-              title="Hồ sơ"
-              className={`mobile-bottom-nav-item ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "mobile-bottom-nav-item-active" : ""} ${isResolvingProfile ? "opacity-50" : ""}`}
-            >
-              {isResolvingProfile ? (
-                <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <User size={25} strokeWidth={2.25} aria-hidden="true" />
-              )}
-            </button>}
-          </>
+            }
+            if (item.type === 'search') {
+              return (
+                <button
+                  key="mobile-search-btn"
+                  type="button"
+                  onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+                  aria-label="Tìm kiếm sinh viên"
+                  title="Tìm kiếm"
+                  className={`mobile-bottom-nav-item ${isMobileSearchOpen ? "mobile-bottom-nav-item-active" : ""}`}
+                >
+                  <Search size={25} strokeWidth={2.25} aria-hidden="true" />
+                </button>
+              );
+            }
+            if (item.type === 'profile') {
+              return (
+                <button
+                  key="mobile-profile-btn"
+                  onClick={handleProfileClick}
+                  disabled={isResolvingProfile}
+                  aria-label="Mở hồ sơ cá nhân"
+                  title="Hồ sơ"
+                  className={`mobile-bottom-nav-item ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "mobile-bottom-nav-item-active" : ""} ${isResolvingProfile ? "opacity-50" : ""}`}
+                >
+                  {isResolvingProfile ? (
+                    <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <User size={25} strokeWidth={2.25} aria-hidden="true" />
+                  )}
+                </button>
+              );
+            }
+            return null;
+          })
         )}
       </nav>
+
+      {/* Mobile Search Surface (Above the bottom nav) */}
+      {canSearchStudents && isMobileSearchOpen && (
+        <div
+          className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-slate-900/30 p-3 pb-[calc(var(--safe-area-bottom)+5rem)] backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsMobileSearchOpen(false);
+          }}
+        >
+          <div className="w-full max-w-md mx-auto">
+            <StudentDirectorySearch
+              isOpen={isMobileSearchOpen}
+              onClose={() => setIsMobileSearchOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Render SubsystemPopup for Mobile Trigger */}
       <SubsystemPopup isOpen={isSubsystemOpen} onClose={() => setIsSubsystemOpen(false)} />

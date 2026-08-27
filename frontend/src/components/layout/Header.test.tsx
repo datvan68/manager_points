@@ -1,10 +1,71 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import Header from './Header';
+import { useAuth } from '@/providers/auth-provider';
 
 const headerSource = readFileSync(resolve(__dirname, 'Header.tsx'), 'utf8');
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/students',
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock('@/providers/auth-provider', () => ({
+  useAuth: vi.fn(),
+  isAdminUser: vi.fn((user) => user?.role === 'admin'),
+}));
+
+vi.mock('@/hooks/useLocationPermission', () => ({
+  useLocationPermission: () => ({
+    permission: 'idle',
+    granted: false,
+    requesting: false,
+    requestPermission: vi.fn(),
+  }),
+}));
+
+vi.mock('@/hooks/useNotificationRealtime', () => ({
+  useNotificationRealtime: vi.fn(),
+}));
+
+vi.mock('@/api/notification-api', () => ({
+  notificationApi: {
+    getUnreadCount: vi.fn(() => Promise.resolve({ count: 0 })),
+    getNotifications: vi.fn(() => Promise.resolve({ items: [] })),
+  },
+}));
+
+vi.mock('./StudentCongratsModalGate', () => ({
+  default: () => null,
+}));
+
+vi.mock('@/components/popups/SubsystemPopup', () => ({
+  default: () => null,
+}));
+
+vi.mock('@/components/popups/NotificationPopup', () => ({
+  default: () => null,
+}));
+
 describe('Header responsive shell contract', () => {
+  beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'admin-1', role: 'admin', display_name: 'Admin User' },
+      isLoading: false,
+      hasPermission: vi.fn(() => true),
+      hasAnyPermission: vi.fn(() => true),
+      hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+  });
+
   it('uses a sticky, safe-area-aware header without shrinking', () => {
     expect(headerSource).toContain('dashboard-header sticky top-0');
     expect(headerSource).toContain('pt-[env(safe-area-inset-top,0px)]');
@@ -44,5 +105,32 @@ describe('Header responsive shell contract', () => {
     expect(globalStyles).toContain('width: min(calc(100vw - 1rem), 340px)');
     expect(globalStyles).toContain('height: 54px');
     expect(globalStyles).toContain('touch-action: none');
+  });
+
+  it('renders desktop search trigger for authorized users and opens search surface', () => {
+    render(<Header />);
+    const searchBtn = screen.getByRole('button', { name: 'Tìm kiếm' });
+    expect(searchBtn).toBeInTheDocument();
+
+    fireEvent.click(searchBtn);
+    expect(screen.getByPlaceholderText('Tìm kiếm sinh viên...')).toBeInTheDocument();
+  });
+
+  it('hides desktop search trigger when user has no student-read scope', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'guest-1', role: 'guest' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+
+    render(<Header />);
+    expect(screen.queryByRole('button', { name: 'Tìm kiếm' })).not.toBeInTheDocument();
   });
 });

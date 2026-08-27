@@ -6,7 +6,9 @@ import { Bell, Search, LayoutGrid, User, Download, LogOut, MapPin } from 'lucide
 import Link from 'next/link';
 import Image from 'next/image';
 import logoNsg from '@/assets/cropped-logo-nsg.png';
-import { useAuth } from '@/providers/auth-provider';
+import { useAuth, isAdminUser } from '@/providers/auth-provider';
+import { isStudentRole, isTeacherRole } from '@/utils/role.util';
+import StudentDirectorySearch from '@/components/students/StudentDirectorySearch';
 import SubsystemPopup from '@/components/popups/SubsystemPopup';
 import NotificationPopup from '@/components/popups/NotificationPopup';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -24,7 +26,7 @@ interface HeaderProps {
 }
 
 const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
-    const { user, logout } = useAuth();
+    const { user, logout, hasPermission } = useAuth();
     const router = useRouter();
     const headerContext = useHeader();
     const customMappings = headerContext ? { ...headerContext.customMappings, ...propMappings } : propMappings;
@@ -32,6 +34,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const [isPwaInstalled, setIsPwaInstalled] = useState(false);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isSubsystemOpen, setIsSubsystemOpen] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
     const { permission, granted: locationEnabled, requesting, requestPermission } = useLocationPermission();
     const locationStatus = requesting ? 'requesting' : permission === 'denied' ? 'denied' : permission === 'granted' ? 'granted' : 'idle';
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -40,7 +43,19 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     
     const profileRef = useRef<HTMLDivElement>(null);
     const notificationRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
+
+    const canSearchStudents = Boolean(
+        user && (
+            isAdminUser(user) ||
+            isStudentRole(user) ||
+            isTeacherRole(user) ||
+            hasPermission?.('STUDENT_READ') ||
+            hasPermission?.('STUDENT_PAGE') ||
+            hasPermission?.('READ_STUDENT_TASK')
+        )
+    );
     useNotificationRealtime(Boolean(user));
 
     useEffect(() => {
@@ -215,6 +230,9 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
             if (notificationRef.current && !notificationRef.current.contains(target)) {
                 setIsNotificationOpen(false);
             }
+            if (searchRef.current && !searchRef.current.contains(target)) {
+                setIsSearchOpen(false);
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -255,10 +273,28 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Nút tìm kiếm (Chỉ hiển thị trên desktop: lg:flex) */}
-          <button aria-label="Tìm kiếm" className="hidden lg:flex min-w-11 min-h-11 w-11 h-11 rounded-xl items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40">
-            <Search size={18} />
-          </button>
+          {/* Nút tìm kiếm (Chỉ hiển thị trên desktop khi có quyền: lg:block) */}
+          {canSearchStudents && (
+            <div className="hidden lg:block relative" ref={searchRef}>
+              <button
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                aria-label="Tìm kiếm"
+                aria-expanded={isSearchOpen}
+                className="min-w-11 min-h-11 w-11 h-11 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
+              >
+                <Search size={18} />
+              </button>
+
+              {isSearchOpen && (
+                <div className="absolute right-0 top-full mt-2 w-96 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <StudentDirectorySearch
+                    isOpen={isSearchOpen}
+                    onClose={() => setIsSearchOpen(false)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Chuông thông báo (Chỉ hiển thị trên desktop: lg:block) */}
           <div className="hidden lg:block relative" ref={notificationRef}>

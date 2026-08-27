@@ -43,6 +43,7 @@ vi.mock('@/api/auth-api', () => ({
 vi.mock('@/api/student-api', () => ({
   studentApi: {
     getMyStudent: vi.fn(() => Promise.resolve({})),
+    getStudents: vi.fn(() => Promise.resolve({ data: [], meta: {} })),
   },
 }));
 
@@ -60,9 +61,9 @@ describe('Sidebar Component', () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: 'test_user', role: 'admin' },
       isLoading: false,
-      hasPermission: vi.fn(),
-      hasAnyPermission: vi.fn(),
-      hasAllPermissions: vi.fn(),
+      hasPermission: vi.fn(() => true),
+      hasAnyPermission: vi.fn(() => true),
+      hasAllPermissions: vi.fn(() => true),
       isAuthenticated: true,
       permissions: [],
       logout: vi.fn(),
@@ -304,5 +305,47 @@ describe('Sidebar Component', () => {
     await waitForSidebarItems();
 
     expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
+  });
+
+  it('places search trigger at the visual center of mobile navigation for admin', async () => {
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    const mobileNav = document.querySelector('.mobile-bottom-nav');
+    expect(mobileNav).toBeTruthy();
+    const children = Array.from(mobileNav?.children || []).filter(el => !el.classList.contains('mobile-bottom-nav-skeleton'));
+    expect(children).toHaveLength(5);
+
+    // Center index (index 2 in 0-4) is the search button
+    const centerItem = children[2];
+    expect(centerItem.tagName).toBe('BUTTON');
+    expect(centerItem).toHaveAttribute('aria-label', 'Tìm kiếm sinh viên');
+
+    // Click opens mobile search surface
+    fireEvent.click(centerItem);
+    expect(screen.getByPlaceholderText('Tìm kiếm sinh viên...')).toBeInTheDocument();
+  });
+
+  it('omits mobile search trigger when user has no student-read scope', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'guest-id', role: 'guest' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(false);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.queryByRole('button', { name: 'Tìm kiếm sinh viên' })).not.toBeInTheDocument();
   });
 });

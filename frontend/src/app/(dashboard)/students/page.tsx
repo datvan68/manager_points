@@ -25,7 +25,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StudentAvatar } from "@/components/ui/StudentAvatar";
 import { Button } from "@/components/ui/button";
 import { Research } from "@/components/ui/Research";
-import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
 import { motion, AnimatePresence } from "framer-motion";
 import TabNavigation from "@/components/ui/TabNavigation";
 import Action from "@/components/ui/Action";
@@ -295,15 +294,6 @@ function StudentsPageContent() {
     router.push(query ? `/students/${classId}?${query}` : `/students/${classId}`, { scroll: false });
   };
 
-  const handleStudentDetail = (student: Student & { class_id?: any }) => {
-    const classId = typeof student.class_id === "object"
-      ? student.class_id?._id
-      : student.class_id;
-    if (classId && student._id) {
-      router.push(`/students/${classId}/${student._id}`);
-    }
-  };
-
   const currentDeptName =
     deptsList.find((d) => d._id === selectedDept)?.name ||
     "Công nghệ thông tin - Kỹ thuật điện";
@@ -420,13 +410,7 @@ function StudentsPageContent() {
                     {deptsList.length}
                   </span>
                 </div>
-                {/* <button className="flex items-center gap-1.5 bg-white border border-slate-200/60 shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_1px_2px_0_rgba(0,0,0,0.1)] rounded-md px-2 py-1.5 text-[14px] text-slate-700 hover:bg-slate-50 transition-colors">
-                            Trụ sở chính
-                            <ChevronDown size={14} className="text-slate-400" />
-                        </button> */}
               </div>
-
-              <StudentDirectorySearch onOpenDetail={handleStudentDetail} />
 
               <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 scrollbar-hover pb-4">
                 {filteredDepts.map((dept) => {
