@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { isStudentRole } from '@/utils/role.util';
@@ -12,16 +13,22 @@ import { AlertTriangle, ShieldAlert } from 'lucide-react';
 // Dashboard sub-components
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import KpiGrid from '@/components/dashboard/KpiGrid';
-import EvaluationProgressPanel from '@/components/dashboard/EvaluationProgressPanel';
-import AcademicOverviewPanel from '@/components/dashboard/AcademicOverviewPanel';
-import AttendanceRecordPanel from '@/components/dashboard/AttendanceRecordPanel';
-import TaskPanel from '@/components/dashboard/TaskPanel';
-import QuickActionsPanel from '@/components/dashboard/QuickActionsPanel';
-import ScoreDistributionChart from '@/components/dashboard/ScoreDistributionChart';
+import StudentSpotlightPanel from '@/components/dashboard/StudentSpotlightPanel';
 
-// Lazy-loaded panels (conditional rendering)
-const SystemOperationsPanel = lazy(() => import('@/components/dashboard/SystemOperationsPanel'));
-const StudentSpotlightPanel = lazy(() => import('@/components/dashboard/StudentSpotlightPanel'));
+const DeferredPanelsPlaceholder = () => (
+  <div
+    aria-label="Đang tải các bảng điều khiển bổ sung"
+    className="space-y-6"
+  >
+    <div className="h-24 rounded-2xl bg-white/45 border border-white/75 animate-pulse" />
+    <div className="h-[420px] rounded-2xl bg-white/45 border border-white/75 animate-pulse" />
+  </div>
+);
+
+const DashboardDeferredPanels = dynamic(
+  () => import('@/components/dashboard/DashboardDeferredPanels'),
+  { loading: () => <DeferredPanelsPlaceholder />, ssr: false },
+);
 
 
 
@@ -52,6 +59,33 @@ export default function DashboardPage() {
   const [systemRequests, setSystemRequests] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
   const loadsInFlightRef = useRef(new Map<string, Promise<void>>());
+  const deferredPanelsSentinelRef = useRef<HTMLDivElement>(null);
+  const [shouldLoadDeferredPanels, setShouldLoadDeferredPanels] = useState(false);
+
+  useEffect(() => {
+    if (shouldLoadDeferredPanels) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoadDeferredPanels(true);
+      return;
+    }
+
+    const sentinel = deferredPanelsSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldLoadDeferredPanels(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '640px 0px' },
+    );
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [metrics, shouldLoadDeferredPanels]);
 
   const loadData = useCallback(async (showIndicator = true, targetSemId?: string | null) => {
     if (!user) return;
@@ -232,9 +266,7 @@ export default function DashboardPage() {
         />
 
         {/* Student Spotlight & Leaderboards */}
-        <Suspense fallback={<div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 h-32 animate-pulse" />}>
-          <StudentSpotlightPanel metrics={metrics} />
-        </Suspense>
+        <StudentSpotlightPanel metrics={metrics} />
 
         {/* Attention Alerts / Warnings */}
         {attentionItems.length > 0 && (
@@ -258,60 +290,16 @@ export default function DashboardPage() {
         {/* KPI Cards Grid */}
         <KpiGrid metrics={metrics} />
 
-        {/* Quick Actions Panel */}
-        <QuickActionsPanel roleScope={metrics.roleScope} />
-
-        {/* Main dashboard columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Left Column (2 spans wide on lg) */}
-          <div className="lg:col-span-2 space-y-6">
-            
-            {/* Attendance & Evaluation Progress Panels */}
-            {metrics.roleScope !== 'system' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <AttendanceRecordPanel metrics={metrics} />
-                <EvaluationProgressPanel metrics={metrics} />
-              </div>
-            )}
-
-            {/* Score Distribution Chart & Student Roster Statuses */}
-            {metrics.roleScope !== 'system' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <ScoreDistributionChart distribution={metrics.distributions.scoreDistribution} />
-                <AcademicOverviewPanel metrics={metrics} />
-              </div>
-            )}
-            
-            {/* For system operator role only */}
-            {metrics.roleScope === 'system' && (
-              <TaskPanel metrics={metrics} />
-            )}
-
-          </div>
-
-          {/* Right Column (1 span wide on lg) */}
-          <div className="space-y-6">
-            
-            {/* Task Panel (For student, teacher, admin) */}
-            {metrics.roleScope !== 'system' && (
-              <TaskPanel metrics={metrics} />
-            )}
-
-
-          </div>
-
-        </div>
-
-        {/* System operations dashboard card for admins & operators */}
-        {showSystemPanel && (
-          <Suspense fallback={<div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 h-32 animate-pulse" />}>
-            <SystemOperationsPanel 
-              metrics={metrics} 
-              systemRequests={systemRequests}
-              backups={backups}
-            />
-          </Suspense>
+        <div ref={deferredPanelsSentinelRef} aria-hidden="true" className="h-1" />
+        {shouldLoadDeferredPanels ? (
+          <DashboardDeferredPanels
+            metrics={metrics}
+            showSystemPanel={showSystemPanel}
+            systemRequests={systemRequests}
+            backups={backups}
+          />
+        ) : (
+          <DeferredPanelsPlaceholder />
         )}
 
       </div>

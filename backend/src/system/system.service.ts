@@ -2777,7 +2777,7 @@ export class SystemService {
             },
           },
           { $sort: { total_score: -1 } },
-          { $limit: 5 },
+          { $limit: 10 },
           {
             $lookup: {
               from: 'classes',
@@ -2810,7 +2810,7 @@ export class SystemService {
             populate: { path: 'class_id', select: 'class_name' },
           })
           .sort({ total_score: -1 })
-          .limit(5)
+          .limit(10)
           .lean()
           .exec();
       }
@@ -2949,7 +2949,7 @@ export class SystemService {
                 'latestRecord.recorded_at': -1,
               },
             },
-            { $limit: 5 },
+            { $limit: 10 },
             {
               $lookup: {
                 from: studentModel.collection.name,
@@ -3083,7 +3083,7 @@ export class SystemService {
                 'latestRecord.recorded_at': -1,
               },
             },
-            { $limit: 5 },
+            { $limit: 10 },
             {
               $lookup: {
                 from: studentModel.collection.name,
@@ -3217,7 +3217,7 @@ export class SystemService {
                 'latestRecord.recorded_at': -1,
               },
             },
-            { $limit: 5 },
+            { $limit: 10 },
             {
               $lookup: {
                 from: studentModel.collection.name,

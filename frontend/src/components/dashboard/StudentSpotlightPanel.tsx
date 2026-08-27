@@ -311,11 +311,12 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
           <p className="text-[10px] text-[#64748B] mt-0.5">Dữ liệu sẽ được tự động đồng bộ khi có ghi nhận hoặc bảng điểm mới.</p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 scrollbar-hover">
-          {list.slice(0, 5).map((item, index) => (
+        <div className="space-y-2 max-h-[620px] sm:max-h-[760px] overflow-y-auto pr-1 scrollbar-hover">
+          {list.slice(0, 10).map((item) => (
             <div 
               key={item.studentId}
               className="group bg-white/50 border border-white/70 rounded-xl p-3.5 flex items-center justify-between gap-4 hover:scale-[1.005] hover:bg-white/85 transition-all duration-150 ease-out shadow-xs shadow-slate-200/20"
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 72px' }}
             >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${getAvatarBg(item.studentName, activeTab)} text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-white/20`}>

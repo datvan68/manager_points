@@ -267,6 +267,41 @@ describe('SystemService', () => {
     expect(service).toBeDefined();
   });
 
+  it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, './system.service.ts'),
+      'utf8',
+    );
+    const dashboardSource = source.slice(
+      source.indexOf('async getDashboardMetrics'),
+    );
+    const highlightsSource = dashboardSource.slice(
+      dashboardSource.indexOf('// ─── RECENT LISTS & HIGHLIGHTS'),
+      dashboardSource.indexOf('// Student spotlight'),
+    );
+    const topScoresSource = highlightsSource.slice(
+      highlightsSource.indexOf('// Top Scores'),
+      highlightsSource.indexOf('// Preload latestRecord'),
+    );
+    const recentListsSource = highlightsSource.slice(
+      0,
+      highlightsSource.indexOf('// Top Scores'),
+    );
+    const highlightPipelinesSource = highlightsSource.slice(
+      highlightsSource.indexOf('// 2. Fetch top highlights'),
+      highlightsSource.indexOf('// Student spotlight'),
+    );
+
+    expect(topScoresSource.match(/\$limit: 10/g)).toHaveLength(1);
+    expect(topScoresSource.match(/\.limit\(10\)/g)).toHaveLength(1);
+    expect(topScoresSource).not.toContain('$limit: 5');
+    expect(topScoresSource).not.toContain('.limit(5)');
+    expect(highlightPipelinesSource.match(/\{ \$limit: 10 \}/g)).toHaveLength(3);
+    expect(highlightPipelinesSource).not.toContain('{ $limit: 5 }');
+    expect(recentListsSource).toContain('{ $limit: 5 }');
+    expect(recentListsSource).toContain('.limit(5)');
+  });
+
   it('should read module maintenance states from system settings', async () => {
     const updatedAt = new Date('2026-01-01T00:00:00.000Z');
     systemSettingModel.findOne.mockReturnValueOnce({
