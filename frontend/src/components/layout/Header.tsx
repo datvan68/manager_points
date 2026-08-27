@@ -273,25 +273,25 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Nút tìm kiếm (Chỉ hiển thị trên desktop khi có quyền: lg:block) */}
+          {/* Nút tìm kiếm (Chỉ hiển thị trên desktop khi có quyền: lg:flex) */}
           {canSearchStudents && (
-            <div className="hidden lg:block relative" ref={searchRef}>
-              <button
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                aria-label="Tìm kiếm"
-                aria-expanded={isSearchOpen}
-                className="min-w-11 min-h-11 w-11 h-11 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
-              >
-                <Search size={18} />
-              </button>
-
-              {isSearchOpen && (
-                <div className="absolute right-0 top-full mt-2 w-96 z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="hidden lg:flex items-center relative" ref={searchRef}>
+              {isSearchOpen ? (
+                <div className="w-80 xl:w-96 transition-all duration-300 ease-out animate-in fade-in slide-in-from-right-3">
                   <StudentDirectorySearch
                     isOpen={isSearchOpen}
                     onClose={() => setIsSearchOpen(false)}
                   />
                 </div>
+              ) : (
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  aria-label="Tìm kiếm"
+                  aria-expanded={false}
+                  className="min-w-11 min-h-11 w-11 h-11 rounded-xl flex items-center justify-center text-[#64748B] border border-transparent hover:border-white/60 hover:bg-white/70 hover:text-[#1E293B] hover:scale-[1.01] transition-[border-color,background-color,color,transform] duration-150 ease-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
+                >
+                  <Search size={18} />
+                </button>
               )}
             </div>
           )}

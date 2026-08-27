@@ -158,7 +158,7 @@ export default function StudentDirectorySearch({
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
       <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
-      <div className="flex items-center gap-2 rounded-xl border border-white/70 bg-white/50 px-3 py-2 shadow-sm shadow-slate-300/20 backdrop-blur-sm transition-all duration-150 focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
+      <div className="flex items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50">
         <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
         <input
           ref={inputRef}
@@ -175,7 +175,7 @@ export default function StudentDirectorySearch({
             type="button"
             onClick={onClose}
             aria-label="Đóng tìm kiếm"
-            className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-0.5 rounded-lg hover:bg-black/5 transition-colors cursor-pointer"
+            className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
           >
             <X size={15} />
           </button>
@@ -183,16 +183,24 @@ export default function StudentDirectorySearch({
       </div>
 
       {query.trim().length >= 2 && !selected && (
-        <div className="mt-2 rounded-xl border border-white/75 bg-white/80 p-1.5 shadow-sm shadow-slate-300/40 backdrop-blur-md" aria-live="polite">
+        <div
+          className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-white/80 bg-[#edf4fc]/95 p-2 shadow-xl shadow-slate-400/20 backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden"
+          aria-live="polite"
+        >
           {error ? (
             <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-xs font-medium text-rose-700">{error}</p>
           ) : loading ? (
-            <p className="px-3 py-2.5 text-xs text-[#64748B]">Đang tìm kiếm...</p>
+            <div className="flex items-center justify-center gap-2 py-3.5 text-xs font-medium text-[#64748B]">
+              <Loader2 size={15} className="animate-spin text-[#1A73E8]" />
+              <span>Đang tìm kiếm...</span>
+            </div>
           ) : results.length === 0 ? (
-            <p className="px-3 py-2.5 text-xs text-[#64748B]">Không tìm thấy sinh viên phù hợp.</p>
+            <p className="rounded-xl border border-white/60 bg-white/40 px-3 py-3 text-center text-xs font-medium text-[#64748B] backdrop-blur-xs">
+              Không tìm thấy sinh viên phù hợp.
+            </p>
           ) : (
             <ul
-              className="space-y-1 max-h-[384px] overflow-y-auto scrollbar-hover"
+              className="space-y-1 max-h-[384px] overflow-y-auto overflow-x-hidden scrollbar-hover"
               aria-label="Kết quả tìm kiếm sinh viên"
             >
               {results.map((student) => (
@@ -200,12 +208,12 @@ export default function StudentDirectorySearch({
                   <button
                     type="button"
                     onClick={() => setSelected(student)}
-                    className="group w-full rounded-xl px-3 py-2 text-left transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+                    className="group w-full rounded-2xl border border-transparent bg-transparent px-4 py-2.5 text-left transition-all duration-150 ease-out hover:bg-white/45 hover:border-white/60 hover:backdrop-blur-sm focus:outline-none focus:bg-white/45 focus:border-white/60 focus:backdrop-blur-sm active:bg-white/55 cursor-pointer"
                   >
-                    <span className="block truncate text-sm font-semibold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors">
+                    <span className="block truncate text-sm font-bold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors">
                       {student.full_name}
                     </span>
-                    <span className="block truncate text-xs text-[#64748B] mt-0.5">
+                    <span className="block truncate text-xs font-medium text-[#64748B] group-hover:text-[#475569] mt-0.5">
                       {student.student_code} · {classNameOf(student)}
                     </span>
                   </button>
