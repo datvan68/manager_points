@@ -15,6 +15,18 @@ export default function AttendanceRecordPanel({ metrics }: AttendanceRecordPanel
     router.push(path);
   };
 
+  const getRecordTitle = (record: any) => {
+    const optionLabel = typeof record.selected_option_label === 'string'
+      ? record.selected_option_label.trim()
+      : '';
+    if (optionLabel) return optionLabel;
+    const technicalTitle = record.record_title || '';
+    if (/^Lựa chọn option\s+.+$/i.test(technicalTitle)) {
+      return record.criterion_id?.criterion_name || 'Ghi nhận học vụ';
+    }
+    return technicalTitle || record.criterion_id?.criterion_name || 'Ghi nhận học vụ';
+  };
+
   const getRecordStyle = (title?: string) => {
     const text = (title || '').toLowerCase();
     if (text.includes('khen') || text.includes('tuyên dương') || text.includes('cộng điểm')) {
@@ -52,12 +64,12 @@ export default function AttendanceRecordPanel({ metrics }: AttendanceRecordPanel
                   return (
                     <div key={rec._id || i} className="p-2.5 bg-white/40 border border-white/50 rounded-xl flex items-center justify-between gap-3 shadow-xs hover:bg-white/60 transition-colors duration-100">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-[#1E293B] truncate">{rec.record_title || 'Ghi nhận học vụ'}</p>
+                        <p className="text-xs font-bold text-[#1E293B] truncate">{getRecordTitle(rec)}</p>
                         <p className="text-[10px] text-[#64748B] mt-0.5 font-medium truncate">
                           {studentName} • {rec.recorded_at ? new Date(rec.recorded_at).toLocaleDateString('vi-VN') : 'Mới ghi nhận'}
                         </p>
                       </div>
-                      <span className={`text-[9px] font-extrabold border rounded-lg px-2 py-0.5 shrink-0 ${getRecordStyle(rec.record_title)}`}>
+                      <span className={`text-[9px] font-extrabold border rounded-lg px-2 py-0.5 shrink-0 ${getRecordStyle(getRecordTitle(rec))}`}>
                         {rec.points_effect && rec.points_effect > 0 ? `+${rec.points_effect}đ` : rec.points_effect ? `${rec.points_effect}đ` : 'Học vụ'}
                       </span>
                     </div>

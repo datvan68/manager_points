@@ -1031,7 +1031,10 @@ describe('AcademicRecordService - Import Flow', () => {
 
       await service.handleScoreIntent(intentDto, requester);
       expect(mockAcademicRecordModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({ record_title: 'Lựa chọn option opt1' }),
+        expect.objectContaining({
+          record_title: 'Option 1',
+          selected_option_label: 'Option 1',
+        }),
       );
     });
 

@@ -2694,6 +2694,7 @@ export class SystemService {
     let topRewards: any[] = [];
     let topBonus: any[] = [];
     let topDiscipline: any[] = [];
+    let studentAttentionCount = 0;
     let mySpotlight: any = undefined;
 
     if (targetSemesterId) {
@@ -2866,6 +2867,7 @@ export class SystemService {
           recordCount: 0,
           impactScore: 0,
           latestRecordTitle:
+            latestRecord?.selected_option_label ||
             latestRecord?.record_title ||
             latestRecord?.criterion_id?.criterion_name ||
             'Không có ghi nhận',
@@ -2913,6 +2915,44 @@ export class SystemService {
         }
         return [{ $match: match }];
       };
+
+      const attentionAgg = await academicRecordModel.aggregate([
+        ...getHighlightBaseStages(),
+        {
+          $lookup: {
+            from: criterionModel.collection.name,
+            localField: 'criterion_id',
+            foreignField: '_id',
+            as: 'criterion',
+          },
+        },
+        { $unwind: '$criterion' },
+        {
+          $match: {
+            $or: [
+              { 'criterion.criterion_type': 'ky_luat' },
+              { points_effect: { $lt: 0 } },
+              {
+                $and: [
+                  { points_effect: null },
+                  { 'criterion.score_per_unit': { $lt: 0 } },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$student_id',
+            totalOccurrences: {
+              $sum: { $ifNull: ['$quantity', 1] },
+            },
+          },
+        },
+        { $match: { totalOccurrences: { $gt: 3 } } },
+        { $count: 'count' },
+      ]);
+      studentAttentionCount = attentionAgg[0]?.count || 0;
 
       // 2. Fetch top highlights using MongoDB Aggregation Pipelines
       const [rewardsAgg, bonusAgg, disciplineAgg] = await Promise.all([
@@ -3002,6 +3042,7 @@ export class SystemService {
                 impactScore: 1,
                 latestRecordTitle: {
                   $ifNull: [
+                    '$latestRecord.selected_option_label',
                     '$latestRecord.record_title',
                     '$latestRecord.criterion.criterion_name',
                     'Không có ghi nhận',
@@ -3136,6 +3177,7 @@ export class SystemService {
                 impactScore: 1,
                 latestRecordTitle: {
                   $ifNull: [
+                    '$latestRecord.selected_option_label',
                     '$latestRecord.record_title',
                     '$latestRecord.criterion.criterion_name',
                     'Không có ghi nhận',
@@ -3270,6 +3312,7 @@ export class SystemService {
                 impactScore: 1,
                 latestRecordTitle: {
                   $ifNull: [
+                    '$latestRecord.selected_option_label',
                     '$latestRecord.record_title',
                     '$latestRecord.criterion.criterion_name',
                     'Không có ghi nhận',
@@ -3426,6 +3469,7 @@ export class SystemService {
               recordCount: 1,
               impactScore: pointsEffect,
               latestRecordTitle:
+                r.selected_option_label ||
                 r.record_title ||
                 r.criterion_id?.criterion_name ||
                 'Ghi nhận mới',
@@ -3546,6 +3590,7 @@ export class SystemService {
         totalDepartments,
         averageScore,
         pendingMyReviewCount,
+        studentAttentionCount,
         urgentTasksCount,
         unreadNotificationsCount,
 

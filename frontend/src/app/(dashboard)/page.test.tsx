@@ -38,12 +38,20 @@ describe('Dashboard loading contract', () => {
     expect(deferredSource).toContain("metrics.roleScope === 'system'");
   });
 
-  it('limits every leaderboard tab to ten rows and supports the larger viewport', () => {
+  it('limits every leaderboard tab to ten rows and exposes a five-row scroll viewport', () => {
     const spotlightSource = readFileSync(resolve(__dirname, '../../components/dashboard/StudentSpotlightPanel.tsx'), 'utf8');
     expect(spotlightSource).toContain('list.slice(0, 10)');
-    expect(spotlightSource).toContain('max-h-[620px] sm:max-h-[760px]');
+    expect(spotlightSource).toContain('max-h-[360px]');
     expect(spotlightSource).toContain("contentVisibility: 'auto'");
     expect(spotlightSource).not.toContain('list.slice(0, 5)');
-    expect(spotlightSource).not.toContain('max-h-[360px]');
+    expect(spotlightSource).not.toContain('max-h-[620px] sm:max-h-[760px]');
+  });
+
+  it('removes the evaluation-period badge and prefers option labels in recent records', () => {
+    const headerSource = readFileSync(resolve(__dirname, '../../components/dashboard/DashboardHeader.tsx'), 'utf8');
+    const recordsSource = readFileSync(resolve(__dirname, '../../components/dashboard/AttendanceRecordPanel.tsx'), 'utf8');
+    expect(headerSource).not.toContain('Đợt:');
+    expect(recordsSource).toContain('selected_option_label');
+    expect(recordsSource).toContain('criterion_id?.criterion_name');
   });
 });

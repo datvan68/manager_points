@@ -1223,7 +1223,7 @@ export class AcademicRecordService {
           existingRecord.selected_option_id = selected_option_id;
           existingRecord.selected_option_label = option.label;
           existingRecord.selected_option_score = option.score;
-          existingRecord.record_title = `Lựa chọn option ${selected_option_id}`;
+          existingRecord.record_title = option.label;
           existingRecord.recorded_by = requester?.userId;
           // === NEW: Structured fields on update ===
           (existingRecord as any).recorded_by_role = recordedByRole;
@@ -1240,7 +1240,7 @@ export class AcademicRecordService {
             selected_option_id: selected_option_id,
             selected_option_label: option.label,
             selected_option_score: option.score,
-            record_title: `Lựa chọn option ${selected_option_id}`,
+            record_title: option.label,
             status: 'active',
             // === NEW: Structured fields ===
             recorded_by_role: recordedByRole,

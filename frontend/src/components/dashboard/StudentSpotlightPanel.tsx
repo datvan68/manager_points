@@ -311,7 +311,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
           <p className="text-[10px] text-[#64748B] mt-0.5">Dữ liệu sẽ được tự động đồng bộ khi có ghi nhận hoặc bảng điểm mới.</p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-[620px] sm:max-h-[760px] overflow-y-auto pr-1 scrollbar-hover">
+        <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 scrollbar-hover">
           {list.slice(0, 10).map((item) => (
             <div 
               key={item.studentId}

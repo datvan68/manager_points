@@ -256,7 +256,6 @@ export default function DashboardPage() {
           roleName={user?.roleName || user?.role || 'Khách'}
           roleScope={metrics.roleScope}
           activeSemester={metrics.activeSemester}
-          activePeriod={metrics.activePeriod}
           lastUpdated={lastUpdated}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}

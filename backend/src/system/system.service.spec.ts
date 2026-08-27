@@ -302,6 +302,18 @@ describe('SystemService', () => {
     expect(recentListsSource).toContain('.limit(5)');
   });
 
+  it('defines attention KPI from normalized quantities before leaderboard limiting', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, './system.service.ts'),
+      'utf8',
+    );
+    const dashboardSource = source.slice(source.indexOf('async getDashboardMetrics'));
+    expect(dashboardSource).toContain('studentAttentionCount');
+    expect(dashboardSource).toContain("$ifNull: ['$quantity', 1]");
+    expect(dashboardSource).toContain('totalOccurrences: { $gt: 3 }');
+    expect(dashboardSource).toContain("studentAttentionCount,\n        urgentTasksCount");
+  });
+
   it('should read module maintenance states from system settings', async () => {
     const updatedAt = new Date('2026-01-01T00:00:00.000Z');
     systemSettingModel.findOne.mockReturnValueOnce({
