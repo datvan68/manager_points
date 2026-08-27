@@ -56,6 +56,32 @@ describe('RecordSelectionUi', () => {
     expect(onConfirm).toHaveBeenCalledWith('id-2');
   });
 
+  it('can suppress the mobile class close control without preventing manual search focus', () => {
+    render(
+      <RecordSelectionDialog
+        isMobile
+        searchable
+        mobileShowCloseButton={false}
+        mobilePreventOpenAutoFocus
+        label="Lớp học"
+        title="Chọn lớp học"
+        value=""
+        placeholder="Chọn lớp"
+        onConfirm={vi.fn()}
+      >
+        {() => <div>Nội dung</div>}
+      </RecordSelectionDialog>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn lớp' }));
+    const search = screen.getByRole('combobox');
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(document.activeElement).not.toBe(search);
+
+    search.focus();
+    expect(document.activeElement).toBe(search);
+  });
+
   it('renders RecordOptionRow with option role, aria-selected, checkmark and no checkboxes', () => {
     const onClick = vi.fn();
     const { rerender, container } = render(
@@ -118,11 +144,10 @@ describe('RecordSelectionUi', () => {
     expect(description.className).toContain('sr-only');
   });
 
-  it('handles mobile student selection with draft state, search, cancel and confirm', () => {
+  it('handles mobile student selection with draft state, cancel and confirm', () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
     const onLoadMore = vi.fn();
-    const onSearchChange = vi.fn();
     const students = [
       { _id: 'st-1', full_name: 'Nguyễn Văn A', student_code: 'SV001' },
       { _id: 'st-2', full_name: 'Trần Thị B', student_code: 'SV002' },
@@ -132,19 +157,17 @@ describe('RecordSelectionUi', () => {
       <MobileStudentSelectionDialog
         open={true}
         onOpenChange={vi.fn()}
-        criterionName="Nghỉ học không phép"
         students={students}
         selectedStudentIds={['st-1']}
         onConfirm={onConfirm}
         onCancel={onCancel}
         hasMore={true}
         onLoadMore={onLoadMore}
-        searchQuery=""
-        onSearchChange={onSearchChange}
       />
     );
 
-    expect(screen.getByText('Nghỉ học không phép')).toBeInTheDocument();
+    expect(screen.queryByText('Nghỉ học không phép')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     const optionA = screen.getByRole('option', { name: /Nguyễn Văn A/i });
     const optionB = screen.getByRole('option', { name: /Trần Thị B/i });
     expect(optionA).toHaveAttribute('aria-selected', 'true');

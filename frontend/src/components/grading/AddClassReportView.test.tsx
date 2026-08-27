@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/api/http-client';
 import {
   CRITERION_USAGE_STORAGE_KEY_PREFIX,
   incrementCriterionUsage,
   orderCriteriaByUsage,
   readCriterionUsage,
 } from './criterion-usage';
-import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getInitialCriterionId, getViolationAddError, mapAcademicRecordsToViolations, mergeStudentsById, isClassReportDraft, shouldResetClassDependentState } from './AddClassReportView';
+import { buildClassReportDraft, clearPendingQuickViolations, createViolationItem, filterClassesBySearch, getDailyReportDay, getInitialCriterionId, getViolationAddError, mapAcademicRecordsToViolations, mergeStudentsById, isClassReportDraft, resolveDailyReportForClass, shouldResetClassDependentState } from './AddClassReportView';
 import { quickGridClass } from './RecordSelectionUi';
 
 describe('AddClassReportView draft contract', () => {
@@ -57,6 +58,59 @@ describe('AddClassReportView draft contract', () => {
     });
     expect(draft.entryMode).toBe('quick');
     expect(draft.selectedStudentId).toBe('');
+  });
+});
+
+describe('AddClassReportView daily report resolution', () => {
+  const fields = {
+    class_id: 'class-1', reported_by: 'user-1', report_date: '2026-08-25T00:00:00.000Z',
+    total_present: 9, total_absent: 1, class_notes: 'note',
+  };
+  const existing = { _id: 'report-1', class_id: 'class-1', report_date: fields.report_date } as any;
+
+  it('queries the API day and updates an accessible existing report', async () => {
+    const api = {
+      getDailyClassReports: vi.fn().mockResolvedValue([existing]),
+      updateDailyClassReport: vi.fn().mockResolvedValue(existing),
+      createDailyClassReport: vi.fn(),
+    };
+
+    await resolveDailyReportForClass({ api, classId: 'class-1', reportDate: new Date(fields.report_date), fields });
+
+    expect(api.getDailyClassReports).toHaveBeenCalledWith({ classId: 'class-1', startDate: '2026-08-25', endDate: '2026-08-25' });
+    expect(api.updateDailyClassReport).toHaveBeenCalledWith('report-1', fields);
+    expect(api.createDailyClassReport).not.toHaveBeenCalled();
+  });
+
+  it('refetches once after a create conflict and recovers the report id', async () => {
+    const api = {
+      getDailyClassReports: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([existing]),
+      updateDailyClassReport: vi.fn().mockResolvedValue(existing),
+      createDailyClassReport: vi.fn().mockRejectedValue(new ApiError('duplicate', 409)),
+    };
+
+    await resolveDailyReportForClass({ api, classId: 'class-1', reportDate: new Date(fields.report_date), fields });
+
+    expect(api.getDailyClassReports).toHaveBeenCalledTimes(2);
+    expect(api.updateDailyClassReport).toHaveBeenCalledWith('report-1', fields);
+  });
+
+  it('stops with a Vietnamese recovery message when a conflict remains inaccessible', async () => {
+    const api = {
+      getDailyClassReports: vi.fn().mockResolvedValue([]),
+      updateDailyClassReport: vi.fn(),
+      createDailyClassReport: vi.fn().mockRejectedValue(new ApiError('duplicate', 409)),
+    };
+
+    await expect(resolveDailyReportForClass({ api, classId: 'class-1', reportDate: new Date(fields.report_date), fields }))
+      .rejects.toThrow('đã tồn tại nhưng không thể truy cập');
+    expect(api.updateDailyClassReport).not.toHaveBeenCalled();
+  });
+
+  it('uses the UTC calendar day sent to the scoped API', () => {
+    expect(getDailyReportDay(new Date('2026-08-25T23:59:59.000Z'))).toBe('2026-08-25');
   });
 });
 

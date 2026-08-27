@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
+import { ApiError } from '@/api/http-client';
 import { classApi, Class } from '@/api/class-api';
 import { dailyClassReportApi, DailyClassReport } from '@/api/daily-class-report-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -91,6 +92,52 @@ function getIdValue(value: any): string {
 
 function isValidObjectId(value: string): boolean {
   return typeof value === 'string' && OBJECT_ID_REGEX.test(value);
+}
+
+export function getDailyReportDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function getDailyReportClassId(report: DailyClassReport): string {
+  return getIdValue(report.class_id);
+}
+
+function findActiveDailyReport(reports: DailyClassReport[] | { data: DailyClassReport[] }, classId: string, reportDay: string) {
+  const items = Array.isArray(reports) ? reports : reports.data;
+  return items.find(report =>
+    getDailyReportClassId(report) === classId && getDailyReportDay(new Date(report.report_date)) === reportDay,
+  );
+}
+
+type DailyReportApiClient = Pick<typeof dailyClassReportApi, 'getDailyClassReports' | 'createDailyClassReport' | 'updateDailyClassReport'>;
+
+export async function resolveDailyReportForClass({
+  api,
+  classId,
+  reportDate,
+  fields,
+}: {
+  api: DailyReportApiClient;
+  classId: string;
+  reportDate: Date;
+  fields: Parameters<typeof dailyClassReportApi.createDailyClassReport>[0];
+}): Promise<DailyClassReport> {
+  const reportDay = getDailyReportDay(reportDate);
+  const query = { classId, startDate: reportDay, endDate: reportDay };
+  const matchingReport = findActiveDailyReport(await api.getDailyClassReports(query), classId, reportDay);
+  if (matchingReport) return api.updateDailyClassReport(matchingReport._id, fields);
+
+  try {
+    return await api.createDailyClassReport(fields);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 409) throw error;
+
+    const recoveredReport = findActiveDailyReport(await api.getDailyClassReports(query), classId, reportDay);
+    if (!recoveredReport) {
+      throw new Error(`Báo cáo lớp ${classId} cho ngày ${format(reportDate, 'dd/MM/yyyy')} đã tồn tại nhưng không thể truy cập. Vui lòng tải lại dữ liệu hoặc liên hệ quản trị viên.`);
+    }
+    return api.updateDailyClassReport(recoveredReport._id, fields);
+  }
 }
 
 function normalizeText(value: string): string {
@@ -674,39 +721,38 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         toast.success('Cập nhật thông tin chung thành công!');
       } else {
         // --- CHẾ ĐỘ TẠO MỚI ---
-        const newReport = await dailyClassReportApi.createDailyClassReport({
-          class_id: classIds[0],
-          reported_by: user?.id || '60d0fe4f5311236168a109ca',
-          report_date: dateFormatted,
-          teacher_name: teacherName.trim(),
-          total_present: Math.max(0, (classStudentTotals[classIds[0]] || totalStudentsCount) - new Set(currentViolations.filter(violation =>
-            (violation.class_id || classIds[0]) === classIds[0] && (absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng')),
-          ).map(violation => violation.student_id)).size),
-          total_absent: new Set(currentViolations.filter(violation =>
-            (violation.class_id || classIds[0]) === classIds[0] && (absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng')),
-          ).map(violation => violation.student_id)).size,
-          class_notes: classNote.trim(),
-        });
-        dailyReportId = newReport._id;
-        reportIdsByClass.set(classIds[0], newReport._id);
-        for (const selectedClassId of classIds.slice(1)) {
-          const classViolations = currentViolations.filter(violation => violation.class_id === selectedClassId);
+        const getReportFields = (selectedClassId: string) => {
+          const classViolations = currentViolations.filter(violation => (violation.class_id || selectedClassId) === selectedClassId);
           const absentCount = new Set(classViolations.filter(violation =>
             absentCriteriaIds.includes(violation.criterion_id) || violation.criterion_name.toLowerCase().includes('vắng'),
           ).map(violation => violation.student_id)).size;
-          const classTotal = classStudentTotals[selectedClassId] || 0;
-          const additionalReport = await dailyClassReportApi.createDailyClassReport({
+          const classTotal = classStudentTotals[selectedClassId] || (selectedClassId === classIds[0] ? totalStudentsCount : 0);
+          return {
             class_id: selectedClassId,
-            reported_by: user?.id || '60d0fe4f5311236168a109cb',
+            reported_by: user?.id || '60d0fe4f5311236168a109ca',
             report_date: dateFormatted,
             teacher_name: teacherName.trim(),
             total_present: Math.max(0, classTotal - absentCount),
             total_absent: absentCount,
             class_notes: classNote.trim(),
+          };
+        };
+
+        const resolveReport = async (selectedClassId: string): Promise<DailyClassReport> => {
+          return resolveDailyReportForClass({
+            api: dailyClassReportApi,
+            classId: selectedClassId,
+            reportDate,
+            fields: getReportFields(selectedClassId),
           });
-          reportIdsByClass.set(selectedClassId, additionalReport._id);
+        };
+
+        for (const selectedClassId of classIds) {
+          const report = await resolveReport(selectedClassId);
+          reportIdsByClass.set(selectedClassId, report._id);
+          if (!dailyReportId) dailyReportId = report._id;
         }
-        toast.success('Tạo báo cáo lớp học hàng ngày thành công!');
+        toast.success('Lưu báo cáo lớp học hàng ngày thành công!');
       }
 
       // Lưu các bản ghi vi phạm bằng batch API
@@ -782,7 +828,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       exit={{ opacity: 0 }}
       className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex flex-col gap-3.5 sm:gap-4 mx-auto w-full">
+      <div className="flex flex-col gap-3.5 sm:gap-4 mx-auto w-full md:flex-1 md:min-h-0">
         {/* Page Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
           <div className="flex gap-2.5 sm:gap-3 items-center">
@@ -821,14 +867,14 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-3.5 sm:gap-4">
+          <form onSubmit={handleSave} className="flex flex-col gap-2 md:flex-1 md:min-h-0">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 w-full">
+            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 w-full md:flex-1 md:min-h-0">
 
               {/* Left Column: Core Info (col-span-12 md:col-span-5 lg:col-span-4) */}
-              <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
+              <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4 md:min-h-0">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
                   <div className="flex gap-2 items-center text-[#005bbf]">
                     <FileText className="w-4 h-4 shrink-0" />
                     <h3 className="font-bold text-sm lg:text-[15px] leading-none">Thông tin cơ bản</h3>
@@ -854,6 +900,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                         placeholder="Chọn mã lớp học..."
                         searchable
                         isMobile={isMobile}
+                        mobileShowCloseButton={false}
+                        mobilePreventOpenAutoFocus
                         onConfirm={(val) => {
                           if (isEditMode) {
                             const singleId = Array.isArray(val) ? val[0] || '' : val;
@@ -957,7 +1005,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                               <DialogTitle className="sr-only">Chọn tiêu chí</DialogTitle>
                               <DialogDescription className="sr-only">Danh sách tiêu chí ghi nhận</DialogDescription>
                               <Input
-                                autoFocus
                                 type="search"
                                 role="combobox"
                                 aria-expanded={isCriterionPickerOpen}
@@ -1020,6 +1067,17 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                       containerClassName="w-full"
                     />
 
+                    <Input
+                      multiline
+                      rows={3}
+                      label="Ghi chú lớp"
+                      value={classNote}
+                      onChange={(e) => setClassNote(e.target.value)}
+                      placeholder="Nhập ghi chú chung cho lớp..."
+                      className="bg-white/40 border-white/70 backdrop-blur-sm rounded-xl text-sm md:text-xs text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus-visible:ring-2 focus-visible:ring-blue-500/20 focus-visible:bg-white/70 focus-visible:border-blue-400 shadow-xs transition-all duration-150 ease-out"
+                      containerClassName="w-full"
+                    />
+
                     {/* Ngày báo cáo */}
                     <div className="flex flex-col w-full">
                       <label className="text-sm md:text-xs font-medium text-[#414754] mb-1 ml-1">Ngày báo cáo</label>
@@ -1055,8 +1113,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               </div>
 
               {/* Right Column: Desktop Roster Section (AC-04: visible >=768px, one card only) */}
-              <div className="hidden md:flex col-span-12 md:col-span-7 lg:col-span-8 flex-col gap-3.5 sm:gap-4">
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+              <div className="hidden md:flex col-span-12 md:col-span-7 lg:col-span-8 flex-col gap-3.5 sm:gap-4 md:min-h-0">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
                   <div className="flex items-center justify-between">
                     <div className="flex gap-2 items-center text-[#005bbf]">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -1071,7 +1129,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   </div>
 
                   {/* Student Card Grid */}
-                  <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 md:flex-1 md:min-h-0 md:!max-h-none ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
                     {classStudents.map(student => {
                       const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
                       return (
@@ -1128,7 +1186,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               <MobileStudentSelectionDialog
                 open={isMobileStudentOverlayOpen}
                 onOpenChange={setIsMobileStudentOverlayOpen}
-                criterionName={criteria.find(c => c._id === selectedCriterionId)?.criterion_name}
                 students={classStudents}
                 selectedStudentIds={addedViolations.filter(v => v.criterion_id === selectedCriterionId).map(v => v.student_id)}
                 onConfirm={handleMobileRosterConfirm}
@@ -1136,13 +1193,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 loading={isStudentsLoading}
                 hasMore={classIds.some(id => hasMoreStudents[id])}
                 onLoadMore={handleLoadMoreStudents}
-                searchQuery={studentsSearch}
-                onSearchChange={handleStudentSearch}
               />
             )}
 
             {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full shrink-0">
               <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
               </div>

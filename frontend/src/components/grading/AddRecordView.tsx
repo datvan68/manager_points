@@ -692,7 +692,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
       exit={{ opacity: 0 }}
       className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
     >
-      <div className="flex flex-col gap-4 sm:gap-5 mx-auto w-full">
+      <div className="flex flex-col gap-4 sm:gap-5 mx-auto w-full md:flex-1 md:min-h-0">
         {/* Page Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
           <div className="flex gap-3 items-center">
@@ -730,14 +730,14 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
             <span className="text-[#1A73E8] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-4 sm:gap-5">
+          <form onSubmit={handleSave} className="flex flex-col gap-2 md:flex-1 md:min-h-0">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 lg:gap-5 w-full relative z-10">
+            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 lg:gap-5 w-full relative z-10 md:flex-1 md:min-h-0">
 
               {/* Left Column: Core Info (col-span-12 md:col-span-5 lg:col-span-4) */}
-              <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
+              <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4 md:min-h-0">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
                   <div className="flex gap-2 items-center text-[#1A73E8]">
                     <FileText className="w-4 h-4 shrink-0" />
                     <h3 className="font-bold text-sm lg:text-[15px] leading-none">Thông tin cơ bản</h3>
@@ -763,6 +763,8 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         placeholder="Chọn lớp học..."
                         searchable
                         isMobile={isMobile}
+                        mobileShowCloseButton={false}
+                        mobilePreventOpenAutoFocus
                         onConfirm={(val) => {
                           if (isEditMode) {
                             const singleId = Array.isArray(val) ? val[0] || '' : val;
@@ -866,7 +868,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                               <DialogTitle className="sr-only">Chọn tiêu chí</DialogTitle>
                               <DialogDescription className="sr-only">Danh sách tiêu chí ghi nhận</DialogDescription>
                               <Input
-                                autoFocus
                                 type="search"
                                 role="combobox"
                                 aria-expanded={isCriterionPickerOpen}
@@ -1054,15 +1055,15 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               </div>
 
               {/* Right Column: Desktop Roster Section (AC-04: visible >=768px, one card only) */}
-              <div className="hidden md:flex col-span-12 md:col-span-7 lg:col-span-8 flex-col gap-3.5 sm:gap-4">
+              <div className="hidden md:flex col-span-12 md:col-span-7 lg:col-span-8 flex-col gap-3.5 sm:gap-4 md:min-h-0">
                 {isEditMode ? (
-                  <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-4.5 flex flex-col gap-3 w-full">
+                  <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
                     <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-[#1A73E8] font-medium shadow-xs">
                       Bạn đang chỉnh sửa một bản ghi duy nhất. Các thay đổi sẽ được lưu bằng API cập nhật và không tạo thêm bản ghi mới.
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full">
+                  <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
                     <div className="flex items-center justify-between">
                       <div className="flex gap-2 items-center text-[#1A73E8]">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -1077,7 +1078,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                     </div>
 
                     {/* Student Card Grid */}
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 md:flex-1 md:min-h-0 md:!max-h-none ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
                       {classStudents.map(student => {
                         const selected = addedViolations.some(v => v.student_id === student._id && v.evaluation_detail_id === criterionId);
                         return (
@@ -1136,7 +1137,6 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
               <MobileStudentSelectionDialog
                 open={isMobileStudentOverlayOpen}
                 onOpenChange={setIsMobileStudentOverlayOpen}
-                criterionName={criteria.find(c => c._id === criterionId)?.criterion_name}
                 students={classStudents}
                 selectedStudentIds={addedViolations.filter(v => v.evaluation_detail_id === criterionId).map(v => v.student_id)}
                 onConfirm={handleMobileRosterConfirm}
@@ -1144,13 +1144,11 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 loading={isStudentsLoading}
                 hasMore={classIds.some(id => hasMoreStudents[id])}
                 onLoadMore={handleLoadMoreStudents}
-                searchQuery={studentsSearch}
-                onSearchChange={handleStudentSearch}
               />
             )}
 
             {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full shrink-0">
               <div className="hidden sm:flex items-center text-xs text-slate-500 font-medium italic">
                 Hãy kiểm tra kỹ thông tin rèn luyện trước khi lưu.
               </div>

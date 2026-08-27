@@ -75,6 +75,8 @@ export interface RecordSelectionDialogProps {
   onSearchChange?: (value: string) => void;
   searchable?: boolean;
   isMobile?: boolean;
+  mobileShowCloseButton?: boolean;
+  mobilePreventOpenAutoFocus?: boolean;
   onConfirm: (value: SelectionValue) => void;
   loading?: boolean;
   onLoadMore?: () => void;
@@ -85,6 +87,7 @@ export interface RecordSelectionDialogProps {
 export function RecordSelectionDialog({
   label, title, description, hideHeader = false, value, displayValue, multiple = false, disabled, placeholder, searchValue = '', onSearchChange,
   onConfirm, loading, onLoadMore, hasMore, searchable = false, isMobile = false, children,
+  mobileShowCloseButton = true, mobilePreventOpenAutoFocus = false,
 }: RecordSelectionDialogProps) {
   const [open, setOpen] = useState(false);
   const [draftValue, setDraftValue] = useState<SelectionValue>(value);
@@ -131,7 +134,7 @@ export function RecordSelectionDialog({
       )}
       {(onSearchChange || searchable) && (
         <Input
-          autoFocus
+          autoFocus={!(isMobile && mobilePreventOpenAutoFocus)}
           type="search"
           role="combobox"
           aria-label={`Tìm ${label.toLowerCase()}`}
@@ -171,7 +174,11 @@ export function RecordSelectionDialog({
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="left-1/2 top-1/2 h-[min(78dvh,560px)] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-0 bg-slate-50/95 p-3 sm:p-4">
+            <DialogContent
+              showCloseButton={mobileShowCloseButton}
+              onOpenAutoFocus={mobilePreventOpenAutoFocus ? (event) => event.preventDefault() : undefined}
+              className="left-1/2 top-1/2 h-[min(78dvh,560px)] max-h-[calc(100dvh-3rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-0 bg-slate-50/95 p-3 sm:p-4"
+            >
               {selectionContent}
             </DialogContent>
           </Dialog>
@@ -212,7 +219,6 @@ export interface MobileStudentSelectionDialogProps {
   onOpenChange: (open: boolean) => void;
   title?: string;
   description?: string;
-  criterionName?: string;
   students: StudentOptionItem[];
   selectedStudentIds: string[];
   onConfirm: (selectedIds: string[]) => void;
@@ -220,8 +226,6 @@ export interface MobileStudentSelectionDialogProps {
   loading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
 }
 
 export function MobileStudentSelectionDialog({
@@ -229,7 +233,6 @@ export function MobileStudentSelectionDialog({
   onOpenChange,
   title = 'Chọn sinh viên',
   description = 'Chọn danh sách sinh viên rồi nhấn Xác nhận để lưu ghi nhận.',
-  criterionName,
   students,
   selectedStudentIds,
   onConfirm,
@@ -237,16 +240,12 @@ export function MobileStudentSelectionDialog({
   loading = false,
   hasMore = false,
   onLoadMore,
-  searchQuery = '',
-  onSearchChange,
 }: MobileStudentSelectionDialogProps) {
   const [draftSelectedIds, setDraftSelectedIds] = useState<string[]>(selectedStudentIds);
-  const [internalSearch, setInternalSearch] = useState('');
 
   useEffect(() => {
     if (open) {
       setDraftSelectedIds(selectedStudentIds);
-      setInternalSearch('');
     }
   }, [open, selectedStudentIds]);
 
@@ -266,13 +265,6 @@ export function MobileStudentSelectionDialog({
     onOpenChange(false);
   };
 
-  const activeSearch = onSearchChange ? searchQuery : internalSearch;
-  const filteredStudents = onSearchChange
-    ? students
-    : students.filter(s =>
-        `${s.full_name} ${s.student_code}`.toLowerCase().includes(activeSearch.toLowerCase()),
-      );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -285,36 +277,13 @@ export function MobileStudentSelectionDialog({
             <DialogDescription>{description}</DialogDescription>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
-            <div className="min-w-0 flex-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tiêu chí ghi nhận</span>
-              <p className="truncate text-sm font-bold text-[#005bbf]">{criterionName || 'Ghi nhận rèn luyện'}</p>
-            </div>
-            <span className="shrink-0 text-xs font-semibold text-slate-600" aria-live="polite">
-              Đã chọn: <strong className="text-[#005bbf]">{draftSelectedIds.length}</strong> / {students.length}
-            </span>
-          </div>
-
-          <Input
-            autoFocus
-            type="search"
-            role="combobox"
-            aria-label="Tìm sinh viên"
-            value={activeSearch}
-            onChange={e =>
-              onSearchChange ? onSearchChange(e.target.value) : setInternalSearch(e.target.value)
-            }
-            placeholder="Tìm tên hoặc MSSV..."
-            className="h-11 min-h-[44px] rounded-xl bg-white text-sm"
-          />
-
           <div
             className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2"
             role="listbox"
             aria-label="Danh sách sinh viên"
           >
             <div className="flex flex-col gap-1.5">
-              {filteredStudents.map(student => {
+              {students.map(student => {
                 const isSelected = draftSelectedIds.includes(student._id);
                 return (
                   <button
@@ -343,7 +312,7 @@ export function MobileStudentSelectionDialog({
                   </button>
                 );
               })}
-              {!loading && filteredStudents.length === 0 && (
+              {!loading && students.length === 0 && (
                 <div className="py-8 text-center text-sm text-slate-400 italic">Không tìm thấy sinh viên.</div>
               )}
               {loading && (

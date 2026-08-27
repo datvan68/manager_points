@@ -1,33 +1,33 @@
-task: "Streamline quick multi-student recording layout and mobile confirmation flow"
-pipeline: feature_development
-profile: Full
-objective: "Both Ghi nhận lớp and Ghi nhận HSSV use only the quick multi-student workflow: criteria live in Thông tin cơ bản, desktop shows one student-card roster on the right, and mobile selects then saves students through an overlay after class and criterion are complete."
+task: "Make class-report saving retry-safe and suppress mobile selector autofocus"
+pipeline: bug_fix
+profile: Quick
+objective: "Allow Ghi nhận lớp to save against an existing daily report without surfacing the duplicate-report conflict, and ensure the requested mobile class/criterion overlays open without focusing search."
 
 evidence:
-  current_behavior: "AddClassReportView.tsx and AddRecordView.tsx render a manual/quick mode switch, duplicate criterion controls inside the right-hand recording card, and inline student cards. RecordSelectionDialog also renders a visible title and description above search, matching the supplied mobile screenshot."
-  expected_behavior: "The class selector opens directly at search/list content without a visible header; no manual-entry choice or fields remain; the criterion selector is inside Thông tin cơ bản; desktop's right column contains only one roster card; mobile opens a draft student-card overlay once class and criterion prerequisites are committed, and its confirmation saves the record."
-  root_cause: "The views still share layout and state branches for legacy manual entry, while selection prerequisites and the quick roster are colocated in the right-hand entry card instead of being split between basic information and a responsive roster surface."
+  current_behavior: "AddClassReportView creates one DailyClassReport per selected class before bulk-saving student records. A retry, a previously created report, or a partially completed multi-class save can therefore hit the backend uq_class_date constraint and expose `Daily class report already exists for this class and report date`. Both pages' mobile criterion dialogs still mark their search Input as autoFocus. AddRecordView does not pass the existing no-close/no-open-focus options to its mobile class RecordSelectionDialog."
+  expected_behavior: "Saving resolves one active daily report per selected class/report day, reuses it when present, creates it only when absent, and continues the existing idempotent academic-record flow. Mobile criterion overlays on both forms, plus both class and criterion overlays on Ghi nhận HSSV, open without focusing search; the HSSV class overlay has no visible X."
+  root_cause: "The frontend create flow assumes every selected class/date is new and has no conflict-recovery lookup. Separately, local criterion inputs retain autoFocus and the HSSV class selector does not opt into the shared mobile focus/close controls."
 
 scope:
-  inspect: ["frontend/src/app/(dashboard)/students/record/page.tsx:view routing", "frontend/src/components/ui/{dialog,popover}.tsx:overlay semantics"]
-  write: ["frontend/src/components/grading/RecordSelectionUi.tsx:headerless selection overlay and reusable student-card confirmation behavior", "frontend/src/components/grading/AddClassReportView.tsx:quick-only layout, criterion placement and mobile save overlay", "frontend/src/components/grading/AddRecordView.tsx:quick-only layout, criterion placement and mobile save overlay", "frontend/src/components/grading/RecordSelectionUi.test.tsx:overlay accessibility/commit regressions", "frontend/src/components/grading/{AddClassReportView,AddRecordView}.test.tsx:quick-only state and mobile selection/save regressions"]
-  preserve: ["multi-class roster union/deduplication, class search/confirm/cancel, date/teacher/class-note fields, RBAC, validation and existing API payloads", "edit-mode prefill and update contracts; editing may present its existing selected student without restoring a manual/quick mode switch", "legacy persisted drafts remain readable or are safely normalized to quick mode"]
-  out: ["backend/API/schema changes", "record-list page redesign", "global dialog/popover primitives", "automatic saving before an explicit mobile confirmation"]
+  inspect: ["frontend/src/api/daily-class-report-api.ts:getDailyClassReports/updateDailyClassReport contracts", "backend/src/daily-class-report/schemas/daily-class-report.schema.ts:uq_class_date invariant"]
+  write: ["frontend/src/components/grading/AddClassReportView.tsx:resolve/reuse daily reports and mobile criterion focus", "frontend/src/components/grading/AddRecordView.tsx:mobile class/criterion focus and class close control", "frontend/src/components/grading/{AddClassReportView,AddRecordView,RecordSelectionUi}.test.tsx:focused regressions"]
+  preserve: ["one active daily report per class/report date", "multi-class selection and report-to-class record mapping", "existing academic-record bulk idempotency keys and duplicate warning", "RBAC, edit mode, draft state, class/criterion search after manual tap", "current uncommitted responsive/full-height changes"]
+  out: ["backend schema/index/API changes", "automatic restore or force-delete of soft-deleted reports", "deleting or replacing existing academic records", "desktop Select/Popover behavior", "global Dialog/Input defaults"]
 
 acceptance_criteria:
-  - "AC-01: On both forms, opening the class selector shows search, selectable class rows and the Hủy/Xác nhận footer without a visible title or description block; the overlay retains an accessible name and existing multi-class commit/cancel behavior."
-  - "AC-02: Create mode renders no Nhập thủ công/Chọn nhanh mode buttons, single-student input, manual add action, or manual-only staged table; student selection is exclusively multi-select through student cards."
-  - "AC-03: Each form renders its criterion selector exactly once inside the Thông tin cơ bản card, after the class control and before the remaining basic fields; changing criterion preserves committed records and clears only unconfirmed selections tied to the previous criterion."
-  - "AC-04: At widths >=768 px, the right column contains one roster card with student cards and its scoped loading/empty/count/load-more feedback, with no mode switch, nested entry form, or duplicate criterion control; selecting cards continues to stage/destage the corresponding student-and-criterion pairs."
-  - "AC-05: Below 768 px, the inline right-column roster is hidden. After at least one class and one criterion are committed, the student-card overlay opens for the current criterion; users can select/deselect multiple students in draft state, Hủy closes without saving, and Xác nhận submits the selected records through the existing save flow."
-  - "AC-06: The mobile overlay does not open while class or criterion is missing, does not reopen in a loop after cancel/confirm, prevents duplicate student-and-criterion records, exposes selection state through aria-selected plus a visible indicator, and keeps controls/cards at least 44 px high without horizontal overflow."
-  - "AC-07: Existing edit behavior, multi-class roster loading, validation, idempotency, notifications and create/update API payload shapes remain unchanged except for removal of the manual-entry path and mobile confirmation timing."
+  - "AC-01: In create mode, Ghi nhận lớp resolves each selected class against the exact report calendar day through the existing scoped daily-report API; an active matching report is updated with the current basic report fields and its ID is reused, while a missing report is created once."
+  - "AC-02: A retry after a partial multi-class save and a create race that returns HTTP 409 both recover by refetching the matching active report and continue with the correct report ID per class; no second DailyClassReport is created and the raw English conflict is not shown."
+  - "AC-03: Reusing a report does not delete its existing academic records. The current student/criterion rows continue through bulkCreateAcademicRecords with the existing report-scoped idempotency keys, and success/duplicate counts retain their current behavior."
+  - "AC-04: If a 409 cannot be resolved to an accessible active report (including a soft-deleted or out-of-scope collision), saving stops without creating student records for an unresolved report and shows a clear Vietnamese recovery message; other API errors retain their normal handling."
+  - "AC-05: On mobile Ghi nhận lớp, opening the criterion dialog leaves its search input unfocused and does not summon the software keyboard; tapping the input still focuses it and search/selection remain functional."
+  - "AC-06: On mobile Ghi nhận HSSV, opening either the class or criterion dialog leaves search unfocused and does not summon the software keyboard; both inputs remain manually focusable and searchable."
+  - "AC-07: The mobile Ghi nhận HSSV class dialog renders no visible X close control while retaining Hủy and supported outside/Escape dismissal; criterion and desktop overlay close behavior is unchanged."
 
 execution:
-  - "E-01 [AC-01,AC-05,AC-06] RecordSelectionUi.tsx -> make the visible header optional/headerless while retaining accessible dialog semantics; support draft card selection with explicit cancel/confirm and mobile touch sizing."
-  - "E-02 [AC-02..AC-07] AddClassReportView.tsx -> remove the manual/quick branch and obsolete manual controls, move criterion selection into Thông tin cơ bản, reduce desktop right content to one roster card, and route mobile roster confirmation to the existing save handler."
-  - "E-03 [AC-02..AC-07] AddRecordView.tsx -> apply the same quick-only structure and mobile confirmation flow while preserving its record edit/update contract."
-  - "E-04 [AC-01..AC-07] Update the three focused test files for headerless accessible overlays, prerequisite gating, draft cancel, confirm-and-save, duplicate protection, legacy draft normalization and desktop/mobile visibility contracts."
+  - "E-01 [AC-01..AC-04] AddClassReportView.tsx -> add a small report-day resolver using getDailyClassReports with classId/startDate/endDate, update-and-reuse an active match, create only when absent, and on create conflict refetch once before producing the Vietnamese unresolved-conflict error; use it for every selected class before building bulk record payloads."
+  - "E-02 [AC-05] AddClassReportView.tsx -> remove criterion Input autoFocus and retain scoped DialogContent open-autofocus prevention."
+  - "E-03 [AC-06,AC-07] AddRecordView.tsx -> pass mobileShowCloseButton=false and mobilePreventOpenAutoFocus to the class RecordSelectionDialog; remove criterion Input autoFocus while retaining scoped DialogContent open-autofocus prevention."
+  - "E-04 [AC-01..AC-07] Add focused tests for existing-report reuse, create-409 refetch, unresolved conflict, correct per-class IDs/no record deletion, and the no-autofocus/no-X mobile contracts."
 
 temporary_artifacts:
   create: []
@@ -35,11 +35,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-07] npm --prefix frontend test -- src/components/grading/RecordSelectionUi.test.tsx src/components/grading/AddClassReportView.test.tsx src/components/grading/AddRecordView.test.tsx -> all focused tests pass."
+  - "V-01 [AC-01..AC-07] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx src/components/grading/AddRecordView.test.tsx src/components/grading/RecordSelectionUi.test.tsx -> all focused tests pass."
   - "V-02 [AC-01..AC-07] npm --prefix frontend run typecheck -> exits 0."
-  - "V-03 [AC-01,AC-04] Manual at 1280 px on both create forms -> class selector has no visible header; criterion appears once on the left; the right side is one student-card roster; no entry-mode/manual UI remains."
-  - "V-04 [AC-05,AC-06] Manual at 390x844 on both create forms -> no inline roster; missing prerequisites do not open the overlay; completed prerequisites open it once; cancel discards draft selection; confirm saves selected cards once; targets are >=44 px and no horizontal overflow occurs."
-  - "V-05 [AC-07] Manual edit smoke test for one class report and one HSSV record -> existing values prefill and update through the unchanged API contract."
+  - "V-03 [AC-01..AC-04] Manual create/retry at the same date with one class and with a partially existing multi-class selection -> one report per class/day, records attach to the correct report, save completes without the English conflict, and existing records remain."
+  - "V-04 [AC-05..AC-07] Manual at 390x844 -> criterion overlay on Ghi nhận lớp and class/criterion overlays on Ghi nhận HSSV open without keyboard/focus; manual search works; the HSSV class overlay has no X and Hủy still closes it."
 
-risks: ["Auto-opening from prerequisite state can loop after dismissal; track the handled class/criterion selection key and reset it only when prerequisites materially change.", "Mobile confirmation now triggers persistence rather than merely committing UI state; reuse the existing guarded save path so validation, idempotency and error handling remain intact.", "Removing entryMode can invalidate stored drafts; retain backward-compatible parsing and normalize legacy manual drafts without rendering the removed workflow."]
-stop_conditions: ["Stop if the mobile confirmation must alter backend/public payloads, save multiple edited persisted records in one request, or replace global overlay primitives.", "Stop for product direction if mobile Xác nhận is intended to stage selections only rather than persist the recording, because that changes AC-05 and save timing."]
+risks: ["Date lookup must use the same calendar-day boundary as the API and must select only an active exact class/day match.", "Updating an existing report must remain permission-scoped and must not turn a hidden soft-deleted collision into an implicit restore.", "A partially completed multi-class run must not map one class's records to another class's report ID."]
+stop_conditions: ["Stop if product intent is to reject every attempt to add records to an existing class/day report rather than reuse it.", "Stop if a soft-deleted matching report must be restored automatically, because that changes deletion semantics and requires backend/index work."]
