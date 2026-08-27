@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search, Loader2, X, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { studentApi, Student } from "@/api/student-api";
@@ -16,6 +17,7 @@ export interface StudentDirectorySearchProps {
   onOpenDetail?: (student: StudentWithClass) => void;
   className?: string;
   autoFocus?: boolean;
+  usePortal?: boolean;
 }
 
 function classNameOf(student: StudentWithClass) {
@@ -54,8 +56,10 @@ export default function StudentDirectorySearch({
   onOpenDetail,
   className = "",
   autoFocus = true,
+  usePortal = false,
 }: StudentDirectorySearchProps = {}) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StudentWithClass[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,6 +69,10 @@ export default function StudentDirectorySearch({
   const dialogCloseRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen && autoFocus) {
@@ -155,32 +163,123 @@ export default function StudentDirectorySearch({
     }
   };
 
-  return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
-      <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
-      <div className="flex items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50">
-        <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
-        <input
-          ref={inputRef}
-          id="student-directory-search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Tìm kiếm sinh viên..."
-          className="min-w-0 flex-1 bg-transparent text-sm text-[#1E293B] outline-none placeholder:text-[#64748B]"
-          autoComplete="off"
-        />
-        {loading && <Loader2 size={15} className="shrink-0 animate-spin text-[#1A73E8]" aria-label="Đang tìm kiếm" />}
-        {onClose && (
+  const previewModal = selected ? (
+    <div
+      data-student-preview="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs"
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="student-preview-title"
+        className="w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
+            <h2 id="student-preview-title" className="mt-1 text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+          </div>
+          <button
+            ref={dialogCloseRef}
+            type="button"
+            onClick={() => setSelected(null)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+            aria-label="Đóng thông tin sinh viên"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
+            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
+          </div>
+          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <dt className="text-[11px] font-medium text-[#64748B]">Lớp</dt>
+            <dd className="mt-0.5 truncate text-xs font-semibold text-[#1E293B]" title={classNameOf(selected)}>{classNameOf(selected)}</dd>
+          </div>
+          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <dt className="text-[11px] font-medium text-[#64748B]">Ngày sinh</dt>
+            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatDate(selected.date_bir)}</dd>
+          </div>
+          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <dt className="text-[11px] font-medium text-[#64748B]">Giới tính</dt>
+            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
+          </div>
+          <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <dt className="text-[11px] font-medium text-[#64748B]">Email</dt>
+            <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{selected.email || "Chưa cập nhật"}</dd>
+          </div>
+          <div className="col-span-2 flex items-center justify-between rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+            <div>
+              <dt className="text-[11px] font-medium text-[#64748B]">Trạng thái học tập</dt>
+              <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatStatus(selected.status)}</dd>
+            </div>
+            {selected.status && (
+              <span className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-[#1A73E8]">
+                {formatStatus(selected.status)}
+              </span>
+            )}
+          </div>
+        </dl>
+
+        <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
-            aria-label="Đóng tìm kiếm"
-            className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
+            onClick={() => setSelected(null)}
+            className="rounded-xl border border-white/75 bg-white/50 px-4 py-2 text-xs font-semibold text-[#64748B] shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/80 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
           >
-            <X size={15} />
+            Đóng
           </button>
+          <button
+            type="button"
+            disabled={!canOpenDetail}
+            title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined}
+            onClick={handleNavigateDetail}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none disabled:hover:scale-100 cursor-pointer"
+          >
+            Chi tiết <ArrowRight size={14} />
+          </button>
+        </div>
+        {!canOpenDetail && (
+          <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
+            Sinh viên chưa có lớp để mở trang chi tiết.
+          </p>
         )}
       </div>
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <div ref={containerRef} className={`relative w-full ${className}`}>
+        <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
+        <div className="flex items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50">
+          <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
+          <input
+            ref={inputRef}
+            id="student-directory-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Tìm kiếm sinh viên..."
+            className="min-w-0 flex-1 bg-transparent text-sm text-[#1E293B] outline-none placeholder:text-[#64748B]"
+            autoComplete="off"
+          />
+          {loading && <Loader2 size={15} className="shrink-0 animate-spin text-[#1A73E8]" aria-label="Đang tìm kiếm" />}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Đóng tìm kiếm"
+              className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
 
       {query.trim().length >= 2 && !selected && (
         <div
@@ -224,94 +323,11 @@ export default function StudentDirectorySearch({
         </div>
       )}
 
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs"
-          role="presentation"
-          onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="student-preview-title"
-            className="w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
-                <h2 id="student-preview-title" className="mt-1 text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
-              </div>
-              <button
-                ref={dialogCloseRef}
-                type="button"
-                onClick={() => setSelected(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
-                aria-label="Đóng thông tin sinh viên"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
-              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
-                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
-              </div>
-              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <dt className="text-[11px] font-medium text-[#64748B]">Lớp</dt>
-                <dd className="mt-0.5 truncate text-xs font-semibold text-[#1E293B]" title={classNameOf(selected)}>{classNameOf(selected)}</dd>
-              </div>
-              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <dt className="text-[11px] font-medium text-[#64748B]">Ngày sinh</dt>
-                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatDate(selected.date_bir)}</dd>
-              </div>
-              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <dt className="text-[11px] font-medium text-[#64748B]">Giới tính</dt>
-                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
-              </div>
-              <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <dt className="text-[11px] font-medium text-[#64748B]">Email</dt>
-                <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{selected.email || "Chưa cập nhật"}</dd>
-              </div>
-              <div className="col-span-2 flex items-center justify-between rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-                <div>
-                  <dt className="text-[11px] font-medium text-[#64748B]">Trạng thái học tập</dt>
-                  <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatStatus(selected.status)}</dd>
-                </div>
-                {selected.status && (
-                  <span className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-[#1A73E8]">
-                    {formatStatus(selected.status)}
-                  </span>
-                )}
-              </div>
-            </dl>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-xl border border-white/75 bg-white/50 px-4 py-2 text-xs font-semibold text-[#64748B] shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/80 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={!canOpenDetail}
-                title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined}
-                onClick={handleNavigateDetail}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none disabled:hover:scale-100 cursor-pointer"
-              >
-                Chi tiết <ArrowRight size={14} />
-              </button>
-            </div>
-            {!canOpenDetail && (
-              <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
-                Sinh viên chưa có lớp để mở trang chi tiết.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {!usePortal && previewModal}
     </div>
+    {usePortal && mounted && typeof document !== "undefined" && previewModal
+      ? createPortal(previewModal, document.body)
+      : null}
+    </>
   );
 }

@@ -133,4 +133,9 @@ describe('Header responsive shell contract', () => {
     render(<Header />);
     expect(screen.queryByRole('button', { name: 'Tìm kiếm' })).not.toBeInTheDocument();
   });
+
+  it('enables viewport portal for desktop search to avoid header clipping', () => {
+    expect(headerSource).toContain('usePortal={true}');
+    expect(headerSource).toContain("target.closest('[data-student-preview]')");
+  });
 });

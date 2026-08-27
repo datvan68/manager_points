@@ -231,6 +231,9 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                 setIsNotificationOpen(false);
             }
             if (searchRef.current && !searchRef.current.contains(target)) {
+                if (target instanceof Element && target.closest('[data-student-preview]')) {
+                    return;
+                }
                 setIsSearchOpen(false);
             }
         };
@@ -281,6 +284,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                   <StudentDirectorySearch
                     isOpen={isSearchOpen}
                     onClose={() => setIsSearchOpen(false)}
+                    usePortal={true}
                   />
                 </div>
               ) : (

@@ -143,4 +143,57 @@ describe("StudentDirectorySearch", () => {
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it("portals preview to document.body when usePortal is true and preserves interactions", async () => {
+    vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
+    const onOpenDetail = vi.fn();
+    const { container } = render(<StudentDirectorySearch onOpenDetail={onOpenDetail} usePortal={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+
+    fireEvent.click(screen.getByRole("button", { name: /Nguyễn Văn A/ }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(document.body).toContainElement(dialog);
+    expect(container).not.toContainElement(dialog);
+
+    const overlay = screen.getByRole("presentation");
+    expect(overlay).toHaveClass("fixed", "inset-0", "z-50", "flex", "items-center", "justify-center");
+
+    // Close via Đóng button
+    const closeBtn = screen.getByRole("button", { name: "Đóng" });
+    fireEvent.click(closeBtn);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes portaled preview on outside click (overlay backdrop click)", async () => {
+    vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
+    render(<StudentDirectorySearch usePortal={true} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+
+    fireEvent.click(screen.getByRole("button", { name: /Nguyễn Văn A/ }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    const overlay = screen.getByRole("presentation");
+    fireEvent.mouseDown(overlay);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps preview inside container when usePortal is false (default)", async () => {
+    vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
+    const { container } = render(<StudentDirectorySearch />);
+
+    fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+
+    fireEvent.click(screen.getByRole("button", { name: /Nguyễn Văn A/ }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(container).toContainElement(dialog);
+  });
 });
