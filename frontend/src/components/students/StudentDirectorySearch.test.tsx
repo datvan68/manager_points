@@ -80,6 +80,45 @@ describe("StudentDirectorySearch", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("ignores a stale response that resolves after the query has changed", async () => {
+    let resolveFirst!: (value: { data: typeof student[] }) => void;
+    let resolveSecond!: (value: { data: typeof student[] }) => void;
+    const newerStudent = { ...student, _id: "student-2", full_name: "Nguyễn Văn B" };
+    vi.mocked(studentApi.getStudents)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    render(<StudentDirectorySearch />);
+
+    const input = screen.getByPlaceholderText("Tìm kiếm sinh viên...");
+    fireEvent.change(input, { target: { value: "Ng" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+    fireEvent.change(input, { target: { value: "Nguyễn" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+
+    await act(async () => {
+      resolveFirst({ data: [student] });
+      resolveSecond({ data: [newerStudent] });
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Nguyễn Văn A")).not.toBeInTheDocument();
+    expect(screen.getByText("Nguyễn Văn B")).toBeInTheDocument();
+  });
+
+  it("renders array responses and an explicit empty state", async () => {
+    vi.mocked(studentApi.getStudents).mockResolvedValueOnce([student]).mockResolvedValueOnce([]);
+    render(<StudentDirectorySearch />);
+    const input = screen.getByPlaceholderText("Tìm kiếm sinh viên...");
+
+    fireEvent.change(input, { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+    expect(screen.getByText("Nguyễn Văn A")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "XX" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+    expect(screen.getByText("Không tìm thấy sinh viên phù hợp.")).toBeInTheDocument();
+  });
+
   it("navigates through the populated class id from the preview", async () => {
     vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
     const onOpenDetail = vi.fn();
@@ -119,6 +158,17 @@ describe("StudentDirectorySearch", () => {
     await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
 
     expect(screen.getByText("Bạn đang tìm kiếm quá nhanh. Vui lòng thử lại sau.")).toBeInTheDocument();
+  });
+
+  it("settles loading and shows a message for a generic request error", async () => {
+    vi.mocked(studentApi.getStudents).mockRejectedValue(new Error("network unavailable"));
+    render(<StudentDirectorySearch />);
+
+    fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+
+    expect(screen.queryByText("Đang tìm kiếm...")).not.toBeInTheDocument();
+    expect(screen.getByText("Không thể tìm kiếm sinh viên.")).toBeInTheDocument();
   });
 
   it("supports default router navigation when onOpenDetail is omitted", async () => {

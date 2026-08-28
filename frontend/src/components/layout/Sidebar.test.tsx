@@ -323,6 +323,41 @@ describe('Sidebar Component', () => {
 
     // Click opens mobile search surface
     fireEvent.click(centerItem);
+    const searchInput = screen.getByPlaceholderText('Tìm kiếm sinh viên...');
+    expect(searchInput).toBeInTheDocument();
+    expect(searchInput).toHaveFocus();
+    expect(centerItem).toHaveClass('mobile-bottom-nav-item-active');
+
+    const surface = searchInput.closest('.fixed');
+    expect(surface).toHaveClass('md:hidden', 'justify-start', 'z-[100]');
+    expect(surface).toHaveClass('pt-[calc(var(--safe-area-top)+1rem)]');
+    expect(surface).toHaveClass('pb-[calc(var(--safe-area-bottom)+1rem)]');
+    const searchWrapper = surface?.querySelector('.max-w-md');
+    expect(searchWrapper).toHaveClass('relative', 'z-[101]');
+    expect(searchWrapper).not.toHaveClass(
+      'overflow-y-auto',
+      'rounded-2xl',
+      'border',
+      'bg-white/90',
+      'p-2',
+      'shadow-xl',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng tìm kiếm' }));
+    expect(screen.queryByPlaceholderText('Tìm kiếm sinh viên...')).not.toBeInTheDocument();
+
+    fireEvent.click(centerItem);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByPlaceholderText('Tìm kiếm sinh viên...')).not.toBeInTheDocument();
+
+    fireEvent.click(centerItem);
+    const reopenedSurface = screen.getByPlaceholderText('Tìm kiếm sinh viên...').closest('.fixed');
+    fireEvent.click(reopenedSurface as Element);
+    expect(screen.queryByPlaceholderText('Tìm kiếm sinh viên...')).not.toBeInTheDocument();
+
+    fireEvent.click(centerItem);
+    const inputInsideSurface = screen.getByPlaceholderText('Tìm kiếm sinh viên...');
+    fireEvent.mouseDown(inputInsideSurface);
     expect(screen.getByPlaceholderText('Tìm kiếm sinh viên...')).toBeInTheDocument();
   });
 

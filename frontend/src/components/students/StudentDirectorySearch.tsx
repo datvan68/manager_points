@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Loader2, X, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -66,9 +66,14 @@ export default function StudentDirectorySearch({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StudentWithClass | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
   const dialogCloseRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const setInputRef = useCallback((node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    if (node && isOpen && autoFocus) node.focus();
+  }, [isOpen, autoFocus]);
 
   useEffect(() => {
     setMounted(true);
@@ -76,6 +81,7 @@ export default function StudentDirectorySearch({
 
   useEffect(() => {
     if (isOpen && autoFocus) {
+      inputRef.current?.focus();
       const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
@@ -85,8 +91,10 @@ export default function StudentDirectorySearch({
 
   useEffect(() => {
     const trimmed = query.trim();
+    const requestId = ++requestIdRef.current;
+    abortRef.current?.abort();
+
     if (trimmed.length < 2) {
-      abortRef.current?.abort();
       setResults([]);
       setLoading(false);
       setError(null);
@@ -94,7 +102,6 @@ export default function StudentDirectorySearch({
     }
 
     const timer = window.setTimeout(async () => {
-      abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
       setLoading(true);
@@ -107,15 +114,16 @@ export default function StudentDirectorySearch({
           fields: "slider",
           signal: controller.signal,
         });
-        if (controller.signal.aborted) return;
-        setResults(Array.isArray(response) ? response as StudentWithClass[] : response.data as StudentWithClass[]);
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return;
+        const data = Array.isArray(response) ? response : response?.data;
+        setResults(Array.isArray(data) ? data as StudentWithClass[] : []);
       } catch (requestError) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || requestId !== requestIdRef.current) return;
         const status = requestError instanceof ApiError ? requestError.status : (requestError as any)?.status;
         setError(status === 429 ? "Bạn đang tìm kiếm quá nhanh. Vui lòng thử lại sau." : "Không thể tìm kiếm sinh viên.");
         setResults([]);
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && requestId === requestIdRef.current) setLoading(false);
       }
     }, 400);
 
@@ -260,8 +268,9 @@ export default function StudentDirectorySearch({
         <div className="flex items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50">
           <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
           <input
-            ref={inputRef}
+            ref={setInputRef}
             id="student-directory-search"
+            autoFocus={autoFocus}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Tìm kiếm sinh viên..."

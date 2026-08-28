@@ -496,15 +496,15 @@ const Sidebar = () => {
         )}
       </nav>
 
-      {/* Mobile Search Surface (Above the bottom nav) */}
+      {/* Mobile Search Surface (Positioned at top for mobile layout and keyboard visibility) */}
       {canSearchStudents && isMobileSearchOpen && (
         <div
-          className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-slate-900/30 p-3 pb-[calc(var(--safe-area-bottom)+5rem)] backdrop-blur-xs"
+          className="fixed inset-0 z-[100] md:hidden flex flex-col justify-start bg-slate-900/40 p-3 pt-[calc(var(--safe-area-top)+1rem)] pb-[calc(var(--safe-area-bottom)+1rem)] backdrop-blur-xs animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsMobileSearchOpen(false);
           }}
         >
-          <div className="w-full max-w-md mx-auto">
+          <div className="relative z-[101] w-full max-w-md mx-auto">
             <StudentDirectorySearch
               isOpen={isMobileSearchOpen}
               onClose={() => setIsMobileSearchOpen(false)}
