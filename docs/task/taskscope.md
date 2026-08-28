@@ -1,33 +1,28 @@
-task: "Split dashboard student records into three responsive groups"
+task: "Replace mobile student preview with a readable criterion sheet"
 pipeline: feature_development
-profile: Full
-objective: "Admin/teacher home shows separate Discipline, Rewards, and Bonus student lists in a desktop grid and mobile popovers, while class-aware header/sidebar search remains bounded and fast."
+profile: Quick
+objective: "On mobile, opening Record shows only the criterion sheet; closing or successfully submitting it restores the same student's basic-information preview with readable mobile typography."
 
 evidence:
-  current_behavior: "At commit 30c48fe4, StudentDirectorySearch.tsx requests page 1 with limit 20, so a class query returns at most 20 authorized students. StudentSpotlightPanel.tsx renders four tabs and one active list; system.service.ts supplies ten items per highlight group."
-  expected_behavior: "Class search stays capped at 20 results. For admin/teacher, the home spotlight removes High training scores, shows three simultaneous desktop cards, and below md shows only three category buttons whose popovers contain the corresponding student list."
-  root_cause: "StudentSpotlightPanel is tab-driven, including a scores tab. The backend and fallback helper classify Bonus with criterion_type cong_diem OR any positive score, so positive Rewards can overlap the Bonus list."
+  current_behavior: "frontend/src/components/students/StudentDirectorySearch.tsx:previewModal keeps the basic-information DOM mounted behind a fixed criterion overlay; criterion controls use text-xs/text-[10px], and the criterion Close action calls closePreview(), which dismisses the whole student preview."
+  expected_behavior: "Below sm, the criterion flow replaces the visible basic-information content, uses mobile-readable text, and returns to that content after cancel or successful confirmation. At sm and wider, the existing inline criterion layout remains."
+  root_cause: "Criterion visibility is inferred from loaded data and shares closePreview() with the parent dialog; no dedicated criterion-panel state/close action controls the mobile view."
 
 scope:
-  inspect: ["frontend/src/components/students/StudentDirectorySearch.tsx:debounced request cap", "frontend/src/components/ui/popover.tsx:existing Radix wrapper", "frontend/src/app/(dashboard)/page.tsx:StudentSpotlightPanel caller"]
-  write: ["frontend/src/components/dashboard/StudentSpotlightPanel.tsx:admin/teacher spotlight", "frontend/src/components/dashboard/dashboard-responsive.test.tsx:layout/accessibility regressions", "frontend/src/components/dashboard/dashboard-helpers.ts:highlight fallback classification", "frontend/src/components/dashboard/dashboard-helpers.test.tsx:exclusive category regressions", "backend/src/system/system.service.ts:getDashboardMetrics highlight pipelines", "backend/src/system/system.service.spec.ts:dashboard aggregation regressions"]
-  preserve: ["student-role personal spotlight", "DashboardMetrics and GET dashboard response fields, including topScores for compatibility", "semester, role, teacher-class, status, and soft-delete scoping", "ten students maximum per dashboard category", "student detail and /students/record navigation", "header/sidebar debounce, cancellation, errors, RBAC, page 1, and limit 20"]
-  out: ["returning every student in a searched class", "search pagination/load-more", "dashboard API/schema/index changes", "other dashboard panels", "student record page redesign"]
+  inspect: ["frontend/src/components/students/StudentDirectorySearch.tsx:record state and previewModal", "frontend/src/components/students/StudentDirectorySearch.test.tsx:record interaction regressions"]
+  write: ["frontend/src/components/students/StudentDirectorySearch.tsx:mobile criterion view/state", "frontend/src/components/students/StudentDirectorySearch.test.tsx:mobile visibility, return, and typography assertions"]
+  preserve: ["student search, selected student, permissions, criteria/semester loading, usage ordering, idempotent submission, safe errors, desktop layout, and detail navigation", "failed submissions keep the criterion sheet open with its selection and error"]
+  out: ["API/backend changes", "search-result redesign", "student detail-page changes", "new UI dependencies"]
 
 acceptance_criteria:
-  - "AC-01: A class-name search in header/sidebar returns the first authorized page only, with no more than 20 students; it does not fetch the entire class."
-  - "AC-02: At md and wider, the admin/teacher spotlight has a three-column grid containing independent Discipline, Rewards, and Bonus cards and no High training scores control/card."
-  - "AC-03: Below md, the three desktop cards are hidden and exactly three >=44px category buttons are visible; activating one opens a keyboard-accessible popover containing only that category's list, count, empty state, and student-detail actions."
-  - "AC-04: Each category contains at most ten authorized students for the selected semester; records are mutually classified by criterion_type ky_luat, khen_thuong, or cong_diem, so Rewards are not included in Bonus totals/lists."
-  - "AC-05: Student-role personal spotlight and existing navigation, loading, empty, focus, and responsive overflow behavior remain functional."
+  - "AC-01: Below sm, after Record is activated, the criterion sheet is visible and the basic-information header, fields, and parent close control are not visible or focusable behind it."
+  - "AC-02: Closing the criterion sheet cancels only that flow and restores the same student's basic-information preview; a successful confirmation automatically does the same and shows the existing success message."
+  - "AC-03: On mobile, the criterion search input is at least 16px, criterion/action labels are at least 14px, secondary labels are at least 12px, and existing 44px minimum touch targets remain; sm+ keeps the compact typography."
+  - "AC-04: Loading and failed submission states stay in the criterion sheet; the API is called once with the currently selected student, criterion, semester, recorder, and idempotency key."
 
 execution:
-  - "E-01 [AC-04] backend/src/system/system.service.ts:getDashboardMetrics → make all three highlight pipelines use exact criterion_type filters while retaining base authorization/semester stages, ordering, projections, and limit 10."
-  - "E-02 [AC-04] backend/src/system/system.service.spec.ts → assert three exact, exclusive criterion filters and unchanged limit 10/scoping stages."
-  - "E-03 [AC-04] frontend/src/components/dashboard/dashboard-helpers.ts:buildDashboardOverview → align fallback aggregates and per-list records with exact criterion types."
-  - "E-04 [AC-04] frontend/src/components/dashboard/dashboard-helpers.test.tsx → prove a positive khen_thuong record never contributes to topBonus and the three lists remain independently ranked."
-  - "E-05 [AC-02..AC-03,AC-05] frontend/src/components/dashboard/StudentSpotlightPanel.tsx → replace admin/teacher four-tab state with shared category/list rendering, desktop grid cards, and mobile Radix popovers; keep the student branch unchanged."
-  - "E-06 [AC-02..AC-03,AC-05] frontend/src/components/dashboard/dashboard-responsive.test.tsx → assert three desktop cards, three mobile triggers, no High training scores UI, and accessible names/focus/touch targets."
+  - "E-01 [AC-01..AC-04] frontend/src/components/students/StudentDirectorySearch.tsx:record controls → add an explicit criterion-panel close/reset path distinct from closePreview(), conditionally hide the mobile basic-information region while the panel is loading/open, restore it after cancel/success, and apply mobile-first text sizes with sm overrides."
+  - "E-02 [AC-01..AC-04] frontend/src/components/students/StudentDirectorySearch.test.tsx → assert hidden/restored preview content, cancel versus parent dismissal, success restoration, failure retention, font-size classes, and unchanged submission payload/single-call protection."
 
 temporary_artifacts:
   create: []
@@ -35,12 +30,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx → request remains page 1/limit 20."
-  - "V-02 [AC-02..AC-05] npm --prefix frontend test -- src/components/dashboard/dashboard-responsive.test.tsx src/components/dashboard/dashboard-helpers.test.tsx → focused suites pass."
-  - "V-03 [AC-04] npm --prefix backend test -- src/system/system.service.spec.ts --runInBand → dashboard aggregation suite passes."
-  - "V-04 [AC-02..AC-05] npm --prefix frontend run typecheck → exits 0."
-  - "V-05 [AC-04] npm --prefix backend run build → exits 0."
-  - "V-06 [AC-02..AC-03,AC-05] Manual 375x812 and >=1024px viewports → mobile has three working popovers without horizontal scroll; desktop has three aligned list cards."
+  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx → focused suite passes."
+  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck → exits 0."
+  - "V-03 [AC-01..AC-03] Manual 375x812 and >=640px checks → mobile swaps between the two views without background content/focus or horizontal overflow; desktop remains inline."
 
-risks: ["Changing category filters can alter existing dashboard counts where legacy records have a score sign inconsistent with criterion_type; criterion_type is the schema-owned category and no data migration is included.", "Student data/RBAC and cross-package classification require independent diff review before completion."]
-stop_conditions: ["Stop if product requires all students from a class search, pagination/load-more, or a cap other than 20.", "Stop if exact category separation requires schema/data migration or changes to public dashboard fields.", "Stop if dirty worktree changes overlap any write path before implementation."]
+risks: ["Responsive visibility cannot be inferred from jsdom layout, so tests must assert responsive classes/state and retain the stated manual viewport check."]
+stop_conditions: ["Stop if the requested mobile breakpoint is not sm (640px), if confirmation should close the entire student preview instead of restoring it, or if a new dialog/popover dependency or API change becomes necessary."]

@@ -171,10 +171,34 @@ describe("StudentDirectorySearch", () => {
 
     fireEvent.click(recordButton);
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByPlaceholderText("Tìm tiêu chí...")).toHaveClass("min-h-11", "sm:min-h-0");
-    expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByPlaceholderText("Tìm tiêu chí...")).toHaveClass("min-h-11", "text-base", "sm:min-h-0", "sm:text-xs");
+    expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("min-h-11", "text-sm", "sm:min-h-0", "sm:text-xs");
     expect(screen.getByRole("button", { name: "Đóng" })).toHaveClass("min-h-11", "sm:min-h-0");
     expect(screen.getByRole("button", { name: "Xác nhận ghi nhận" })).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByText("Thông tin cơ bản").closest("div.hidden")).toHaveClass("hidden", "sm:block");
+    expect(screen.queryByRole("button", { name: "Đóng thông tin sinh viên" })).not.toBeInTheDocument();
+  });
+
+  it("swaps the mobile criterion sheet with the same student preview on cancel and success", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    vi.mocked(academicRecordApi.createAcademicRecord).mockResolvedValue({} as any);
+    await openPreview();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    expect(screen.getByRole("button", { name: "Đóng thông tin sinh viên" })).toBeInTheDocument();
+    expect(screen.getByText("Nguyễn Văn A")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Tìm tiêu chí...")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: /Đi học đúng giờ/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Tìm tiêu chí...")).not.toBeInTheDocument();
   });
 
   it("renders more than 8 results inside a capped scrollable container and replaces options on select", async () => {
@@ -322,7 +346,21 @@ describe("StudentDirectorySearch", () => {
       record_title: "Đi học đúng giờ", recorded_by: "user-1", status: "active",
       recorded_at: expect.any(String), idempotency_key: expect.any(String),
     }));
-    expect(screen.getByText("Đã ghi nhận sinh viên thành công.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps loading failures inside the criterion sheet until it is closed", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockRejectedValue(new Error("criteria unavailable"));
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([] as any);
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByPlaceholderText("Tìm tiêu chí...")).toBeInTheDocument();
+    expect(screen.getByText("Không thể tải tiêu chí và học kỳ.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đóng thông tin sinh viên" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    expect(screen.getByRole("button", { name: "Đóng thông tin sinh viên" })).toBeInTheDocument();
   });
 
   it("keeps the preview and selection after a create failure", async () => {
@@ -336,6 +374,7 @@ describe("StudentDirectorySearch", () => {
     fireEvent.click(screen.getByRole("button", { name: "Xác nhận ghi nhận" }));
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đóng thông tin sinh viên" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("bg-blue-50");
     expect(screen.getByText("Không thể ghi nhận sinh viên. Vui lòng thử lại.")).toBeInTheDocument();
   });

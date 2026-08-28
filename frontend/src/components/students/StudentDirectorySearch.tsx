@@ -87,6 +87,7 @@ export default function StudentDirectorySearch({
   const [recordSaving, setRecordSaving] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordSuccess, setRecordSuccess] = useState<string | null>(null);
+  const [recordPanelOpen, setRecordPanelOpen] = useState(false);
   const savingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -160,7 +161,9 @@ export default function StudentDirectorySearch({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (selected) {
+        if (recordPanelOpen) {
+          closeRecordPanel();
+        } else if (selected) {
           closePreview();
         } else {
           onClose?.();
@@ -170,7 +173,7 @@ export default function StudentDirectorySearch({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, selected, onClose]);
+  }, [isOpen, selected, recordPanelOpen, onClose]);
 
   useEffect(() => {
     if (!selected) return;
@@ -194,7 +197,7 @@ export default function StudentDirectorySearch({
     setRecordSaving(false);
     setRecordError(null);
     setRecordSuccess(null);
-    setCriterionSearch("");
+    setRecordPanelOpen(false);
     savingRef.current = false;
   };
 
@@ -203,8 +206,14 @@ export default function StudentDirectorySearch({
     resetRecordControls();
   };
 
+  const closeRecordPanel = () => {
+    setRecordPanelOpen(false);
+    resetRecordControls();
+  };
+
   const handleStartRecord = async () => {
     if (!selected || !canCreateRecord || recordLoading || recordSaving) return;
+    setRecordPanelOpen(true);
     setRecordLoading(true);
     setRecordError(null);
     setRecordSuccess(null);
@@ -248,9 +257,7 @@ export default function StudentDirectorySearch({
           : `${selected._id}-${criterion._id}-${Date.now()}`,
       });
       setRecordSuccess("Đã ghi nhận sinh viên thành công.");
-      setCriteria([]);
-      setActiveSemester(null);
-      setSelectedCriterionId("");
+      closePreview();
     } catch (error) {
       setRecordError(getRecordErrorMessage(error));
     } finally {
@@ -297,36 +304,39 @@ export default function StudentDirectorySearch({
         role="dialog"
         aria-modal="true"
         aria-labelledby="student-preview-title"
-        className="w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"
+        className={recordPanelOpen
+          ? "w-full max-w-md rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-white/80 sm:bg-white/90 sm:p-5 sm:shadow-xl sm:shadow-slate-300/40 sm:backdrop-blur-md"
+          : "w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <h2 id="student-preview-title" className="text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
-              {canOpenDetail && (
-                <button
-                  type="button"
-                  onClick={handleNavigateDetail}
-                  className="min-h-11 min-w-11 shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0"
-                >
-                  Chi tiết
-                </button>
-              )}
+        <div aria-hidden={recordPanelOpen} className={recordPanelOpen ? "hidden sm:block" : ""}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <h2 id="student-preview-title" className="text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+                {canOpenDetail && (
+                  <button
+                    type="button"
+                    onClick={handleNavigateDetail}
+                    className="min-h-11 min-w-11 shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0"
+                  >
+                    Chi tiết
+                  </button>
+                )}
+              </div>
             </div>
+            <button
+              ref={dialogCloseRef}
+              type="button"
+              onClick={closePreview}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer sm:h-8 sm:w-8"
+              aria-label="Đóng thông tin sinh viên"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            ref={dialogCloseRef}
-            type="button"
-            onClick={closePreview}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer sm:h-8 sm:w-8"
-            aria-label="Đóng thông tin sinh viên"
-          >
-            <X size={16} />
-          </button>
-        </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+          <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
           <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
             <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
             <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
@@ -358,33 +368,39 @@ export default function StudentDirectorySearch({
               </span>
             )}
           </div>
-        </dl>
+          </dl>
+        </div>
 
         {canCreateRecord && (
-          <div className="mt-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-2.5">
+          <>
+          <div className={`mt-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-2.5 ${recordPanelOpen ? "hidden sm:block" : ""}`}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold text-[#1E293B]">Ghi nhận học vụ</p>
               {!criteria.length && !recordLoading && !recordSuccess && (
                 <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
                   Ghi nhận
                 </button>
-              )}
+                )}
             </div>
-            {(criteria.length > 0 || recordLoading) && (
-              <div onMouseDown={(event) => event.target === event.currentTarget && closePreview()} className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/25 p-3 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
-                <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:rounded-xl sm:shadow-sm">
+            {recordError && !recordPanelOpen && <p className="mt-2 text-xs font-medium text-rose-700">{recordError}</p>}
+            {recordSuccess && <p className="mt-2 text-xs font-medium text-emerald-700">{recordSuccess}</p>}
+          </div>
+            {recordPanelOpen && (
+              <div onMouseDown={(event) => event.target === event.currentTarget && closeRecordPanel()} className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:max-h-none sm:overflow-visible sm:rounded-xl sm:shadow-sm">
+                  <p className="px-2 pb-1 text-sm font-semibold text-[#1E293B] sm:hidden">Ghi nhận học vụ</p>
                   <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
-                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 min-h-11 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] sm:min-h-0" />
+                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 min-h-11 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] sm:min-h-0 sm:text-xs" />
                   {frequentCriteria.length > 0 && (
-                    <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sử dụng nhiều</p>
+                    <p className="px-2 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">Sử dụng nhiều</p>
                   )}
                   <div className="max-h-56 overflow-y-auto px-1 pb-1">
                     {frequentCriteria.map((criterion) => {
                       const score = criterion.score_per_unit || criterion.min_score || 0;
                       return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
                           <span className="truncate font-semibold">{criterion.criterion_name}</span>
-                          <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
+                          <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
                         </button>
                       );
                     })}
@@ -392,28 +408,26 @@ export default function StudentDirectorySearch({
                     {remainingCriteria.map((criterion) => {
                       const score = criterion.score_per_unit || criterion.min_score || 0;
                       return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
                           <span className="truncate font-semibold">{criterion.criterion_name}</span>
-                          <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
+                          <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
                         </button>
                       );
                     })}
                   </div>
                   {recordError && <p className="mt-1 px-2 text-xs font-medium text-rose-700">{recordError}</p>}
                   <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 px-1 pt-2">
-                    <button type="button" onClick={closePreview} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0">
+                    <button type="button" onClick={closeRecordPanel} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0 sm:text-xs">
                       Đóng
                     </button>
-                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
+                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0 sm:text-xs">
                       {recordSaving ? "Đang lưu..." : "Xác nhận ghi nhận"}
                     </button>
                   </div>
                 </div>
               </div>
             )}
-            {recordError && !criteria.length && !recordLoading && <p className="mt-2 text-xs font-medium text-rose-700">{recordError}</p>}
-            {recordSuccess && <p className="mt-2 text-xs font-medium text-emerald-700">{recordSuccess}</p>}
-          </div>
+          </>
         )}
 
         {!canOpenDetail && (
