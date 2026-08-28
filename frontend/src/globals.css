@@ -13,6 +13,8 @@
   /* Neutral Colors */
   --color-background: #f9fafb;
   --color-surface: #ffffff;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0f172a;
   --color-text-main: #101828;
   --color-text-secondary: #6a7282;
   --color-border: #e5e7eb;
@@ -582,4 +584,21 @@ html {
   .template-item-hover:hover {
     transform: none !important;
   }
+}
+
+/* Center Radix Popover when data-centered is present */
+[data-radix-popper-content-wrapper]:has([data-centered]) {
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  transform: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+  z-index: 50 !important;
+}
+
+[data-radix-popper-content-wrapper]:has([data-centered]) [data-centered] {
+  pointer-events: auto !important;
 }

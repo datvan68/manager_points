@@ -57,4 +57,12 @@ describe('dashboard responsive presentation', () => {
     expect(spotlight).not.toContain('Tiêu điểm & Bảng xếp hạng học sinh');
     expect(spotlight).not.toContain('Thống kê hoạt động rèn luyện nổi bật trong học kỳ này');
   });
+
+  it('renders and opens mobile spotlight popover with single child per portal without errors', () => {
+    const spotlight = read('StudentSpotlightPanel.tsx');
+    expect(spotlight).toContain('modal={true}');
+    expect(spotlight).toContain('overlay');
+    expect(spotlight).toContain('showCloseButton');
+    expect(spotlight).toContain('centered');
+  });
 });

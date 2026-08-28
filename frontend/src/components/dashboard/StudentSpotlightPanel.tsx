@@ -232,7 +232,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
     ) : (
       <div className={`space-y-2 overflow-y-auto pr-1 scrollbar-hover ${compact ? 'max-h-[calc(70vh-5rem)]' : 'max-h-[360px]'}`}>
         {list.map(item => (
-          <div key={item.studentId} className={`group min-w-0 bg-white/50 border border-white/70 rounded-xl flex items-center justify-between hover:bg-white/85 transition-all duration-150 ease-out shadow-xs shadow-slate-200/20 ${compact ? 'p-2.5 gap-2' : 'p-3.5 gap-4'}`}>
+          <div key={item.studentId} className={`group min-w-0 ${compact ? 'bg-slate-50/90 border-slate-200/80 hover:bg-slate-100/90' : 'bg-white/50 border-white/70 hover:bg-white/85'} border rounded-xl flex items-center justify-between transition-all duration-150 ease-out shadow-xs shadow-slate-200/20 ${compact ? 'p-2.5 gap-2' : 'p-3.5 gap-4'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 72px' }}>
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className={`rounded-xl bg-gradient-to-tr ${getAvatarBg(item.studentName, category.id)} text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-white/20 ${compact ? 'w-9 h-9' : 'w-10 h-10'}`}>{getInitials(item.studentName)}</div>
               <div className="min-w-0 flex-1">
@@ -289,7 +289,33 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
       <div className="grid md:hidden grid-cols-3 gap-2">
         {categoryConfigs.map(category => {
           const Icon = category.icon;
-          return <Popover key={category.id}><PopoverTrigger asChild><button aria-label={category.label} className={`min-h-11 min-w-0 flex items-center justify-center gap-1 p-2 rounded-xl border text-xs font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] ${category.color}`}><Icon size={14} /><span className="sr-only">{category.label}</span><span aria-hidden="true">{category.list.length}</span></button></PopoverTrigger><PopoverContent align="center" className="w-[calc(100vw-2rem)] max-w-sm max-h-[70vh] overflow-y-auto p-3"><h3 className="font-bold text-sm mb-3">{category.label} ({category.list.length})</h3>{renderList(category, true)}</PopoverContent></Popover>;
+          return (
+            <Popover key={category.id} modal={true}>
+              <PopoverTrigger asChild>
+                <button
+                  aria-label={category.label}
+                  className={`min-h-11 min-w-0 flex items-center justify-center gap-1 p-2 rounded-xl border text-xs font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] ${category.color}`}
+                >
+                  <Icon size={14} />
+                  <span className="sr-only">{category.label}</span>
+                  <span aria-hidden="true">{category.list.length}</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="center"
+                overlay
+                centered
+                showCloseButton
+                className="w-[calc(100vw-2rem)] max-w-sm max-h-[70vh] overflow-y-auto p-4 bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-2xl rounded-2xl z-50 flex flex-col"
+              >
+                <div className={`flex items-center gap-2 mb-3 text-xs font-bold pr-7 ${category.color.split(' ')[0]}`}>
+                  <Icon size={15} />
+                  <h3 className="font-bold text-sm text-[#1E293B] truncate">{category.label} ({category.list.length})</h3>
+                </div>
+                {renderList(category, true)}
+              </PopoverContent>
+            </Popover>
+          );
         })}
       </div>
 
