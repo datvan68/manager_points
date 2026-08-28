@@ -30,6 +30,8 @@
     "migration:activity-completion-rule-index:execute": "ts-node scripts/repair-activity-completion-rule-index.ts --execute",
     "migration:attendance-session-owner-index:dry-run": "ts-node scripts/migrate-attendance-session-owner-index.ts",
     "migration:attendance-session-owner-index:execute": "ts-node scripts/migrate-attendance-session-owner-index.ts --execute",
+    "migration:daily-class-report-class-date-index:dry-run": "ts-node scripts/migrate-daily-class-report-class-date-index.ts",
+    "migration:daily-class-report-class-date-index:execute": "ts-node scripts/migrate-daily-class-report-class-date-index.ts --execute",
     "migration:activities:rollback:dry-run": "ts-node scripts/rollback-unified-activities.ts",
     "migration:activities:rollback:execute": "ts-node scripts/rollback-unified-activities.ts --execute",
     "migration:dormitory-bed-index:dry-run": "ts-node scripts/migrate-dormitory-bed-index.ts",

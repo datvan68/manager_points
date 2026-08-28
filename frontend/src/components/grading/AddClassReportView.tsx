@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectLabel, SelectSeparator } from '@/components/ui/select';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
-import { ApiError } from '@/api/http-client';
 import { classApi, Class } from '@/api/class-api';
 import { dailyClassReportApi, DailyClassReport } from '@/api/daily-class-report-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -94,50 +93,16 @@ function isValidObjectId(value: string): boolean {
   return typeof value === 'string' && OBJECT_ID_REGEX.test(value);
 }
 
-export function getDailyReportDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function getDailyReportClassId(report: DailyClassReport): string {
-  return getIdValue(report.class_id);
-}
-
-function findActiveDailyReport(reports: DailyClassReport[] | { data: DailyClassReport[] }, classId: string, reportDay: string) {
-  const items = Array.isArray(reports) ? reports : reports.data;
-  return items.find(report =>
-    getDailyReportClassId(report) === classId && getDailyReportDay(new Date(report.report_date)) === reportDay,
-  );
-}
-
-type DailyReportApiClient = Pick<typeof dailyClassReportApi, 'getDailyClassReports' | 'createDailyClassReport' | 'updateDailyClassReport'>;
+type DailyReportApiClient = Pick<typeof dailyClassReportApi, 'createDailyClassReport'>;
 
 export async function resolveDailyReportForClass({
   api,
-  classId,
-  reportDate,
   fields,
 }: {
   api: DailyReportApiClient;
-  classId: string;
-  reportDate: Date;
   fields: Parameters<typeof dailyClassReportApi.createDailyClassReport>[0];
 }): Promise<DailyClassReport> {
-  const reportDay = getDailyReportDay(reportDate);
-  const query = { classId, startDate: reportDay, endDate: reportDay };
-  const matchingReport = findActiveDailyReport(await api.getDailyClassReports(query), classId, reportDay);
-  if (matchingReport) return api.updateDailyClassReport(matchingReport._id, fields);
-
-  try {
-    return await api.createDailyClassReport(fields);
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 409) throw error;
-
-    const recoveredReport = findActiveDailyReport(await api.getDailyClassReports(query), classId, reportDay);
-    if (!recoveredReport) {
-      throw new Error(`Báo cáo lớp ${classId} cho ngày ${format(reportDate, 'dd/MM/yyyy')} đã tồn tại nhưng không thể truy cập. Vui lòng tải lại dữ liệu hoặc liên hệ quản trị viên.`);
-    }
-    return api.updateDailyClassReport(recoveredReport._id, fields);
-  }
+  return api.createDailyClassReport(fields);
 }
 
 function normalizeText(value: string): string {
@@ -741,8 +706,6 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         const resolveReport = async (selectedClassId: string): Promise<DailyClassReport> => {
           return resolveDailyReportForClass({
             api: dailyClassReportApi,
-            classId: selectedClassId,
-            reportDate,
             fields: getReportFields(selectedClassId),
           });
         };

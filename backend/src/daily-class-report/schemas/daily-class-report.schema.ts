@@ -47,5 +47,5 @@ export const DailyClassReportSchema =
 
 DailyClassReportSchema.index(
   { class_id: 1, report_date: 1 },
-  { unique: true, name: 'uq_class_date' },
+  { name: 'idx_class_date' },
 );
