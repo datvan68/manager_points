@@ -1,29 +1,29 @@
-task: "Create a student record from the search preview"
-pipeline: feature_development
+task: "Fix search-preview record creation and rank frequent criteria"
+pipeline: bug_fix
 profile: Quick
-objective: "Authorized users can choose one criterion and create one record for the student in Basic Information."
+objective: "Authorized users can record in-scope students and get a dynamic top-three frequent-criteria group."
 
 evidence:
-  current_behavior: "frontend/src/components/students/StudentDirectorySearch.tsx:previewModal -> a search result opens Basic Information with only Close and Detail."
-  expected_behavior: "Authorized users get Ghi nhận, select one criterion, then explicitly confirm one record."
-  root_cause: null
+  current_behavior: "StudentDirectorySearch.tsx:handleCreateRecord hides every API rejection behind the generic error; previewModal labels every filtered criterion as Sử dụng nhiều."
+  expected_behavior: "Creation succeeds once or shows the server reason; Sử dụng nhiều dynamically ranks at most three per-user criteria."
+  root_cause: "The preview discards API errors and bypasses the shared criterion-usage helpers."
 
 scope:
-  inspect: ["frontend/src/api/academic-record-api.ts:createAcademicRecord", "frontend/src/api/criteria-api.ts:getCriteria", "frontend/src/api/semester-api.ts:getSemesters", "frontend/src/providers/auth-provider.tsx:useAuth"]
-  write: ["frontend/src/components/students/StudentDirectorySearch.tsx:previewModal and record state/handlers", "frontend/src/components/students/StudentDirectorySearch.test.tsx:preview record tests"]
-  preserve: ["search debounce/cancellation and result rendering", "Close/Detail/Escape/backdrop behavior", "STUDENT_READ search visibility", "academic-record API/schema contracts"]
-  out: ["backend, schema, grading calculations, bulk records, notes/evidence fields, editing existing records"]
+  inspect: ["backend/src/academic-record/academic-record.service.ts:create/assertCanAccessStudent", "frontend/src/api/academic-record-api.ts:createAcademicRecord", "frontend/src/components/grading/criterion-usage.ts"]
+  write: ["frontend/src/components/students/StudentDirectorySearch.tsx:record/error/ranking", "frontend/src/components/students/StudentDirectorySearch.test.tsx:regressions"]
+  preserve: ["RBAC and grading scope", "semester/locked-summary rules", "idempotency", "search/preview behavior", "per-user usage storage"]
+  out: ["backend/API/schema changes", "grading calculations", "bulk recording", "cross-device usage sync"]
 
 acceptance_criteria:
-  - "AC-01: Only admins or users with CREATE_STUDENT_RECORD see Ghi nhận; read-only users cannot start creation."
-  - "AC-02: Clicking Ghi nhận loads criteria and semesters, shows a single criterion selector, and keeps Confirm disabled until a criterion and active semester are available."
-  - "AC-03: Confirm creates exactly one record with selected student/criterion, active semester, criterion title, current user, active status, recorded timestamp, and an idempotency key; duplicate clicks are blocked while saving."
-  - "AC-04: Success reports completion and resets record controls; failures report an error without closing the preview or losing selection."
+  - "AC-01: Confirm sends one valid request, blocks duplicate clicks, and reports success only after resolution."
+  - "AC-02: API 400/403/locked/validation messages are shown safely; unknown failures use the fallback and retain the open preview and selection."
+  - "AC-03: Sử dụng nhiều is hidden with no usage; otherwise it shows at most three unique criteria by descending count, with every remainder still selectable."
+  - "AC-04: Using a criterion increments its per-user count immediately; overtaking promotes it and demotes the lower-count third item."
 
 execution:
-  - "E-01 [AC-01,AC-02] StudentDirectorySearch.tsx -> add permission-gated Ghi nhận controls and lazy criteria/active-semester loading."
-  - "E-02 [AC-03,AC-04] StudentDirectorySearch.tsx -> submit createAcademicRecord with saving guard and success/error state cleanup."
-  - "E-03 [AC-01..AC-04] StudentDirectorySearch.test.tsx -> cover authorization, validation, payload, submit guard, success, and failure."
+  - "E-01 [AC-01,AC-02] StudentDirectorySearch.tsx -> align payload and preserve categorized API errors."
+  - "E-02 [AC-03,AC-04] StudentDirectorySearch.tsx -> load/increment usage and render ordered frequent/remaining groups."
+  - "E-03 [AC-01..AC-04] StudentDirectorySearch.test.tsx -> cover creation, errors, top-three promotion, uniqueness, and submit guard."
 
 temporary_artifacts:
   create: []
@@ -31,8 +31,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx -> targeted Vitest suite passes."
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck -> TypeScript exits 0."
+  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx"
+  - "V-02 [AC-03,AC-04] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx src/components/grading/AddRecordView.test.tsx"
+  - "V-03 [AC-01..AC-04] npm --prefix frontend run typecheck"
 
-risks: ["Search is available to read-only roles; gate this mutation independently with CREATE_STUDENT_RECORD."]
-stop_conditions: ["Stop if creation requires a backend/API/schema change, no active semester can be resolved by the existing API, or repository permissions use a different create-record authority."]
+risks: ["Teachers may find out-of-scope students; backend denial must remain enforced and visible."]
+stop_conditions: ["Stop if reproduction proves the API persists a record but returns failure during score sync, or fixing creation requires a backend contract/transaction change."]

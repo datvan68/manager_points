@@ -6,6 +6,7 @@ import { ApiError } from "@/api/http-client";
 import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi } from "@/api/criteria-api";
 import { semesterApi } from "@/api/semester-api";
+import { CRITERION_USAGE_STORAGE_KEY_PREFIX } from "@/components/grading/criterion-usage";
 
 const mockPush = vi.fn();
 const mockUseAuth = vi.hoisted(() => vi.fn());
@@ -56,6 +57,7 @@ const makeMockStudents = (count: number) =>
 describe("StudentDirectorySearch", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.clear();
     mockPush.mockClear();
     mockUseAuth.mockReturnValue({ user: { id: "user-1" }, hasPermission: () => true });
   });
@@ -316,6 +318,54 @@ describe("StudentDirectorySearch", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("bg-blue-50");
     expect(screen.getByText("Không thể ghi nhận sinh viên. Vui lòng thử lại.")).toBeInTheDocument();
+  });
+
+  it("shows a safe server reason and keeps the selected criterion after an API rejection", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    vi.mocked(academicRecordApi.createAcademicRecord).mockRejectedValue(new ApiError("Học kỳ đã khóa", 403));
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    const criterionButton = screen.getByRole("button", { name: /Đi học đúng giờ/ });
+    fireEvent.click(criterionButton);
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText("Học kỳ đã khóa")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("bg-blue-50");
+  });
+
+  it("renders unique criteria in a dynamic top-three group and promotes a selected criterion", async () => {
+    localStorage.setItem(`${CRITERION_USAGE_STORAGE_KEY_PREFIX}user-1`, JSON.stringify({ one: 3, two: 2, three: 1 }));
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([
+      { _id: "one", criterion_name: "Một" },
+      { _id: "two", criterion_name: "Hai" },
+      { _id: "three", criterion_name: "Ba" },
+      { _id: "four", criterion_name: "Bốn" },
+      { _id: "two", criterion_name: "Hai (trùng)" },
+    ] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(screen.getByText("Sử dụng nhiều")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Hai/ })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Bốn/ })).toBeInTheDocument();
+
+    const fourButton = screen.getByRole("button", { name: /Bốn/ });
+    fireEvent.click(fourButton);
+    fireEvent.click(screen.getByRole("button", { name: /Bốn/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bốn/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bốn/ }));
+    expect(localStorage.getItem(`${CRITERION_USAGE_STORAGE_KEY_PREFIX}user-1`)).toContain('"four":4');
+    const promotedFourButton = screen.getByRole("button", { name: /Bốn/ });
+    const firstCriterionButton = screen.getByRole("button", { name: /Một/ });
+    expect(promotedFourButton.compareDocumentPosition(firstCriterionButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Ba/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Hai/ })).toHaveLength(1);
   });
 
   it("blocks duplicate submissions while the record is saving", async () => {

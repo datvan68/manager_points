@@ -10,6 +10,7 @@ import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { semesterApi, Semester } from "@/api/semester-api";
 import { useAuth } from "@/providers/auth-provider";
+import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from "@/components/grading/criterion-usage";
 
 export type StudentWithClass = Student & {
   class_id?: { _id?: string; class_name?: string } | string;
@@ -54,6 +55,14 @@ function formatStatus(status?: string) {
   return status;
 }
 
+function getRecordErrorMessage(error: unknown) {
+  const status = error instanceof ApiError ? error.status : (error as any)?.status;
+  const message = error instanceof Error ? error.message : (error as any)?.message;
+  return status >= 400 && status < 500 && typeof message === "string" && message.trim()
+    ? message
+    : "Không thể ghi nhận sinh viên. Vui lòng thử lại.";
+}
+
 export default function StudentDirectorySearch({
   isOpen = true,
   onClose,
@@ -70,6 +79,7 @@ export default function StudentDirectorySearch({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StudentWithClass | null>(null);
   const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [criterionUsage, setCriterionUsage] = useState<CriterionUsage>({});
   const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
   const [criterionSearch, setCriterionSearch] = useState("");
@@ -167,6 +177,10 @@ export default function StudentDirectorySearch({
     dialogCloseRef.current?.focus();
   }, [selected]);
 
+  useEffect(() => {
+    setCriterionUsage(readCriterionUsage(user?.id));
+  }, [user?.id]);
+
   if (!isOpen) return null;
 
   const canOpenDetail = Boolean(selected && classIdOf(selected));
@@ -237,13 +251,25 @@ export default function StudentDirectorySearch({
       setCriteria([]);
       setActiveSemester(null);
       setSelectedCriterionId("");
-    } catch {
-      setRecordError("Không thể ghi nhận sinh viên. Vui lòng thử lại.");
+    } catch (error) {
+      setRecordError(getRecordErrorMessage(error));
     } finally {
       savingRef.current = false;
       setRecordSaving(false);
     }
   };
+
+  const uniqueCriteria = criteria.filter((criterion, index, allCriteria) => (
+    allCriteria.findIndex((item) => item._id === criterion._id) === index
+  ));
+  const orderedCriteria = orderCriteriaByUsage(uniqueCriteria, criterionUsage);
+  const normalizedCriterionSearch = criterionSearch.trim().toLowerCase();
+  const frequentCriteria = orderedCriteria.frequent.filter((criterion) => (
+    criterion.criterion_name.toLowerCase().includes(normalizedCriterionSearch)
+  ));
+  const remainingCriteria = orderedCriteria.remaining.filter((criterion) => (
+    criterion.criterion_name.toLowerCase().includes(normalizedCriterionSearch)
+  ));
 
   const handleNavigateDetail = () => {
     if (!selected) return;
@@ -349,12 +375,24 @@ export default function StudentDirectorySearch({
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:rounded-xl sm:shadow-sm">
                   <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
                   <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8]" />
-                  <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sử dụng nhiều</p>
+                  {frequentCriteria.length > 0 && (
+                    <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sử dụng nhiều</p>
+                  )}
                   <div className="max-h-56 overflow-y-auto px-1 pb-1">
-                    {criteria.filter((criterion) => criterion.criterion_name.toLowerCase().includes(criterionSearch.trim().toLowerCase())).map((criterion) => {
+                    {frequentCriteria.map((criterion) => {
                       const score = criterion.score_per_unit || criterion.min_score || 0;
                       return (
-                        <button key={criterion._id} type="button" onClick={() => setSelectedCriterionId(criterion._id)} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                          <span className="truncate font-semibold">{criterion.criterion_name}</span>
+                          <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
+                        </button>
+                      );
+                    })}
+                    {frequentCriteria.length > 0 && remainingCriteria.length > 0 && <div className="my-1 border-t border-slate-100" />}
+                    {remainingCriteria.map((criterion) => {
+                      const score = criterion.score_per_unit || criterion.min_score || 0;
+                      return (
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
                           <span className="truncate font-semibold">{criterion.criterion_name}</span>
                           <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
                         </button>
