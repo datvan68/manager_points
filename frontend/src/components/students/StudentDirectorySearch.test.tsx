@@ -3,14 +3,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StudentDirectorySearch from "./StudentDirectorySearch";
 import { studentApi } from "@/api/student-api";
 import { ApiError } from "@/api/http-client";
+import { academicRecordApi } from "@/api/academic-record-api";
+import { criteriaApi } from "@/api/criteria-api";
+import { semesterApi } from "@/api/semester-api";
 
 const mockPush = vi.fn();
+const mockUseAuth = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("@/api/student-api", () => ({
   studentApi: { getStudents: vi.fn() },
+}));
+
+vi.mock("@/api/academic-record-api", () => ({
+  academicRecordApi: { createAcademicRecord: vi.fn() },
+}));
+vi.mock("@/api/criteria-api", () => ({
+  criteriaApi: { getCriteria: vi.fn() },
+}));
+vi.mock("@/api/semester-api", () => ({
+  semesterApi: { getSemesters: vi.fn() },
+}));
+vi.mock("@/providers/auth-provider", () => ({
+  useAuth: mockUseAuth,
 }));
 
 const student = {
@@ -40,8 +57,17 @@ describe("StudentDirectorySearch", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockPush.mockClear();
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" }, hasPermission: () => true });
   });
   afterEach(() => vi.useRealTimers());
+
+  const openPreview = async () => {
+    vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
+    render(<StudentDirectorySearch />);
+    fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
+    await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: /Nguyễn Văn A/ }));
+  };
 
   it("does not request for one trimmed character and debounces a bounded slider search with limit 20", async () => {
     vi.mocked(studentApi.getStudents).mockResolvedValue({ data: [student], meta: {} });
@@ -213,7 +239,7 @@ describe("StudentDirectorySearch", () => {
     expect(overlay).toHaveClass("fixed", "inset-0", "z-50", "flex", "items-center", "justify-center");
 
     // Close via Đóng button
-    const closeBtn = screen.getByRole("button", { name: "Đóng" });
+    const closeBtn = screen.getByRole("button", { name: "Đóng thông tin sinh viên" });
     fireEvent.click(closeBtn);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -245,5 +271,66 @@ describe("StudentDirectorySearch", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toBeInTheDocument();
     expect(container).toContainElement(dialog);
+  });
+
+  it("gates record creation by permission", async () => {
+    await openPreview();
+    expect(screen.getByRole("button", { name: "Ghi nhận" })).toBeInTheDocument();
+  });
+
+  it("does not expose record creation to read-only users", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "user-1" }, hasPermission: () => false });
+    await openPreview();
+    expect(screen.queryByRole("button", { name: "Ghi nhận" })).not.toBeInTheDocument();
+  });
+
+  it("loads criteria and active semester, then creates one record with the selected values", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    vi.mocked(academicRecordApi.createAcademicRecord).mockResolvedValue({} as any);
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("button", { name: "Xác nhận ghi nhận" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Đi học đúng giờ/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(academicRecordApi.createAcademicRecord).toHaveBeenCalledWith(expect.objectContaining({
+      student_id: "student-1", criterion_id: "criterion-1", semester_id: "semester-1",
+      record_title: "Đi học đúng giờ", recorded_by: "user-1", status: "active",
+      recorded_at: expect.any(String), idempotency_key: expect.any(String),
+    }));
+    expect(screen.getByText("Đã ghi nhận sinh viên thành công.")).toBeInTheDocument();
+  });
+
+  it("keeps the preview and selection after a create failure", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    vi.mocked(academicRecordApi.createAcademicRecord).mockRejectedValue(new Error("failed"));
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: /Đi học đúng giờ/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("bg-blue-50");
+    expect(screen.getByText("Không thể ghi nhận sinh viên. Vui lòng thử lại.")).toBeInTheDocument();
+  });
+
+  it("blocks duplicate submissions while the record is saving", async () => {
+    let resolveCreate!: (value: any) => void;
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    vi.mocked(academicRecordApi.createAcademicRecord).mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve; }));
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole("button", { name: /Đi học đúng giờ/ }));
+    const confirm = screen.getByRole("button", { name: "Xác nhận ghi nhận" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(academicRecordApi.createAcademicRecord).toHaveBeenCalledTimes(1);
+    await act(async () => { resolveCreate({}); await Promise.resolve(); });
   });
 });

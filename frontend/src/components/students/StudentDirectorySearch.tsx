@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, Loader2, X, ArrowRight } from "lucide-react";
+import { Search, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { studentApi, Student } from "@/api/student-api";
 import { ApiError } from "@/api/http-client";
+import { academicRecordApi } from "@/api/academic-record-api";
+import { criteriaApi, Criterion } from "@/api/criteria-api";
+import { semesterApi, Semester } from "@/api/semester-api";
+import { useAuth } from "@/providers/auth-provider";
 
 export type StudentWithClass = Student & {
   class_id?: { _id?: string; class_name?: string } | string;
@@ -65,11 +69,22 @@ export default function StudentDirectorySearch({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StudentWithClass | null>(null);
+  const [criteria, setCriteria] = useState<Criterion[]>([]);
+  const [activeSemester, setActiveSemester] = useState<Semester | null>(null);
+  const [selectedCriterionId, setSelectedCriterionId] = useState("");
+  const [criterionSearch, setCriterionSearch] = useState("");
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [recordSaving, setRecordSaving] = useState(false);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const [recordSuccess, setRecordSuccess] = useState<string | null>(null);
+  const savingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const dialogCloseRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { user, hasPermission } = useAuth();
+  const canCreateRecord = hasPermission("CREATE_STUDENT_RECORD");
   const setInputRef = useCallback((node: HTMLInputElement | null) => {
     inputRef.current = node;
     if (node && isOpen && autoFocus) node.focus();
@@ -136,7 +151,7 @@ export default function StudentDirectorySearch({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (selected) {
-          setSelected(null);
+          closePreview();
         } else {
           onClose?.();
         }
@@ -156,10 +171,84 @@ export default function StudentDirectorySearch({
 
   const canOpenDetail = Boolean(selected && classIdOf(selected));
 
+  const resetRecordControls = () => {
+    setCriteria([]);
+    setActiveSemester(null);
+    setSelectedCriterionId("");
+    setCriterionSearch("");
+    setRecordLoading(false);
+    setRecordSaving(false);
+    setRecordError(null);
+    setRecordSuccess(null);
+    setCriterionSearch("");
+    savingRef.current = false;
+  };
+
+  const closePreview = () => {
+    setSelected(null);
+    resetRecordControls();
+  };
+
+  const handleStartRecord = async () => {
+    if (!selected || !canCreateRecord || recordLoading || recordSaving) return;
+    setRecordLoading(true);
+    setRecordError(null);
+    setRecordSuccess(null);
+    try {
+      const [loadedCriteria, semesters] = await Promise.all([
+        criteriaApi.getCriteria(),
+        semesterApi.getSemesters(),
+      ]);
+      setCriteria(loadedCriteria);
+      setActiveSemester(semesters.find((semester) => semester.status === "active") || null);
+      if (loadedCriteria.length === 0) setRecordError("Chưa có tiêu chí để ghi nhận.");
+      else if (!semesters.some((semester) => semester.status === "active")) {
+        setRecordError("Chưa có học kỳ đang hoạt động.");
+      }
+    } catch {
+      setRecordError("Không thể tải tiêu chí và học kỳ.");
+    } finally {
+      setRecordLoading(false);
+    }
+  };
+
+  const handleCreateRecord = async () => {
+    if (!selected || !selectedCriterionId || !activeSemester || savingRef.current) return;
+    const criterion = criteria.find((item) => item._id === selectedCriterionId);
+    if (!criterion) return;
+    savingRef.current = true;
+    setRecordSaving(true);
+    setRecordError(null);
+    setRecordSuccess(null);
+    try {
+      await academicRecordApi.createAcademicRecord({
+        student_id: selected._id,
+        criterion_id: criterion._id,
+        semester_id: activeSemester._id,
+        record_title: criterion.criterion_name,
+        recorded_by: user?.id,
+        recorded_at: new Date().toISOString(),
+        status: "active",
+        idempotency_key: typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${selected._id}-${criterion._id}-${Date.now()}`,
+      });
+      setRecordSuccess("Đã ghi nhận sinh viên thành công.");
+      setCriteria([]);
+      setActiveSemester(null);
+      setSelectedCriterionId("");
+    } catch {
+      setRecordError("Không thể ghi nhận sinh viên. Vui lòng thử lại.");
+    } finally {
+      savingRef.current = false;
+      setRecordSaving(false);
+    }
+  };
+
   const handleNavigateDetail = () => {
     if (!selected) return;
     const currentSelected = selected;
-    setSelected(null);
+    closePreview();
     onClose?.();
     if (onOpenDetail) {
       onOpenDetail(currentSelected);
@@ -176,7 +265,7 @@ export default function StudentDirectorySearch({
       data-student-preview="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs"
       role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}
+      onMouseDown={(event) => event.target === event.currentTarget && closePreview()}
     >
       <div
         role="dialog"
@@ -187,12 +276,23 @@ export default function StudentDirectorySearch({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
-            <h2 id="student-preview-title" className="mt-1 text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+            <div className="mt-1 flex items-baseline gap-2">
+              <h2 id="student-preview-title" className="text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+              {canOpenDetail && (
+                <button
+                  type="button"
+                  onClick={handleNavigateDetail}
+                  className="shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                >
+                  Chi tiết
+                </button>
+              )}
+            </div>
           </div>
           <button
             ref={dialogCloseRef}
             type="button"
-            onClick={() => setSelected(null)}
+            onClick={closePreview}
             className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
             aria-label="Đóng thông tin sinh viên"
           >
@@ -234,24 +334,50 @@ export default function StudentDirectorySearch({
           </div>
         </dl>
 
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setSelected(null)}
-            className="rounded-xl border border-white/75 bg-white/50 px-4 py-2 text-xs font-semibold text-[#64748B] shadow-xs transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/80 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
-          >
-            Đóng
-          </button>
-          <button
-            type="button"
-            disabled={!canOpenDetail}
-            title={!canOpenDetail ? "Sinh viên chưa có lớp để mở trang chi tiết" : undefined}
-            onClick={handleNavigateDetail}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-[#1557b0] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none disabled:hover:scale-100 cursor-pointer"
-          >
-            Chi tiết <ArrowRight size={14} />
-          </button>
-        </div>
+        {canCreateRecord && (
+          <div className="mt-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-[#1E293B]">Ghi nhận học vụ</p>
+              {!criteria.length && !recordLoading && !recordSuccess && (
+                <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                  Ghi nhận
+                </button>
+              )}
+            </div>
+            {(criteria.length > 0 || recordLoading) && (
+              <div onMouseDown={(event) => event.target === event.currentTarget && closePreview()} className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/25 p-3 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
+                <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:rounded-xl sm:shadow-sm">
+                  <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
+                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8]" />
+                  <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sử dụng nhiều</p>
+                  <div className="max-h-56 overflow-y-auto px-1 pb-1">
+                    {criteria.filter((criterion) => criterion.criterion_name.toLowerCase().includes(criterionSearch.trim().toLowerCase())).map((criterion) => {
+                      const score = criterion.score_per_unit || criterion.min_score || 0;
+                      return (
+                        <button key={criterion._id} type="button" onClick={() => setSelectedCriterionId(criterion._id)} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                          <span className="truncate font-semibold">{criterion.criterion_name}</span>
+                          <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {recordError && <p className="mt-1 px-2 text-xs font-medium text-rose-700">{recordError}</p>}
+                  <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 px-1 pt-2">
+                    <button type="button" onClick={closePreview} className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30">
+                      Đóng
+                    </button>
+                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                      {recordSaving ? "Đang lưu..." : "Xác nhận ghi nhận"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {recordError && !criteria.length && !recordLoading && <p className="mt-2 text-xs font-medium text-rose-700">{recordError}</p>}
+            {recordSuccess && <p className="mt-2 text-xs font-medium text-emerald-700">{recordSuccess}</p>}
+          </div>
+        )}
+
         {!canOpenDetail && (
           <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
             Sinh viên chưa có lớp để mở trang chi tiết.
