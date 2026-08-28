@@ -51,7 +51,7 @@ async function fetchSidebarMappings(token?: string): Promise<any[]> {
 // Minimalist main items
 const allMenuItems = [
   { icon: LayoutDashboard, label: "Trang chủ", href: "/" },
-  { icon: Users, label: "Học sinh sinh viên", href: "/students" },
+  { icon: Users, label: "Học sinh sinh viên", href: "/students/record" },
   { icon: Compass, label: "Hoạt động", href: "/activities" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
 ];
@@ -225,7 +225,7 @@ const Sidebar = () => {
           }
 
           // Luôn hiển thị mục "Học sinh sinh viên" cho vai trò học sinh/sinh viên hoặc giáo viên
-          if (item.href === "/students" && (isStudentUser || isTeacherUser || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK"))) {
+          if (item.href === "/students/record" && (isStudentUser || isTeacherUser || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK"))) {
             return true;
           }
 
@@ -266,7 +266,7 @@ const Sidebar = () => {
           if (item.href === "/") return !isStudentUser;
           if (isAdminUser(user)) return true;
 
-          if (item.href === "/students") {
+          if (item.href === "/students/record") {
             return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK");
           }
           if (item.href === "/activities") {

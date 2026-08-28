@@ -18,7 +18,7 @@ import StudentSpotlightPanel from '@/components/dashboard/StudentSpotlightPanel'
 const DeferredPanelsPlaceholder = () => (
   <div
     aria-label="Đang tải các bảng điều khiển bổ sung"
-    className="space-y-6"
+    className="space-y-4 sm:space-y-6"
   >
     <div className="h-24 rounded-2xl bg-white/45 border border-white/75 animate-pulse" />
     <div className="h-[420px] rounded-2xl bg-white/45 border border-white/75 animate-pulse" />
@@ -247,8 +247,8 @@ export default function DashboardPage() {
   const showSystemPanel = isSysAdmin || isSystemOp;
 
   return (
-    <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-6 scrollbar-hover">
-      <div className="max-w-screen-2xl mx-auto space-y-6">
+    <div className="flex-1 overflow-auto p-2 sm:p-6 md:p-6 scrollbar-hover">
+      <div className="max-w-screen-2xl mx-auto space-y-4 sm:space-y-6">
         
         {/* Header section with Semester Selector */}
         <DashboardHeader 

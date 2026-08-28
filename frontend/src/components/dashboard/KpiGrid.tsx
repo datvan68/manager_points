@@ -29,21 +29,23 @@ interface StatCardProps {
 
 function StatCard({ title, value, description, icon: Icon, color, onClick }: StatCardProps) {
   return (
-    <div 
+    <button
+      type="button"
       onClick={onClick}
-      className={`bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:shadow-md transition-all duration-150 ease-out flex items-center justify-between gap-4 ${onClick ? 'cursor-pointer' : ''}`}
+      aria-label={`${title}: ${value}`}
+      className={`bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-3 sm:p-5 shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:shadow-md transition-all duration-150 ease-out flex flex-col-reverse sm:flex-row items-center sm:justify-between gap-2 sm:gap-4 min-h-24 sm:min-h-0 text-left ${onClick ? 'cursor-pointer' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2`}
     >
       <div className="flex-1 min-w-0">
-        <span className="text-[#64748B] text-xs font-semibold tracking-wide block mb-1 truncate">{title}</span>
+        <span className="hidden sm:block text-[#64748B] text-xs font-semibold tracking-wide mb-1 truncate">{title}</span>
         <h3 className="text-2xl font-black text-[#1E293B] tracking-tight">{value}</h3>
         {description && (
-          <p className="text-[10px] text-[#64748B] mt-1.5 font-medium truncate">{description}</p>
+          <p className="hidden sm:block text-[10px] text-[#64748B] mt-1.5 font-medium truncate">{description}</p>
         )}
       </div>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color} shrink-0 bg-opacity-10 shadow-sm border border-white/40`}>
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center ${color} shrink-0 bg-opacity-10 shadow-sm border border-white/40`}>
         <Icon className="w-5 h-5" />
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -208,7 +210,7 @@ export default function KpiGrid({ metrics }: KpiGridProps) {
   const statCards = getKpis();
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
       {statCards.map((card, i) => (
         <StatCard 
           key={i}

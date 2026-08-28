@@ -1,29 +1,29 @@
-task: "Fix search-preview record creation and rank frequent criteria"
-pipeline: bug_fix
+task: "Default to student recording and compact dashboard cards"
+pipeline: feature_development
 profile: Quick
-objective: "Authorized users can record in-scope students and get a dynamic top-three frequent-criteria group."
+objective: "Open student management on Ghi nhận by default and compact the two mobile dashboard cards shown in the reference."
 
 evidence:
-  current_behavior: "StudentDirectorySearch.tsx:handleCreateRecord hides every API rejection behind the generic error; previewModal labels every filtered criterion as Sử dụng nhiều."
-  expected_behavior: "Creation succeeds once or shows the server reason; Sử dụng nhiều dynamically ranks at most three per-user criteria."
-  root_cause: "The preview discards API errors and bypasses the shared criterion-usage helpers."
+  current_behavior: "Sidebar.tsx:allMenuItems links Học sinh sinh viên to /students; DashboardHeader stacks refresh below the greeting before md; StudentSpotlightPanel renders the old title and subtitle."
+  expected_behavior: "The primary entry opens /students/record; mobile greeting and refresh share one row; spotlight shows Ghi nhận học sinh sinh viên without a subtitle."
+  root_cause: "The menu targets the list route, header groups stack on mobile, and spotlight copy is hard-coded."
 
 scope:
-  inspect: ["backend/src/academic-record/academic-record.service.ts:create/assertCanAccessStudent", "frontend/src/api/academic-record-api.ts:createAcademicRecord", "frontend/src/components/grading/criterion-usage.ts"]
-  write: ["frontend/src/components/students/StudentDirectorySearch.tsx:record/error/ranking", "frontend/src/components/students/StudentDirectorySearch.test.tsx:regressions"]
-  preserve: ["RBAC and grading scope", "semester/locked-summary rules", "idempotency", "search/preview behavior", "per-user usage storage"]
-  out: ["backend/API/schema changes", "grading calculations", "bulk recording", "cross-device usage sync"]
+  inspect: ["frontend/src/components/ui/TabNavigation.tsx:route-active behavior", "C:/Users/hoang/AppData/Local/Temp/codex-clipboard-a85185c5-d934-4770-b078-fa73a58820e8.png:mobile reference"]
+  write: ["frontend/src/components/layout/Sidebar.tsx:allMenuItems", "frontend/src/components/dashboard/DashboardHeader.tsx:header layout", "frontend/src/components/dashboard/StudentSpotlightPanel.tsx:title block", "frontend/src/components/layout/Sidebar.test.tsx", "frontend/src/components/dashboard/dashboard-responsive.test.tsx"]
+  preserve: ["Danh sách/Nhiệm vụ routes", "route-specific active states", "RBAC", "refresh/semester behavior", "spotlight data, tabs, and CTA", "desktop layout", "accessible names"]
+  out: ["backend/API", "route redirects", "dashboard data", "other card redesigns"]
 
 acceptance_criteria:
-  - "AC-01: Confirm sends one valid request, blocks duplicate clicks, and reports success only after resolution."
-  - "AC-02: API 400/403/locked/validation messages are shown safely; unknown failures use the fallback and retain the open preview and selection."
-  - "AC-03: Sử dụng nhiều is hidden with no usage; otherwise it shows at most three unique criteria by descending count, with every remainder still selectable."
-  - "AC-04: Using a criterion increments its per-user count immediately; overtaking promotes it and demotes the lower-count third item."
+  - "AC-01: The primary Học sinh sinh viên menu targets /students/record and Ghi nhận is active; choosing Danh sách still opens /students with Danh sách active."
+  - "AC-02: Below sm, Xin chào, role icon, and refresh icon stay on one compact row; refresh remains functional, disabled while loading, keyboard-visible, and accessibly named."
+  - "AC-03: Spotlight displays exactly Ghi nhận học sinh sinh viên with no subtitle; its CTA, tabs, counts, and records are unchanged."
 
 execution:
-  - "E-01 [AC-01,AC-02] StudentDirectorySearch.tsx -> align payload and preserve categorized API errors."
-  - "E-02 [AC-03,AC-04] StudentDirectorySearch.tsx -> load/increment usage and render ordered frequent/remaining groups."
-  - "E-03 [AC-01..AC-04] StudentDirectorySearch.test.tsx -> cover creation, errors, top-three promotion, uniqueness, and submit guard."
+  - "E-01 [AC-01] Sidebar.tsx:allMenuItems → change the primary student destination to /students/record."
+  - "E-02 [AC-02] DashboardHeader.tsx → place greeting/role/refresh in the mobile top row; retain semester controls and sm+ layout."
+  - "E-03 [AC-03] StudentSpotlightPanel.tsx → replace heading, remove subtitle, and tighten title spacing."
+  - "E-04 [AC-01..AC-03] Extend focused sidebar and dashboard responsive tests."
 
 temporary_artifacts:
   create: []
@@ -31,9 +31,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx"
-  - "V-02 [AC-03,AC-04] npm --prefix frontend test -- src/components/grading/AddClassReportView.test.tsx src/components/grading/AddRecordView.test.tsx"
-  - "V-03 [AC-01..AC-04] npm --prefix frontend run typecheck"
+  - "V-01 [AC-01] npm --prefix frontend test -- src/components/layout/Sidebar.test.tsx"
+  - "V-02 [AC-02..AC-03] npm --prefix frontend test -- src/components/dashboard/dashboard-responsive.test.tsx src/app/(dashboard)/page.test.tsx"
+  - "V-03 [AC-01..AC-03] npm --prefix frontend run typecheck"
 
-risks: ["Teachers may find out-of-scope students; backend denial must remain enforced and visible."]
-stop_conditions: ["Stop if reproduction proves the API persists a record but returns failure during score sync, or fixing creation requires a backend contract/transaction change."]
+risks: ["Refresh must not be duplicated or displace the semester selector on narrow screens."]
+stop_conditions: ["Stop if Ghi nhận must replace deep-link behavior or make /students unavailable; that changes routing semantics."]

@@ -85,8 +85,8 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
     };
 
     return (
-      <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-6 shadow-sm shadow-slate-300/40 transition-all duration-150 ease-out hover:shadow-md">
-        <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between">
+      <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-3 sm:p-6 shadow-sm shadow-slate-300/40 transition-all duration-150 ease-out hover:shadow-md">
+        <div className="flex flex-col md:flex-row gap-4 sm:gap-6 md:items-center justify-between">
           
           {/* Main Info Card */}
           <div className="flex items-center gap-4">
@@ -94,16 +94,12 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
               <Sparkles className="w-7 h-7" />
             </div>
             <div>
-              <span className="text-[#64748B] text-[10px] font-bold uppercase tracking-wider">Tiêu điểm rèn luyện cá nhân</span>
-              <h2 className="text-lg font-black text-[#1E293B] mt-0.5 tracking-tight flex items-center gap-2">
-                Hồ sơ học kỳ của tôi 
+              <h2 className="text-lg font-black text-[#1E293B] tracking-tight flex items-center gap-2">
+                Ghi nhận học sinh sinh viên
                 <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${getStatusBg(evaluationStatus)}`}>
                   {getStatusText(evaluationStatus)}
                 </span>
               </h2>
-              <p className="text-xs text-[#64748B] mt-1 font-medium">
-                Cập nhật lần cuối: {new Date().toLocaleDateString('vi-VN')}
-              </p>
             </div>
           </div>
 
@@ -258,8 +254,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
             <TrendingUp size={16} />
           </div>
           <div>
-            <h2 className="font-extrabold text-[#1E293B] text-sm tracking-tight">Tiêu điểm & Bảng xếp hạng học sinh</h2>
-            <p className="text-[10px] text-[#64748B] font-semibold mt-0.5">Thống kê hoạt động rèn luyện nổi bật trong học kỳ này</p>
+            <h2 className="font-extrabold text-[#1E293B] text-sm tracking-tight">Ghi nhận học sinh sinh viên</h2>
           </div>
         </div>
 
@@ -283,14 +278,16 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
             <button
               key={cfg.id}
               onClick={() => setActiveTab(cfg.id)}
-              className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-extrabold transition-all duration-150 cursor-pointer ${
+              aria-label={cfg.label}
+              title={cfg.label}
+              className={`min-h-11 flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-extrabold transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2 ${
                 isActive 
                   ? `${cfg.color} shadow-xs scale-[1.01]` 
                   : 'bg-white/30 border-white/60 text-[#64748B] hover:bg-white/60 hover:text-[#1E293B]'
               }`}
             >
               <Icon size={14} className="shrink-0" />
-              <span>{cfg.label}</span>
+              <span className="hidden sm:inline">{cfg.label}</span>
               <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
                 isActive 
                   ? 'bg-white text-slate-800 shadow-xs' 

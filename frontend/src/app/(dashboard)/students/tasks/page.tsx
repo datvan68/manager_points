@@ -45,8 +45,8 @@ function StudentTasksPageContent() {
                   { id: 'Nhiệm vụ', label: 'Nhiệm vụ' },
                 ]
               : [
-                  { id: 'Danh sách', label: 'Danh sách' },
                   { id: 'Ghi nhận', label: 'Ghi nhận' },
+                  { id: 'Danh sách', label: 'Danh sách' },
                   { id: 'Nhiệm vụ', label: 'Nhiệm vụ' },
                 ]
           }

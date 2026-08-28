@@ -59,19 +59,22 @@ export default function QuickActionsPanel({ roleScope }: QuickActionsPanelProps)
   if (actions.length === 0) return null;
 
   return (
-    <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 transition-all duration-150 ease-out">
-      <h2 className="font-bold text-[#1E293B] text-sm mb-4">Thao tác nhanh</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-3 sm:p-5 shadow-sm shadow-slate-300/40 transition-all duration-150 ease-out">
+      <h2 className="font-bold text-[#1E293B] text-sm mb-3 sm:mb-4">Thao tác nhanh</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {actions.map((act, idx) => (
           <button
             key={idx}
+            type="button"
             onClick={() => handleNav(act.url)}
-            className="rounded-xl border border-white/70 bg-white/40 p-4 transition-all duration-150 hover:bg-white/70 hover:scale-[1.01] hover:shadow-sm flex items-center gap-3 cursor-pointer text-left w-full group shadow-xs"
+            aria-label={act.label}
+            title={act.label}
+            className="min-h-11 rounded-xl border border-white/70 bg-white/40 p-3 sm:p-4 transition-all duration-150 hover:bg-white/70 hover:scale-[1.01] hover:shadow-sm flex items-center justify-center sm:justify-start gap-3 cursor-pointer text-left w-full group shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2"
           >
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 group-hover:scale-[1.03] transition-transform ${act.color}`}>
               <act.icon size={18} />
             </div>
-            <span className="text-xs font-bold text-[#1E293B] leading-snug">{act.label}</span>
+            <span className="hidden sm:inline text-xs font-bold text-[#1E293B] leading-snug">{act.label}</span>
           </button>
         ))}
       </div>

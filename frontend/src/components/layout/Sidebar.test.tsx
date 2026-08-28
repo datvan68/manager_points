@@ -113,6 +113,14 @@ describe('Sidebar Component', () => {
     expect(mobileNav?.classList.contains('fixed')).toBe(true);
   });
 
+  it('opens student management on Ghi nhận by default while keeping the list route available', async () => {
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    const studentLink = screen.getAllByTitle('Học sinh sinh viên')[0];
+    expect(studentLink).toHaveAttribute('href', '/students/record');
+  });
+
   it('marks the active mobile destination for assistive technology', async () => {
     render(<Sidebar />);
     await waitForSidebarItems();
