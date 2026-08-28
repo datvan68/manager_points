@@ -33,16 +33,24 @@ function StatCard({ title, value, description, icon: Icon, color, onClick }: Sta
       type="button"
       onClick={onClick}
       aria-label={`${title}: ${value}`}
-      className={`bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-3 sm:p-5 shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:shadow-md transition-all duration-150 ease-out flex flex-col-reverse sm:flex-row items-center sm:justify-between gap-2 sm:gap-4 min-h-24 sm:min-h-0 text-left ${onClick ? 'cursor-pointer' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2`}
+      className={`bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-3 sm:p-5 shadow-sm shadow-slate-300/40 hover:scale-[1.01] hover:shadow-md transition-all duration-150 ease-out flex flex-col justify-between sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 min-h-24 sm:min-h-0 text-left w-full ${onClick ? 'cursor-pointer' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2`}
     >
+      <div className="flex items-center justify-between sm:hidden w-full gap-1.5">
+        <span className="text-[#64748B] text-[11px] font-semibold tracking-tight truncate flex-1">{title}</span>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${color} shrink-0 bg-opacity-10 shadow-xs border border-white/40`}>
+          <Icon className="w-3.5 h-3.5" />
+        </div>
+      </div>
+
       <div className="flex-1 min-w-0">
         <span className="hidden sm:block text-[#64748B] text-xs font-semibold tracking-wide mb-1 truncate">{title}</span>
-        <h3 className="text-2xl font-black text-[#1E293B] tracking-tight">{value}</h3>
+        <h3 className="text-lg sm:text-2xl font-black text-[#1E293B] tracking-tight">{value}</h3>
         {description && (
           <p className="hidden sm:block text-[10px] text-[#64748B] mt-1.5 font-medium truncate">{description}</p>
         )}
       </div>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center ${color} shrink-0 bg-opacity-10 shadow-sm border border-white/40`}>
+
+      <div className={`hidden sm:flex w-11 h-11 rounded-xl items-center justify-center ${color} shrink-0 bg-opacity-10 shadow-sm border border-white/40`}>
         <Icon className="w-5 h-5" />
       </div>
     </button>
