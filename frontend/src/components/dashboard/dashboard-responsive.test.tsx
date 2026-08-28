@@ -33,9 +33,16 @@ describe('dashboard responsive presentation', () => {
     expect(actions).toContain('aria-label={act.label}');
     expect(actions).toContain('min-h-11');
     expect(actions).toContain('focus-visible:ring-2');
-    expect(spotlight).toContain('aria-label={cfg.label}');
+    expect(spotlight).toContain('aria-label={category.label}');
     expect(spotlight).toContain('min-h-11');
     expect(spotlight).toContain('hidden sm:inline');
+    expect(spotlight).toContain('md:grid-cols-3');
+    expect(spotlight).toContain('grid md:hidden grid-cols-3');
+    expect(spotlight).toContain('PopoverContent');
+    expect(spotlight).toContain('max-h-[70vh] overflow-y-auto');
+    expect(spotlight).toContain('max-h-[calc(70vh-5rem)]');
+    expect(spotlight).toContain('min-h-11 min-w-0');
+    expect(spotlight).not.toContain('Điểm rèn luyện cao');
   });
 
   it('keeps the mobile greeting row compact and uses the Ghi nhận spotlight title', () => {

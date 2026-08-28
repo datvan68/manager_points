@@ -480,11 +480,11 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
 
     if (critType === 'khen_thuong') {
       agg.khenThuongCount += quantity;
-    } else if (critType === 'cong_diem' || pointsEffect > 0) {
+    } else if (critType === 'cong_diem') {
       agg.congDiemPoints += pointsEffect;
     }
     
-    if (critType === 'ky_luat' || pointsEffect < 0) {
+    if (critType === 'ky_luat') {
       agg.kyLuatCount += quantity;
     }
   });
@@ -564,7 +564,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       const score = summary ? Number(summary.total_score) : null;
       const grading = summary ? summary.grading : null;
       
-      const bonusRecords = agg.records.filter(r => r.crit?.criterion_type === 'cong_diem' || r.pointsEffect > 0);
+      const bonusRecords = agg.records.filter(r => r.crit?.criterion_type === 'cong_diem');
       const latest = getLatestRecordInfo(bonusRecords);
       const groupedRecords = getGroupedRecords(bonusRecords);
       const bonusImpactScore = bonusRecords.reduce((sum, r) => sum + r.pointsEffect, 0);
@@ -606,7 +606,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       const score = summary ? Number(summary.total_score) : null;
       const grading = summary ? summary.grading : null;
       
-      const disciplineRecords = agg.records.filter(r => r.crit?.criterion_type === 'ky_luat' || r.pointsEffect < 0);
+      const disciplineRecords = agg.records.filter(r => r.crit?.criterion_type === 'ky_luat');
       const latest = getLatestRecordInfo(disciplineRecords);
       const groupedRecords = getGroupedRecords(disciplineRecords);
       const disciplineImpactScore = disciplineRecords.reduce((sum, r) => sum + r.pointsEffect, 0);
@@ -700,7 +700,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
           recordCount: r.quantity,
           impactScore: r.pointsEffect,
           ...latest,
-          type: (r.crit?.criterion_type === 'ky_luat' || r.pointsEffect < 0) ? ('ky_luat' as const) : ('cong_diem' as const),
+          type: r.crit?.criterion_type === 'ky_luat' ? ('ky_luat' as const) : ('cong_diem' as const),
           href: classId ? `/students/${classId}/${s._id}` : `/students`
         };
       });

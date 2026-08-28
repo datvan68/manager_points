@@ -298,6 +298,11 @@ describe('SystemService', () => {
     expect(topScoresSource).not.toContain('.limit(5)');
     expect(highlightPipelinesSource.match(/\{ \$limit: 10 \}/g)).toHaveLength(3);
     expect(highlightPipelinesSource).not.toContain('{ $limit: 5 }');
+    expect(highlightPipelinesSource).toContain("{ $match: { 'criterion.criterion_type': 'khen_thuong' } }");
+    expect(highlightPipelinesSource).toContain("{ $match: { 'criterion.criterion_type': 'cong_diem' } }");
+    expect(highlightPipelinesSource).toContain("{ $match: { 'criterion.criterion_type': 'ky_luat' } }");
+    expect(highlightPipelinesSource).not.toContain("points_effect: { $gt: 0 }");
+    expect(highlightPipelinesSource).not.toContain("points_effect: { $lt: 0 }");
     expect(recentListsSource).toContain('{ $limit: 5 }');
     expect(recentListsSource).toContain('.limit(5)');
   });

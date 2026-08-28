@@ -3090,20 +3090,7 @@ export class SystemService {
               },
             },
             { $unwind: '$criterion' },
-            {
-              $match: {
-                $or: [
-                  { 'criterion.criterion_type': 'cong_diem' },
-                  { points_effect: { $gt: 0 } },
-                  {
-                    $and: [
-                      { points_effect: null },
-                      { 'criterion.score_per_unit': { $gt: 0 } },
-                    ],
-                  },
-                ],
-              },
-            },
+            { $match: { 'criterion.criterion_type': 'cong_diem' } },
             { $sort: { recorded_at: -1, createdAt: -1 } },
             {
               $group: {
@@ -3225,20 +3212,7 @@ export class SystemService {
               },
             },
             { $unwind: '$criterion' },
-            {
-              $match: {
-                $or: [
-                  { 'criterion.criterion_type': 'ky_luat' },
-                  { points_effect: { $lt: 0 } },
-                  {
-                    $and: [
-                      { points_effect: null },
-                      { 'criterion.score_per_unit': { $lt: 0 } },
-                    ],
-                  },
-                ],
-              },
-            },
+            { $match: { 'criterion.criterion_type': 'ky_luat' } },
             { $sort: { recorded_at: -1, createdAt: -1 } },
             {
               $group: {

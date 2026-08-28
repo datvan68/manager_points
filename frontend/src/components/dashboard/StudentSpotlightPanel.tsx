@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Award, 
@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { DashboardMetrics, StudentHighlightItem } from './dashboard-helpers';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface StudentSpotlightPanelProps {
   metrics: DashboardMetrics;
@@ -21,7 +22,6 @@ interface StudentSpotlightPanelProps {
 
 export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanelProps) {
   const { roleScope, studentHighlights } = metrics;
-  const [activeTab, setActiveTab] = useState<'rewards' | 'bonus' | 'discipline' | 'scores'>('discipline');
   const router = useRouter();
 
   // Handle navigation
@@ -30,13 +30,12 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
   };
 
   // Helper to generate initials avatar background
-  const getAvatarBg = (name: string, type: 'rewards' | 'bonus' | 'discipline' | 'scores') => {
+  const getAvatarBg = (name: string, type: 'rewards' | 'bonus' | 'discipline') => {
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const colors = {
       rewards: ['from-amber-400 to-amber-600', 'from-yellow-400 to-amber-500'],
       bonus: ['from-emerald-400 to-teal-600', 'from-green-400 to-emerald-500'],
       discipline: ['from-rose-400 to-red-600', 'from-pink-400 to-rose-500'],
-      scores: ['from-blue-400 to-indigo-600', 'from-sky-400 to-blue-500']
     };
     const palette = colors[type];
     return palette[hash % palette.length];
@@ -216,33 +215,48 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
   }
 
   // Render Admin / Teacher Spotlight (Leaderboard & Highlights)
-  const getTabList = () => {
-    switch (activeTab) {
-      case 'rewards': return studentHighlights.topRewards;
-      case 'bonus': return studentHighlights.topBonus;
-      case 'discipline': return studentHighlights.topDiscipline;
-      case 'scores': return studentHighlights.topScores;
-    }
-  };
-
-  const getTabCount = (tabId: 'rewards' | 'bonus' | 'discipline' | 'scores') => {
-    switch (tabId) {
-      case 'rewards': return studentHighlights.topRewards?.length || 0;
-      case 'bonus': return studentHighlights.topBonus?.length || 0;
-      case 'discipline': return studentHighlights.topDiscipline?.length || 0;
-      case 'scores': return studentHighlights.topScores?.length || 0;
-      default: return 0;
-    }
-  };
-
-  const list = getTabList() || [];
-
-  const tabConfigs = [
-    { id: 'discipline' as const, label: 'Kỷ luật & Chú ý', icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
-    { id: 'rewards' as const, label: 'Khen thưởng', icon: Award, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
-    { id: 'bonus' as const, label: 'Điểm cộng', icon: PlusCircle, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
-    { id: 'scores' as const, label: 'Điểm rèn luyện cao', icon: GraduationCap, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' }
+  type CategoryId = 'discipline' | 'rewards' | 'bonus';
+  const categoryConfigs: Array<{ id: CategoryId; label: string; icon: typeof AlertTriangle; color: string; list: StudentHighlightItem[] }> = [
+    { id: 'discipline', label: 'Kỷ luật & Chú ý', icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', list: studentHighlights.topDiscipline || [] },
+    { id: 'rewards', label: 'Khen thưởng', icon: Award, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', list: studentHighlights.topRewards || [] },
+    { id: 'bonus', label: 'Điểm cộng', icon: PlusCircle, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', list: studentHighlights.topBonus || [] },
   ];
+
+  const renderList = (category: typeof categoryConfigs[number], compact = false) => {
+    const list = category.list.slice(0, 10);
+    return list.length === 0 ? (
+      <div className="text-center py-8 border border-dashed border-slate-300/40 rounded-xl bg-white/20">
+        <Activity className="mx-auto text-slate-400 w-8 h-8 mb-2" />
+        <p className="text-xs text-[#64748B] font-bold">Chưa có dữ liệu học sinh trong học kỳ này</p>
+      </div>
+    ) : (
+      <div className={`space-y-2 overflow-y-auto pr-1 scrollbar-hover ${compact ? 'max-h-[calc(70vh-5rem)]' : 'max-h-[360px]'}`}>
+        {list.map(item => (
+          <div key={item.studentId} className={`group min-w-0 bg-white/50 border border-white/70 rounded-xl flex items-center justify-between hover:bg-white/85 transition-all duration-150 ease-out shadow-xs shadow-slate-200/20 ${compact ? 'p-2.5 gap-2' : 'p-3.5 gap-4'}`}>
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className={`rounded-xl bg-gradient-to-tr ${getAvatarBg(item.studentName, category.id)} text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-white/20 ${compact ? 'w-9 h-9' : 'w-10 h-10'}`}>{getInitials(item.studentName)}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className={`font-extrabold text-[#1E293B] text-xs truncate ${compact ? 'max-w-[125px]' : 'max-w-[150px]'}`}>{item.studentName}</h4>
+                  <span className="text-[10px] text-[#64748B] truncate max-w-[110px]">MSSV: {item.studentCode}</span>
+                  <span className="text-[10px] text-[#64748B] truncate max-w-[90px]">{item.className}</span>
+                </div>
+                <p className="text-[10.5px] text-[#64748B] mt-1 truncate font-medium">
+                  {category.id === 'rewards' && <>Số lượt khen thưởng: <strong className="text-amber-700">{item.recordCount} lần</strong> • {item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</>}
+                  {category.id === 'bonus' && <>Số lượt: <strong className="text-emerald-700">{item.recordCount} lần</strong> • Tổng điểm cộng: <strong className="text-emerald-700">+{item.impactScore} điểm</strong> • {item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</>}
+                  {category.id === 'discipline' && <>Số lượt: <strong className="text-rose-700">{item.recordCount} lần</strong> • Điểm bị trừ: <strong className="text-rose-700">{item.impactScore}</strong> • Ghi nhận: <span className="text-rose-600">{item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</span></>}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="hidden sm:inline text-[9px] text-[#64748B]">{item.latestRecordAt ? new Date(item.latestRecordAt).toLocaleDateString('vi-VN') : ''}</span>
+              {item.classId && item.studentId && <button onClick={() => handleNav(`/students/${item.classId}/${item.studentId}`)} aria-label={`Xem hồ sơ ${item.studentName}`} className="min-h-11 min-w-11 shrink-0 rounded-lg bg-white/50 text-[#1A73E8] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]" title="Xem hồ sơ rèn luyện chi tiết"><ArrowUpRight size={14} /></button>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 transition-all duration-150 ease-out hover:shadow-md">
@@ -268,80 +282,16 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
         </button>
       </div>
 
-      {/* Tabs list */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        {tabConfigs.map(cfg => {
-          const Icon = cfg.icon;
-          const isActive = activeTab === cfg.id;
-          const count = getTabCount(cfg.id);
-          return (
-            <button
-              key={cfg.id}
-              onClick={() => setActiveTab(cfg.id)}
-              aria-label={cfg.label}
-              title={cfg.label}
-              className={`min-h-11 flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-extrabold transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] focus-visible:ring-offset-2 ${
-                isActive 
-                  ? `${cfg.color} shadow-xs scale-[1.01]` 
-                  : 'bg-white/30 border-white/60 text-[#64748B] hover:bg-white/60 hover:text-[#1E293B]'
-              }`}
-            >
-              <Icon size={14} className="shrink-0" />
-              <span className="hidden sm:inline">{cfg.label}</span>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 ${
-                isActive 
-                  ? 'bg-white text-slate-800 shadow-xs' 
-                  : 'bg-slate-200/60 text-[#64748B]'
-              }`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+      <div className="hidden md:grid md:grid-cols-3 gap-4">
+        {categoryConfigs.map(category => <section key={category.id} aria-labelledby={`${category.id}-heading`} className="min-w-0"><div className={`flex items-center gap-2 mb-3 text-xs font-bold ${category.color.split(' ')[0]}`}><category.icon size={15} /><h3 id={`${category.id}-heading`}>{category.label} ({category.list.length})</h3></div>{renderList(category)}</section>)}
       </div>
 
-      {/* Table/List View */}
-      {list.length === 0 ? (
-        <div className="text-center py-10 border border-dashed border-slate-300/40 rounded-xl bg-white/20">
-          <Activity className="mx-auto text-slate-400 w-8 h-8 mb-2 animate-pulse" />
-          <p className="text-xs text-[#64748B] font-bold">Chưa có dữ liệu học sinh trong học kỳ này</p>
-          <p className="text-[10px] text-[#64748B] mt-0.5">Dữ liệu sẽ được tự động đồng bộ khi có ghi nhận hoặc bảng điểm mới.</p>
-        </div>
-      ) : (
-        <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 scrollbar-hover">
-          {list.slice(0, 10).map((item) => (
-            <div 
-              key={item.studentId}
-              className="group bg-white/50 border border-white/70 rounded-xl p-3.5 flex items-center justify-between gap-4 hover:scale-[1.005] hover:bg-white/85 transition-all duration-150 ease-out shadow-xs shadow-slate-200/20"
-              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 72px' }}
-            >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${getAvatarBg(item.studentName, activeTab)} text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-white/20`}>
-                      {getInitials(item.studentName)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-extrabold text-[#1E293B] text-xs truncate max-w-[150px]">{item.studentName}</h4>
-                        <span className="text-[10px] text-[#64748B]">MSSV: {item.studentCode}</span>
-                        <span className="text-[10px] text-[#64748B]">{item.className}</span>
-                      </div>
-                      <p className="text-[10.5px] text-[#64748B] mt-1 truncate font-medium">
-                        {activeTab === 'rewards' && <>Số lượt khen thưởng: <strong className="text-amber-700">{item.recordCount} lần</strong> • {item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</>}
-                        {activeTab === 'bonus' && <>Số lượt: <strong className="text-emerald-700">{item.recordCount} lần</strong> • Tổng điểm cộng: <strong className="text-emerald-700">+{item.impactScore} điểm</strong> • {item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</>}
-                        {activeTab === 'discipline' && <>Số lượt: <strong className="text-rose-700">{item.recordCount} lần</strong> • Điểm bị trừ: <strong className="text-rose-700">{item.impactScore}</strong> • Ghi nhận: <span className="text-rose-600">{item.groupedRecords?.map(group => `${group.label} (${group.count})`).join(', ')}</span></>}
-                        {activeTab === 'scores' && <>Điểm rèn luyện tổng hợp: <strong className="text-[#1A73E8]">{item.currentScore} / 100</strong> • Xếp loại: <strong>{item.grading || 'N/A'}</strong></>}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="hidden sm:inline text-[9px] text-[#64748B]">{item.latestRecordAt ? new Date(item.latestRecordAt).toLocaleDateString('vi-VN') : ''}</span>
-                    {item.classId && item.studentId && <button onClick={() => handleNav(`/students/${item.classId}/${item.studentId}`)} className="w-8 h-8 rounded-lg bg-white/50 text-[#1A73E8] flex items-center justify-center" title="Xem hồ sơ rèn luyện chi tiết"><ArrowUpRight size={14} /></button>}
-                  </div>
-
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="grid md:hidden grid-cols-3 gap-2">
+        {categoryConfigs.map(category => {
+          const Icon = category.icon;
+          return <Popover key={category.id}><PopoverTrigger asChild><button aria-label={category.label} className={`min-h-11 min-w-0 flex items-center justify-center gap-1 p-2 rounded-xl border text-xs font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8] ${category.color}`}><Icon size={14} /><span className="sr-only">{category.label}</span><span aria-hidden="true">{category.list.length}</span></button></PopoverTrigger><PopoverContent align="center" className="w-[calc(100vw-2rem)] max-w-sm max-h-[70vh] overflow-y-auto p-3"><h3 className="font-bold text-sm mb-3">{category.label} ({category.list.length})</h3>{renderList(category, true)}</PopoverContent></Popover>;
+        })}
+      </div>
 
     </div>
   );

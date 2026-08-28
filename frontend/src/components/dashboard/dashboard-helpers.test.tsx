@@ -21,6 +21,7 @@ const makeConfig = (academicRecords: any[], user: any = { id: 'admin', roleCode:
   criteria: [
     { _id: 'crit1', criterion_name: 'Đi muộn', criterion_type: 'ky_luat', score_per_unit: -2 },
     { _id: 'crit2', criterion_name: 'Thành tích', criterion_type: 'cong_diem', score_per_unit: 1 },
+    { _id: 'crit3', criterion_name: 'Khen thưởng', criterion_type: 'khen_thuong', score_per_unit: 8 },
   ],
   categories: [],
   tasks: [],
@@ -61,13 +62,24 @@ describe('dashboard spotlight quantity aggregation', () => {
     expect(metrics.studentHighlights.topBonus.map(item => item.studentId)).toEqual(['s2', 's1']);
   });
 
+  it('keeps rewards out of bonus classification even when their points are positive', () => {
+    const metrics = buildDashboardOverview(makeConfig([
+      { ...record('s1', 4, 'crit3'), points_effect: 8 },
+      { ...record('s2', 2, 'crit2'), points_effect: 2 },
+    ]));
+    expect(metrics.studentHighlights.topRewards.map(item => item.studentId)).toEqual(['s1']);
+    expect(metrics.studentHighlights.topBonus.map(item => item.studentId)).toEqual(['s2']);
+  });
+
   it('keeps teacher approval KPI semantics', () => {
     const metrics = buildDashboardOverview(makeConfig([], { id: 'teacher', roleCode: 'TEACHER' }));
     expect(metrics.kpis.pendingMyReviewCount).toBe(0);
   });
 
   it('keeps discipline first and exposes the requested table/KPI labels', () => {
-    expect(panelSource).toContain("useState<'rewards' | 'bonus' | 'discipline' | 'scores'>('discipline')");
+    expect(panelSource).toContain('md:grid-cols-3');
+    expect(panelSource).toContain('PopoverContent');
+    expect(panelSource).not.toContain('scores');
     expect(panelSource).toContain('Số lượt:');
     expect(panelSource).toContain('Điểm bị trừ:');
     expect(panelSource).toContain('Ghi nhận:');
