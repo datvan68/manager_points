@@ -5,6 +5,7 @@ export interface DailyClassReport {
   _id: string;
   class_id: any | string;
   user_id: any | string;
+  reported_by?: string | DailyClassReportCreator;
   report_date: string;
   total_present: number;
   total_absent: number;
@@ -13,6 +14,13 @@ export interface DailyClassReport {
   recordedStudentsCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface DailyClassReportCreator {
+  _id?: string;
+  id?: string;
+  user_name?: string;
+  email?: string;
 }
 
 type RawDailyClassReport = Omit<DailyClassReport, 'class_note'> & {

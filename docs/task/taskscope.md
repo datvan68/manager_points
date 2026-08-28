@@ -1,28 +1,29 @@
-task: "Replace mobile student preview with a readable criterion sheet"
+task: "Hiển thị tài khoản ghi nhận và xoá HSSV theo batch tiến triển"
 pipeline: feature_development
-profile: Quick
-objective: "On mobile, opening Record shows only the criterion sheet; closing or successfully submitting it restores the same student's basic-information preview with readable mobile typography."
+profile: Full
+objective: "Tab Tình hình lớp học hiển thị tên tài khoản tạo báo cáo; các thao tác xoá tạm/xoá vĩnh viễn HSSV chạy tuần tự theo batch nhỏ và loại từng bản ghi thành công khỏi UI trước khi toàn bộ tác vụ kết thúc."
 
 evidence:
-  current_behavior: "frontend/src/components/students/StudentDirectorySearch.tsx:previewModal keeps the basic-information DOM mounted behind a fixed criterion overlay; criterion controls use text-xs/text-[10px], and the criterion Close action calls closePreview(), which dismisses the whole student preview."
-  expected_behavior: "Below sm, the criterion flow replaces the visible basic-information content, uses mobile-readable text, and returns to that content after cancel or successful confirmation. At sm and wider, the existing inline criterion layout remains."
-  root_cause: "Criterion visibility is inferred from loaded data and shares closePreview() with the parent dialog; no dedicated criterion-panel state/close action controls the mobile view."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:class report table dùng report.teacher_name; runBulkRecordDelete gửi batch 25 nhưng chỉ lọc/refetch danh sách sau toàn bộ vòng lặp. backend/src/daily-class-report/daily-class-report.service.ts:findAll đã populate reported_by.user_name; backend/src/academic-record/academic-record.service.ts:bulkDelete đã xử lý tuần tự từng ID và trả succeeded/failed."
+  expected_behavior: "Cột Giảng viên ghi nhận lấy reported_by.user_name; soft/force delete giữ batch tuần tự, cập nhật progress và loại ngay các ID succeeded, còn ID lỗi vẫn hiển thị/được chọn để thử lại."
+  root_cause: "Frontend dùng trường teacher_name thay vì tài khoản reported_by và trì hoãn cập nhật academicRecords/deletedRecords đến khi mọi batch hoàn tất."
 
 scope:
-  inspect: ["frontend/src/components/students/StudentDirectorySearch.tsx:record state and previewModal", "frontend/src/components/students/StudentDirectorySearch.test.tsx:record interaction regressions"]
-  write: ["frontend/src/components/students/StudentDirectorySearch.tsx:mobile criterion view/state", "frontend/src/components/students/StudentDirectorySearch.test.tsx:mobile visibility, return, and typography assertions"]
-  preserve: ["student search, selected student, permissions, criteria/semester loading, usage ordering, idempotent submission, safe errors, desktop layout, and detail navigation", "failed submissions keep the criterion sheet open with its selection and error"]
-  out: ["API/backend changes", "search-result redesign", "student detail-page changes", "new UI dependencies"]
+  inspect: ["backend/src/daily-class-report/daily-class-report.service.ts:findAll populate contract", "backend/src/academic-record/academic-record.service.ts:bulkDelete result contract"]
+  write: ["frontend/src/api/daily-class-report-api.ts:DailyClassReport reported_by type", "frontend/src/app/(dashboard)/students/record/page.tsx:creator display and runBulkRecordDelete state updates", "frontend/src/app/(dashboard)/students/record/page.test.tsx:creator and progressive deletion regressions"]
+  preserve: ["DELETE_STUDENT_RECORD guard, hierarchy/RBAC, confirmation dialogs, soft versus permanent semantics, API URLs/payload/result contract, failed-row retryability, final server refetch", "teacher_name persistence and Excel export"]
+  out: ["backend/schema/migration changes", "class-report deletion flow", "new dependency or parallel delete requests"]
 
 acceptance_criteria:
-  - "AC-01: Below sm, after Record is activated, the criterion sheet is visible and the basic-information header, fields, and parent close control are not visible or focusable behind it."
-  - "AC-02: Closing the criterion sheet cancels only that flow and restores the same student's basic-information preview; a successful confirmation automatically does the same and shows the existing success message."
-  - "AC-03: On mobile, the criterion search input is at least 16px, criterion/action labels are at least 14px, secondary labels are at least 12px, and existing 44px minimum touch targets remain; sm+ keeps the compact typography."
-  - "AC-04: Loading and failed submission states stay in the criterion sheet; the API is called once with the currently selected student, criterion, semester, recorder, and idempotency key."
+  - "AC-01: Mỗi hàng Tình hình lớp học hiển thị reported_by.user_name trong cột Giảng viên ghi nhận; thiếu population thì hiển thị fallback an toàn, không dùng teacher_name làm nguồn chính."
+  - "AC-02: Xoá tạm và xoá vĩnh viễn nhiều ghi nhận gửi các batch giới hạn theo thứ tự, không chạy song song; mỗi batch kế tiếp chỉ bắt đầu sau batch trước hoàn tất."
+  - "AC-03: Sau mỗi response, từng ID trong succeeded biến mất khỏi đúng danh sách và selection/progress được cập nhật khi tác vụ còn chạy; failed vẫn hiển thị, được chọn và có thông báo lỗi."
+  - "AC-04: Kết thúc tác vụ, frontend refetch để đồng bộ server; toast/kết quả phản ánh đúng tổng thành công/thất bại và chặn thao tác xoá trùng khi đang chạy."
 
 execution:
-  - "E-01 [AC-01..AC-04] frontend/src/components/students/StudentDirectorySearch.tsx:record controls → add an explicit criterion-panel close/reset path distinct from closePreview(), conditionally hide the mobile basic-information region while the panel is loading/open, restore it after cancel/success, and apply mobile-first text sizes with sm overrides."
-  - "E-02 [AC-01..AC-04] frontend/src/components/students/StudentDirectorySearch.test.tsx → assert hidden/restored preview content, cancel versus parent dismissal, success restoration, failure retention, font-size classes, and unchanged submission payload/single-call protection."
+  - "E-01 [AC-01] frontend/src/api/daily-class-report-api.ts:DailyClassReport + frontend/src/app/(dashboard)/students/record/page.tsx:class report row → khai báo reported_by và resolve user_name với fallback rõ ràng."
+  - "E-02 [AC-02..AC-04] frontend/src/app/(dashboard)/students/record/page.tsx:runBulkRecordDelete → giữ batch tuần tự, dùng result.succeeded để cập nhật academicRecords hoặc deletedRecords và selectedIds ngay sau từng batch, tích luỹ failed/progress, rồi refetch một lần để đối soát."
+  - "E-03 [AC-01..AC-04] frontend/src/app/(dashboard)/students/record/page.test.tsx → bổ sung mock/assertion cho creator account, thứ tự batch, cập nhật hàng trong lúc batch sau còn pending, soft/force success, partial failure và chống gọi lặp."
 
 temporary_artifacts:
   create: []
@@ -30,9 +31,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/components/students/StudentDirectorySearch.test.tsx → focused suite passes."
-  - "V-02 [AC-01..AC-04] npm --prefix frontend run typecheck → exits 0."
-  - "V-03 [AC-01..AC-03] Manual 375x812 and >=640px checks → mobile swaps between the two views without background content/focus or horizontal overflow; desktop remains inline."
+  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx → focused suite passes."
+  - "V-02 [AC-01] npm --prefix frontend test -- src/api/daily-class-report-api.test.ts → normalization/API contract suite passes."
+  - "V-03 [AC-01..AC-04] npm --prefix frontend run typecheck → exits 0."
+  - "V-04 [AC-02..AC-04] Manual throttled-network check with >25 selected active and trash records → requests remain sequential, successful rows disappear progressively, failed rows remain actionable, UI stays responsive."
 
-risks: ["Responsive visibility cannot be inferred from jsdom layout, so tests must assert responsive classes/state and retain the stated manual viewport check."]
-stop_conditions: ["Stop if the requested mobile breakpoint is not sm (640px), if confirmation should close the entire student preview instead of restoring it, or if a new dialog/popover dependency or API change becomes necessary."]
+risks: ["Delete orchestration affects persistent data; implementation requires independent diff review of sequential ordering, RBAC preservation, partial failures, and list reconciliation before completion."]
+stop_conditions: ["Stop if reported_by is absent from the real list response, the backend bulk result no longer returns succeeded/failed, progressive removal requires changing delete semantics/API/schema, or existing dirty changes overlap the three write paths."]

@@ -37,6 +37,9 @@ vi.mock('@/api/academic-record-api', () => ({
   academicRecordApi: {
     getAcademicRecords: vi.fn(),
     getAcademicRecordsByStudent: vi.fn().mockResolvedValue([]),
+    getDeletedAcademicRecords: vi.fn().mockResolvedValue([]),
+    bulkDeleteAcademicRecords: vi.fn(),
+    bulkForceDeleteAcademicRecords: vi.fn(),
     deleteAcademicRecord: vi.fn(),
   }
 }));
@@ -62,6 +65,7 @@ vi.mock('@/api/criteria-api', () => ({
 vi.mock('@/api/daily-class-report-api', () => ({
   dailyClassReportApi: {
     getDailyClassReports: vi.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
+    getDeletedDailyClassReports: vi.fn().mockResolvedValue([]),
   }
 }));
 
@@ -74,6 +78,19 @@ vi.mock('@/providers/auth-provider', () => ({
 vi.mock('@/hooks/useGradingRealtime', () => ({
   useGradingRealtime: vi.fn(() => ({ status: 'connected' }))
 }));
+
+const makeAcademicRecord = (index: number) => ({
+  _id: `record-${index}`,
+  student_id: {
+    _id: `student-${index}`,
+    student_code: `SV${index}`,
+    full_name: `Student ${index}`,
+    class_id: 'class-1',
+  },
+  points_effect: -5,
+  record_title: `Record ${index}`,
+  recorded_at: '2026-08-25T00:00:00.000Z',
+});
 
 vi.mock('@/components/guards/RouteGuard', () => ({
   RouteGuard: ({ children }: any) => <>{children}</>,
@@ -135,6 +152,8 @@ describe('StudentRecordPage Infinite Scroll', () => {
     vi.clearAllMocks();
     (classApi.getClasses as any).mockResolvedValue([]);
     (criteriaApi.getCriteria as any).mockResolvedValue([]);
+    (academicRecordApi.getDeletedAcademicRecords as any).mockResolvedValue([]);
+    (dailyClassReportApi.getDeletedDailyClassReports as any).mockResolvedValue([]);
     resolveFirstFetch = null;
     resolveSecondFetch = null;
     mockRecordPermissions = {};
@@ -224,6 +243,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
         total_absent: 0,
         recordedStudentsCount: 0,
         teacher_name: 'Teacher',
+        reported_by: { _id: 'reporter-1', user_name: 'reporter@example.com' },
       }],
       meta: { total: 1 },
     });
@@ -242,6 +262,8 @@ describe('StudentRecordPage Infinite Scroll', () => {
       .map((element) => element.closest('tr'))
       .find((row) => row !== null);
     expect(classRow).not.toHaveClass('hover:scale-[1.002]');
+    expect(await screen.findAllByText('reporter@example.com')).not.toHaveLength(0);
+    expect(screen.queryByText('Teacher')).not.toBeInTheDocument();
   });
 
   it('renders a saved class note in the class report card', async () => {
@@ -258,6 +280,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getByText('Tình hình lớp học'));
 
     expect(await screen.findAllByText('Ghi chú đã lưu')).not.toHaveLength(0);
+    expect(screen.getAllByText('Không xác định')).not.toHaveLength(0);
   });
 
   it('does not request class resources when READ_CLASS_RECORD is absent', async () => {
@@ -305,6 +328,126 @@ describe('StudentRecordPage Infinite Scroll', () => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(
         expect.objectContaining({ page: 1, limit: 500 }),
       );
+    });
+  });
+
+  it('removes succeeded rows after each sequential delete batch and blocks duplicate deletes', async () => {
+    const records = Array.from({ length: 26 }, (_, index) => makeAcademicRecord(index + 1));
+    let resolveFirstBatch!: (value: unknown) => void;
+    let resolveSecondBatch!: (value: unknown) => void;
+    const firstBatch = new Promise((resolve) => { resolveFirstBatch = resolve; });
+    const secondBatch = new Promise((resolve) => { resolveSecondBatch = resolve; });
+
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: records, meta: { total: records.length } })
+      .mockResolvedValue({ data: [], meta: { total: 0 } });
+    (academicRecordApi.bulkDeleteAcademicRecords as any)
+      .mockReturnValueOnce(firstBatch)
+      .mockReturnValueOnce(secondBatch);
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(26\)/ }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Xóa', exact: true })).at(-1)!);
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledTimes(1);
+    });
+    expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledWith(
+      records.slice(0, 25).map((record) => record._id),
+    );
+
+    await act(async () => {
+      resolveFirstBatch({
+        requested: 25,
+        succeeded: records.slice(0, 25).map((record) => record._id),
+        failed: [],
+        succeededCount: 25,
+        failedCount: 0,
+      });
+    });
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledTimes(2);
+      expect(screen.queryAllByText('Student 1')).toHaveLength(0);
+      expect(screen.getAllByText('Student 26')).not.toHaveLength(0);
+      expect(screen.getByText(/Đã xử lý 25\/26/)).toBeInTheDocument();
+    });
+    const remainingDeleteButton = screen
+      .getAllByText('Xóa (1)')
+      .map((element) => element.closest('button'))
+      .find((button) => button !== null);
+    expect(remainingDeleteButton).toBeDisabled();
+
+    await act(async () => {
+      resolveSecondBatch({
+        requested: 1,
+        succeeded: ['record-26'],
+        failed: [],
+        succeededCount: 1,
+        failedCount: 0,
+      });
+    });
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Đã xoá thành công toàn bộ ghi nhận đã chọn.')).toBeInTheDocument();
+    });
+  });
+
+  it('keeps failed rows selected and visible after a partial soft delete', async () => {
+    const records = [makeAcademicRecord(1), makeAcademicRecord(2)];
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: records, meta: { total: records.length } })
+      .mockResolvedValue({ data: [records[1]], meta: { total: 1 } });
+    (academicRecordApi.bulkDeleteAcademicRecords as any).mockResolvedValue({
+      requested: 2,
+      succeeded: ['record-1'],
+      failed: [{ id: 'record-2', message: 'Không đủ quyền' }],
+      succeededCount: 1,
+      failedCount: 1,
+    });
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(2\)/ }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Xóa', exact: true })).at(-1)!);
+
+    await waitFor(() => {
+      expect(screen.queryAllByText('Student 1')).toHaveLength(0);
+      expect(screen.getAllByText('Student 2')).not.toHaveLength(0);
+      expect(screen.getAllByText('Xóa (1)')).not.toHaveLength(0);
+      expect(screen.getByText(/vẫn được giữ lại trong danh sách chọn/)).toBeInTheDocument();
+    });
+  });
+
+  it('progressively removes successful records from the trash during force delete', async () => {
+    const record = makeAcademicRecord(1);
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({ data: [], meta: { total: 0 } });
+    (academicRecordApi.getDeletedAcademicRecords as any)
+      .mockResolvedValueOnce([record])
+      .mockResolvedValueOnce([]);
+    (academicRecordApi.bulkForceDeleteAcademicRecords as any).mockResolvedValue({
+      requested: 1,
+      succeeded: ['record-1'],
+      failed: [],
+      succeededCount: 1,
+      failedCount: 0,
+    });
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+    fireEvent.click(await screen.findByText('Thùng rác'));
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getByText('Xóa tất cả'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá tất cả', exact: true }));
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkForceDeleteAcademicRecords).toHaveBeenCalledWith(['record-1']);
+      expect(screen.queryAllByText('Student 1')).toHaveLength(0);
+      expect(academicRecordApi.getDeletedAcademicRecords).toHaveBeenCalledTimes(2);
     });
   });
 });

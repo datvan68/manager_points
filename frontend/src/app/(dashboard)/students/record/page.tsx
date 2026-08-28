@@ -103,6 +103,15 @@ const isNewWithinWindow = (createdAt?: string) =>
   getCreatedTime(createdAt) > 0 &&
   Date.now() - getCreatedTime(createdAt) <= NEW_BADGE_WINDOW_MS;
 
+const getClassReportCreatorName = (report: DailyClassReport) => {
+  const creator = report.reported_by;
+  const userName =
+    typeof creator === "object" && typeof creator.user_name === "string"
+      ? creator.user_name.trim()
+      : "";
+  return userName || "Không xác định";
+};
+
 function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -221,6 +230,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [isDeleteAllRecordsConfirmOpen, setIsDeleteAllRecordsConfirmOpen] = useState(false);
   const [isDeleteAllReportsConfirmOpen, setIsDeleteAllReportsConfirmOpen] = useState(false);
   const [isDeletingRecords, setIsDeletingRecords] = useState(false);
+  const isDeletingRecordsRef = useRef(false);
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ processed: 0, total: 0, failed: [] as Array<{ id: string; message: string }> });
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ failed: Array<{ id: string; message: string }> } | null>(null);
   const [isImportRecordPopupOpen, setIsImportRecordPopupOpen] = useState(false);
@@ -827,7 +837,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const runBulkRecordDelete = async (ids: string[], permanent = false) => {
     const uniqueIds = Array.from(new Set(ids));
-    if (isDeletingRecords || uniqueIds.length === 0) return;
+    if (isDeletingRecordsRef.current || isDeletingRecords || uniqueIds.length === 0) return;
+    isDeletingRecordsRef.current = true;
     setIsDeletingRecords(true);
     setBulkDeleteResult(null);
     setBulkDeleteProgress({ processed: 0, total: uniqueIds.length, failed: [] });
@@ -842,6 +853,22 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             ? await academicRecordApi.bulkForceDeleteAcademicRecords(batch)
             : await academicRecordApi.bulkDeleteAcademicRecords(batch);
           failed.push(...result.failed);
+
+          const succeededIds = new Set(result.succeeded);
+          if (succeededIds.size > 0) {
+            if (permanent) {
+              setDeletedRecords((prev) =>
+                prev.filter((record) => !succeededIds.has(record._id)),
+              );
+            } else {
+              setAcademicRecords((prev) =>
+                prev.filter((record) => !succeededIds.has(record._id)),
+              );
+              setSelectedIds((prev) =>
+                prev.filter((id) => !succeededIds.has(id)),
+              );
+            }
+          }
         } catch (error: any) {
           failed.push(...batch.map(id => ({ id, message: error?.message || 'Không thể xoá ghi nhận' })));
         }
@@ -865,6 +892,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       }
       setBulkDeleteResult({ failed: [...failed] });
     } finally {
+      isDeletingRecordsRef.current = false;
       setIsDeletingRecords(false);
     }
   };
@@ -3311,7 +3339,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
                         <div className="flex flex-col gap-1">
                           <div className="text-[11.5px] font-bold text-[#1E293B]">
-                            GV: {report.teacher_name}
+                            GV: {getClassReportCreatorName(report)}
                           </div>
                           {report.class_note && (
                             <p className="text-[11px] text-[#64748B] font-medium italic">
@@ -3467,7 +3495,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           {/* Teacher name & note */}
                           <div className="flex flex-col gap-1">
                             <div className="text-[12px] font-bold text-[#1E293B]">
-                              GV: {report.teacher_name}
+                              GV: {getClassReportCreatorName(report)}
                             </div>
                             <div
                               className="text-[11.5px] text-[#64748B] font-medium line-clamp-2 h-8"
@@ -3712,7 +3740,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               {report.recordedStudentsCount || 0} ghi nhận
                             </td>
                             <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
-                              {report.teacher_name}
+                              {getClassReportCreatorName(report)}
                             </td>
                             <td
                               className="px-5 py-4 text-sm font-medium text-[#64748B] max-w-[200px] truncate"
@@ -3827,7 +3855,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (
                 <button
                   onClick={() => setIsDeleteConfirmOpen(true)}
-                  className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
+                  disabled={isDeletingRecords}
+                  className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 size={13} strokeWidth={2.5} />
                   <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
@@ -4370,7 +4399,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                 : "N/A"}
                             </td>
                             <td className="p-3 text-[#1E293B] font-semibold">
-                              {rep.teacher_name}
+                              {getClassReportCreatorName(rep)}
                             </td>
                             <td className="p-3">
                               <div className="flex items-center justify-center gap-2">
@@ -4676,7 +4705,7 @@ function ClassReportDetailDialog({
             <div className="flex justify-between items-center w-full">
               <span className="text-[#64748B] text-left">Giảng viên:</span>
               <span className="font-bold text-[#1E293B] text-right">
-                {report.teacher_name}
+                {getClassReportCreatorName(report)}
               </span>
             </div>
             <div className="flex justify-between items-center w-full">
@@ -4814,7 +4843,7 @@ function ClassReportDetailDialog({
             <div className="flex justify-between items-center w-full">
               <span className="text-slate-400 text-left">Giảng viên:</span>
               <span className="font-bold text-slate-800 text-right">
-                {report.teacher_name}
+                {getClassReportCreatorName(report)}
               </span>
             </div>
             <div className="flex justify-between items-center w-full">
