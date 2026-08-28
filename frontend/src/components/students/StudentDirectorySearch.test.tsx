@@ -158,6 +158,25 @@ describe("StudentDirectorySearch", () => {
     expect(onOpenDetail).toHaveBeenCalledWith(student);
   });
 
+  it("uses mobile-sized targets for results, preview actions, and criterion controls", async () => {
+    vi.mocked(criteriaApi.getCriteria).mockResolvedValue([{ _id: "criterion-1", criterion_name: "Đi học đúng giờ" }] as any);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([{ _id: "semester-1", semester_name: "HK1", status: "active" }] as any);
+    await openPreview();
+
+    expect(screen.getByPlaceholderText("Tìm kiếm sinh viên...")).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByRole("button", { name: "Đóng thông tin sinh viên" })).toHaveClass("h-11", "w-11", "sm:h-8", "sm:w-8");
+    expect(screen.getByRole("button", { name: /Chi tiết/ })).toHaveClass("min-h-11", "sm:min-h-0");
+    const recordButton = screen.getByRole("button", { name: "Ghi nhận" });
+    expect(recordButton).toHaveClass("min-h-11", "sm:min-h-0");
+
+    fireEvent.click(recordButton);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByPlaceholderText("Tìm tiêu chí...")).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByRole("button", { name: /Đi học đúng giờ/ })).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByRole("button", { name: "Đóng" })).toHaveClass("min-h-11", "sm:min-h-0");
+    expect(screen.getByRole("button", { name: "Xác nhận ghi nhận" })).toHaveClass("min-h-11", "sm:min-h-0");
+  });
+
   it("renders more than 8 results inside a capped scrollable container and replaces options on select", async () => {
     const mockStudents = makeMockStudents(12);
     vi.mocked(studentApi.getStudents).mockResolvedValue({ data: mockStudents, meta: {} });
@@ -171,6 +190,7 @@ describe("StudentDirectorySearch", () => {
     expect(list).toHaveClass("max-h-[384px]");
     const buttons = screen.getAllByRole("button", { name: /Sinh viên/ });
     expect(buttons).toHaveLength(12);
+    expect(buttons[0]).toHaveClass("min-h-11", "sm:min-h-0");
 
     // Selecting result replaces options surface with preview dialog
     fireEvent.click(buttons[0]);

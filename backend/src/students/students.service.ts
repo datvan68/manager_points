@@ -976,9 +976,17 @@ export class StudentsService implements OnModuleInit {
     }
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
+      const matchingClasses = await this.classModel
+        .find({ class_name: { $regex: escapedSearch, $options: 'i' } } as any)
+        .select('_id')
+        .lean()
+        .exec();
+
       filter.$or = [
-        { full_name: { $regex: escapeRegex(search), $options: 'i' } },
-        { student_code: { $regex: escapeRegex(search), $options: 'i' } },
+        { full_name: { $regex: escapedSearch, $options: 'i' } },
+        { student_code: { $regex: escapedSearch, $options: 'i' } },
+        { class_id: { $in: matchingClasses.map((matchingClass) => matchingClass._id) } },
       ];
     }
 

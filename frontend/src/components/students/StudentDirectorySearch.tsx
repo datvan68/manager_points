@@ -308,7 +308,7 @@ export default function StudentDirectorySearch({
                 <button
                   type="button"
                   onClick={handleNavigateDetail}
-                  className="shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                  className="min-h-11 min-w-11 shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0"
                 >
                   Chi tiết
                 </button>
@@ -319,7 +319,7 @@ export default function StudentDirectorySearch({
             ref={dialogCloseRef}
             type="button"
             onClick={closePreview}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer sm:h-8 sm:w-8"
             aria-label="Đóng thông tin sinh viên"
           >
             <X size={16} />
@@ -365,7 +365,7 @@ export default function StudentDirectorySearch({
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold text-[#1E293B]">Ghi nhận học vụ</p>
               {!criteria.length && !recordLoading && !recordSuccess && (
-                <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
                   Ghi nhận
                 </button>
               )}
@@ -374,7 +374,7 @@ export default function StudentDirectorySearch({
               <div onMouseDown={(event) => event.target === event.currentTarget && closePreview()} className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/25 p-3 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:rounded-xl sm:shadow-sm">
                   <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
-                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8]" />
+                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 min-h-11 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] sm:min-h-0" />
                   {frequentCriteria.length > 0 && (
                     <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sử dụng nhiều</p>
                   )}
@@ -382,7 +382,7 @@ export default function StudentDirectorySearch({
                     {frequentCriteria.map((criterion) => {
                       const score = criterion.score_per_unit || criterion.min_score || 0;
                       return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
                           <span className="truncate font-semibold">{criterion.criterion_name}</span>
                           <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
                         </button>
@@ -392,7 +392,7 @@ export default function StudentDirectorySearch({
                     {remainingCriteria.map((criterion) => {
                       const score = criterion.score_per_unit || criterion.min_score || 0;
                       return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
                           <span className="truncate font-semibold">{criterion.criterion_name}</span>
                           <span className="shrink-0 text-[11px] font-bold text-slate-400">({score > 0 ? "+" : ""}{score}đ)</span>
                         </button>
@@ -401,10 +401,10 @@ export default function StudentDirectorySearch({
                   </div>
                   {recordError && <p className="mt-1 px-2 text-xs font-medium text-rose-700">{recordError}</p>}
                   <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 px-1 pt-2">
-                    <button type="button" onClick={closePreview} className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30">
+                    <button type="button" onClick={closePreview} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0">
                       Đóng
                     </button>
-                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">
+                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
                       {recordSaving ? "Đang lưu..." : "Xác nhận ghi nhận"}
                     </button>
                   </div>
@@ -429,7 +429,7 @@ export default function StudentDirectorySearch({
     <>
       <div ref={containerRef} className={`relative w-full ${className}`}>
         <label htmlFor="student-directory-search" className="sr-only">Tìm kiếm sinh viên</label>
-        <div className="flex items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50">
+        <div className="flex min-h-11 items-center gap-2 rounded-2xl border border-indigo-200/70 bg-white/75 px-3.5 py-1.5 shadow-xs backdrop-blur-md transition-all duration-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100/50 sm:min-h-0">
           <Search size={16} className="shrink-0 text-[#64748B]" aria-hidden="true" />
           <input
             ref={setInputRef}
@@ -438,7 +438,7 @@ export default function StudentDirectorySearch({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Tìm kiếm sinh viên..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-[#1E293B] outline-none placeholder:text-[#64748B]"
+            className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-[#1E293B] outline-none placeholder:text-[#64748B] sm:min-h-0"
             autoComplete="off"
           />
           {loading && <Loader2 size={15} className="shrink-0 animate-spin text-[#1A73E8]" aria-label="Đang tìm kiếm" />}
@@ -447,7 +447,7 @@ export default function StudentDirectorySearch({
               type="button"
               onClick={onClose}
               aria-label="Đóng tìm kiếm"
-              className="shrink-0 text-[#64748B] hover:text-[#1E293B] p-1 rounded-full hover:bg-black/5 transition-colors cursor-pointer"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full p-1 text-[#64748B] transition-colors hover:bg-black/5 hover:text-[#1E293B] cursor-pointer sm:h-auto sm:w-auto"
             >
               <X size={15} />
             </button>
@@ -480,7 +480,7 @@ export default function StudentDirectorySearch({
                   <button
                     type="button"
                     onClick={() => setSelected(student)}
-                    className="group w-full rounded-2xl border border-transparent bg-transparent px-4 py-2.5 text-left transition-all duration-150 ease-out hover:bg-white/45 hover:border-white/60 hover:backdrop-blur-sm focus:outline-none focus:bg-white/45 focus:border-white/60 focus:backdrop-blur-sm active:bg-white/55 cursor-pointer"
+                    className="group min-h-11 w-full rounded-2xl border border-transparent bg-transparent px-4 py-2.5 text-left transition-all duration-150 ease-out hover:bg-white/45 hover:border-white/60 hover:backdrop-blur-sm focus:outline-none focus:bg-white/45 focus:border-white/60 focus:backdrop-blur-sm active:bg-white/55 cursor-pointer sm:min-h-0"
                   >
                     <span className="block truncate text-sm font-bold text-[#1E293B] group-hover:text-[#1A73E8] transition-colors">
                       {student.full_name}

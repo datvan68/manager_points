@@ -397,6 +397,38 @@ describe('StudentsService', () => {
         $or: [
           { full_name: { $regex: 'A\\.B\\+', $options: 'i' } },
           { student_code: { $regex: 'A\\.B\\+', $options: 'i' } },
+          { class_id: { $in: [] } },
+        ],
+      });
+    });
+
+    it('matches literal name, code, or class text and keeps class scope filters', async () => {
+      const requester = { userId: 'teacher-user-id', roleName: 'Teacher' };
+      const assignedClassId = new Types.ObjectId('507f1f77bcf86cd799439012');
+      const matchingClassId = new Types.ObjectId('507f1f77bcf86cd799439099');
+      jest.spyOn(classModel, 'find')
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{ _id: assignedClassId }]),
+        } as any)
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{ _id: matchingClassId }]),
+        } as any);
+
+      await service.findAll({ search: ' A.B+ ', page: 1, limit: 20, fields: 'slider' }, requester);
+
+      expect(classModel.find).toHaveBeenNthCalledWith(2, {
+        class_name: { $regex: 'A\\.B\\+', $options: 'i' },
+      });
+      expect(model.find).toHaveBeenCalledWith({
+        class_id: { $in: [assignedClassId] },
+        $or: [
+          { full_name: { $regex: 'A\\.B\\+', $options: 'i' } },
+          { student_code: { $regex: 'A\\.B\\+', $options: 'i' } },
+          { class_id: { $in: [matchingClassId] } },
         ],
       });
     });
