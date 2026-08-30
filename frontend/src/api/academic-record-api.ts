@@ -23,6 +23,7 @@ export interface AcademicRecord {
   evaluation_detail_id?: any | string;
   criteria_id?: any | string;
   points_effect?: number;
+  effectivePoints?: number;
   quantity?: number;
   date_record?: string;
 }

@@ -658,6 +658,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     void fetchAcademicRecords(1, false);
   };
 
+  const getStudentHistoryParams = (record: any) => {
+    const semester = record.original?.semester_id;
+    return {
+      studentId: record.studentObjectId,
+      semesterId: typeof semester === "object" ? semester?._id : semester,
+      classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
+      startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
+      endDate: filterDateRange?.end ? format(filterDateRange.end, "yyyy-MM-dd") : undefined,
+      creator: creatorFilter !== "all" ? creatorFilter : undefined,
+    };
+  };
+
   const handleOpenDrawerChange = async (isOpen: boolean, record: any) => {
     setOpenDrawerId(isOpen ? record.id : null);
     if (isOpen) {
@@ -670,8 +682,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
         if (studentId) {
-          const studentRecords =
-            await academicRecordApi.getAcademicRecordsByStudent(studentId);
+          const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
+            ...getStudentHistoryParams(record),
+            studentId,
+          });
+          const studentRecords = Array.isArray(studentRecordsResponse)
+            ? studentRecordsResponse
+            : studentRecordsResponse.data;
 
           const mappedStudentRecords = studentRecords.map((r) => {
             const student =
@@ -708,9 +725,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               className = foundClass ? foundClass.class_name : "N/A";
             }
 
-            const pts = foundCriterion
-              ? foundCriterion.score_per_unit || foundCriterion.min_score || 0
-              : r.points_effect || 0;
+            const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
 
             const recordType = foundCriterion
               ? foundCriterion.criterion_type === "khen_thuong"
@@ -1564,8 +1579,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
       if (studentId) {
-        const studentRecords =
-          await academicRecordApi.getAcademicRecordsByStudent(studentId);
+        const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
+          ...getStudentHistoryParams(record),
+          studentId,
+        });
+        const studentRecords = Array.isArray(studentRecordsResponse)
+          ? studentRecordsResponse
+          : studentRecordsResponse.data;
 
         const mappedStudentRecords = studentRecords.map((r) => {
           const student =
@@ -1602,9 +1622,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             className = foundClass ? foundClass.class_name : "N/A";
           }
 
-          const pts = foundCriterion
-            ? foundCriterion.score_per_unit || foundCriterion.min_score || 0
-            : r.points_effect || 0;
+          const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
 
           const recordType = foundCriterion
             ? foundCriterion.criterion_type === "khen_thuong"

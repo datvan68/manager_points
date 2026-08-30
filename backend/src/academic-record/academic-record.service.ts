@@ -1790,6 +1790,19 @@ export class AcademicRecordService {
     );
   }
 
+  private serializeRecordWithEffectivePoints(record: any): any {
+    const value =
+      typeof record?.toObject === 'function' ? record.toObject() : { ...record };
+    const effectivePoints = this.calculateGroupedRecordScore({
+      ...value,
+      criterion: value.criterion || value.criterion_id,
+    });
+    return {
+      ...value,
+      effectivePoints: Number.isFinite(effectivePoints) ? effectivePoints : 0,
+    };
+  }
+
   async findAll(
     query?: AcademicRecordFindAllQuery,
     requester?: any,
@@ -2211,7 +2224,9 @@ export class AcademicRecordService {
       ]);
 
       return {
-        data: records,
+        data: records.map((record: any) =>
+          this.serializeRecordWithEffectivePoints(record),
+        ),
         meta: {
           total,
           page: p,
@@ -2220,7 +2235,7 @@ export class AcademicRecordService {
         },
       };
     } else {
-      return this.academicRecordModel
+      const records = await this.academicRecordModel
         .find(filter)
         .populate('criterion_id')
         .populate('student_id')
@@ -2229,6 +2244,9 @@ export class AcademicRecordService {
         .populate({ path: 'recorded_by', populate: { path: 'role' } })
         .sort({ recorded_at: -1, createdAt: -1 })
         .exec();
+      return records.map((record: any) =>
+        this.serializeRecordWithEffectivePoints(record),
+      );
     }
   }
 
@@ -2427,7 +2445,9 @@ export class AcademicRecordService {
       const has_more = p * l < total;
 
       return {
-        data: records,
+        data: records.map((record: any) =>
+          this.serializeRecordWithEffectivePoints(record),
+        ),
         total,
         page: p,
         limit: l,
@@ -2436,7 +2456,7 @@ export class AcademicRecordService {
       };
     }
 
-    return this.academicRecordModel
+    const records = await this.academicRecordModel
       .find(filter)
       .populate('criterion_id')
       .populate('student_id')
@@ -2445,6 +2465,9 @@ export class AcademicRecordService {
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .sort({ recorded_at: -1, createdAt: -1 })
       .exec();
+    return records.map((record: any) =>
+      this.serializeRecordWithEffectivePoints(record),
+    );
   }
 
   async findByDailyReportId(

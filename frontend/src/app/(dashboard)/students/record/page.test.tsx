@@ -392,10 +392,15 @@ describe('StudentRecordPage Infinite Scroll', () => {
       data: [group],
       meta: { total: 1, totalPages: 1, has_more: false },
     });
-    (academicRecordApi.getAcademicRecordsByStudent as any).mockResolvedValue([
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({
+        data: [group],
+        meta: { total: 1, totalPages: 1, has_more: false },
+      })
+      .mockResolvedValueOnce([
       group.latestRecord,
       { ...group.latestRecord, _id: 'history-record-2' },
-    ]);
+      ]);
 
     render(<StudentRecordPage />);
 
@@ -409,7 +414,9 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
     await waitFor(() => {
-      expect(academicRecordApi.getAcademicRecordsByStudent).toHaveBeenCalledWith('student-1');
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
+        expect.objectContaining({ studentId: 'student-1' }),
+      );
     });
   });
 

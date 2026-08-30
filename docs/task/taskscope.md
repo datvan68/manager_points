@@ -1,7 +1,39 @@
+slot_id: "taskscope-00"
+generation: 1
+task_id: "20260830-000000-reconcile-grouped-total-points"
+scope_file: "docs/task/taskscope.md"
+status: completed
+scope_revision: 1
+created_at: "2026-08-30T00:00:00+07:00"
+updated_at: "2026-08-30T15:52:00+07:00"
+base_commit: "2a5959e4f4b2706392fce5ad3e5634b7e44496c5"
 task: "Reconcile grouped total points with visible history"
 pipeline: bug_fix
 profile: Quick
 objective: "A student's Total points equals the manual sum of point values shown in Chi tiết trạng thái for the same filtered records."
+
+coordination:
+  depends_on: []
+  warnings: []
+
+completion:
+  completed_at: "2026-08-30T15:52:00+07:00"
+  outcome: success
+  final_commit_or_state: "worktree changes applied on main; commit not created"
+  changed_paths:
+    - "backend/src/academic-record/academic-record.service.ts"
+    - "backend/src/academic-record/academic-record.service.spec.ts"
+    - "frontend/src/api/academic-record-api.ts"
+    - "frontend/src/app/(dashboard)/students/record/page.tsx"
+    - "frontend/src/app/(dashboard)/students/record/page.test.tsx"
+  checks_passed:
+    - "backend academic-record.service.spec.ts: 70 passed, 2 todo"
+    - "frontend page.test.tsx: 14 passed"
+    - "backend build"
+    - "frontend typecheck"
+    - "git diff --check"
+  cleanup_pending: []
+  reuse_safe: false
 
 evidence:
   current_behavior: "Group.totalPoints uses calculateGroupedRecordScore, but both detail loaders display criterion.score_per_unit/min_score and load the student's full active history without group date/creator filters. Quantity, option, manual, discipline, and filtered records can disagree."
@@ -23,7 +55,12 @@ execution:
   - "E-02 [AC-02,AC-03] Pass group filters through both frontend history paths and remove local criterion-based point inference."
   - "E-03 [AC-01..AC-04] Add backend/frontend reconciliation and excluded-record regressions."
 
-verification: ["npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand", "npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx'", "npm --prefix backend run build", "npm --prefix frontend run typecheck", "git diff --check"]
+verification:
+  - "V-01 [AC-01..AC-04] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand → pass"
+  - "V-02 [AC-02,AC-03] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → pass"
+  - "V-03 [AC-01..AC-04] npm --prefix backend run build → pass"
+  - "V-04 [AC-02,AC-03] npm --prefix frontend run typecheck → pass"
+  - "V-05 [AC-01..AC-04] git diff --check → no whitespace errors"
 
 risks: ["Legacy points_effect may be per-unit; do not prefer it over canonical criterion inputs."]
 stop_conditions: ["Stop if Total points must use SummaryPoint/full-semester scope while detail stays filter-scoped.", "Stop if historical points must remain frozen after criterion edits; that requires an approved persistence rule."]

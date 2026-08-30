@@ -749,7 +749,7 @@ describe('AcademicRecordService - Import Flow', () => {
       const result = await service.findAll({ page: 1, limit: 10 });
 
       expect(result).toEqual({
-        data: [record],
+        data: [{ ...record, effectivePoints: 0 }],
         meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
       });
       expect(mockAcademicRecordModel.aggregate).not.toHaveBeenCalled();
@@ -2428,8 +2428,34 @@ describe('AcademicRecordService - Import Flow', () => {
 
       const result = await service.findByStudentId(studentId);
       expect(Array.isArray(result)).toBe(true);
-      expect(result).toEqual(mockRecords);
+      expect(result).toEqual(mockRecords.map((record) => ({ ...record, effectivePoints: 0 })));
       expect(queryChain.sort).toHaveBeenCalledWith({ recorded_at: -1, createdAt: -1 });
+    });
+
+    it('serializes effectivePoints from canonical criterion inputs', async () => {
+      const record = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        criterion_id: {
+          criterion_type: 'cong_diem',
+          scoring_mode: 'count',
+          score_per_unit: 1.5,
+          min_score: 0,
+          max_score: 10,
+        },
+        action_type: 'count',
+        quantity: 2,
+        points_effect: -99,
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([record]),
+      });
+
+      const result = await service.findByStudentId(studentId);
+
+      expect(result).toEqual([{ ...record, effectivePoints: 3 }]);
     });
 
     it('returns paginated response with metadata when pagination is requested', async () => {
@@ -2447,7 +2473,7 @@ describe('AcademicRecordService - Import Flow', () => {
 
       const result = await service.findByStudentId(studentId, null, { page: 1, limit: 10 });
       expect(result).toEqual({
-        data: [mockRecords[0]],
+        data: [{ ...mockRecords[0], effectivePoints: 0 }],
         total: 15,
         page: 1,
         limit: 10,
@@ -2473,7 +2499,7 @@ describe('AcademicRecordService - Import Flow', () => {
 
       const result = await service.findByStudentId(studentId, null, { page: 2, limit: 10 });
       expect(result).toEqual({
-        data: [mockRecords[1]],
+        data: [{ ...mockRecords[1], effectivePoints: 0 }],
         total: 15,
         page: 2,
         limit: 10,
