@@ -30,7 +30,7 @@ import {
   ArrowLeft,
   Award,
   PlusCircle,
-  Gavel,
+  ShieldAlert,
 } from "lucide-react";
 
 import { CustomPagination } from "@/components/ui/pagination";
@@ -129,11 +129,11 @@ const RecordTypeIcons = ({ types }: { types: AcademicRecordType[] }) => (
   <span className="inline-flex items-center gap-1" aria-label="Loại ghi nhận">
     {types.map((type) => {
       const Icon =
-        type === "khen_thuong"
-          ? Award
-          : type === "ky_luat"
-            ? Gavel
-            : PlusCircle;
+          type === "khen_thuong"
+            ? Award
+            : type === "ky_luat"
+              ? ShieldAlert
+              : PlusCircle;
       const colorClass =
         type === "khen_thuong"
           ? "text-emerald-600"

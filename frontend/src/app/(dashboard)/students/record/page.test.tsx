@@ -390,13 +390,13 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
   });
 
-  it('renders de-duplicated grouped type icons and the signed grouped total', async () => {
+  it('renders de-duplicated grouped type icons and the mixed-sign grouped total', async () => {
     const group = makeStudentGroup(
       'student-1',
       'latest-record-1',
       4,
       ['khen_thuong', 'cong_diem', 'ky_luat'],
-      7,
+      2,
     );
     (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
       data: [group],
@@ -405,10 +405,14 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     render(<StudentRecordPage />);
 
-    expect(await screen.findAllByLabelText('Khen thưởng')).not.toHaveLength(0);
-    expect(await screen.findAllByLabelText('Cộng điểm')).not.toHaveLength(0);
-    expect(await screen.findAllByLabelText('Kỷ luật')).not.toHaveLength(0);
-    expect(screen.getAllByText('+7')).not.toHaveLength(0);
+    const rewardIcons = await screen.findAllByLabelText('Khen thưởng');
+    const bonusIcons = await screen.findAllByLabelText('Cộng điểm');
+    const disciplineIcons = await screen.findAllByLabelText('Kỷ luật');
+    expect(rewardIcons[0]).toHaveClass('text-emerald-600');
+    expect(bonusIcons[0]).toHaveClass('text-blue-600');
+    expect(disciplineIcons[0]).toHaveClass('text-rose-600');
+    expect(disciplineIcons[0].tagName.toLowerCase()).toBe('svg');
+    expect(screen.getAllByText('+2')).not.toHaveLength(0);
     expect(screen.queryByText('Khen thưởng')).not.toBeInTheDocument();
     expect(screen.queryByText('Cộng điểm')).not.toBeInTheDocument();
     expect(screen.queryByText('Kỷ luật')).not.toBeInTheDocument();

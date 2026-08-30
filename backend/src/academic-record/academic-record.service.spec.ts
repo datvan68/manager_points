@@ -915,6 +915,64 @@ describe('AcademicRecordService - Import Flow', () => {
       );
     });
 
+    it('algebraically sums two negative discipline and three positive contributions', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      const positiveCriterion = (scorePerUnit: number, criterionType = 'cong_diem') => ({
+        criterion_type: criterionType,
+        scoring_mode: 'count',
+        score_per_unit: scorePerUnit,
+        min_score: 0,
+        max_score: 10,
+      });
+      const disciplineCriterion = {
+        criterion_type: 'ky_luat',
+        scoring_mode: 'count',
+        score_per_unit: -1.5,
+        min_score: 0,
+        max_score: 10,
+        is_score_counted: false,
+      };
+
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [
+              {
+                _id: studentId,
+                latestRecordId,
+                recordCount: 5,
+                recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+                scoreRecords: [
+                  { criterion: disciplineCriterion, action_type: 'count', quantity: 1 },
+                  { criterion: disciplineCriterion, action_type: 'count', quantity: 1 },
+                  { criterion: positiveCriterion(2), action_type: 'count', quantity: 1 },
+                  { criterion: positiveCriterion(2, 'khen_thuong'), action_type: 'count', quantity: 1 },
+                  { criterion: positiveCriterion(1), action_type: 'count', quantity: 1 },
+                ],
+              },
+            ],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          recordCount: 5,
+          recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+          totalPoints: 2,
+        }),
+      );
+    });
+
     it('applies teacher RBAC before grouping', async () => {
       const classId = new Types.ObjectId();
       const studentId = new Types.ObjectId();

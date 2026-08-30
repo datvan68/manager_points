@@ -1,7 +1,29 @@
+slot_id: "taskscope-00"
+generation: 1
+task_id: "20260830-113000-complete-grouped-student-record-summaries"
+scope_file: "docs/task/taskscope.md"
+status: completed
+scope_revision: 1
+created_at: "2026-08-30T11:30:00+07:00"
+updated_at: "2026-08-30T15:39:11+07:00"
+base_commit: "cd78e93f5ceb76b36aa86ec5daf3eab75f4b702f"
 task: "Complete grouped student record summaries"
 pipeline: feature_development
 profile: Full
 objective: "Each student group in Tình hình HSSV shows every applicable record type as distinct color-coded icons, displays the algebraic sum of all matching positive and negative score contributions, and converges immediately after add/update/delete events without concurrent or per-event refetch storms."
+
+coordination:
+  depends_on: []
+  warnings: []
+
+completion:
+  completed_at: "2026-08-30T15:39:11+07:00"
+  outcome: success
+  final_commit_or_state: "Working tree contains the verified task changes; no commit was created."
+  changed_paths: ["backend/src/academic-record/academic-record.service.spec.ts", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx", "docs/task/taskscope.md"]
+  checks_passed: ["npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand", "npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx", "npm --prefix backend run build", "npm --prefix frontend run typecheck", "git diff --check"]
+  cleanup_pending: []
+  reuse_safe: false
 
 evidence:
   current_behavior: "The in-progress grouped implementation returns recordTypes/totalPoints and renders Award, PlusCircle, and Gavel. Its score helper uses existing score-engine contribution semantics, but the required mixed-sign example and a more recognizable discipline icon are not yet explicit in the scope."
@@ -31,7 +53,7 @@ execution:
 temporary_artifacts:
   create: []
   cleanup: []
-  retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
+  retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
   - "V-01 [AC-02,AC-03,AC-06] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand -> mixed-sign +2, score semantics, RBAC/filter, and default-contract cases pass."
