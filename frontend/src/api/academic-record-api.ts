@@ -29,11 +29,30 @@ export interface AcademicRecord {
 
 export interface PaginatedAcademicRecords {
   data: AcademicRecord[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  has_more: boolean;
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    has_more: boolean;
+  };
+}
+
+export interface AcademicRecordStudentGroup {
+  studentId: string;
+  latestRecord: AcademicRecord;
+  recordCount: number;
+}
+
+export interface PaginatedAcademicRecordStudentGroups {
+  data: AcademicRecordStudentGroup[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    has_more: boolean;
+  };
 }
 
 export interface CreateAcademicRecordDto {
@@ -98,6 +117,7 @@ export const academicRecordApi = {
   async getAcademicRecords(params?: {
     page?: number;
     limit?: number;
+    groupBy?: 'student';
     search?: string;
     classId?: string;
     semesterId?: string;
@@ -105,7 +125,11 @@ export const academicRecordApi = {
     startDate?: string;
     endDate?: string;
     creator?: string;
-  }): Promise<AcademicRecord[] | { data: AcademicRecord[]; meta: any }> {
+  }): Promise<
+    | AcademicRecord[]
+    | PaginatedAcademicRecords
+    | PaginatedAcademicRecordStudentGroups
+  > {
     const token = tokenStorage.getAccessToken() || '';
     const queryParts: string[] = [];
     if (params) {

@@ -195,12 +195,14 @@ export class AcademicRecordController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('creator') creator?: string,
+    @Query('groupBy') groupBy?: string,
   ) {
     const requester = req.user;
     return this.academicRecordService.findAll(
       {
         page: page ? parseInt(page, 10) : undefined,
         limit: limit ? parseInt(limit, 10) : undefined,
+        groupBy: groupBy === 'student' ? 'student' : undefined,
         search,
         classId,
         semesterId,

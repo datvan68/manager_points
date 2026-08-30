@@ -102,7 +102,15 @@ interface MappedAcademicRecord {
   date: string;
   points: string;
   original: AcademicRecord;
+  recordCount: number;
+  studentObjectId: string;
 }
+
+type AcademicRecordListItem = AcademicRecord & {
+  latestRecord?: AcademicRecord;
+  recordCount?: number;
+  studentId?: string;
+};
 
 const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTableCells({
   record,
@@ -176,6 +184,9 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
       </td>
       <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
         {record.date}
+      </td>
+      <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
+        {record.recordCount} lần
       </td>
       <td className="px-5 py-4">
         <span
@@ -410,7 +421,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [classItemsPerPage, setClassItemsPerPage] = useState(40);
 
   // Academic record states
-  const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
+  const [academicRecords, setAcademicRecords] = useState<AcademicRecordListItem[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [allCriteria, setAllCriteria] = useState<Criterion[]>([]);
 
@@ -552,6 +563,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         const res = await academicRecordApi.getAcademicRecords({
           page: pageToFetch,
           limit: itemsPerPage,
+          groupBy: "student",
           search: debouncedSearchTerm || undefined,
           classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
           startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
@@ -574,8 +586,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
       setAcademicRecords(prev => {
         if (!isAppend) return records;
-        const existingIds = new Set(prev.map(r => r._id));
-        const newRecords = records.filter(r => !existingIds.has(r._id));
+        const existingIds = new Set(prev.map(r => r.latestRecord?._id || r._id));
+        const newRecords = records.filter(r => !existingIds.has(r.latestRecord?._id || r._id));
         return [...prev, ...newRecords];
       });
       setTotalRecords(total);
@@ -604,7 +616,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           typeof record.original?.student_id === "object"
             ? record.original.student_id
             : null;
-        const studentId = studentObj?._id || record.original?.student_id;
+        const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
         if (studentId) {
           const studentRecords =
@@ -878,8 +890,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   }, [activeSubTab, hasMoreRecords, loadMoreRecordsError]);
 
   // Map academicRecords to dummy format for UI compatibility
-  const mappedRecords = useMemo(() => academicRecords.map((r) => {
+  const mappedRecords = useMemo(() => academicRecords.map((item) => {
+    const r = item.latestRecord || item;
     const student = typeof r.student_id === "object" ? r.student_id : null;
+    const studentObjectId = item.studentId || student?._id || String(r.student_id || "");
     const evalDetail =
       typeof r.evaluation_detail_id === "object"
         ? r.evaluation_detail_id
@@ -949,6 +963,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             : format(new Date(), "dd/MM/yyyy"),
       points: (pts >= 0 ? "+" : "") + pts,
       original: r,
+      recordCount: item.recordCount ?? 1,
+      studentObjectId,
     };
   }), [academicRecords, allCriteria, classes]);
 
@@ -1036,7 +1052,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         await fetchDeletedItems();
       } else {
         setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
-        setAcademicRecords(prev => prev.filter(record => !succeededIds.has(record._id)));
+        setAcademicRecords(prev => prev.filter(record => !succeededIds.has(record.latestRecord?._id || record._id)));
         await fetchAcademicRecords();
       }
       if (failed.length > 0) {
@@ -1456,6 +1472,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     setEditingRecordId(recordId);
     try {
       const existingRecord =
+        academicRecords.find((record) => record._id === recordId)?.latestRecord ||
+        academicRecords.find((record) => record.latestRecord?._id === recordId)?.latestRecord ||
         academicRecords.find((record) => record._id === recordId) ||
         (await academicRecordApi.getAcademicRecord(recordId));
 
@@ -1492,7 +1510,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         typeof record.original?.student_id === "object"
           ? record.original.student_id
           : null;
-      const studentId = studentObj?._id || record.original?.student_id;
+      const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
       if (studentId) {
         const studentRecords =
@@ -2165,11 +2183,21 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="text-sm font-bold text-[#1E293B]">
-                            {record.fullName}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-[#1E293B]">
+                              {record.fullName}
+                            </h3>
+                            {isNewWithinWindow(record.original?.createdAt) && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
+                                New
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
                             Lớp: {record.className}
+                          </p>
+                          <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
+                            {record.recordCount} lần ghi nhận
                           </p>
                         </div>
                         <span className="text-[11px] text-slate-500 font-semibold bg-white/70 border border-white/90 px-2 py-0.5 rounded-full shadow-sm shrink-0">
@@ -2337,6 +2365,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               </span>
                               <span className="text-[11px] font-bold text-[#1E293B] mt-0.5">
                                 {record.date}
+                              </span>
+                              <span className="text-[10px] font-semibold text-slate-500 mt-0.5">
+                                {record.recordCount} lần ghi nhận
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
@@ -2806,6 +2837,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       Ngày ghi nhận
                     </th>
                     <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
+                      Số lần
+                    </th>
+                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Tính điểm
                     </th>
                     <th className="px-5 py-3 w-16 text-center text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
@@ -2839,6 +2873,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           </td>
                           <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-24 h-4" />
+                          </td>
+                          <td className="px-5 py-4 border-b border-white/40">
+                            <Skeleton className="w-10 h-4" />
                           </td>
                           <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-10 h-4" />
@@ -3340,7 +3377,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   {paginatedRecords.length === 0 && (
                     <tr>
                       <td
-                        colSpan={isStudent ? 8 : 9}
+                        colSpan={isStudent ? 9 : 10}
                         className="px-5 py-8 text-center text-sm text-gray-500 bg-gray-50/50"
                       >
                         Không tìm thấy ghi nhận nào.

@@ -1,34 +1,31 @@
-task: "Củng cố đăng nhập đa thiết bị và cuộn mobile"
-pipeline: bug_fix
+task: "Gom tình hình HSSV theo sinh viên"
+pipeline: feature_development
 profile: Full
-objective: "Một tài khoản duy trì các phiên thiết bị độc lập; thao tác cuộn dọc trên mobile phản hồi liên tục, không bị chặn hoặc khựng bởi shell dùng chung."
-
-baseline:
-  branch: "main"
-  commit: "4127963ba416490262caa7b90aa6238819d4ae8b"
+objective: "Tab Tình hình HSSV chỉ hiển thị một group cho mỗi sinh viên, cập nhật rõ ghi nhận mới nhất/số lần ghi nhận và vẫn mở được toàn bộ lịch sử của sinh viên."
 
 evidence:
-  current_behavior: "backend/src/auth/services/auth.service.ts:login tạo refresh token mới mỗi lần đăng nhập; auth.controller.ts:getRefreshCookieName tách cookie theo browser session và logout chỉ revoke cookie hiện tại. Chưa có E2E chứng minh hai thiết bị vẫn độc lập qua refresh/logout. frontend/src/globals.css mobile cố định .dashboard-shell, đặt overscroll-behavior:none và .dashboard-header touch-action:none; các trang dùng nhiều overflow-y-auto lồng nhau."
-  expected_behavior: "Hai session ID đăng nhập cùng tài khoản refresh độc lập; logout A không ảnh hưởng B. Vuốt dọc bắt đầu ở header hoặc nội dung đều không bị chặn; scroll surface hiện hữu giữ quán tính và modal vẫn khóa nền đúng."
-  root_cause: "Thiếu hồi quy đa thiết bị khiến contract phiên độc lập chưa được bảo vệ; globals.css:.dashboard-header chặn mọi touch gesture và shell triệt tiêu scroll chaining trên mobile, tạo trạng thái vuốt không phản hồi tại vùng dùng chung."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:fetchAcademicRecords/paginatedRecords render một hàng/thẻ cho mỗi AcademicRecord; handleOpenDrawerChange và handleOpenDetailView lại gọi getAcademicRecordsByStudent nên Chi tiết trạng thái hiển thị toàn bộ lịch sử. backend/src/academic-record/academic-record.service.ts:findAll phân trang/countDocuments theo bản ghi, vì vậy group sau khi tải ở frontend có thể lặp sinh viên giữa các trang."
+  expected_behavior: "Danh sách phân trang theo sinh viên; mỗi group hiển thị hồ sơ, ghi nhận mới nhất, tổng số ghi nhận phù hợp bộ lọc và dấu hiệu New khi ghi nhận mới nhất vừa xuất hiện. Khi có academic_record_changed, group tương ứng cập nhật, tăng số lượng và lên đúng thứ tự. Chi tiết tiếp tục hiển thị toàn bộ lịch sử được phép xem."
+  root_cause: "Danh sách và meta.total hiện dùng AcademicRecord làm đơn vị phân trang, không cùng đơn vị sinh viên với drawer chi tiết."
 
 scope:
-  inspect: ["backend/src/auth/services/token.service.ts:rotation/revoke semantics", "backend/src/auth/controllers/auth.controller.ts:session cookie routing", "frontend/src/app/(dashboard)/layout.tsx:shell ownership", "frontend/src/globals.css:mobile touch/overscroll rules"]
-  write: ["backend/src/auth/services/token.service.ts:refreshToken revoked-token distinction", "backend/test/auth.e2e-spec.ts:multi-device session regression", "frontend/src/globals.css:mobile dashboard touch/scroll policy", "frontend/src/components/layout/Header.test.tsx:global shell regression"]
-  preserve: ["JWT/RBAC and cookie security flags", "refresh-token rotation/reuse detection", "logout only current ordinary session", "impersonation isolation", "desktop layout", "modal body lock and horizontal controls"]
-  out: ["session-management UI", "device inventory/fingerprint", "API/schema/migration", "page-specific redesign", "animation cleanup"]
+  inspect: ["frontend/src/app/(dashboard)/students/record/page.tsx:record selection/export/edit/delete semantics trước khi đổi row identity"]
+  write: ["backend/src/academic-record/academic-record.controller.ts:findAll groupBy query", "backend/src/academic-record/academic-record.service.ts:AcademicRecordFindAllQuery/findAll grouped pagination", "backend/src/academic-record/academic-record.controller.spec.ts:query forwarding", "backend/src/academic-record/academic-record.service.spec.ts:group/filter/RBAC pagination", "frontend/src/api/academic-record-api.ts:student-group response type/query", "frontend/src/app/(dashboard)/students/record/page.tsx:group list/card/table/SSE", "frontend/src/app/(dashboard)/students/record/page.test.tsx:grouped UI regressions"]
+  preserve: ["RBAC và toàn bộ search/class/date/creator filters", "GET /academic-records mặc định vẫn trả record-level response", "drawer/detail dùng GET /academic-records/student/:studentId và hiển thị toàn bộ lịch sử", "thao tác sửa/xóa/xuất chỉ tác động record ID rõ ràng, không ngầm xóa cả group"]
+  out: ["schema/migration MongoDB", "đổi nghiệp vụ tính điểm", "tab Tình hình lớp", "thiết kế lại drawer"]
 
 acceptance_criteria:
-  - "AC-01: Hai X-Auth-Session-Id khác nhau đăng nhập cùng tài khoản; cả hai refresh thành công với cookie riêng."
-  - "AC-02: Sau logout session A, refresh A trả 401 còn session B tiếp tục refresh 200; không revoke token B."
-  - "AC-03: Trên viewport mobile, vuốt dọc từ header và scroll surface được phép; shell không tạo vùng touch bị khóa, không phát sinh cuộn ngang."
-  - "AC-04: Trên iOS Safari và Android Chrome, ba route đại diện cuộn liên tục và thao tác modal/nested list không làm đơ UI hoặc kéo nền ngoài ý muốn."
+  - "AC-01: Một sinh viên có nhiều ghi nhận chỉ xuất hiện một lần trong table/card; meta.total/totalPages/has-more tính theo số sinh viên distinct sau RBAC và bộ lọc."
+  - "AC-02: Group hiển thị ghi nhận mới nhất, tổng số ghi nhận phù hợp bộ lọc và badge New theo latestRecord.createdAt; thứ tự giảm dần theo thời gian mới nhất."
+  - "AC-03: Sau academic_record_changed, sinh viên hiện hữu không tạo dòng trùng; latest/count/New được làm mới và group mới xuất hiện đúng thứ tự."
+  - "AC-04: Mở Chi tiết trạng thái từ group gọi đúng student ObjectId và hiển thị toàn bộ lịch sử truy cập được, không chỉ latestRecord."
+  - "AC-05: Chế độ GET /academic-records không có groupBy và các thao tác record-level hiện hữu giữ nguyên contract/ID đích."
 
 execution:
-  - "E-01 [AC-01,AC-02] backend/test/auth.e2e-spec.ts -> dùng hai session ID/cookie riêng để kiểm tra login, rotation, logout A và refresh B; backend/src/auth/services/token.service.ts:refreshToken -> token logout không có replaced_by trả 401 mà không revoke token khác, giữ reuse detection cho token đã rotate."
-  - "E-02 [AC-03] frontend/src/globals.css -> đổi header sang touch-action cho phép pan-y; áp dụng momentum/overscroll-y cho scroll surface dashboard, giữ body khóa và mixed-axis control pan-x pan-y."
-  - "E-03 [AC-03] frontend/src/components/layout/Header.test.tsx -> thay assertion touch-action:none bằng contract pan-y, mixed-axis và scroll-surface mobile."
-  - "E-04 [AC-04] chạy manual trace trên /students, /grading/score, /dormitory/overview; chỉ mở rộng sang route/component cụ thể nếu trace xác định long task tại đó."
+  - "E-01 [AC-01,AC-02,AC-05] backend controller/service -> thêm groupBy=student opt-in; tái dùng filter/RBAC trước aggregation, sort latest, count distinct và populate dữ liệu đại diện; giữ nhánh mặc định."
+  - "E-02 [AC-01,AC-02,AC-04,AC-05] frontend API/page -> yêu cầu groupBy=student, dùng studentId làm identity và latestRecord cho nội dung; hiển thị recordCount/New; giữ record ID tường minh cho sửa/xóa/xuất."
+  - "E-03 [AC-03] page SSE refresh -> thay page đầu theo group identity và không append trùng sinh viên."
+  - "E-04 [AC-01..AC-05] backend/frontend specs -> phủ duplicate student, filter/RBAC/meta, new SSE record, drawer full history và backward compatibility."
 
 temporary_artifacts:
   create: []
@@ -36,10 +33,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01,AC-02] npm --prefix backend run test:e2e -- auth.e2e-spec.ts --runInBand -> multi-device cases pass."
-  - "V-02 [AC-03] npm --prefix frontend test -- src/components/layout/Header.test.tsx -> shell style regression passes."
-  - "V-03 [AC-03] npm --prefix frontend run typecheck -> exits 0."
-  - "V-04 [AC-04] iOS Safari + Android Chrome, 15 giây/route -> vuốt từ header/nội dung không đứng; không cuộn ngang; modal cuộn riêng và nền đứng yên; Performance trace không có chuỗi long task >100 ms do scroll handler."
+  - "V-01 [AC-01,AC-02,AC-05] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand -> grouped/default cases pass."
+  - "V-02 [AC-05] npm --prefix backend test -- src/academic-record/academic-record.controller.spec.ts --runInBand -> query/guard cases pass."
+  - "V-03 [AC-01..AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' -> grouped list/SSE/detail cases pass."
+  - "V-04 [AC-01..AC-05] npm --prefix backend run build; npm --prefix frontend run typecheck -> cả hai exit 0."
 
-risks: ["Authentication là ranh giới bảo mật nên diff/test cần review độc lập.", "CSS dùng chung có thể đổi scroll chaining của modal hoặc trang có nested scroller; phải kiểm tra trên thiết bị thật."]
-stop_conditions: ["Dừng nếu cần đổi cookie/API contract, schema hoặc impersonation semantics.", "Dừng và tách task theo route nếu trace quy nguyên nhân cho render/data/handler riêng thay vì shell CSS.", "Nếu môi trường E2E không có Mongo khả dụng, ghi nhận blocked verification và không giả định test pass."]
+risks: ["Aggregation phải áp RBAC/filter trước group để không lộ hoặc đếm dữ liệu ngoài quyền.", "Group row không được làm mơ hồ đích sửa/xóa/xuất; mọi mutation vẫn cần record ID cụ thể."]
+stop_conditions: ["Dừng nếu product muốn tổng số ghi nhận toàn lịch sử thay vì theo bộ lọc hiện tại.", "Dừng nếu checkbox/xóa ở group được hiểu là xóa toàn bộ lịch sử sinh viên; hành vi đó cần phê duyệt riêng.", "Dừng nếu cần đổi schema, migration hoặc response mặc định của GET /academic-records."]

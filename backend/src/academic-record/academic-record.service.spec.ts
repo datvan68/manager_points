@@ -30,6 +30,7 @@ describe('AcademicRecordService - Import Flow', () => {
       exec: jest.fn().mockResolvedValue([]),
     }),
     countDocuments: jest.fn(),
+    aggregate: jest.fn(),
     findOne: jest.fn().mockReturnValue({
       sort: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(null),
@@ -728,6 +729,118 @@ describe('AcademicRecordService - Import Flow', () => {
           ]),
         }),
       );
+    });
+  });
+
+  describe('findAll grouped by student', () => {
+    it('keeps the default paginated endpoint record-level and does not aggregate', async () => {
+      const record = { _id: new Types.ObjectId() };
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([record]),
+      });
+      mockAcademicRecordModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(1),
+      });
+
+      const result = await service.findAll({ page: 1, limit: 10 });
+
+      expect(result).toEqual({
+        data: [record],
+        meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+      });
+      expect(mockAcademicRecordModel.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('groups after filters, paginates distinct students, and populates the latest record', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = {
+        _id: latestRecordId,
+        student_id: { _id: studentId, student_code: 'SV001' },
+      };
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [{ _id: studentId, latestRecordId, recordCount: 3 }],
+            meta: [{ total: 6 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const semesterId = new Types.ObjectId().toString();
+      const result = await service.findAll(
+        { groupBy: 'student', page: 2, limit: 5, semesterId },
+        { roleName: 'Admin' },
+      );
+
+      expect(result).toEqual({
+        data: [{ studentId: studentId.toString(), latestRecord, recordCount: 3 }],
+        meta: { total: 6, page: 2, limit: 5, totalPages: 2, has_more: false },
+      });
+      const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
+      expect(pipeline[0]).toEqual({
+        $match: expect.objectContaining({
+          status: 'active',
+          is_deleted: { $ne: true },
+          semester_id: new Types.ObjectId(semesterId),
+        }),
+      });
+      expect(pipeline.find((stage: any) => stage.$group)?.$group).toEqual(
+        expect.objectContaining({
+          _id: '$student_id',
+          latestRecordId: { $first: '$_id' },
+          recordCount: { $sum: 1 },
+        }),
+      );
+      expect(pipeline.find((stage: any) => stage.$facet)?.$facet.data).toEqual([
+        { $skip: 5 },
+        { $limit: 5 },
+      ]);
+      expect(mockAcademicRecordModel.find).toHaveBeenCalledWith({
+        _id: { $in: [latestRecordId] },
+      });
+    });
+
+    it('applies teacher RBAC before grouping', async () => {
+      const classId = new Types.ObjectId();
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      mockClassModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: classId }]),
+      });
+      mockStudentModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: studentId }]),
+      });
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [{ _id: studentId, latestRecordId, recordCount: 1 }],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: latestRecordId }]),
+      });
+
+      await service.findAll(
+        { groupBy: 'student', page: 1, limit: 10 },
+        { roleName: 'Teacher', userId: new Types.ObjectId().toString() },
+      );
+
+      const match = mockAcademicRecordModel.aggregate.mock.calls[0][0][0].$match;
+      expect(match.student_id).toEqual({ $in: [studentId] });
     });
   });
 

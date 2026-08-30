@@ -162,6 +162,41 @@ describe('AcademicRecordController - Import Flow', () => {
     });
   });
 
+  it('forwards the optional student grouping query and preserves all filters', async () => {
+    const req = { user: { roleName: 'Admin' } };
+    mockAcademicRecordService.findAll.mockResolvedValue({ data: [], meta: { total: 0 } });
+
+    await controller.findAll(
+      req,
+      '2',
+      '25',
+      'Nguyen',
+      'class-1',
+      'semester-1',
+      'student-1',
+      '2026-08-01',
+      '2026-08-31',
+      'teacher',
+      'student',
+    );
+
+    expect(service.findAll).toHaveBeenCalledWith(
+      {
+        page: 2,
+        limit: 25,
+        groupBy: 'student',
+        search: 'Nguyen',
+        classId: 'class-1',
+        semesterId: 'semester-1',
+        studentId: 'student-1',
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        creator: 'teacher',
+      },
+      req.user,
+    );
+  });
+
   it('forwards deduplicated bulk delete requests to the matching service methods', async () => {
     const dto = { ids: ['record-1', 'record-2'] };
     const req = { user: { roleName: 'Admin' } };

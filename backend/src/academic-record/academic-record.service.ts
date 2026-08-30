@@ -59,6 +59,7 @@ import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 export interface AcademicRecordFindAllQuery {
   page?: number;
   limit?: number;
+  groupBy?: 'student';
   search?: string;
   classId?: string;
   semesterId?: string;
@@ -1771,6 +1772,7 @@ export class AcademicRecordService {
     let classId: string | undefined;
     let semesterId: string | undefined;
     let studentId: string | undefined;
+    let groupBy: 'student' | undefined;
     let actualRequester = requester;
 
     if (
@@ -1784,13 +1786,16 @@ export class AcademicRecordService {
     } else if (query) {
       page = query.page;
       limit = query.limit;
+      groupBy = query.groupBy;
       search = query.search;
       classId = query.classId;
       semesterId = query.semesterId;
       studentId = query.studentId;
     }
 
-    const isPaginationRequested = page !== undefined || limit !== undefined;
+    const isGroupedByStudent = groupBy === 'student';
+    const isPaginationRequested =
+      isGroupedByStudent || page !== undefined || limit !== undefined;
     const filter: any = { status: 'active', is_deleted: { $ne: true } };
 
     if (actualRequester) {
@@ -1810,6 +1815,7 @@ export class AcademicRecordService {
                   page: page || 1,
                   limit: limit || 10,
                   totalPages: 0,
+                  ...(isGroupedByStudent ? { has_more: false } : {}),
                 },
               }
             : [];
@@ -1866,6 +1872,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
+                    ...(isGroupedByStudent ? { has_more: false } : {}),
                   },
                 }
               : [];
@@ -1893,6 +1900,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
+                    ...(isGroupedByStudent ? { has_more: false } : {}),
                   },
                 }
               : [];
@@ -1907,6 +1915,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
+                    ...(isGroupedByStudent ? { has_more: false } : {}),
                   },
                 }
               : [];
@@ -2016,6 +2025,88 @@ export class AcademicRecordService {
       filter.$and.push({
         $or: [{ recorded_at: dateFilter }, { date_record: dateFilter }],
       });
+    }
+
+    if (isGroupedByStudent) {
+      const p = page && page > 0 ? page : 1;
+      const l = limit && limit > 0 ? limit : 10;
+      const groupedResult = await this.academicRecordModel
+        .aggregate([
+          { $match: filter },
+          {
+            $sort: {
+              createdAt: -1,
+              recorded_at: -1,
+              _id: -1,
+            },
+          },
+          {
+            $group: {
+              _id: '$student_id',
+              latestRecordId: { $first: '$_id' },
+              latestCreatedAt: { $first: '$createdAt' },
+              latestRecordedAt: { $first: '$recorded_at' },
+              recordCount: { $sum: 1 },
+            },
+          },
+          {
+            $sort: {
+              latestCreatedAt: -1,
+              latestRecordedAt: -1,
+              _id: 1,
+            },
+          },
+          {
+            $facet: {
+              data: [
+                { $skip: (p - 1) * l },
+                { $limit: l },
+              ],
+              meta: [{ $count: 'total' }],
+            },
+          },
+        ])
+        .exec();
+
+      const pageResult = groupedResult[0] || { data: [], meta: [] };
+      const groups = pageResult.data || [];
+      const latestRecordIds = groups.map((group: any) => group.latestRecordId);
+      const latestRecords = latestRecordIds.length
+        ? await this.academicRecordModel
+            .find({ _id: { $in: latestRecordIds } })
+            .populate('criterion_id')
+            .populate('student_id')
+            .populate('semester_id')
+            .populate('daily_report_id')
+            .populate({ path: 'recorded_by', populate: { path: 'role' } })
+            .exec()
+        : [];
+      const recordsById = new Map(
+        latestRecords.map((record: any) => [record._id.toString(), record]),
+      );
+      const data = groups
+        .map((group: any) => {
+          const latestRecord = recordsById.get(group.latestRecordId.toString());
+          if (!latestRecord) return null;
+          return {
+            studentId: group._id.toString(),
+            latestRecord,
+            recordCount: group.recordCount,
+          };
+        })
+        .filter(Boolean);
+      const total = pageResult.meta?.[0]?.total || 0;
+
+      return {
+        data,
+        meta: {
+          total,
+          page: p,
+          limit: l,
+          totalPages: Math.ceil(total / l),
+          has_more: p * l < total,
+        },
+      };
     }
 
     if (isPaginationRequested) {

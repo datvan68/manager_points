@@ -7,6 +7,7 @@ import { criteriaApi } from '@/api/criteria-api';
 import { dailyClassReportApi } from '@/api/daily-class-report-api';
 
 let mockRecordPermissions: Record<string, boolean> = {};
+let mockRealtimeOptions: any = null;
 
 // --- MOCKS ---
 
@@ -76,7 +77,10 @@ vi.mock('@/providers/auth-provider', () => ({
 }));
 
 vi.mock('@/hooks/useGradingRealtime', () => ({
-  useGradingRealtime: vi.fn(() => ({ status: 'connected' }))
+  useGradingRealtime: vi.fn((options: any) => {
+    mockRealtimeOptions = options;
+    return { status: 'connected' };
+  })
 }));
 
 const makeAcademicRecord = (index: number) => ({
@@ -90,6 +94,24 @@ const makeAcademicRecord = (index: number) => ({
   points_effect: -5,
   record_title: `Record ${index}`,
   recorded_at: '2026-08-25T00:00:00.000Z',
+});
+
+const makeStudentGroup = (studentId = 'student-1', recordId = 'record-1', recordCount = 1) => ({
+  studentId,
+  latestRecord: {
+    _id: recordId,
+    student_id: {
+      _id: studentId,
+      student_code: 'SV001',
+      full_name: 'Student 1',
+      class_id: 'class-1',
+    },
+    points_effect: -5,
+    record_title: 'Latest record',
+    recorded_at: '2026-08-25T00:00:00.000Z',
+    createdAt: '2026-08-25T00:00:00.000Z',
+  },
+  recordCount,
 });
 
 vi.mock('@/components/guards/RouteGuard', () => ({
@@ -157,12 +179,14 @@ describe('StudentRecordPage Infinite Scroll', () => {
     resolveFirstFetch = null;
     resolveSecondFetch = null;
     mockRecordPermissions = {};
+    mockRealtimeOptions = null;
   });
   
   afterEach(() => {
     if (resolveFirstFetch) resolveFirstFetch({ data: [], meta: { total: 0 } });
     if (resolveSecondFetch) resolveSecondFetch({ data: [], meta: { total: 0 } });
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -329,6 +353,54 @@ describe('StudentRecordPage Infinite Scroll', () => {
         expect.objectContaining({ page: 1, limit: 500 }),
       );
     });
+  });
+
+  it('renders one student group, shows the filtered count, and opens full student history', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 3);
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [group],
+      meta: { total: 1, totalPages: 1, has_more: false },
+    });
+    (academicRecordApi.getAcademicRecordsByStudent as any).mockResolvedValue([
+      group.latestRecord,
+      { ...group.latestRecord, _id: 'history-record-2' },
+    ]);
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(
+        expect.objectContaining({ groupBy: 'student', page: 1, limit: 40 }),
+      );
+    });
+    expect(await screen.findAllByText('Student 1')).toHaveLength(2);
+    expect(screen.getAllByText('3 lần ghi nhận').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecordsByStudent).toHaveBeenCalledWith('student-1');
+    });
+  });
+
+  it('refreshes an existing group after an academic record SSE event without duplicating the student', async () => {
+    const initialGroup = makeStudentGroup('student-1', 'latest-record-1', 1);
+    const updatedGroup = makeStudentGroup('student-1', 'latest-record-2', 2);
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: [initialGroup], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockResolvedValue({ data: [updatedGroup], meta: { total: 1, totalPages: 1, has_more: false } });
+
+    render(<StudentRecordPage />);
+    await waitFor(() => expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      mockRealtimeOptions.onEvent({ type: 'academic_record_changed' });
+      await new Promise((resolve) => setTimeout(resolve, 2100));
+    });
+
+    await waitFor(() => expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(2));
+    expect(await screen.findAllByText('Student 1')).toHaveLength(2);
+    expect(screen.getAllByText('2 lần ghi nhận').length).toBeGreaterThan(0);
+    vi.useRealTimers();
   });
 
   it('defers row reconciliation until all sequential delete batches finish and blocks duplicate deletes', async () => {
