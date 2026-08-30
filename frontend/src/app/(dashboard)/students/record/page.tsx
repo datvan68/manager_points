@@ -1,5 +1,12 @@
 "use client";
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  Suspense,
+} from "react";
 import {
   Search,
   Plus,
@@ -84,6 +91,163 @@ interface GhiNhanTabProps {
 }
 
 const NEW_BADGE_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+interface MappedAcademicRecord {
+  id: string;
+  studentId: string;
+  fullName: string;
+  className: string;
+  recordType: "Khen thưởng" | "Kỷ luật" | "Cộng điểm";
+  criteria: string;
+  date: string;
+  points: string;
+  original: AcademicRecord;
+}
+
+const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTableCells({
+  record,
+  selected,
+  isStudent,
+  canDelete,
+  onToggle,
+}: {
+  record: MappedAcademicRecord;
+  selected: boolean;
+  isStudent: boolean;
+  canDelete: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const isKyLuat = record.recordType === "Kỷ luật";
+  const isKhenThuong = record.recordType === "Khen thưởng";
+  const badgeStyle = isKhenThuong
+    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+    : isKyLuat
+      ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
+      : "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
+  const dotStyle = isKhenThuong
+    ? "bg-emerald-500"
+    : isKyLuat
+      ? "bg-rose-500"
+      : "bg-[#1A73E8]";
+
+  return (
+    <>
+      {!isStudent && (
+        <td className="px-5 py-4 w-12 text-center">
+          {canDelete && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggle(record.id)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+          )}
+        </td>
+      )}
+      <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
+        {record.studentId}
+      </td>
+      <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
+        <div className="flex items-center gap-2">
+          <span>{record.fullName}</span>
+          {isNewWithinWindow(record.original?.createdAt) && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
+              New
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
+        {record.className}
+      </td>
+      <td className="px-5 py-4">
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
+          {record.recordType}
+        </span>
+      </td>
+      <td
+        className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate"
+        title={record.criteria || "Chưa có"}
+      >
+        {record.criteria || "Chưa có"}
+      </td>
+      <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
+        {record.date}
+      </td>
+      <td className="px-5 py-4">
+        <span
+          className={`text-sm font-bold ${isKyLuat ? "text-rose-500" : "text-emerald-500"}`}
+        >
+          {record.points}
+        </span>
+      </td>
+    </>
+  );
+}, (previous, next) =>
+  previous.record === next.record &&
+  previous.selected === next.selected &&
+  previous.isStudent === next.isStudent &&
+  previous.canDelete === next.canDelete &&
+  previous.onToggle === next.onToggle
+);
+
+const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicRecordRow({
+  record,
+  onRestore,
+  onForceDelete,
+}: {
+  record: AcademicRecord;
+  onRestore: (id: string) => void;
+  onForceDelete: (id: string) => void;
+}) {
+  const stdName =
+    typeof record.student_id === "object" ? record.student_id?.full_name : "N/A";
+  const stdCode =
+    typeof record.student_id === "object" ? record.student_id?.student_code : "";
+
+  return (
+    <tr className="hover:bg-white/60 transition-colors">
+      <td className="p-3">
+        <div className="font-bold text-[#1E293B]">{stdName}</div>
+        <div className="text-[10px] text-[#64748B] font-medium mt-0.5">{stdCode}</div>
+      </td>
+      <td
+        className="p-3 text-[#1E293B] max-w-[240px] truncate"
+        title={record.record_title}
+      >
+        {record.record_title}
+      </td>
+      <td
+        className={`p-3 text-center font-bold ${record.points_effect < 0 ? "text-rose-500" : "text-emerald-500"}`}
+      >
+        {record.points_effect > 0 ? `+${record.points_effect}` : record.points_effect}
+      </td>
+      <td className="p-3">
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => onRestore(record._id)}
+            className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
+            title="Khôi phục"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onForceDelete(record._id)}
+            className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
+            title="Xóa vĩnh viễn"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 const getCreatedTime = (value?: string) => {
   if (!value) return 0;
@@ -714,7 +878,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   }, [activeSubTab, hasMoreRecords, loadMoreRecordsError]);
 
   // Map academicRecords to dummy format for UI compatibility
-  const mappedRecords = academicRecords.map((r) => {
+  const mappedRecords = useMemo(() => academicRecords.map((r) => {
     const student = typeof r.student_id === "object" ? r.student_id : null;
     const evalDetail =
       typeof r.evaluation_detail_id === "object"
@@ -786,23 +950,27 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       points: (pts >= 0 ? "+" : "") + pts,
       original: r,
     };
-  });
+  }), [academicRecords, allCriteria, classes]);
 
   // Student filtering
-  const filteredRecords = mappedRecords.filter((record) => {
+  const filteredRecords = useMemo(() => mappedRecords.filter((record) => {
     const matchesCreator =
       creatorFilter === "all" ||
       getCreatorRoleKey(record.original) === creatorFilter;
 
     return matchesCreator;
-  });
+  }), [mappedRecords, creatorFilter]);
 
-  const sortedRecords = [...filteredRecords].sort(
-    (a, b) => getRecordSortTime(b.original) - getRecordSortTime(a.original),
+  const sortedRecords = useMemo(
+    () => [...filteredRecords].sort(
+      (a, b) => getRecordSortTime(b.original) - getRecordSortTime(a.original),
+    ),
+    [filteredRecords],
   );
 
   const totalPages = Math.ceil(totalRecords / itemsPerPage);
   const paginatedRecords = sortedRecords;
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   // Class filtering (handled entirely by backend)
   const filteredClassReports = classReports;
@@ -815,25 +983,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const paginatedClassReports = sortedClassReports;
 
   // Student list toggle selects
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (!ghiNhanAccess.deleteStudentRecord) return;
 
     const deletableIds = paginatedRecords.map((record) => record.id);
 
     if (deletableIds.length === 0) return;
 
-    if (deletableIds.every((id) => selectedIds.includes(id))) {
+    if (deletableIds.every((id) => selectedIdSet.has(id))) {
       setSelectedIds([]);
     } else {
       setSelectedIds(deletableIds);
     }
-  };
+  }, [ghiNhanAccess.deleteStudentRecord, paginatedRecords, selectedIdSet]);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
-  };
+  }, []);
 
   const runBulkRecordDelete = async (ids: string[], permanent = false) => {
     const uniqueIds = Array.from(new Set(ids));
@@ -843,6 +1011,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     setBulkDeleteResult(null);
     setBulkDeleteProgress({ processed: 0, total: uniqueIds.length, failed: [] });
     const failed: Array<{ id: string; message: string }> = [];
+    const succeededIds = new Set<string>();
     let processed = 0;
     try {
       for (let offset = 0; offset < uniqueIds.length; offset += 25) {
@@ -853,22 +1022,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             ? await academicRecordApi.bulkForceDeleteAcademicRecords(batch)
             : await academicRecordApi.bulkDeleteAcademicRecords(batch);
           failed.push(...result.failed);
-
-          const succeededIds = new Set(result.succeeded);
-          if (succeededIds.size > 0) {
-            if (permanent) {
-              setDeletedRecords((prev) =>
-                prev.filter((record) => !succeededIds.has(record._id)),
-              );
-            } else {
-              setAcademicRecords((prev) =>
-                prev.filter((record) => !succeededIds.has(record._id)),
-              );
-              setSelectedIds((prev) =>
-                prev.filter((id) => !succeededIds.has(id)),
-              );
-            }
-          }
+          result.succeeded.forEach((id) => succeededIds.add(id));
         } catch (error: any) {
           failed.push(...batch.map(id => ({ id, message: error?.message || 'Không thể xoá ghi nhận' })));
         }
@@ -878,17 +1032,17 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
       const failedIds = new Set(failed.map(item => item.id));
       if (permanent) {
-        setDeletedRecords(prev => prev.filter(record => !uniqueIds.includes(record._id) || failedIds.has(record._id)));
+        setDeletedRecords(prev => prev.filter(record => !succeededIds.has(record._id)));
         await fetchDeletedItems();
       } else {
         setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
+        setAcademicRecords(prev => prev.filter(record => !succeededIds.has(record._id)));
         await fetchAcademicRecords();
       }
       if (failed.length > 0) {
         toast.warning(`Đã xử lý ${uniqueIds.length - failed.length}/${uniqueIds.length} ghi nhận; còn ${failed.length} ghi nhận thất bại.`);
       } else {
         toast.success(`Đã ${permanent ? 'xóa vĩnh viễn' : 'xóa'} thành công ${uniqueIds.length} ghi nhận.`);
-        if (!permanent) setSelectedIds([]);
       }
       setBulkDeleteResult({ failed: [...failed] });
     } finally {
@@ -1067,6 +1221,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     }
   };
 
+  const handleRestoreRecordRef = useRef(handleRestoreRecord);
+  handleRestoreRecordRef.current = handleRestoreRecord;
+  const handleRestoreRecordStable = useCallback(
+    (id: string) => handleRestoreRecordRef.current(id),
+    [],
+  );
+
   const handleForceDeleteReport = async (id: string) => {
     try {
       await dailyClassReportApi.forceDeleteDailyClassReport(id);
@@ -1193,7 +1354,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     try {
       const XLSX = await import("xlsx");
       const selectedRecords = mappedRecords.filter((r) =>
-        selectedIds.includes(r.id),
+        selectedIdSet.has(r.id),
       );
       const data = selectedRecords.map((r) => ({
         "Mã SV": r.studentId,
@@ -1426,6 +1587,20 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       setIsDetailLoading(false);
     }
   };
+
+  const bulkDeletePercent = bulkDeleteProgress.total
+    ? Math.round((bulkDeleteProgress.processed / bulkDeleteProgress.total) * 100)
+    : 0;
+  const bulkDeleteStatus = isDeletingRecords
+    ? "active"
+    : bulkDeleteResult?.failed.length
+      ? "partial"
+      : "success";
+  const bulkDeleteStatusLabel = isDeletingRecords
+    ? "Đang xử lý"
+    : bulkDeleteResult?.failed.length
+      ? "Hoàn tất một phần"
+      : "Hoàn tất";
 
   if (currentView === "add" && canCreateRecords) {
     return (
@@ -2075,7 +2250,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {paginatedRecords.map((record, idx) => {
+                    {paginatedRecords.map((record) => {
                       const isKhenThuong = record.recordType === "Khen thưởng";
                       const isKyLuat = record.recordType === "Kỷ luật";
                       const isCongDiem = record.recordType === "Cộng điểm";
@@ -2100,10 +2275,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.15, delay: idx * 0.03 }}
+                          transition={{ duration: 0.15 }}
                           key={record.id}
                           className={`bg-white/45 backdrop-blur-md border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:border-[#1A73E8]/50 flex flex-col gap-3 relative group ${
-                            selectedIds.includes(record.id)
+                            selectedIdSet.has(record.id)
                               ? "border-[#1A73E8] bg-blue-50/20 shadow-[0_2px_12px_rgba(26,115,232,0.15)]"
                               : "border-white/70"
                           }`}
@@ -2114,7 +2289,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               {record.original && !isStudent && (
                                 <input
                                   type="checkbox"
-                                  checked={selectedIds.includes(record.id)}
+                                  checked={selectedIdSet.has(record.id)}
                                   onChange={() => toggleSelect(record.id)}
                                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
@@ -2603,7 +2778,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             type="checkbox"
                             checked={
                               paginatedRecords.every((record) =>
-                                selectedIds.includes(record.id),
+                                selectedIdSet.has(record.id),
                               )
                             }
                             onChange={toggleSelectAll}
@@ -2673,85 +2848,22 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           </td>
                         </tr>
                       ))
-                    : paginatedRecords.map((record, idx) => {
-                        const isKhenThuong =
-                          record.recordType === "Khen thưởng";
-                        const isKyLuat = record.recordType === "Kỷ luật";
-
-                        let badgeStyle =
-                          "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
-                        let dotStyle = "bg-[#1A73E8]";
-                        if (isKhenThuong) {
-                          badgeStyle =
-                            "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
-                          dotStyle = "bg-emerald-500";
-                        } else if (isKyLuat) {
-                          badgeStyle =
-                            "bg-rose-500/10 text-rose-700 border-rose-500/20";
-                          dotStyle = "bg-rose-500";
-                        }
+                    : paginatedRecords.map((record) => {
                         return (
                           <motion.tr
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.1, delay: idx * 0.05 }}
+                            transition={{ duration: 0.1 }}
                             key={record.id}
                             className="hover:bg-white/65 transition-colors duration-150 ease-out group"
                           >
-                            {!isStudent && (
-                              <td className="px-5 py-4 w-12 text-center">
-                                {ghiNhanAccess.deleteStudentRecord && (
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedIds.includes(record.id)}
-                                    onChange={() => toggleSelect(record.id)}
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  />
-                                )}
-                              </td>
-                            )}
-                            <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
-                              {record.studentId}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-bold text-[#1E293B]">
-                              <div className="flex items-center gap-2">
-                                <span>{record.fullName}</span>
-                                {isNewWithinWindow(record.original?.createdAt) && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-xl text-[9px] font-bold bg-blue-50 text-[#1A73E8] border border-blue-100 uppercase tracking-wider animate-pulse">
-                                      New
-                                    </span>
-                                  )}
-                              </div>
-                            </td>
-                            <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
-                              {record.className}
-                            </td>
-                            <td className="px-5 py-4">
-                              <span
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}
-                                ></span>
-                                {record.recordType}
-                              </span>
-                            </td>
-                            <td
-                              className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate"
-                              title={record.criteria || "Chưa có"}
-                            >
-                              {record.criteria || "Chưa có"}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
-                              {record.date}
-                            </td>
-                            <td className="px-5 py-4">
-                              <span
-                                className={`text-sm font-bold ${isKyLuat ? "text-rose-500" : "text-emerald-500"}`}
-                              >
-                                {record.points}
-                              </span>
-                            </td>
+                            <MemoizedAcademicRecordTableCells
+                              record={record}
+                              selected={selectedIdSet.has(record.id)}
+                              isStudent={isStudent}
+                              canDelete={ghiNhanAccess.deleteStudentRecord}
+                              onToggle={toggleSelect}
+                            />
                             <td className="px-5 py-4 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <Drawer
@@ -3987,31 +4099,47 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           onEscapeKeyDown={(event) => {
             if (isDeletingRecords) event.preventDefault();
           }}
-          className="max-w-md rounded-2xl"
+          data-status={bulkDeleteStatus}
+          className="max-w-md rounded-2xl border border-white/70 bg-white/45 backdrop-blur-md shadow-sm shadow-slate-300/40"
         >
           <DialogTitle className="font-bold text-[#1E293B]">{isDeletingRecords ? 'Đang xoá ghi nhận' : 'Kết quả xoá ghi nhận'}</DialogTitle>
           <DialogDescription>
             {isDeletingRecords
-              ? `Đã xử lý ${bulkDeleteProgress.processed}/${bulkDeleteProgress.total} (${bulkDeleteProgress.total ? Math.round((bulkDeleteProgress.processed / bulkDeleteProgress.total) * 100) : 0}%).`
+              ? `Đã xử lý ${bulkDeleteProgress.processed}/${bulkDeleteProgress.total} (${bulkDeletePercent}%).`
               : bulkDeleteResult?.failed.length
                 ? `Có ${bulkDeleteResult.failed.length} ghi nhận chưa xoá được và vẫn được giữ lại trong danh sách chọn.`
                 : 'Đã xoá thành công toàn bộ ghi nhận đã chọn.'}
           </DialogDescription>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100" aria-label="Tiến độ xoá">
+          <div
+            aria-live="polite"
+            className="flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-3 py-2 text-xs font-semibold text-[#64748B]"
+          >
+            <span data-testid="bulk-delete-status">{bulkDeleteStatusLabel}</span>
+            <span>{bulkDeletePercent}%</span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Tiến độ xoá ghi nhận"
+            aria-valuemin={0}
+            aria-valuemax={bulkDeleteProgress.total}
+            aria-valuenow={bulkDeleteProgress.processed}
+            aria-valuetext={`${bulkDeleteProgress.processed}/${bulkDeleteProgress.total} (${bulkDeletePercent}%)`}
+            className="h-2 overflow-hidden rounded-xl bg-slate-100/80"
+          >
             <div
-              className="h-full bg-[#1A73E8] transition-all"
-              style={{ width: `${bulkDeleteProgress.total ? Math.round((bulkDeleteProgress.processed / bulkDeleteProgress.total) * 100) : 0}%` }}
+              className="h-full rounded-xl bg-[#1A73E8] transition-all duration-150 ease-out"
+              style={{ width: `${bulkDeletePercent}%` }}
             />
           </div>
           {!!(bulkDeleteResult?.failed.length || bulkDeleteProgress.failed.length) && (
-            <div className="max-h-28 overflow-y-auto rounded-lg bg-rose-50 p-3 text-xs text-rose-700">
+            <div className="max-h-28 overflow-y-auto rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-700">
               {(bulkDeleteResult?.failed || bulkDeleteProgress.failed).map(item => (
                 <div key={item.id}>{item.id}: {item.message}</div>
               ))}
             </div>
           )}
           {!isDeletingRecords && (
-            <Button type="button" onClick={() => setBulkDeleteResult(null)}>Đóng</Button>
+            <Button type="button" onClick={() => setBulkDeleteResult(null)} className="rounded-xl transition-all duration-150 ease-out">Đóng</Button>
           )}
         </DialogContent>
       </Dialog>
@@ -4284,67 +4412,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/40">
-                      {deletedRecords.map((rec) => {
-                        const stdName =
-                          typeof rec.student_id === "object"
-                            ? rec.student_id?.full_name
-                            : "N/A";
-                        const stdCode =
-                          typeof rec.student_id === "object"
-                            ? rec.student_id?.student_code
-                            : "";
-                        const criName = rec.record_title;
-                        return (
-                          <tr
-                            key={rec._id}
-                            className="hover:bg-white/60 transition-colors"
-                          >
-                            <td className="p-3">
-                              <div className="font-bold text-[#1E293B]">
-                                {stdName}
-                              </div>
-                              <div className="text-[10px] text-[#64748B] font-medium mt-0.5">
-                                {stdCode}
-                              </div>
-                            </td>
-                            <td
-                              className="p-3 text-[#1E293B] max-w-[240px] truncate"
-                              title={criName}
-                            >
-                              {criName}
-                            </td>
-                            <td
-                              className={`p-3 text-center font-bold ${rec.points_effect < 0 ? "text-rose-500" : "text-emerald-500"}`}
-                            >
-                              {rec.points_effect > 0
-                                ? `+${rec.points_effect}`
-                                : rec.points_effect}
-                            </td>
-                            <td className="p-3">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRestoreRecord(rec._id)}
-                                  className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
-                                  title="Khôi phục"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setRecordToForceDelete(rec._id)
-                                  }
-                                  className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
-                                  title="Xóa vĩnh viễn"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {deletedRecords.map((rec) => (
+                        <MemoizedDeletedAcademicRecordRow
+                          key={rec._id}
+                          record={rec}
+                          onRestore={handleRestoreRecordStable}
+                          onForceDelete={setRecordToForceDelete}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 ) : (

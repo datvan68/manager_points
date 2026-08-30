@@ -331,7 +331,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
   });
 
-  it('removes succeeded rows after each sequential delete batch and blocks duplicate deletes', async () => {
+  it('defers row reconciliation until all sequential delete batches finish and blocks duplicate deletes', async () => {
     const records = Array.from({ length: 26 }, (_, index) => makeAcademicRecord(index + 1));
     let resolveFirstBatch!: (value: unknown) => void;
     let resolveSecondBatch!: (value: unknown) => void;
@@ -370,12 +370,14 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     await waitFor(() => {
       expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledTimes(2);
-      expect(screen.queryAllByText('Student 1')).toHaveLength(0);
+      expect(screen.getAllByText('Student 1')).not.toHaveLength(0);
       expect(screen.getAllByText('Student 26')).not.toHaveLength(0);
       expect(screen.getByText(/Đã xử lý 25\/26/)).toBeInTheDocument();
     });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '26');
     const remainingDeleteButton = screen
-      .getAllByText('Xóa (1)')
+      .getAllByText('Xóa (26)')
       .map((element) => element.closest('button'))
       .find((button) => button !== null);
     expect(remainingDeleteButton).toBeDisabled();
@@ -392,7 +394,10 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     await waitFor(() => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(2);
+      expect(screen.queryAllByText('Student 1')).toHaveLength(0);
       expect(screen.getByText('Đã xoá thành công toàn bộ ghi nhận đã chọn.')).toBeInTheDocument();
+      expect(screen.getByTestId('bulk-delete-status')).toHaveTextContent('Hoàn tất');
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '26');
     });
   });
 
@@ -420,10 +425,12 @@ describe('StudentRecordPage Infinite Scroll', () => {
       expect(screen.getAllByText('Student 2')).not.toHaveLength(0);
       expect(screen.getAllByText('Xóa (1)')).not.toHaveLength(0);
       expect(screen.getByText(/vẫn được giữ lại trong danh sách chọn/)).toBeInTheDocument();
+      expect(screen.getByTestId('bulk-delete-status')).toHaveTextContent('Hoàn tất một phần');
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
     });
   });
 
-  it('progressively removes successful records from the trash during force delete', async () => {
+  it('reconciles the trash once after force delete completes', async () => {
     const record = makeAcademicRecord(1);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValue({ data: [], meta: { total: 0 } });
     (academicRecordApi.getDeletedAcademicRecords as any)
