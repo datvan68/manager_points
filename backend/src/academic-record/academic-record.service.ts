@@ -1765,9 +1765,7 @@ export class AcademicRecordService {
   private calculateGroupedRecordScore(record: any): number {
     const criterion = record?.criterion;
     if (!criterion) {
-      return typeof record?.points_effect === 'number'
-        ? record.points_effect
-        : 0;
+      return 0;
     }
 
     const structured = extractStructuredData(record);

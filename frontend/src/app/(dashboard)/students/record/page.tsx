@@ -973,9 +973,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       className = foundClass ? foundClass.class_name : "N/A";
     }
 
-    const pts = foundCriterion
-      ? foundCriterion.score_per_unit || foundCriterion.min_score || 0
-      : r.points_effect || 0;
+    const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
 
     const recordType = foundCriterion
       ? foundCriterion.criterion_type === "khen_thuong"

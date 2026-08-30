@@ -973,6 +973,39 @@ describe('AcademicRecordService - Import Flow', () => {
       );
     });
 
+    it('treats records without a resolved criterion as zero without using stored points', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [
+              {
+                _id: studentId,
+                latestRecordId,
+                recordCount: 2,
+                recordTypes: ['ky_luat'],
+                scoreRecords: [
+                  { points_effect: -99 },
+                  { criterion: null, points_effect: 5 },
+                ],
+              },
+            ],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0].totalPoints).toBe(0);
+    });
+
     it('applies teacher RBAC before grouping', async () => {
       const classId = new Types.ObjectId();
       const studentId = new Types.ObjectId();

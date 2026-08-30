@@ -298,6 +298,45 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Teacher')).not.toBeInTheDocument();
   });
 
+  it('renders grouped totals and detail history from effectivePoints with signed values', async () => {
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [{
+        studentId: 'student-1',
+        latestRecord: {
+          _id: 'record-latest',
+          student_id: {
+            _id: 'student-1',
+            student_code: 'SV001',
+            full_name: 'Student 1',
+            class_id: 'class-1',
+          },
+          record_title: 'Latest record',
+          recorded_at: '2026-08-25T00:00:00.000Z',
+        },
+        recordCount: 2,
+        recordTypes: ['ky_luat', 'cong_diem'],
+        totalPoints: 2,
+      }],
+      meta: { total: 1 },
+    });
+
+    render(<StudentRecordPage />);
+
+    expect((await screen.findAllByText('+2')).length).toBeGreaterThan(0);
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
+      data: [
+        { _id: 'negative', points_effect: 99, effectivePoints: -3, record_title: 'Negative' },
+        { _id: 'positive', points_effect: -99, effectivePoints: 5, record_title: 'Positive' },
+      ],
+    });
+    fireEvent.click(screen.getByText('Chi tiết'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/-3/)).toBeInTheDocument();
+      expect(screen.getByText(/\+5/)).toBeInTheDocument();
+    });
+  });
+
   it('renders a saved class note in the class report card', async () => {
     (dailyClassReportApi.getDailyClassReports as any).mockResolvedValue({
       data: [{
