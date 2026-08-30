@@ -329,15 +329,16 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect((await screen.findAllByText('-3')).length).toBeGreaterThan(0);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
       data: [
-        { _id: 'negative', points_effect: 99, effectivePoints: -3, record_title: 'Negative' },
+        { _id: 'negative', points_effect: 99, effectivePoints: -1, record_title: 'Negative' },
         { _id: 'positive', points_effect: -99, effectivePoints: 5, record_title: 'Positive' },
       ],
     });
     fireEvent.click(screen.getByText('Chi tiết'));
 
     await waitFor(() => {
-      expect(screen.getByText(/-3/)).toBeInTheDocument();
+      expect(screen.getByText(/-1/)).toBeInTheDocument();
       expect(screen.getByText(/\+5/)).toBeInTheDocument();
+      expect(screen.queryByText(/\+7/)).not.toBeInTheDocument();
     });
   });
 

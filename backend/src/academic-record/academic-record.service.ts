@@ -1782,6 +1782,19 @@ export class AcademicRecordService {
       manual_score: structured.manual_score,
     });
 
+    const isCountAction = structured.action_type === 'count';
+    const isDiscipline =
+      criterion.criterion_type === 'ky_luat' || criterion.score_per_unit < 0;
+
+    if (isCountAction && isDiscipline) {
+      const maxScore =
+        criterion.max_score ??
+        (criterion.criterion_type === 'ky_luat' || criterion.score_per_unit < 0
+          ? 10
+          : 100);
+      return result.system_score - maxScore;
+    }
+
     return this.scoreEngineService.getCriterionContribution(
       criterion,
       result.system_score,

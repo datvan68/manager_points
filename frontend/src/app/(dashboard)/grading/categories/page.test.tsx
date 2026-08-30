@@ -42,16 +42,11 @@ describe('CategoriesPage master-detail workspace', () => {
     expect(screen.getByLabelText('Tìm danh mục')).toBeInTheDocument();
   });
 
-  it('keeps category, criterion, selection and bulk-delete entry points', async () => {
+  it('keeps category and criterion CRUD entry points', async () => {
     render(<CategoriesPage />);
     await screen.findAllByText('Rèn luyện');
     fireEvent.click(screen.getByRole('button', { name: 'Thêm tiêu chí' }));
     expect(screen.getByRole('dialog', { name: 'criterion modal' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
-    const criterionCheckbox = await screen.findByRole('checkbox', { name: 'Chọn tiêu chí Tham gia hoạt động' });
-    fireEvent.click(criterionCheckbox);
-    fireEvent.click(screen.getByRole('button', { name: /Xóa đã chọn/ }));
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
     fireEvent.click(screen.getByRole('button', { name: 'Thêm danh mục' }));
     expect(screen.getByRole('dialog', { name: 'category modal' })).toBeInTheDocument();

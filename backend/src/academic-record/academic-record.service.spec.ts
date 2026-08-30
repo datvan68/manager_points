@@ -2645,6 +2645,32 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(result).toEqual([{ ...record, effectivePoints: -2.5 }]);
     });
 
+    it('serializes counted discipline actions as signed per-record impacts', async () => {
+      const records = [1, 2, 0].map((quantity, index) => ({
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        criterion_id: {
+          criterion_type: 'ky_luat',
+          scoring_mode: 'count',
+          score_per_unit: -1,
+          min_score: 0,
+          max_score: 10,
+        },
+        action_type: 'count',
+        quantity,
+        record_title: `Discipline ${index}`,
+      }));
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(records),
+      });
+
+      const result = await service.findByStudentId(studentId);
+
+      expect(result.map((record) => record.effectivePoints)).toEqual([-1, -2, 0]);
+    });
+
     it('serializes selected-option and manual scores without using stored points', async () => {
       const optionRecord = {
         _id: new Types.ObjectId(),
