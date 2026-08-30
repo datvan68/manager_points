@@ -1,29 +1,34 @@
-task: "Loại bỏ giật khung hình khi xoá hàng loạt ghi nhận HSSV"
+task: "Củng cố đăng nhập đa thiết bị và cuộn mobile"
 pipeline: bug_fix
-profile: Quick
-objective: "Xoá mềm/vĩnh viễn 500 ghi nhận HSSV không làm khựng UI; tiến trình và kết quả từng phần vẫn chính xác."
+profile: Full
+objective: "Một tài khoản duy trì các phiên thiết bị độc lập; thao tác cuộn dọc trên mobile phản hồi liên tục, không bị chặn hoặc khựng bởi shell dùng chung."
+
+baseline:
+  branch: "main"
+  commit: "4127963ba416490262caa7b90aa6238819d4ae8b"
 
 evidence:
-  current_behavior: "page.tsx:runBulkRecordDelete chia 25 ID/lô; 500 ID gây 20 lần cập nhật list/progress. Bảng chính map hàng + selectedIds.includes; thùng rác map toàn bộ deletedRecords."
-  expected_behavior: "Chỉ progress đổi theo lô; danh sách lớn đồng bộ một lần khi hoàn tất."
-  root_cause: "page.tsx:runBulkRecordDelete cập nhật list/selection/progress sau mỗi await, render lại cây hàng 20 lần; selectedIds.includes lặp tuyến tính trên từng hàng."
+  current_behavior: "backend/src/auth/services/auth.service.ts:login tạo refresh token mới mỗi lần đăng nhập; auth.controller.ts:getRefreshCookieName tách cookie theo browser session và logout chỉ revoke cookie hiện tại. Chưa có E2E chứng minh hai thiết bị vẫn độc lập qua refresh/logout. frontend/src/globals.css mobile cố định .dashboard-shell, đặt overscroll-behavior:none và .dashboard-header touch-action:none; các trang dùng nhiều overflow-y-auto lồng nhau."
+  expected_behavior: "Hai session ID đăng nhập cùng tài khoản refresh độc lập; logout A không ảnh hưởng B. Vuốt dọc bắt đầu ở header hoặc nội dung đều không bị chặn; scroll surface hiện hữu giữ quán tính và modal vẫn khóa nền đúng."
+  root_cause: "Thiếu hồi quy đa thiết bị khiến contract phiên độc lập chưa được bảo vệ; globals.css:.dashboard-header chặn mọi touch gesture và shell triệt tiêu scroll chaining trên mobile, tạo trạng thái vuốt không phản hồi tại vùng dùng chung."
 
 scope:
-  inspect: ["docs/design/DESIGN.compact.md:tokens/motion", "frontend/src/api/academic-record-api.ts:bulk contracts"]
-  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:bulk delete/rows/progress", "frontend/src/app/(dashboard)/students/record/page.test.tsx:regressions"]
-  preserve: ["RBAC", "25-ID sequential batches", "duplicate lock", "failed IDs selected/visible", "delete semantics/final refetch"]
-  out: ["Tình hình lớp học", "backend/API/schema", "unrelated table redesign"]
+  inspect: ["backend/src/auth/services/token.service.ts:rotation/revoke semantics", "backend/src/auth/controllers/auth.controller.ts:session cookie routing", "frontend/src/app/(dashboard)/layout.tsx:shell ownership", "frontend/src/globals.css:mobile touch/overscroll rules"]
+  write: ["backend/src/auth/services/token.service.ts:refreshToken revoked-token distinction", "backend/test/auth.e2e-spec.ts:multi-device session regression", "frontend/src/globals.css:mobile dashboard touch/scroll policy", "frontend/src/components/layout/Header.test.tsx:global shell regression"]
+  preserve: ["JWT/RBAC and cookie security flags", "refresh-token rotation/reuse detection", "logout only current ordinary session", "impersonation isolation", "desktop layout", "modal body lock and horizontal controls"]
+  out: ["session-management UI", "device inventory/fingerprint", "API/schema/migration", "page-specific redesign", "animation cleanup"]
 
 acceptance_criteria:
-  - "AC-01: Với 500 ID, progress tăng theo lô nhưng row subtree không reconcile theo lô; UI vẫn phản hồi."
-  - "AC-02: Kết thúc chỉ loại hàng thành công một lần, giữ hàng lỗi/selection/message, refetch một lần và chặn xoá trùng."
-  - "AC-03: Dialog có processed/total, %, active/success/partial, progressbar ARIA, khóa đóng khi chạy và đúng glass/radius/motion trong docs/design."
+  - "AC-01: Hai X-Auth-Session-Id khác nhau đăng nhập cùng tài khoản; cả hai refresh thành công với cookie riêng."
+  - "AC-02: Sau logout session A, refresh A trả 401 còn session B tiếp tục refresh 200; không revoke token B."
+  - "AC-03: Trên viewport mobile, vuốt dọc từ header và scroll surface được phép; shell không tạo vùng touch bị khóa, không phát sinh cuộn ngang."
+  - "AC-04: Trên iOS Safari và Android Chrome, ba route đại diện cuộn liên tục và thao tác modal/nested list không làm đơ UI hoặc kéo nền ngoài ý muốn."
 
 execution:
-  - "E-01 [AC-01,AC-02] page.tsx:runBulkRecordDelete -> gom kết quả ngoài list state; reconcile/refetch một lần cuối."
-  - "E-02 [AC-01] page.tsx:row subtrees -> memo hóa với props/callback ổn định, Set membership; bỏ stagger theo index cho list lớn."
-  - "E-03 [AC-03] page.tsx:progress dialog -> dựng compact-glass status/result UI có ARIA và running lock."
-  - "E-04 [AC-01..AC-03] page.test.tsx -> kiểm tra multi-batch progress, deferred reconciliation, partial failure, duplicate lock, accessibility."
+  - "E-01 [AC-01,AC-02] backend/test/auth.e2e-spec.ts -> dùng hai session ID/cookie riêng để kiểm tra login, rotation, logout A và refresh B; backend/src/auth/services/token.service.ts:refreshToken -> token logout không có replaced_by trả 401 mà không revoke token khác, giữ reuse detection cho token đã rotate."
+  - "E-02 [AC-03] frontend/src/globals.css -> đổi header sang touch-action cho phép pan-y; áp dụng momentum/overscroll-y cho scroll surface dashboard, giữ body khóa và mixed-axis control pan-x pan-y."
+  - "E-03 [AC-03] frontend/src/components/layout/Header.test.tsx -> thay assertion touch-action:none bằng contract pan-y, mixed-axis và scroll-surface mobile."
+  - "E-04 [AC-04] chạy manual trace trên /students, /grading/score, /dormitory/overview; chỉ mở rộng sang route/component cụ thể nếu trace xác định long task tại đó."
 
 temporary_artifacts:
   create: []
@@ -31,9 +36,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01..AC-03] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' -> focused suite passes."
-  - "V-02 [AC-01..AC-03] npm --prefix frontend run typecheck -> exits 0."
-  - "V-03 [AC-01] Dev + React Profiler, 500 hàng ở bảng/thùng rác -> không có per-batch row commits hay input/scroll stall."
+  - "V-01 [AC-01,AC-02] npm --prefix backend run test:e2e -- auth.e2e-spec.ts --runInBand -> multi-device cases pass."
+  - "V-02 [AC-03] npm --prefix frontend test -- src/components/layout/Header.test.tsx -> shell style regression passes."
+  - "V-03 [AC-03] npm --prefix frontend run typecheck -> exits 0."
+  - "V-04 [AC-04] iOS Safari + Android Chrome, 15 giây/route -> vuốt từ header/nội dung không đứng; không cuộn ngang; modal cuộn riêng và nền đứng yên; Performance trace không có chuỗi long task >100 ms do scroll handler."
 
-risks: ["Reconcile 500 hàng cuối luồng vẫn cần profiler xác nhận không rớt khung hình đáng kể."]
-stop_conditions: ["Dừng nếu contract API khác hiện trạng hoặc cần đổi backend/public contract."]
+risks: ["Authentication là ranh giới bảo mật nên diff/test cần review độc lập.", "CSS dùng chung có thể đổi scroll chaining của modal hoặc trang có nested scroller; phải kiểm tra trên thiết bị thật."]
+stop_conditions: ["Dừng nếu cần đổi cookie/API contract, schema hoặc impersonation semantics.", "Dừng và tách task theo route nếu trace quy nguyên nhân cho render/data/handler riêng thay vì shell CSS.", "Nếu môi trường E2E không có Mongo khả dụng, ghi nhận blocked verification và không giả định test pass."]

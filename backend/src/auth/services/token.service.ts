@@ -66,6 +66,13 @@ export class TokenService {
         if (graceResult) {
           return graceResult;
         }
+
+        // A token revoked by logout is not a reuse attempt. Keep other
+        // ordinary device sessions alive; rotated tokens still carry
+        // replaced_by and continue through the reuse-detection path below.
+        if (!storedToken.replaced_by) {
+          throw new UnauthorizedException('Phiên làm việc đã kết thúc');
+        }
       }
 
       if (storedToken.impersonation_session_id) {

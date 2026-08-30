@@ -95,16 +95,20 @@ describe('Header responsive shell contract', () => {
     expect(headerSource).toContain('Cài đặt > Safari > Vị trí');
   });
 
-  it('declares mobile zoom and header drag protections in the global shell styles', () => {
+  it('declares mobile zoom and vertical shell scroll behavior in the global styles', () => {
     const globalStyles = readFileSync(resolve(__dirname, '../../globals.css'), 'utf8');
 
     expect(globalStyles).toContain('font-size: 16px !important');
     expect(globalStyles).toContain('overscroll-behavior: contain');
+    expect(globalStyles).toContain('overscroll-behavior-y: contain');
+    expect(globalStyles).toContain('-webkit-overflow-scrolling: touch');
     expect(globalStyles).toContain('position: fixed');
     expect(globalStyles).toContain('bottom: calc(var(--safe-area-bottom) + 0.25rem)');
     expect(globalStyles).toContain('width: min(calc(100vw - 1rem), 340px)');
     expect(globalStyles).toContain('height: 54px');
-    expect(globalStyles).toContain('touch-action: none');
+    expect(globalStyles).toContain('touch-action: pan-y');
+    expect(globalStyles).toContain('touch-action: pan-x pan-y');
+    expect(globalStyles).not.toContain('touch-action: none');
   });
 
   it('renders desktop search trigger for authorized users and opens search surface', () => {

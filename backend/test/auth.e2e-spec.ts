@@ -275,6 +275,63 @@ describe('Auth (e2e)', () => {
   });
 
   describe('Xoay vòng token (Refresh Token Rotation)', () => {
+    it('giữ phiên refresh độc lập giữa hai thiết bị và logout chỉ revoke thiết bị hiện tại', async () => {
+      const sessionA = 'device-a-session-001';
+      const sessionB = 'device-b-session-002';
+      const cookieNameA = `refresh_token_${sessionA}`;
+      const cookieNameB = `refresh_token_${sessionB}`;
+      const getCookie = (res: request.Response, cookieName: string) => {
+        const cookie = (res.headers['set-cookie'] || []).find((value: string) =>
+          value.startsWith(`${cookieName}=`),
+        );
+        expect(cookie).toBeDefined();
+        return cookie!.split(';')[0];
+      };
+
+      const loginA = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Auth-Session-Id', sessionA)
+        .send({ email: '20230005', password: '15082003' })
+        .expect(200);
+      const loginB = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .set('X-Auth-Session-Id', sessionB)
+        .send({ email: '20230005', password: '15082003' })
+        .expect(200);
+
+      const refreshA = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('X-Auth-Session-Id', sessionA)
+        .set('Cookie', [getCookie(loginA, cookieNameA)])
+        .expect(200);
+      const refreshB = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('X-Auth-Session-Id', sessionB)
+        .set('Cookie', [getCookie(loginB, cookieNameB)])
+        .expect(200);
+
+      const rotatedCookieA = getCookie(refreshA, cookieNameA);
+      const rotatedCookieB = getCookie(refreshB, cookieNameB);
+
+      await request(app.getHttpServer())
+        .post('/api/auth/logout')
+        .set('X-Auth-Session-Id', sessionA)
+        .set('Cookie', [rotatedCookieA])
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('X-Auth-Session-Id', sessionA)
+        .set('Cookie', [rotatedCookieA])
+        .expect(401);
+
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('X-Auth-Session-Id', sessionB)
+        .set('Cookie', [rotatedCookieB])
+        .expect(200);
+    });
+
     it('Đăng nhập thông thường -> lấy cookie refresh_token -> gọi POST /api/auth/refresh -> nhận access_token mới và cookie refresh_token mới', async () => {
       // 1. Đăng nhập
       const loginRes = await request(app.getHttpServer())
