@@ -1,137 +1,66 @@
 # Skill: Explain Code
 
-> Produce an evidence-linked explanation of code, behavior, or architecture at the requested level without modifying implementation files.
+> Use to explain repository behavior or architecture from source evidence. Use
+> another skill for diagnosis, formal review, or implementation.
 
 ## Metadata
 
 ```yaml
 skill_id: explain_code
-version: 2.0.0
+version: 3.0.0
+protocol_version: "3.3"
 supported_agents: [review-agent, doc-agent]
 capabilities: [search, summarize]
-supported_stacks: repository_defined
 default_mode: read_only
+required_pipeline: explain_or_document
 ```
 
-## Modes
+## Required context
 
-| Mode | Primary output |
-|---|---|
-| `beginner` | Concepts and a small step-by-step example |
-| `technical` | Contracts, control/data flow, dependencies, trade-offs |
-| `architecture` | Boundaries, ownership, runtime flow, failure modes |
-| `debug` | Execution path, state transitions, evidence gaps |
-| `review` | Evidence-linked risks and actionable improvements |
-| `docs` | Repository-ready documentation following existing style |
+- Exact question, target paths or symbols, intended audience, and desired depth.
+- Commit or current worktree state when location-sensitive evidence matters.
+- Output form: response, inline comments, or an explicitly authorized document.
 
-## Input
+Choose the narrowest useful mode:
 
-```json
-{
-  "protocol_version": "3.0",
-  "task_id": "uuid-v4",
-  "pipeline_id": "explain_or_document",
-  "step_id": "inspect",
-  "mode": "technical",
-  "targets": [
-    {"path": "packages/api/src/orders/service.ts", "symbol": "createOrder"}
-  ],
-  "focus": "transaction and failure behavior",
-  "question": "How does the operation remain idempotent?",
-  "audience": "backend engineer",
-  "output_format": "markdown | inline_comments | jsdoc | structured",
-  "context_refs": []
-}
-```
+| Mode | Cover |
+| --- | --- |
+| `beginner` | Main concept, essential terms, one representative example |
+| `technical` | Contracts, control/data flow, dependencies, side effects, errors |
+| `architecture` | Ownership, boundaries, runtime flow, recovery, security edges |
+| `debug` | Observed execution path, state transitions, evidence gaps |
+| `docs` | Stable contracts and usage in repository style |
 
-Source content should normally be loaded from repository paths and artifact references. Do not embed entire large files in the input.
-
-## Output
-
-Return the common result envelope with:
-
-```json
-{
-  "summary": "Concise explanation.",
-  "flow": [
-    {"order": 1, "path": "...", "symbol": "...", "behavior": "..."}
-  ],
-  "contracts": [],
-  "dependencies": [],
-  "failure_modes": [],
-  "design_decisions": [
-    {"decision": "...", "evidence_ref": {"path": "...", "symbol": "..."}}
-  ],
-  "potential_issues": [
-    {
-      "severity": "critical | warning | suggestion",
-      "path": "...",
-      "symbol": "...",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "..."
-    }
-  ],
-  "artifact_refs": []
-}
-```
-
-Potential issues are observations, not authorization to modify code. Route implementation through the appropriate pipeline.
+Use `review_code` when the requested outcome is a prioritized verdict with
+findings. A `debug` explanation does not confirm a root cause.
 
 ## Method
 
-1. Resolve the exact commit, path, symbol, and question.
-2. Read the target plus only direct interfaces and dependencies needed to answer.
-3. Distinguish observed behavior, inferred intent, and undocumented assumptions.
-4. Trace control flow, data transformations, side effects, state transitions, and error paths.
-5. Explain why the current design exists only when evidence supports it; otherwise label the rationale as unknown.
-6. Match depth, terminology, and examples to the requested audience.
-7. Reference paths and symbols; use line numbers only when the commit is pinned and the location is stable.
+1. Resolve the exact target and question before reading broadly.
+2. Inspect the target, then only the direct interfaces, callers, dependencies,
+   and tests needed to answer. Stop when the question is evidenced.
+3. Trace inputs, transformations, side effects, state changes, outputs, and
+   relevant failure paths in execution order.
+4. Label observed implementation, inferred intent, and undocumented rationale
+   distinctly. Explain a design choice only when code, tests, or docs support it.
+5. Match terminology and depth to the audience. Explain the main path before
+   exceptions and use one example instead of narrating every line.
+6. Reference repository-relative paths and stable symbols. Use line numbers
+   only against a pinned revision or stable current snapshot.
 
-## Mode requirements
+## Output and quality
 
-### Beginner
-
-- Define unfamiliar terms briefly.
-- Explain the main path before exceptions.
-- Use one representative example rather than narrating every line.
-
-### Technical
-
-- Cover input/output contracts, invariants, dependencies, side effects, complexity, concurrency, and error behavior.
-- Identify trade-offs without forcing a different architecture.
-
-### Architecture
-
-- Start from module/service boundaries and ownership.
-- Describe synchronous and asynchronous flows, persistence, external systems, security boundaries, and failure recovery.
-- Use a diagram artifact only when relationships are clearer visually.
-
-### Debug
-
-- Trace from the failure observation to candidate state transitions.
-- State evidence gaps and checks needed; do not present hypotheses as confirmed causes.
-
-### Review
-
-- Prioritize correctness and security before performance and maintainability.
-- Every issue needs concrete evidence and an actionable alternative.
-
-### Docs
-
-- Follow repository terminology, templates, heading hierarchy, and link style.
-- Do not duplicate source code that will drift; document contracts and usage.
-
-## Large-codebase guidance
-
-- Begin with the module manifest and dependency graph.
-- Build explanations in layers: system -> module -> symbol -> edge cases.
-- Shard read-only inspection by independent module, then deduplicate at synthesis.
-- Store long inventories or diagrams as artifacts and keep the user-facing explanation focused.
-
-## Quality rules
+Return the common `global.md` envelope. Include only sections that help answer
+the question: summary, ordered flow, contracts, dependencies, side effects,
+failure modes, evidence-backed decisions, and unresolved evidence gaps.
 
 - Explain why and when, not merely what each statement does.
-- Preserve code identifiers in English; user-facing prose follows the requested language.
-- Never claim a security issue, race, or performance defect without an executable path or evidence.
-- Never modify code in this skill.
+- Keep identifiers in their source language; write prose for the requested
+  audience and language.
+- Do not claim a race, vulnerability, performance defect, or business rule
+  without an executable path or repository evidence.
+- Prefer a small diagram only when three or more relationships or state changes
+  are materially clearer visually.
+- For durable docs, follow existing terminology, heading, and link conventions;
+  document stable contracts rather than copying source that will drift.
+- Potential improvements are observations, not permission to modify code.

@@ -1,138 +1,73 @@
 # Skill: Implement Feature
 
-> Implement approved behavior inside explicit write boundaries while preserving repository conventions and producing verifiable artifacts.
+> Use for approved new or changed behavior in a `feature_development` pipeline.
+> Use `debug_issue` for root-cause diagnosis and `refactor_code` when observable
+> behavior must not change.
 
 ## Metadata
 
 ```yaml
 skill_id: implement_feature
-version: 2.0.0
+version: 3.0.0
+protocol_version: "3.3"
 supported_agents: [code-agent]
 capabilities: [search, code_gen]
-supported_stacks: repository_defined
 required_pipeline: feature_development
 ```
 
+## Required context
+
+- Observable objective and binary acceptance-criterion IDs.
+- Current base/worktree state and exact approved/write/excluded boundaries.
+- Nearest representative implementation, contract, test, and verification
+  command discovered by the orchestrator.
+- Explicit values for public API, schema, dependency, migration, persistent-data,
+  authorization, and environment impact when applicable.
+
+Stop before mutation if a missing product decision changes behavior, permissions,
+data, public contracts, or external effects.
+
 ## Invariants
 
-1. Acceptance criteria define behavior; examples do not override them.
-2. Existing repository architecture, language, formatter, error model, test runner, and naming convention are authoritative unless the scope explicitly changes them.
-3. No write may cross the assigned boundary.
-4. Public API, schema, persistent data, dependency, and operational changes must be explicit in scope.
-5. Completion requires risk-based tests and repository-supported verification.
+1. Acceptance criteria are authoritative; examples clarify but do not expand
+   them.
+2. Existing architecture, validation, error handling, naming, generated-file,
+   and test conventions remain authoritative unless explicitly scoped otherwise.
+3. Every write maps to a criterion and remains inside its write boundary.
+4. Public contracts, persistence, dependencies, configuration, and operational
+   behavior remain unchanged unless the taskscope explicitly authorizes them.
 
-## Input
+## Execution
 
-```json
-{
-  "protocol_version": "3.0",
-  "task_id": "uuid-v4",
-  "pipeline_id": "feature_development",
-  "step_id": "implement",
-  "feature": {
-    "name": "stable-feature-name",
-    "objective": "Observable desired behavior",
-    "acceptance_criteria_ids": ["AC-001", "AC-002"]
-  },
-  "scope": {
-    "approved_boundaries": ["packages/api/src/orders/**"],
-    "write_boundaries": ["packages/api/src/orders/**"],
-    "excluded_boundaries": []
-  },
-  "context_refs": [
-    {"type": "discovery", "uri": "output/tasks/<task_id>/discovery.json", "sha256": "..."}
-  ],
-  "constraints": {
-    "public_api_change": false,
-    "dependency_change": false,
-    "data_migration": false
-  }
-}
-```
+1. Confirm the named target and base state are current. Inspect only the nearest
+   implementation, direct caller or dependency, interface, and test needed to
+   execute the scope.
+2. Map each intended write and meaningful error/permission state to an
+   acceptance criterion. Edit a generator instead of generated output.
+3. Implement the smallest cohesive change. Reuse established abstractions and
+   preserve backward compatibility, authorization, validation, transaction,
+   idempotency, logging, and personal-data handling.
+4. Add or update focused tests when behavior changes. Load `write_test` only
+   when tests form an independent step or risk boundary.
+5. Verify in the narrowest useful order: changed test, affected static check,
+   affected build/integration check, then broader checks only when policy or
+   risk requires them.
+6. Repair only a concrete in-scope failure. Never weaken a test or expand the
+   criteria to obtain a pass.
+7. Review the final diff against every criterion, boundary, and preserved
+   contract; remove task-generated temporary Markdown artifacts before success.
 
-## Output
+## Stop conditions
 
-Return the common result envelope with:
+Stop and return the exact scope amendment or gate when the implementation
+requires an unapproved module, fourth meaningful Quick write path, public or
+schema change, dependency, migration, persistent-data mutation, infrastructure
+effect, external communication, credential/permission change, or production
+action.
 
-```json
-{
-  "summary": "Implemented the approved behavior.",
-  "changed_paths": [],
-  "created_paths": [],
-  "deleted_paths": [],
-  "public_contract_changes": [],
-  "dependency_changes": [],
-  "migration_changes": [],
-  "test_requirements": [
-    {"criterion_id": "AC-001", "level": "unit", "behavior": "..."}
-  ],
-  "artifact_refs": [
-    {"type": "diff", "uri": "output/tasks/<task_id>/implement.diff", "sha256": "..."}
-  ],
-  "verification": []
-}
-```
+## Result
 
-Do not embed complete files in the result envelope. Save edits in the current
-repository worktree and return paths/diff references. Do not create or switch
-branches/worktrees unless the user explicitly asks.
-
-## Workflow
-
-### PLAN
-
-- Load the discovery manifest and verify it matches the current base commit.
-- Inspect the nearest existing implementations, interfaces, tests, and repository scripts.
-- Map every planned change to an acceptance criterion and write boundary.
-- Identify generated files and edit their source generator instead.
-- Stop for a scope amendment if the change requires another module, dependency, migration, public contract, or environment impact not already approved.
-
-### EXECUTE
-
-- Implement the smallest cohesive change that satisfies the criteria.
-- Reuse established project abstractions; do not introduce a preferred framework or pattern merely because it is familiar.
-- Preserve backward compatibility unless a breaking change is explicitly approved.
-- Validate input at the trust boundary using the repository's existing validation mechanism.
-- Follow the repository's established error, logging, async, cancellation, transaction, and configuration patterns.
-- Add a dependency only when explicitly scoped, necessary, and compatible with the repository package manager and lockfile.
-
-### VERIFY
-
-Run repository-derived checks in this order when applicable:
-
-1. Formatter or generated-file validation for changed paths.
-2. Focused tests for changed behavior.
-3. Affected-package type/lint checks.
-4. Affected-package build/integration tests.
-5. Broader regression or security validation required by risk/policy.
-
-Map command results to acceptance-criterion IDs and save long output as redacted artifacts.
-
-### REFINE
-
-- Correct only a concrete verification failure within the same boundary.
-- Do not weaken tests, remove assertions, change criteria, or expand scope to make verification pass.
-- Re-run the failed check and all checks that depend on it.
-
-## Design guidance
-
-- Prefer small, composable functions when that matches current code; numeric line limits are advisory, not universal gates.
-- Keep business logic, persistence, transport, and infrastructure boundaries consistent with the existing module.
-- Use types/schema definitions already standard in the repository.
-- Avoid hidden global state and make concurrency/idempotency behavior explicit on critical paths.
-- Preserve observability without logging secrets or excessive personal data.
-
-## Large-repository guidance
-
-- Implement by package/module boundary and sequence dependent packages according to the discovery graph.
-- Parallelize only independent packages with disjoint write paths.
-- Pass public contract artifacts between package workers instead of complete source trees.
-- Verify consumers affected by a changed contract before declaring completion.
-
-## Self-review
-
-- Every changed path is scoped and necessary.
-- Acceptance criteria have matching test requirements.
-- Failure paths, authorization, sensitive data, concurrency, and compatibility were considered.
-- No unrelated cleanup or refactor was included.
-- No repository convention was replaced without explicit approval.
+Return the common `global.md` envelope with changed/created/deleted paths,
+criterion-mapped verification, and explicit lists for public-contract,
+dependency, and migration changes. Use empty lists rather than omitting these
+change classes. Never embed complete files or claim a check that did not run.

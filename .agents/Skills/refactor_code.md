@@ -1,110 +1,64 @@
 # Skill: Refactor Code
 
-> Improve internal structure while preserving observable behavior, public contracts, and approved operational characteristics.
+> Use to improve internal structure while preserving observable behavior. If a
+> requested change fixes a defect or changes a contract, route that part through
+> `bug_fix` or `feature_development` instead.
 
 ## Metadata
 
 ```yaml
 skill_id: refactor_code
-version: 2.0.0
+version: 3.0.0
+protocol_version: "3.3"
 supported_agents: [code-agent]
 capabilities: [search, code_gen]
-supported_stacks: repository_defined
 required_pipeline: refactor
 ```
 
-## Preconditions
+## Required context
 
-- A stable base commit and explicit write boundary exist in the current repository worktree.
-- Observable invariants and relevant public contracts are documented.
-- Focused baseline verification passes, or pre-existing failures are captured and do not invalidate the invariant.
-- The scope separates refactoring from bug fixes and feature changes.
+- Exact targets, structural problem, write boundary, and current base state.
+- Observable invariants and public/serialization/persistence contracts to keep.
+- Passing focused baseline, or recorded pre-existing failures that do not
+  invalidate the invariants.
+- Direct callers or consumers affected by a move, rename, or boundary change.
 
-If characterization tests are missing, the test step creates the smallest useful baseline before refactoring.
+When executable characterization is missing and risk warrants it, create the
+smallest baseline test as a separate test boundary before transforming code.
 
-## Input
+## Method
 
-```json
-{
-  "protocol_version": "3.0",
-  "task_id": "uuid-v4",
-  "pipeline_id": "refactor",
-  "step_id": "refactor",
-  "refactor_type": "extract | rename | simplify | deduplicate | move | improve_types | standardize_error_handling | dependency_boundary | other",
-  "targets": [
-    {"path": "packages/api/src/orders/service.ts", "symbol": "processOrder", "code_smell": "..."}
-  ],
-  "behavior_invariants": ["INV-001"],
-  "public_contracts": [],
-  "scope": {
-    "approved_boundaries": ["packages/api/src/orders/**"],
-    "write_boundaries": ["packages/api/src/orders/**"]
-  },
-  "context_refs": [
-    {"type": "baseline", "uri": "output/tasks/<task_id>/baseline.json", "sha256": "..."}
-  ]
-}
-```
+1. Pin the focused baseline and relevant contract surface. Capture only evidence
+   needed to compare before and after.
+2. Apply one coherent structural transformation at a time inside the named
+   paths. Follow current repository patterns and edit source generators rather
+   than generated output.
+3. Preserve names, return values, side effects, error semantics, ordering,
+   authorization, serialization, concurrency, caching, and persistence unless
+   the scope explicitly identifies an inapplicable invariant.
+4. Re-run the focused baseline after each meaningful transformation. Check
+   affected consumers after a move or internal interface change, and compare
+   generated/public artifacts when relevant.
+5. Run performance checks only when the transformation touches queries,
+   allocations, critical loops, concurrency, or caches with a stated budget.
+6. Review the final diff for behavioral drift and unrelated cleanup.
 
-## Output
+## Decision rules
 
-Return the common result envelope with:
+- Do not force universal file-size, layering, dependency-injection, or error
+  patterns; repository convention and the stated structural outcome decide.
+- Record a discovered bug separately. Do not fix it in this pipeline without an
+  approved bug-fix scope.
+- Correct a verification failure only when the same invariants and boundary
+  remain valid. If the desired structure conflicts with behavior preservation,
+  stop and name the conflicting invariant.
+- Never delete or weaken tests, update expectations to hide drift, add a
+  dependency, or cross the boundary for opportunistic cleanup.
 
-```json
-{
-  "summary": "Internal structure improved with observable behavior preserved.",
-  "changed_paths": [],
-  "before_after": [],
-  "behavior_invariants": [
-    {"id": "INV-001", "status": "passed", "evidence_ref": {"uri": "...", "sha256": "..."}}
-  ],
-  "public_contract_changed": false,
-  "performance_characteristic_changed": false,
-  "bugs_discovered": [],
-  "artifact_refs": []
-}
-```
+## Result
 
-Record discovered bugs separately. Do not fix them within this pipeline unless the user approves a new bug-fix scope.
-
-## Workflow
-
-### 1. Baseline
-
-- Pin the base commit and current public surface.
-- Run focused tests and capture results, snapshots/contracts, generated artifacts, and performance budgets relevant to the target.
-- Identify callers and consumers using the dependency graph, not repository-wide guesswork.
-
-### 2. Transform
-
-- Apply one coherent structural transformation at a time.
-- Preserve public names, behavior, side effects, error semantics, ordering, concurrency, serialization, and persistence contracts unless scope explicitly permits change.
-- Follow existing repository conventions; do not force universal rules such as a specific file size, layer pattern, dependency injection framework, or error model.
-- Do not hand-edit generated output.
-
-### 3. Verify
-
-- Re-run the focused baseline after each meaningful transformation.
-- Run affected consumer checks after public/internal boundary movement.
-- Compare public API/schema artifacts and generated output when relevant.
-- Run performance checks when the refactor affects queries, allocation, concurrency, caching, or critical loops.
-
-### 4. Refine or stop
-
-- A verification failure may be corrected inside the ENG Loop only when behavior remains unchanged and scope stays fixed.
-- If preserving behavior conflicts with the requested structure, stop and report the exact invariant rather than altering behavior.
-
-## Large-repository strategy
-
-- Decompose by dependency direction: leaf modules before dependants unless an interface-first migration is approved.
-- For cross-package renames, generate a verified reference manifest and stage changes in compatible slices.
-- Parallelize only independent slices with disjoint paths.
-- Use temporary compatibility adapters for multi-stage migrations only when explicitly scoped and tested.
-
-## Prohibited actions
-
-- Mixing refactoring with a feature, bug fix, dependency upgrade, or schema migration.
-- Deleting or weakening tests to restore green status.
-- Updating expectations when the implementation changed behavior unintentionally.
-- Claiming preservation from code review alone when executable checks exist.
-- Crossing the write boundary for opportunistic cleanup.
+Return the common `global.md` envelope plus the transformation summary,
+changed paths, invariant status with command evidence, and explicit booleans for
+public-contract and performance-characteristic changes. Success requires both
+the focused baseline comparison and applicable consumer checks; code review
+alone is insufficient when executable checks exist.
