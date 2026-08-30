@@ -337,6 +337,29 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Xác nhận dọn')).not.toBeInTheDocument();
   });
 
+  it('renders the configuration dialog as compact responsive glass sections', async () => {
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveClass('max-h-[calc(100vh-2rem)]', 'overflow-y-auto', 'rounded-2xl', 'shadow-sm');
+    expect(dialog).toHaveClass('bg-white/45', 'backdrop-blur-xl');
+    expect(dialog.querySelector('.grid')).toHaveClass('grid-cols-1', 'md:grid-cols-2', 'gap-4');
+    expect(screen.queryByText('Tiêu chí tính vắng')).not.toBeInTheDocument();
+    expect(screen.getByText('Tiện ích')).toBeInTheDocument();
+    expect(screen.getByText('Cấu hình hiển thị')).toBeInTheDocument();
+  });
+
+  it('hides student import when create permission is absent', async () => {
+    mockRecordPermissions = { createStudentRecord: false };
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+
+    expect(await screen.findByText('Cấu hình & Tiện ích hệ thống')).toBeInTheDocument();
+    expect(screen.queryByText('Import Ghi nhận')).not.toBeInTheDocument();
+    expect(screen.getByText('Thùng rác')).toBeInTheDocument();
+  });
+
   it('offers 500 rows for student pagination and refetches page one', async () => {
     (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
       data: [],

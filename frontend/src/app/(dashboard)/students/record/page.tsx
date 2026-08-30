@@ -4229,15 +4229,15 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         open={isGlobalConfigModalOpen}
         onOpenChange={setIsGlobalConfigModalOpen}
       >
-        <DialogContent className="max-w-[760px] w-[95vw] rounded-2xl border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/60 pb-3">
+        <DialogContent className="max-w-[760px] w-[calc(100%-1rem)] sm:w-[95vw] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-white/70 bg-white/45 backdrop-blur-xl shadow-sm shadow-slate-300/40 p-4 sm:p-5 gap-4 text-[#1E293B]">
+          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/70 pb-3">
             <Settings className="w-4 h-4 text-[#1A73E8]" />
             Cấu hình & Tiện ích hệ thống
           </DialogTitle>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             {/* Cột trái: Tiện ích */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/40">
               <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                 Tiện ích
               </h4>
@@ -4311,7 +4311,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             </div>
 
             {/* Cột phải: Cấu hình */}
-            <div className="border-t md:border-t-0 md:border-l border-white/60 pt-4 md:pt-0 md:pl-6 flex flex-col gap-4">
+            <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/40">
               <div>
                 <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-2.5">
                   Cấu hình hiển thị
@@ -4375,15 +4375,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <h4 className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
-                  Tiêu chí tính vắng
-                </h4>
-              </div>
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end border-t border-white/60 pt-4">
+          <div className="flex justify-end border-t border-white/70 pt-3">
             <button
               type="button"
               onClick={() => setIsGlobalConfigModalOpen(false)}
