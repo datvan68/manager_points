@@ -70,15 +70,15 @@ when possible:
    must map to at least one acceptance criterion and verification. A Full scope
    may be longer only for evidenced dependencies, risks, gates, or independent
    work boundaries. When the user explicitly asks for a new persisted
-   taskscope, first reuse the lowest eligible slot: a lifecycle-migrated
-   `docs/task/taskscope.md` is slot `taskscope-00`, followed by numbered
-   `docs/task/taskscope-<NN>.md` files. Eligibility requires
-   `status: completed`, `completion.outcome: success`, and
-   `completion.reuse_safe: true`. Replace the eligible slot completely, preserve
-   `slot_id`, increment `generation`, create a new unique `task_id`, and reset
-   `scope_revision` to `1`. If no safe slot exists, create the next unused
-   numbered slot. Amend an active scope only when the user names its exact path
-   or the current task owns it; never modify another scope.
+   taskscope, reuse the lowest numbered `completed` slot first, then the lowest
+   numbered `cancelled` slot. A lifecycle-migrated `docs/task/taskscope.md` is
+   slot `taskscope-00`, followed by `docs/task/taskscope-<NN>.md`. Replace the
+   selected terminal slot completely, preserve `slot_id`, increment
+   `generation`, create a new unique `task_id`, and reset `scope_revision` to
+   `1`. Create the next unused numbered slot only when every existing slot is
+   `ready`, `in_progress`, or `blocked`. Never overwrite those active/unexecuted
+   states. Amend an active scope only when the user names its exact path or the
+   current task owns it; never modify another scope.
 4. If the user requested planning only, stop after the scope and, when rule 3
    applies, after creating or updating only its assigned scope file. If
    implementation from a persisted scope is requested, continue only after its
@@ -99,9 +99,8 @@ when possible:
    taskscope slot produced by an explicit taskscope request is a
    retained deliverable and must not be deleted by artifact cleanup. For an
    executed persisted scope, record passed checks, changed paths, final state,
-   and cleanup before setting `status: completed`; then compute `reuse_safe`
-   from the global reuse gate. Resolve and review exact cleanup paths; never
-   delete unrelated or pre-existing files by glob.
+   and cleanup before setting `status: completed`. Resolve and review exact
+   cleanup paths; never delete unrelated or pre-existing files by glob.
 8. Report only the outcome, changed paths, checks actually run, and remaining
    risks or blockers. Do not narrate the full reasoning process.
 
@@ -146,11 +145,13 @@ Persisted scopes follow the isolation protocol in `.agents/Rules/global.md` and
 the lifecycle/template in `.agents/Workflows/taskscope.md`. Each task owns one
 slot generation; scan active reservations and `git status` before
 create/start/resume and immediately before mutation. `completed` proves task
-completion only with recorded successful verification; a slot is reusable only
-when `completion.reuse_safe: true`. Never overwrite an active/unsafe slot or
-another task's implementation boundary. The legacy `docs/task/taskscope.md` is
-reserved input until explicitly migrated to the lifecycle schema as slot
-`taskscope-00`; ambiguous legacy boundaries block only candidates that cannot
-prove they are disjoint. Automatic slot selection applies only to creating a
-new scope, never to choosing an existing scope for execution; execution follows
-only the exact file pinned by the user.
+completion only with recorded successful verification. New taskscopes overwrite
+the lowest `completed` slot first, then the lowest `cancelled` slot; create a new
+numbered file only when all existing slots are `ready`, `in_progress`, or
+`blocked`. Never overwrite those states or another task's implementation
+boundary. The legacy `docs/task/taskscope.md` is reserved input until explicitly
+migrated to the lifecycle schema as slot `taskscope-00`; ambiguous legacy
+boundaries block only candidates that cannot prove they are disjoint. Automatic
+slot selection applies only to creating a new scope, never to choosing an
+existing scope for execution; execution follows only the exact file pinned by
+the user.

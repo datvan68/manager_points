@@ -1,6 +1,6 @@
 ---
 description: Defines proportional Quick and Full software workflows.
-version: 3.3.4
+version: 3.3.5
 managed_by: orchestrator
 ---
 
@@ -24,11 +24,12 @@ boundaries, risk, environments, or approvals differ materially.
 ## 2. Profile selection
 
 Read-only explanation and PR review do not persist taskscope by default. An
-explicit request for a new taskscope is the exception: reuse the first slot that
-passes the `global.md` completion/reuse gate, or create the next numbered slot
-when none is safe. An active scope may be updated only by its assigned task,
-with an incremented `scope_revision`. A bug diagnosis immediately followed by
-an authorized fix shares one taskscope and one execution loop.
+explicit request for a new taskscope is the exception: reuse the lowest
+`completed` slot first, then the lowest `cancelled` slot. Create the next
+numbered slot only when every existing slot is `ready`, `in_progress`, or
+`blocked`. An active scope may be updated only by its assigned task, with an
+incremented `scope_revision`. A bug diagnosis immediately followed by an
+authorized fix shares one taskscope and one execution loop.
 DevOps/infrastructure mutation always uses Full. Other pipelines may use Quick
 only when every `safety.md` Quick condition passes.
 
@@ -147,12 +148,12 @@ pin base/head and scope -> review affected boundaries, sharded when useful
   plans, and handoff/checkpoint notes that are no longer required. Retain only
   explicit durable deliverables, canonical documentation updates, or evidence
   required by an active audit/resume flow. Every explicitly requested
-  taskscope slot is a retained deliverable, not a cleanup target; completion
-  releases reservations, while reuse additionally requires `reuse_safe: true`.
+  taskscope slot is a retained deliverable, not a cleanup target; `completed`
+  and `cancelled` release reservations and make the slot reusable.
 - Include artifact cleanup in final diff/status review; a leftover temporary
   Markdown file is an incomplete cleanup obligation, not a deliverable.
 - Before reporting success for a persisted scope, write its evidence-backed
-  completion block, mark it `completed`, and evaluate `reuse_safe` using
-  `global.md`; failed or incomplete mandatory checks cannot produce completion.
+  completion block and mark it `completed`; failed or incomplete mandatory
+  checks cannot produce completion.
 - Never parallelize overlapping writes; shard only independent read-only work or
   disjoint mutations with proven dependencies.

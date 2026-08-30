@@ -1,6 +1,6 @@
 ---
 description: Compact, evidence-based scope template for implementation tasks.
-version: 3.3.6
+version: 3.3.7
 managed_by: orchestrator
 ---
 
@@ -15,12 +15,13 @@ work boundaries.
 
 ## Output contract
 
-For a new persisted taskscope, scan reusable slots in order: migrated
+For a new persisted taskscope, scan slots in order: migrated
 `docs/task/taskscope.md` as `taskscope-00`, then numbered
-`docs/task/taskscope-<NN>.md` files. Reuse the first completion block that passes
-the `global.md` gate; if none qualifies, create the next unused numbered slot.
-Reuse replaces the complete document, preserves `slot_id`, increments
-`generation`, assigns a new `task_id`
+`docs/task/taskscope-<NN>.md` files. Reuse the lowest `completed` slot first,
+then the lowest `cancelled` slot. Create the next unused numbered slot only when
+every existing slot is `ready`, `in_progress`, or `blocked`; never overwrite
+those active or unexecuted states. Reuse replaces the complete document,
+preserves `slot_id`, increments `generation`, assigns a new `task_id`
 (`YYYYMMDD-HHmmss-<kebab-slug>` unless supplied), and resets `scope_revision` to
 `1`. Amend an active scope only when the user names its exact path or the current
 task owns it. The legacy file cannot become slot `taskscope-00` until explicitly
@@ -76,7 +77,6 @@ completion:
   changed_paths: []
   checks_passed: []
   cleanup_pending: []
-  reuse_safe: false
 
 evidence:
   current_behavior: "path:symbol/test → observed behavior, not a hypothesis"
@@ -129,9 +129,10 @@ stop_conditions: ["Specific boundary, gate, or decision that requires a stop"]
 - Handle a changed `base_commit` with the targeted revalidation rule in
   `global.md`, then increment `scope_revision` only when continuation is safe.
 - Mark `completed` only after the completion block proves every mandatory AC and
-  required check. Set `reuse_safe: true` only when the global reuse gate passes.
-  Slot reuse preserves `slot_id`, increments `generation`, resets task-specific
-  metadata, and removes every stale field from the previous generation.
+  required check. A `completed` or explicitly `cancelled` slot is reusable;
+  `ready`, `in_progress`, and `blocked` are not. Slot reuse preserves `slot_id`,
+  increments `generation`, resets task-specific metadata, and removes every
+  stale field from the previous generation.
 - Treat legacy scopes without lifecycle metadata as active for their declared
   writes. If their boundaries are missing or ambiguous, stop a candidate whose
   disjointness cannot be proven until the legacy scope is classified or

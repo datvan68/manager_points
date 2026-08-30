@@ -2,11 +2,11 @@ slot_id: "taskscope-02"
 generation: 1
 task_id: "20260830-154803-redesign-system-trash-dialog"
 scope_file: "docs/task/taskscope-02.md"
-status: blocked
-scope_revision: 1
+status: completed
+scope_revision: 2
 created_at: "2026-08-30T15:48:03+07:00"
-updated_at: "2026-08-30T15:48:03+07:00"
-base_commit: "2a5959e4f4b2706392fce5ad3e5634b7e44496c5"
+updated_at: "2026-08-30T16:02:00+07:00"
+base_commit: "7f39ddd8f7ef25d8f388a8ec02bcecdda895dee8"
 task: "Redesign system trash dialog"
 pipeline: feature_development
 profile: Quick
@@ -14,14 +14,14 @@ objective: "Thùng rác hệ thống becomes a compact responsive glass dialog c
 
 coordination:
   depends_on: ["20260830-000000-reconcile-grouped-total-points"]
-  warnings: ["TASKSCOPE_CONFLICT: taskscope-00 reserves both target files; wait for completion, then revalidate Git and scope.write boundaries."]
+  warnings: []
 
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-08-30T16:02:00+07:00"
+  outcome: success
+  final_commit_or_state: "Verified changes remain in the working tree; no new commit created."
+  changed_paths: ["frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx", "docs/task/taskscope-02.md"]
+  checks_passed: ["npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx (16 tests passed)", "npm --prefix frontend run typecheck", "git diff --check"]
   cleanup_pending: []
   reuse_safe: false
 

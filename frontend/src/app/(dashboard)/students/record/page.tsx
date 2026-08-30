@@ -274,6 +274,7 @@ const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicReco
           <button
             type="button"
             onClick={() => onRestore(record._id)}
+            aria-label={`Khôi phục ${stdName}`}
             className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
             title="Khôi phục"
           >
@@ -282,6 +283,7 @@ const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicReco
           <button
             type="button"
             onClick={() => onForceDelete(record._id)}
+            aria-label={`Xóa vĩnh viễn ${stdName}`}
             className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
             title="Xóa vĩnh viễn"
           >
@@ -4410,26 +4412,28 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
       {/* Dialog Thùng rác thực tế */}
       <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
-        <DialogContent className="max-w-[760px] w-[95vw] rounded-2xl border border-white/60 bg-white/90 backdrop-blur-xl shadow-2xl p-6">
-          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/60 pb-3">
+        <DialogContent className="max-w-[900px] w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border border-white/75 bg-white/45 backdrop-blur-xl shadow-sm shadow-slate-300/40 p-4 sm:p-5">
+          <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/75 pb-3">
             <Trash2 className="w-4.5 h-4.5 text-rose-500" />
             Thùng rác hệ thống
           </DialogTitle>
-          <DialogDescription className="text-[12.5px] text-[#64748B] mt-1">
+          <DialogDescription className="text-[12.5px] leading-5 text-[#64748B] mt-1">
             Danh sách các báo cáo ngày và ghi nhận vi phạm đã bị xóa tạm thời.
             Bạn có thể khôi phục lại hoặc xóa vĩnh viễn chúng.
           </DialogDescription>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between border-b border-white/60 mt-4 mb-4">
-            <div className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/75 mt-4 mb-4 pb-2">
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Nội dung thùng rác">
               <button
                 type="button"
                 onClick={() => setTrashTab("student")}
-                className={`pb-2.5 px-4 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border-b-2 cursor-pointer ${
+                role="tab"
+                aria-selected={trashTab === "student"}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border cursor-pointer ${
                   trashTab === "student"
-                    ? "border-rose-500 text-rose-600"
-                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                    ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                    : "border-white/70 bg-white/40 text-[#64748B] hover:bg-white/70 hover:text-[#1E293B]"
                 }`}
               >
                 Vi phạm sinh viên ({deletedRecords.length})
@@ -4437,10 +4441,12 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               <button
                 type="button"
                 onClick={() => setTrashTab("class")}
-                className={`pb-2.5 px-4 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border-b-2 cursor-pointer ${
+                role="tab"
+                aria-selected={trashTab === "class"}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-150 ease-out hover:scale-[1.01] border cursor-pointer ${
                   trashTab === "class"
-                    ? "border-rose-500 text-rose-600"
-                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                    ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+                    : "border-white/70 bg-white/40 text-[#64748B] hover:bg-white/70 hover:text-[#1E293B]"
                 }`}
               >
                 Báo cáo của lớp ({deletedReports.length})
@@ -4459,7 +4465,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     setIsDeleteAllReportsConfirmOpen(true);
                   }
                 }}
-                className="pb-2.5 px-4 text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1.5 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
+                className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-500/20 flex items-center gap-1.5 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
               >
                 <Trash2 size={13} />
                 <span>Xóa tất cả</span>
@@ -4467,7 +4473,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             )}
           </div>
 
-          <div className="mt-2 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="mt-2 min-h-0 max-h-[min(56vh,440px)] overflow-y-auto pr-1 custom-scrollbar">
             {isTrashLoading ? (
               <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
@@ -4476,7 +4482,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             ) : trashTab === "student" ? (
               <>
                 {deletedRecords.length > 0 ? (
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="hidden md:table w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
                         <th className="p-3 border-b border-white/80">
@@ -4509,11 +4515,36 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     Thùng rác ghi nhận vi phạm trống.
                   </div>
                 )}
+                {deletedRecords.length > 0 && (
+                  <div className="grid gap-3 md:hidden">
+                    {deletedRecords.map((rec) => {
+                      const student = typeof rec.student_id === "object" ? rec.student_id : null;
+                      return (
+                        <article key={rec._id} className="rounded-xl border border-white/75 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="break-words font-bold text-[#1E293B]">{student?.full_name || "N/A"}</p>
+                              <p className="text-[10px] text-[#64748B]">{student?.student_code || ""}</p>
+                            </div>
+                            <span className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-bold ${rec.points_effect < 0 ? "border-rose-500/20 bg-rose-500/10 text-rose-600" : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"}`}>
+                              {rec.points_effect > 0 ? `+${rec.points_effect}` : rec.points_effect}
+                            </span>
+                          </div>
+                          <p className="mt-3 break-words text-xs text-[#1E293B]">{rec.record_title}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => handleRestoreRecordStable(rec._id)} aria-label={`Khôi phục ${student?.full_name || "ghi nhận"}`} className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-[#1A73E8] transition-all duration-150 ease-out hover:bg-blue-500/20">Khôi phục</button>
+                            <button type="button" onClick={() => setRecordToForceDelete(rec._id)} aria-label={`Xóa vĩnh viễn ${student?.full_name || "ghi nhận"}`} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-600 transition-all duration-150 ease-out hover:bg-rose-500/20">Xóa vĩnh viễn</button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             ) : (
               <>
                 {deletedReports.length > 0 ? (
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="hidden md:table w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
                         <th className="p-3 border-b border-white/80">
@@ -4565,6 +4596,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                   onClick={() => handleRestoreReport(rep._id)}
                                   className="p-1.5 bg-blue-50/50 text-[#1A73E8] border border-blue-500/10 hover:bg-blue-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Khôi phục"
+                                  aria-label={`Khôi phục ${className}`}
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" />
                                 </button>
@@ -4575,6 +4607,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                   }
                                   className="p-1.5 bg-rose-50/50 text-rose-600 border border-rose-500/10 hover:bg-rose-100/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
                                   title="Xóa vĩnh viễn"
+                                  aria-label={`Xóa vĩnh viễn ${className}`}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -4590,25 +4623,46 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     Thùng rác báo cáo lớp trống.
                   </div>
                 )}
+                {deletedReports.length > 0 && (
+                  <div className="grid gap-3 md:hidden">
+                    {deletedReports.map((rep) => {
+                      const classObj = typeof rep.class_id === "object" ? rep.class_id : null;
+                      const className = classObj ? classObj.class_name : "N/A";
+                      return (
+                        <article key={rep._id} className="rounded-xl border border-white/75 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30">
+                          <div className="grid gap-2 text-xs">
+                            <div><span className="text-[#64748B]">Lớp học</span><p className="break-words font-bold text-[#1E293B]">{className}</p></div>
+                            <div><span className="text-[#64748B]">Ngày báo cáo</span><p className="font-medium text-[#1E293B]">{rep.report_date ? format(new Date(rep.report_date), "dd/MM/yyyy") : "N/A"}</p></div>
+                            <div><span className="text-[#64748B]">Giảng viên ghi nhận</span><p className="break-words font-semibold text-[#1E293B]">{getClassReportCreatorName(rep)}</p></div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => handleRestoreReport(rep._id)} aria-label={`Khôi phục ${className}`} className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-[#1A73E8] transition-all duration-150 ease-out hover:bg-blue-500/20">Khôi phục</button>
+                            <button type="button" onClick={() => setReportToForceDelete(rep._id)} aria-label={`Xóa vĩnh viễn ${className}`} className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-600 transition-all duration-150 ease-out hover:bg-rose-500/20">Xóa vĩnh viễn</button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             )}
           </div>
 
-          <div className="mt-6 flex justify-end gap-2 border-t border-white/60 pt-4">
+          <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-white/75 pt-4">
             <button
               type="button"
               onClick={() => {
                 setIsTrashOpen(false);
                 setIsGlobalConfigModalOpen(true);
               }}
-              className="bg-white/50 border border-white/80 text-slate-700 font-bold rounded-xl px-5 py-2 hover:bg-white/85 text-xs transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm"
+              className="rounded-xl border border-white/80 bg-white/50 px-4 py-2 text-xs font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/85 cursor-pointer"
             >
               Quay lại cấu hình
             </button>
             <button
               type="button"
               onClick={() => setIsTrashOpen(false)}
-              className="bg-slate-900 text-white font-bold rounded-xl px-5 py-2 hover:bg-slate-800 text-xs transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer border-none outline-none shadow-sm"
+              className="rounded-xl border border-white/70 bg-[#1E293B] px-4 py-2 text-xs font-bold text-white shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-slate-800 cursor-pointer"
             >
               Đóng thùng rác
             </button>

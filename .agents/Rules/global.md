@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.3.5
+version: 3.3.6
 ---
 
 # Global Rules
@@ -59,12 +59,14 @@ refreshed baseline/revision; changed targets produce `TASKSCOPE_CONFLICT`.
 
 `status: completed` is valid only after all mandatory acceptance criteria and
 required checks pass and the completion block records the outcome, checks,
-changed paths, cleanup, and final commit/state. A completed slot is reusable
-only when `completion.outcome` is `success`, `completion.reuse_safe` is `true`,
-no active scope depends on its task ID, no cleanup/gate remains, and its prior
-write paths have no uncommitted task-owned changes. Otherwise reuse is
-`TASKSCOPE_REUSE_BLOCKED`; skip the slot during automatic selection, or stop if
-the user requested that exact slot.
+changed paths, cleanup, and final commit/state. For a new persisted taskscope,
+reuse the lowest numbered `completed` slot first, then the lowest numbered
+`cancelled` slot. Create the next unused numbered slot only when every existing
+slot is `ready`, `in_progress`, or `blocked`; those states are active or not yet
+executed and must never be overwritten. Reusing a terminal taskscope file does
+not authorize implementation writes: compare the new task's boundaries with
+active reservations and current dirty paths, and save it as `blocked` or stop
+when the normal conflict rules require it.
 
 For any request to execute, continue, or resume a persisted taskscope, exactly
 one attached/clickable taskscope file or exact repository-relative path under
@@ -178,12 +180,14 @@ their exact paths when they are created and remove them before a task is
 reported as successfully complete. Do not use globs for cleanup, and do not
 remove pre-existing or unrelated files.
 
-When the user explicitly requests a new taskscope, reuse the lowest eligible
-slot: lifecycle-migrated `docs/task/taskscope.md` is `taskscope-00`, followed by
-numbered `docs/task/taskscope-<NN>.md` slots. If none is reusable, create the
-next unused numbered slot. Reuse atomically replaces the complete document,
-preserves `slot_id`, increments `generation`, assigns a new `task_id`, and
-resets `scope_revision`. Never overwrite an active or non-reusable slot.
+When the user explicitly requests a new taskscope, reuse the lowest numbered
+`completed` slot, or the lowest numbered `cancelled` slot when none is
+completed. Lifecycle-migrated `docs/task/taskscope.md` is `taskscope-00`,
+followed by numbered `docs/task/taskscope-<NN>.md` slots. Create the next unused
+numbered slot only when all existing slots are `ready`, `in_progress`, or
+`blocked`. Reuse atomically replaces the complete document, preserves
+`slot_id`, increments `generation`, assigns a new `task_id`, and resets
+`scope_revision`. Never overwrite an active or unexecuted slot.
 Explicit slots are retained deliverables, not cleanup obligations. The legacy
 file is reserved input and cannot become slot `taskscope-00` without an explicit
 lifecycle migration.

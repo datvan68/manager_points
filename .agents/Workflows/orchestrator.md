@@ -1,6 +1,6 @@
 ---
 description: Routes work through proportional, token-efficient Quick or Full execution.
-version: 3.3.6
+version: 3.3.7
 ---
 
 # Orchestrator
@@ -25,13 +25,13 @@ it coordinates specialized workers when they are available and useful.
 4. Select Quick only when every `safety.md` condition is evidenced.
 5. Perform one focused Quick discovery pass or evidence-driven Full discovery.
 6. Create the applicable Taskscope Brief. Publish it in the response/runtime by
-   default. For an explicitly requested new persisted scope, select the
-   lowest reusable slot under `docs/task/`: migrated `taskscope.md` as slot `00`,
-   then numbered slots. If none is eligible, create the next unused
-   `taskscope-<NN>.md`. Apply the reuse gate from `global.md`, replace an eligible
-   slot completely with a new task/generation, and never overwrite an active or
-   unsafe slot. Amend only the current task's own scope, incrementing
-   `scope_revision`.
+   default. For an explicitly requested new persisted scope, select the lowest
+   `completed` slot under `docs/task/`, then the lowest `cancelled` slot. Migrated
+   `taskscope.md` is slot `00`, followed by numbered slots. Create the next
+   unused `taskscope-<NN>.md` only when all existing slots are `ready`,
+   `in_progress`, or `blocked`. Replace the selected terminal slot completely
+   with a new task/generation; never overwrite an active or unexecuted slot.
+   Amend only the current task's own scope, incrementing `scope_revision`.
 7. Before publishing, starting, resuming, and immediately before mutation, scan
    active taskscope lifecycle headers plus `scope.write` and compare them with
    the candidate boundaries and `git status`. Record safe read/write ordering as
@@ -41,10 +41,10 @@ it coordinates specialized workers when they are available and useful.
    a dependency-aware pipeline.
 9. On successful execution, update only the assigned slot's completion block
    with passed checks, changed paths, final state, and cleanup; then mark it
-   `completed` and evaluate `reuse_safe` through the global reuse gate. Remove
-   other temporary Markdown artifacts while preserving requested slots and
-   canonical documentation. A terminal status releases its write reservation
-   but does not authorize deletion or reuse without the reuse gate.
+   `completed`. Remove other temporary Markdown artifacts while preserving
+   requested slots and canonical documentation. A terminal status releases its
+   write reservation and makes the slot available to the next taskscope request;
+   it does not authorize implementation writes outside the new scope.
 10. Verify results, artifact cleanup, final diff/status, and completion criteria.
 
 Ask the user only for an inaccessible decision that materially changes behavior,

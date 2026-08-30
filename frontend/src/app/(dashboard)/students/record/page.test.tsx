@@ -360,6 +360,50 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.getByText('Thùng rác')).toBeInTheDocument();
   });
 
+  it('renders the trash dialog as responsive glass content with both tabs and states', async () => {
+    (academicRecordApi.getDeletedAcademicRecords as any).mockResolvedValue([
+      makeAcademicRecord(1),
+    ]);
+    (dailyClassReportApi.getDeletedDailyClassReports as any).mockResolvedValue([
+      {
+        _id: 'deleted-report-1',
+        class_id: { class_name: 'CS-101-A' },
+        report_date: '2026-08-24',
+        reported_by: { user_name: 'Teacher' },
+      },
+    ]);
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+    fireEvent.click(await screen.findByText('Thùng rác'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveClass('max-h-[calc(100vh-1rem)]', 'overflow-hidden', 'rounded-2xl', 'shadow-sm');
+    expect(dialog).toHaveClass('bg-white/45', 'backdrop-blur-xl');
+    expect(screen.getByRole('tab', { name: /Vi phạm sinh viên/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Báo cáo của lớp/ })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getAllByText('Student 1')).not.toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'Khôi phục Student 1' })).not.toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'Xóa vĩnh viễn Student 1' })).not.toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Báo cáo của lớp/ }));
+    expect((await screen.findAllByText('CS-101-A')).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Khôi phục CS-101-A' })).not.toHaveLength(0);
+    expect(screen.getAllByRole('button', { name: 'Xóa vĩnh viễn CS-101-A' })).not.toHaveLength(0);
+  });
+
+  it('keeps the trash empty state and navigation controls accessible', async () => {
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+    fireEvent.click(await screen.findByText('Thùng rác'));
+
+    expect(await screen.findByText('Thùng rác ghi nhận vi phạm trống.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Báo cáo của lớp/ }));
+    expect(await screen.findByText('Thùng rác báo cáo lớp trống.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Quay lại cấu hình' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Đóng thùng rác' })).toBeInTheDocument();
+  });
+
   it('offers 500 rows for student pagination and refetches page one', async () => {
     (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
       data: [],
