@@ -765,7 +765,15 @@ describe('AcademicRecordService - Import Flow', () => {
       mockAcademicRecordModel.aggregate.mockReturnValue({
         exec: jest.fn().mockResolvedValue([
           {
-            data: [{ _id: studentId, latestRecordId, recordCount: 3 }],
+            data: [
+              {
+                _id: studentId,
+                latestRecordId,
+                recordCount: 3,
+                recordTypes: ['khen_thuong', 'cong_diem'],
+                totalPoints: 12,
+              },
+            ],
             meta: [{ total: 6 }],
           },
         ]),
@@ -782,7 +790,15 @@ describe('AcademicRecordService - Import Flow', () => {
       );
 
       expect(result).toEqual({
-        data: [{ studentId: studentId.toString(), latestRecord, recordCount: 3 }],
+        data: [
+          {
+            studentId: studentId.toString(),
+            latestRecord,
+            recordCount: 3,
+            recordTypes: ['khen_thuong', 'cong_diem'],
+            totalPoints: 12,
+          },
+        ],
         meta: { total: 6, page: 2, limit: 5, totalPages: 2, has_more: false },
       });
       const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
@@ -798,6 +814,14 @@ describe('AcademicRecordService - Import Flow', () => {
           _id: '$student_id',
           latestRecordId: { $first: '$_id' },
           recordCount: { $sum: 1 },
+          recordTypes: { $addToSet: '$criterion.criterion_type' },
+          scoreRecords: expect.objectContaining({ $push: expect.any(Object) }),
+        }),
+      );
+      expect(pipeline.find((stage: any) => stage.$lookup)?.$lookup).toEqual(
+        expect.objectContaining({
+          localField: 'criterion_id',
+          foreignField: '_id',
         }),
       );
       expect(pipeline.find((stage: any) => stage.$facet)?.$facet.data).toEqual([
@@ -807,6 +831,88 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockAcademicRecordModel.find).toHaveBeenCalledWith({
         _id: { $in: [latestRecordId] },
       });
+    });
+
+    it('sums count, selected-option, and manual scores with signed discipline contribution', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [
+              {
+                _id: studentId,
+                latestRecordId,
+                recordCount: 4,
+                recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+                scoreRecords: [
+                  {
+                    criterion: {
+                      criterion_type: 'cong_diem',
+                      scoring_mode: 'count',
+                      score_per_unit: 2,
+                      min_score: 0,
+                      max_score: 10,
+                    },
+                    action_type: 'count',
+                    quantity: 2,
+                  },
+                  {
+                    criterion: {
+                      criterion_type: 'khen_thuong',
+                      scoring_mode: 'single_option',
+                      score_per_unit: 1,
+                      options: [{ id: 'opt-1', label: 'Tốt', score: 8 }],
+                    },
+                    action_type: 'select_option',
+                    selected_option_id: 'opt-1',
+                    quantity: 1,
+                  },
+                  {
+                    criterion: {
+                      criterion_type: 'ky_luat',
+                      scoring_mode: 'count',
+                      score_per_unit: -5,
+                      min_score: 0,
+                      max_score: 10,
+                      is_score_counted: false,
+                    },
+                    action_type: 'count',
+                    quantity: 1,
+                  },
+                  {
+                    criterion: {
+                      criterion_type: 'cong_diem',
+                      scoring_mode: 'count',
+                      score_per_unit: 1,
+                      min_score: 0,
+                      max_score: 10,
+                    },
+                    action_type: 'manual_score',
+                    payload: { manual_score: 3 },
+                    quantity: 1,
+                  },
+                ],
+              },
+            ],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+          totalPoints: 10,
+        }),
+      );
     });
 
     it('applies teacher RBAC before grouping', async () => {

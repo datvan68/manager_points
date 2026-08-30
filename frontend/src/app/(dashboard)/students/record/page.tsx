@@ -28,6 +28,9 @@ import {
   FileSpreadsheet,
   RotateCcw,
   ArrowLeft,
+  Award,
+  PlusCircle,
+  Gavel,
 } from "lucide-react";
 
 import { CustomPagination } from "@/components/ui/pagination";
@@ -98,18 +101,66 @@ interface MappedAcademicRecord {
   fullName: string;
   className: string;
   recordType: "Khen thưởng" | "Kỷ luật" | "Cộng điểm";
+  recordTypes: AcademicRecordType[];
   criteria: string;
   date: string;
   points: string;
+  totalPoints: number;
   original: AcademicRecord;
   recordCount: number;
   studentObjectId: string;
 }
 
+type AcademicRecordType = "khen_thuong" | "cong_diem" | "ky_luat";
+
+const academicRecordTypeLabels: Record<AcademicRecordType, string> = {
+  khen_thuong: "Khen thưởng",
+  cong_diem: "Cộng điểm",
+  ky_luat: "Kỷ luật",
+};
+
+const getAcademicRecordTypeLabel = (type: AcademicRecordType) =>
+  academicRecordTypeLabels[type];
+
+const formatSignedPoints = (points: number) =>
+  `${points > 0 ? "+" : ""}${points}`;
+
+const RecordTypeIcons = ({ types }: { types: AcademicRecordType[] }) => (
+  <span className="inline-flex items-center gap-1" aria-label="Loại ghi nhận">
+    {types.map((type) => {
+      const Icon =
+        type === "khen_thuong"
+          ? Award
+          : type === "ky_luat"
+            ? Gavel
+            : PlusCircle;
+      const colorClass =
+        type === "khen_thuong"
+          ? "text-emerald-600"
+          : type === "ky_luat"
+            ? "text-rose-600"
+            : "text-blue-600";
+      const label = getAcademicRecordTypeLabel(type);
+
+      return (
+        <span key={type} title={label}>
+          <Icon
+            className={`h-4 w-4 ${colorClass}`}
+            aria-label={label}
+            role="img"
+          />
+        </span>
+      );
+    })}
+  </span>
+);
+
 type AcademicRecordListItem = AcademicRecord & {
   latestRecord?: AcademicRecord;
   recordCount?: number;
   studentId?: string;
+  recordTypes?: AcademicRecordType[];
+  totalPoints?: number;
 };
 
 const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTableCells({
@@ -125,19 +176,6 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
   canDelete: boolean;
   onToggle: (id: string) => void;
 }) {
-  const isKyLuat = record.recordType === "Kỷ luật";
-  const isKhenThuong = record.recordType === "Khen thưởng";
-  const badgeStyle = isKhenThuong
-    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-    : isKyLuat
-      ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
-      : "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
-  const dotStyle = isKhenThuong
-    ? "bg-emerald-500"
-    : isKyLuat
-      ? "bg-rose-500"
-      : "bg-[#1A73E8]";
-
   return (
     <>
       {!isStudent && (
@@ -169,12 +207,7 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
         {record.className}
       </td>
       <td className="px-5 py-4">
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
-          {record.recordType}
-        </span>
+        <RecordTypeIcons types={record.recordTypes} />
       </td>
       <td
         className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate"
@@ -190,7 +223,7 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
       </td>
       <td className="px-5 py-4">
         <span
-          className={`text-sm font-bold ${isKyLuat ? "text-rose-500" : "text-emerald-500"}`}
+          className={`text-sm font-bold ${record.totalPoints < 0 ? "text-rose-500" : "text-emerald-500"}`}
         >
           {record.points}
         </span>
@@ -432,6 +465,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const recordsObserverTargetRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const isFetchingRef = useRef<boolean>(false);
+  const pendingRecordsRefreshRef = useRef(false);
   const loadMoreInitiatedRef = useRef<number>(1);
 
   // Class tab states
@@ -526,7 +560,12 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   // Fetch student academic records
   const fetchAcademicRecords = async (pageToFetch = 1, isAppend = false) => {
-    if (isFetchingRef.current) return;
+    if (isFetchingRef.current) {
+      if (!isAppend && pageToFetch === 1) {
+        pendingRecordsRefreshRef.current = true;
+      }
+      return;
+    }
     isFetchingRef.current = true;
 
     if (pageToFetch === 1) {
@@ -604,7 +643,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         setIsLoading(false);
       }
       isFetchingRef.current = false;
+      if (pendingRecordsRefreshRef.current) {
+        pendingRecordsRefreshRef.current = false;
+        fetchAcademicRecordsRef.current?.(1, false);
+      }
     }
+  };
+
+  const refreshAcademicRecords = () => {
+    if (isFetchingRef.current) {
+      pendingRecordsRefreshRef.current = true;
+      return;
+    }
+    void fetchAcademicRecords(1, false);
   };
 
   const handleOpenDrawerChange = async (isOpen: boolean, record: any) => {
@@ -823,36 +874,16 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     fetchAcademicRecordsRef.current = fetchAcademicRecords;
   });
 
-  // Debounce ref: collapse rapid SSE events into a single fetch
-  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useGradingRealtime({
     classId: selectedClassIdForStudent !== 'all' ? selectedClassIdForStudent : undefined,
     // Disable SSE auto-reload when user is actively searching to prevent flickering
     enabled: activeSubTab === 'student' && !debouncedSearchTerm,
     onEvent: (event) => {
       if (event.type === 'academic_record_changed') {
-        // Debounce: batch multiple rapid events (e.g. grading 30 students) into 1 fetch
-        if (realtimeDebounceRef.current) {
-          clearTimeout(realtimeDebounceRef.current);
-        }
-        realtimeDebounceRef.current = setTimeout(() => {
-          if (fetchAcademicRecordsRef.current) {
-            fetchAcademicRecordsRef.current(1, false);
-          }
-        }, 2000);
+        refreshAcademicRecords();
       }
     }
   });
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (realtimeDebounceRef.current) {
-        clearTimeout(realtimeDebounceRef.current);
-      }
-    };
-  }, []);
 
   // Intersection Observer for Infinite Scroll
   useEffect(() => {
@@ -940,6 +971,20 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         : pts < 0
           ? "Kỷ luật"
           : "Cộng điểm";
+    const latestRecordType: AcademicRecordType = foundCriterion
+      ? foundCriterion.criterion_type === "khen_thuong"
+        ? "khen_thuong"
+        : foundCriterion.criterion_type === "ky_luat"
+          ? "ky_luat"
+          : "cong_diem"
+      : pts < 0
+        ? "ky_luat"
+        : "cong_diem";
+    const recordTypes = Array.isArray(item.recordTypes) && item.recordTypes.length > 0
+      ? item.recordTypes
+      : [latestRecordType];
+    const totalPoints =
+      typeof item.totalPoints === "number" ? item.totalPoints : pts;
 
     return {
       id: r._id,
@@ -947,6 +992,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       fullName: foundStudent ? foundStudent.full_name : "",
       className: className,
       recordType: recordType as "Khen thưởng" | "Kỷ luật" | "Cộng điểm",
+      recordTypes,
       criteria: (() => {
         const raw = foundCriterion
           ? foundCriterion.criterion_name
@@ -961,7 +1007,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           : r.createdAt
             ? format(new Date(r.createdAt), "dd/MM/yyyy")
             : format(new Date(), "dd/MM/yyyy"),
-      points: (pts >= 0 ? "+" : "") + pts,
+      points: formatSignedPoints(totalPoints),
+      totalPoints,
       original: r,
       recordCount: item.recordCount ?? 1,
       studentObjectId,
@@ -1053,7 +1100,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       } else {
         setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
         setAcademicRecords(prev => prev.filter(record => !succeededIds.has(record.latestRecord?._id || record._id)));
-        await fetchAcademicRecords();
+        await refreshAcademicRecords();
       }
       if (failed.length > 0) {
         toast.warning(`Đã xử lý ${uniqueIds.length - failed.length}/${uniqueIds.length} ghi nhận; còn ${failed.length} ghi nhận thất bại.`);
@@ -1084,7 +1131,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       }
       await academicRecordApi.deleteAcademicRecord(id);
       toast.success("Đã xóa ghi nhận rèn luyện thành công.");
-      fetchAcademicRecords();
+      refreshAcademicRecords();
     } catch (err: any) {
       console.error(err);
       const errMsg = err.message || "Không thể xóa ghi nhận rèn luyện.";
@@ -1205,7 +1252,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       await academicRecordApi.restoreAcademicRecord(id);
       toast.success("Khôi phục ghi nhận vi phạm thành công!");
       fetchDeletedItems();
-      fetchAcademicRecords();
+      refreshAcademicRecords();
     } catch (err: any) {
       console.error("Lỗi khi khôi phục ghi nhận:", err);
       toast.error(err.message || "Khôi phục ghi nhận vi phạm thất bại.");
@@ -1218,7 +1265,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       toast.success("Khôi phục báo cáo ngày thành công!");
       fetchDeletedItems();
       fetchClassReports();
-      fetchAcademicRecords();
+      refreshAcademicRecords();
     } catch (err: any) {
       console.error("Lỗi khi khôi phục báo cáo:", err);
       toast.error(err.message || "Khôi phục báo cáo ngày thất bại.");
@@ -1298,7 +1345,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         "Mã SV": r.studentId,
         "Họ và tên": r.fullName,
         Lớp: r.className,
-        "Loại ghi nhận": r.recordType,
+        "Loại ghi nhận": r.recordTypes
+          .map(getAcademicRecordTypeLabel)
+          .join(", "),
         "Mã tiêu chí": r.criterionCode,
         "Tiêu chí": r.criteria || "Chưa có",
         "Ngày ghi nhận": r.date,
@@ -1376,7 +1425,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         "Mã SV": r.studentId,
         "Họ và tên": r.fullName,
         Lớp: r.className,
-        "Loại ghi nhận": r.recordType,
+        "Loại ghi nhận": r.recordTypes
+          .map(getAcademicRecordTypeLabel)
+          .join(", "),
         "Tiêu chí": r.criteria || "Chưa có",
         "Ngày ghi nhận": r.date,
         "Tính điểm": r.points,
@@ -1643,7 +1694,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             onBack={() => setCurrentView("list")}
             onSuccess={() => {
               setCurrentView("list");
-              fetchAcademicRecords();
+              refreshAcademicRecords();
             }}
             taskId={taskId}
           />
@@ -1721,7 +1772,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             onSuccess={() => {
               setCurrentView("list");
               setEditingAcademicRecord(null);
-              fetchAcademicRecords();
+              refreshAcademicRecords();
             }}
             taskId={taskId}
           />
@@ -2199,6 +2250,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
                             {record.recordCount} lần ghi nhận
                           </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <RecordTypeIcons types={record.recordTypes} />
+                            <span
+                              className={`text-sm font-bold ${record.totalPoints < 0 ? "text-rose-500" : "text-emerald-500"}`}
+                            >
+                              {record.points}
+                            </span>
+                          </div>
                         </div>
                         <span className="text-[11px] text-slate-500 font-semibold bg-white/70 border border-white/90 px-2 py-0.5 rounded-full shadow-sm shrink-0">
                           {record.date}
@@ -2279,26 +2338,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {paginatedRecords.map((record) => {
-                      const isKhenThuong = record.recordType === "Khen thưởng";
-                      const isKyLuat = record.recordType === "Kỷ luật";
-                      const isCongDiem = record.recordType === "Cộng điểm";
-
-                      let badgeStyle =
-                        "bg-blue-500/10 text-[#1A73E8] border-blue-500/20";
-                      let dotStyle = "bg-[#1A73E8]";
-                      let pointStyle = "text-emerald-500";
-
-                      if (isKhenThuong) {
-                        badgeStyle =
-                          "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
-                        dotStyle = "bg-emerald-500";
-                      } else if (isKyLuat) {
-                        badgeStyle =
-                          "bg-rose-500/10 text-rose-700 border-rose-500/20";
-                        dotStyle = "bg-rose-500";
-                        pointStyle = "text-rose-550";
-                      }
-
                       return (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
@@ -2326,14 +2365,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                 {record.studentId}
                               </span>
                             </div>
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border ${badgeStyle}`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}
-                              ></span>
-                              {record.recordType}
-                            </span>
+                            <RecordTypeIcons types={record.recordTypes} />
                           </div>
 
                           <div>
@@ -2372,7 +2404,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             </div>
                             <div className="flex items-center gap-3">
                               <span
-                                className={`text-sm font-bold ${pointStyle}`}
+                                className={`text-sm font-bold ${record.totalPoints < 0 ? "text-rose-500" : "text-emerald-500"}`}
                               >
                                 {record.points}
                               </span>
@@ -4109,7 +4141,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         onClose={() => setIsImportRecordPopupOpen(false)}
         onSuccess={() => {
           setCurrentPage(1);
-          fetchAcademicRecords();
+          refreshAcademicRecords();
         }}
       />
       {/* Import Class Record Popup */}

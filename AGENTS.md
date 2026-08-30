@@ -55,23 +55,36 @@ when possible:
 2. Inspect `git status`, the named path/symbol, the nearest implementation and
    test, and the relevant verification script. Search progressively:
    **target → direct dependency/caller → owning module**. Stop when the evidence
-   is sufficient.
+   is sufficient. Before publishing or executing a persisted taskscope, inspect
+   the lifecycle metadata and `scope.write` boundaries of other taskscopes in
+   `docs/task/`; do not read unrelated bodies beyond what conflict detection
+   requires. For a request to execute, continue, or resume a persisted
+   taskscope, first resolve exactly one taskscope file explicitly linked or
+   pinned by the user, then apply the pin-validation contract from `global.md`.
+   The linked file is the authoritative task selection; no separate task ID is
+   required. On any pin warning, stop before repository discovery or mutation.
 3. Create a Taskscope Brief from the template. A Quick scope should stay within
    a 220-word target and roughly 350-word maximum. Optimize for actionable
    detail per token: use exact paths/symbols, observed evidence, binary criteria,
    ordered edits, and focused checks instead of narrative. Every expected write
    must map to at least one acceptance criterion and verification. A Full scope
    may be longer only for evidenced dependencies, risks, gates, or independent
-   work boundaries. When the user explicitly asks to write, create, generate,
-   or update a taskscope, write the complete result to
-   `docs/task/taskscope.md` and replace the file's entire previous contents.
-   Never append to or merge with the previous taskscope. For other requests,
-   keep the Taskscope Brief in the response/runtime unless a separately
-   authorized Full/resume flow requires another artifact.
+   work boundaries. When the user explicitly asks for a new persisted
+   taskscope, first reuse the lowest eligible slot: a lifecycle-migrated
+   `docs/task/taskscope.md` is slot `taskscope-00`, followed by numbered
+   `docs/task/taskscope-<NN>.md` files. Eligibility requires
+   `status: completed`, `completion.outcome: success`, and
+   `completion.reuse_safe: true`. Replace the eligible slot completely, preserve
+   `slot_id`, increment `generation`, create a new unique `task_id`, and reset
+   `scope_revision` to `1`. If no safe slot exists, create the next unused
+   numbered slot. Amend an active scope only when the user names its exact path
+   or the current task owns it; never modify another scope.
 4. If the user requested planning only, stop after the scope and, when rule 3
-   applies, after replacing `docs/task/taskscope.md`. If implementation is
-   requested, continue in the same turn unless a Human Gate or unresolved
-   product decision prevents safe execution.
+   applies, after creating or updating only its assigned scope file. If
+   implementation from a persisted scope is requested, continue only after its
+   exact user pin passes validation. Otherwise continue in the same turn unless
+   a Human Gate, taskscope conflict, or unresolved product decision prevents
+   safe execution.
 5. Apply the smallest patch that satisfies the acceptance criteria. Preserve
    current conventions and do not introduce an out-of-scope refactor,
    dependency, API/schema change, or configuration change.
@@ -82,11 +95,13 @@ when possible:
    artifact, including temporary persisted taskscopes, benchmark run reports,
    plans, and handoff/checkpoint notes. Keep only Markdown that the user
    explicitly requested as a durable deliverable or an existing canonical
-   repository document that the task intentionally updates. The rolling
-   `docs/task/taskscope.md` produced by an explicit taskscope request is a
-   retained deliverable and must not be deleted by artifact cleanup. Resolve
-   and review exact cleanup paths; never delete unrelated or pre-existing files
-   by glob.
+   repository document that the task intentionally updates. Each
+   taskscope slot produced by an explicit taskscope request is a
+   retained deliverable and must not be deleted by artifact cleanup. For an
+   executed persisted scope, record passed checks, changed paths, final state,
+   and cleanup before setting `status: completed`; then compute `reuse_safe`
+   from the global reuse gate. Resolve and review exact cleanup paths; never
+   delete unrelated or pre-existing files by glob.
 8. Report only the outcome, changed paths, checks actually run, and remaining
    risks or blockers. Do not narrate the full reasoning process.
 
@@ -109,9 +124,15 @@ when possible:
   named targets, then executes from the scope. It must not repeat broad discovery
   unless the scope is stale, a named fact is unresolved, or a boundary/gate is
   triggered.
-- After writing an explicitly requested taskscope to
-  `docs/task/taskscope.md`, reply with only a concise outcome/path summary; do
-  not duplicate the full taskscope in the response unless the user asks.
+- Never infer which persisted task to execute from recency, filename similarity,
+  task title, current status, or the only file present. Exactly one explicit user
+  file link/path is required and is authoritative. A missing, deleted,
+  ambiguous, malformed, stale, or explicitly contradictory pin emits the
+  applicable `TASKSCOPE_PIN_*` warning and performs no file mutation. Do not
+  fall back to another taskscope.
+- After creating or updating an explicitly requested taskscope, reply with only
+  its task ID, slot/generation, status, path, warnings/blockers, and a concise
+  outcome; do not duplicate the full taskscope unless the user asks.
 - Do not keep generating hypotheses after a reproduction or test has confirmed
   the root cause.
 - Do not run broad commands when a file- or package-level command proves the
@@ -121,11 +142,15 @@ when possible:
 - Ask one grouped question only when a missing decision would change behavior,
   data, permissions, public contracts, external effects, or approved scope.
 
-An explicit user request to write, create, generate, or update a taskscope owns
-the single rolling output `docs/task/taskscope.md`. Replace that file atomically
-as a complete document on every such request; do not append, merge, preserve
-stale sections, or create a task-specific taskscope alongside it. Treat this
-file as the requested retained deliverable. Separately authorized Full/resume
-artifacts may use `docs/tasks/<task-id>.md`; they remain temporary and must be
-deleted after successful completion unless an audit/resume requirement is
-still active.
+Persisted scopes follow the isolation protocol in `.agents/Rules/global.md` and
+the lifecycle/template in `.agents/Workflows/taskscope.md`. Each task owns one
+slot generation; scan active reservations and `git status` before
+create/start/resume and immediately before mutation. `completed` proves task
+completion only with recorded successful verification; a slot is reusable only
+when `completion.reuse_safe: true`. Never overwrite an active/unsafe slot or
+another task's implementation boundary. The legacy `docs/task/taskscope.md` is
+reserved input until explicitly migrated to the lifecycle schema as slot
+`taskscope-00`; ambiguous legacy boundaries block only candidates that cannot
+prove they are disjoint. Automatic slot selection applies only to creating a
+new scope, never to choosing an existing scope for execution; execution follows
+only the exact file pinned by the user.

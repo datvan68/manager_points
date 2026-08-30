@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.3.1
+version: 3.3.5
 ---
 
 # Global Rules
@@ -33,6 +33,69 @@ Workers act only within their assigned capabilities and boundaries:
 | `orchestrator` | rule resolution, focused search/code generation/verification, scope writing, coordination |
 
 One actor owns each write path. The orchestrator may be that actor in Quick.
+A persisted taskscope reserves its declared write paths while its status is
+`ready`, `in_progress`, or `blocked`; `completed` and `cancelled` release the
+reservation. Before a taskscope is published, started, resumed, or mutated,
+compare its writes with every active taskscope and current dirty-worktree paths.
+
+- Proven write/write overlap, scope-file collision, ambiguous ownership, or a
+  dirty candidate write path is `TASKSCOPE_CONFLICT`; stop before mutation and
+  report the task IDs plus exact intersecting paths.
+- Inspect/write overlap is `TASKSCOPE_WARNING`; serialize the tasks or record an
+  explicit dependency, and stop when a stable input cannot be guaranteed.
+- A write outside the current taskscope is `TASKSCOPE_VIOLATION`; stop dependent
+  work immediately, preserve evidence and current changes, and do not repair or
+  continue outside the declared boundary.
+
+Overlap includes equal paths, ancestor/descendant containment, and intersecting
+directory or glob boundaries. Inability to prove disjointness is a conflict,
+not permission to proceed. Only the task identified by a scope's `task_id` may
+change that scope's lifecycle or content, unless the user explicitly names the
+exact taskscope for update. Its own `scope_file` is an implicit coordination
+write and need not appear in `scope.write`; this exception never authorizes
+writing another taskscope. When `base_commit` differs, revalidate only named
+targets and dependencies: unchanged targets produce `TASKSCOPE_WARNING` plus a
+refreshed baseline/revision; changed targets produce `TASKSCOPE_CONFLICT`.
+
+`status: completed` is valid only after all mandatory acceptance criteria and
+required checks pass and the completion block records the outcome, checks,
+changed paths, cleanup, and final commit/state. A completed slot is reusable
+only when `completion.outcome` is `success`, `completion.reuse_safe` is `true`,
+no active scope depends on its task ID, no cleanup/gate remains, and its prior
+write paths have no uncommitted task-owned changes. Otherwise reuse is
+`TASKSCOPE_REUSE_BLOCKED`; skip the slot during automatic selection, or stop if
+the user requested that exact slot.
+
+For any request to execute, continue, or resume a persisted taskscope, exactly
+one attached/clickable taskscope file or exact repository-relative path under
+`docs/task/` is required. That file is the authoritative task selection; no
+separate task ID or generation is required. Automatic slot selection is
+creation-only and must never choose an execution target. Validate the pin
+read-only before repository discovery or mutation:
+
+- `TASKSCOPE_PIN_REQUIRED`: no exact taskscope file was linked/pinned.
+- `TASKSCOPE_PIN_INVALID`: the pin is missing/deleted, outside `docs/task/`,
+  unreadable/malformed, or resolves to multiple files.
+- `TASKSCOPE_PIN_MISMATCH`: any task ID/generation/outcome explicitly stated in
+  the request contradicts file metadata/objective/boundaries, or status is not
+  executable. A generic request such as "execute the linked taskscope" does not
+  create a mismatch; the linked file defines the intended task.
+
+`ready` may start. `in_progress` may continue only when the user explicitly asks
+to continue that pinned task. `blocked` may resume only after its recorded
+blocker is cleared and the user explicitly asks to resume. `completed` and
+`cancelled` are not executable. Any `TASKSCOPE_PIN_*` result is a warning that
+stops the request without changing code, taskscope status/content, or any other
+file. Report the pinned path, actual identity/status when readable, mismatch,
+and the exact pin or action needed. Never guess from recency, title, status,
+filename similarity, or the only available scope.
+
+A pinned legacy taskscope without lifecycle metadata is valid only when it has
+an actionable task/objective, exact `scope.write`, acceptance criteria,
+execution steps, and verification. Treat it as `ready`; after pin, conflict, and
+freshness validation succeed, migrate that same file in place to the lifecycle
+schema before implementation, preserving its task content. Missing required
+sections are `TASKSCOPE_PIN_INVALID` and cause no migration or mutation.
 
 ## 2. Effective Rules Capsule
 
@@ -115,12 +178,15 @@ their exact paths when they are created and remove them before a task is
 reported as successfully complete. Do not use globs for cleanup, and do not
 remove pre-existing or unrelated files.
 
-When the user explicitly requests a taskscope, the complete result is a rolling
-retained deliverable at `docs/task/taskscope.md`. Replace the entire file on
-every such request; never append, merge with stale content, or create an
-additional task-specific taskscope unless a separately authorized Full/resume
-flow requires it. This explicit output is not a temporary execution artifact
-and must not be included in cleanup obligations.
+When the user explicitly requests a new taskscope, reuse the lowest eligible
+slot: lifecycle-migrated `docs/task/taskscope.md` is `taskscope-00`, followed by
+numbered `docs/task/taskscope-<NN>.md` slots. If none is reusable, create the
+next unused numbered slot. Reuse atomically replaces the complete document,
+preserves `slot_id`, increments `generation`, assigns a new `task_id`, and
+resets `scope_revision`. Never overwrite an active or non-reusable slot.
+Explicit slots are retained deliverables, not cleanup obligations. The legacy
+file is reserved input and cannot become slot `taskscope-00` without an explicit
+lifecycle migration.
 
 Retain Markdown only when it is an explicitly requested durable deliverable, an
 intentional update to an existing canonical repository document, or evidence

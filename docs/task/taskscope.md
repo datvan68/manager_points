@@ -1,31 +1,32 @@
-task: "Gom tình hình HSSV theo sinh viên"
+task: "Complete grouped student record summaries"
 pipeline: feature_development
 profile: Full
-objective: "Tab Tình hình HSSV chỉ hiển thị một group cho mỗi sinh viên, cập nhật rõ ghi nhận mới nhất/số lần ghi nhận và vẫn mở được toàn bộ lịch sử của sinh viên."
+objective: "Each student group in Tình hình HSSV shows every applicable record type as distinct color-coded icons, displays the algebraic sum of all matching positive and negative score contributions, and converges immediately after add/update/delete events without concurrent or per-event refetch storms."
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:fetchAcademicRecords/paginatedRecords render một hàng/thẻ cho mỗi AcademicRecord; handleOpenDrawerChange và handleOpenDetailView lại gọi getAcademicRecordsByStudent nên Chi tiết trạng thái hiển thị toàn bộ lịch sử. backend/src/academic-record/academic-record.service.ts:findAll phân trang/countDocuments theo bản ghi, vì vậy group sau khi tải ở frontend có thể lặp sinh viên giữa các trang."
-  expected_behavior: "Danh sách phân trang theo sinh viên; mỗi group hiển thị hồ sơ, ghi nhận mới nhất, tổng số ghi nhận phù hợp bộ lọc và dấu hiệu New khi ghi nhận mới nhất vừa xuất hiện. Khi có academic_record_changed, group tương ứng cập nhật, tăng số lượng và lên đúng thứ tự. Chi tiết tiếp tục hiển thị toàn bộ lịch sử được phép xem."
-  root_cause: "Danh sách và meta.total hiện dùng AcademicRecord làm đơn vị phân trang, không cùng đơn vị sinh viên với drawer chi tiết."
+  current_behavior: "The in-progress grouped implementation returns recordTypes/totalPoints and renders Award, PlusCircle, and Gavel. Its score helper uses existing score-engine contribution semantics, but the required mixed-sign example and a more recognizable discipline icon are not yet explicit in the scope."
+  expected_behavior: "totalPoints adds each active matching record's signed effective contribution: negative discipline contributions reduce positive contributions. For example, if two discipline records contribute -3 in total and three positive records contribute +5 in total, the group displays +2. Discipline uses a rose ShieldAlert icon, visually distinct from green Award and blue PlusCircle, with no visible type text."
+  root_cause: "Without an explicit algebraic-sum regression, implementations can sum absolute values or one sign only; Gavel is not sufficiently recognizable for the discipline category."
 
 scope:
-  inspect: ["frontend/src/app/(dashboard)/students/record/page.tsx:record selection/export/edit/delete semantics trước khi đổi row identity"]
-  write: ["backend/src/academic-record/academic-record.controller.ts:findAll groupBy query", "backend/src/academic-record/academic-record.service.ts:AcademicRecordFindAllQuery/findAll grouped pagination", "backend/src/academic-record/academic-record.controller.spec.ts:query forwarding", "backend/src/academic-record/academic-record.service.spec.ts:group/filter/RBAC pagination", "frontend/src/api/academic-record-api.ts:student-group response type/query", "frontend/src/app/(dashboard)/students/record/page.tsx:group list/card/table/SSE", "frontend/src/app/(dashboard)/students/record/page.test.tsx:grouped UI regressions"]
-  preserve: ["RBAC và toàn bộ search/class/date/creator filters", "GET /academic-records mặc định vẫn trả record-level response", "drawer/detail dùng GET /academic-records/student/:studentId và hiển thị toàn bộ lịch sử", "thao tác sửa/xóa/xuất chỉ tác động record ID rõ ràng, không ngầm xóa cả group"]
-  out: ["schema/migration MongoDB", "đổi nghiệp vụ tính điểm", "tab Tình hình lớp", "thiết kế lại drawer"]
+  inspect: ["backend/src/academic-record/score-engine.service.ts:getCriterionContribution and calculate rules used to derive each signed contribution"]
+  write: ["backend/src/academic-record/academic-record.service.ts:findAll grouped totalPoints calculation", "backend/src/academic-record/academic-record.service.spec.ts:mixed-sign grouped total regression", "frontend/src/app/(dashboard)/students/record/page.tsx:discipline icon and grouped total rendering", "frontend/src/app/(dashboard)/students/record/page.test.tsx:icon and +2 mixed-sign display regressions", "frontend/src/api/academic-record-api.ts:AcademicRecordStudentGroup contract when required by the grouped response"]
+  preserve: ["RBAC and all existing list filters are applied before aggregation", "GET /academic-records without groupBy remains record-level and backward compatible", "latestRecord, recordCount, New badge, ordering, pagination, and full-history drawer remain available", "edit/delete/export continue to target explicit academic record IDs", "SSE class/semester scoping, reconnect behavior, immediate leading refresh, burst coalescing, and in-flight trailing refresh"]
+  out: ["MongoDB schema/migration or denormalized score fields", "grading formula or sign-rule changes", "redesign of the full-history drawer", "cross-process SSE/Redis infrastructure"]
 
 acceptance_criteria:
-  - "AC-01: Một sinh viên có nhiều ghi nhận chỉ xuất hiện một lần trong table/card; meta.total/totalPages/has-more tính theo số sinh viên distinct sau RBAC và bộ lọc."
-  - "AC-02: Group hiển thị ghi nhận mới nhất, tổng số ghi nhận phù hợp bộ lọc và badge New theo latestRecord.createdAt; thứ tự giảm dần theo thời gian mới nhất."
-  - "AC-03: Sau academic_record_changed, sinh viên hiện hữu không tạo dòng trùng; latest/count/New được làm mới và group mới xuất hiện đúng thứ tự."
-  - "AC-04: Mở Chi tiết trạng thái từ group gọi đúng student ObjectId và hiển thị toàn bộ lịch sử truy cập được, không chỉ latestRecord."
-  - "AC-05: Chế độ GET /academic-records không có groupBy và các thao tác record-level hiện hữu giữ nguyên contract/ID đích."
+  - "AC-01: A group containing one, two, or all three criterion types returns a deterministic de-duplicated recordTypes set; table/card render green Award for khen_thuong, blue PlusCircle for cong_diem, and rose ShieldAlert for ky_luat, with no visible type text and an aria-label/title on every icon."
+  - "AC-02: totalPoints is the algebraic sum of every active matching record's effective signed contribution under existing count/quantity, selected-option, and manual-score semantics; a fixture whose two discipline records total -3 and whose three positive records total +5 returns and displays +2."
+  - "AC-03: Negative contributions are not converted to absolute values, omitted, or multiplied by record count after their per-record effective contribution is calculated; zero and positive totals keep their numeric value and positive totals retain the leading + display."
+  - "AC-04: After a successful local add/update/delete or the first matching academic_record_changed SSE event, visible groups refresh without manual reload or a fixed delay; changes can update latest/count/types/total/order and deleting the final matching record removes the group."
+  - "AC-05: During an SSE burst or an event received while a list request is in flight, the page performs no concurrent grouped-list requests, coalesces the burst, and runs at most one trailing refresh so the last event is not lost."
+  - "AC-06: Grouped metadata, filters, RBAC, default record-level API, full-history detail, and explicit record mutation targets retain their current behavior."
 
 execution:
-  - "E-01 [AC-01,AC-02,AC-05] backend controller/service -> thêm groupBy=student opt-in; tái dùng filter/RBAC trước aggregation, sort latest, count distinct và populate dữ liệu đại diện; giữ nhánh mặc định."
-  - "E-02 [AC-01,AC-02,AC-04,AC-05] frontend API/page -> yêu cầu groupBy=student, dùng studentId làm identity và latestRecord cho nội dung; hiển thị recordCount/New; giữ record ID tường minh cho sửa/xóa/xuất."
-  - "E-03 [AC-03] page SSE refresh -> thay page đầu theo group identity và không append trùng sinh viên."
-  - "E-04 [AC-01..AC-05] backend/frontend specs -> phủ duplicate student, filter/RBAC/meta, new SSE record, drawer full history và backward compatibility."
+  - "E-01 [AC-02,AC-03,AC-06] backend/src/academic-record/academic-record.service.ts:findAll -> sum signed per-record contributions produced with ScoreEngineService semantics; do not infer sign from record count or criterion label and do not change the default branch."
+  - "E-02 [AC-01,AC-02,AC-03] frontend/src/app/(dashboard)/students/record/page.tsx -> replace Gavel with ShieldAlert for ky_luat and render the signed totalPoints returned for the group in table/card/export-facing grouped values."
+  - "E-03 [AC-04,AC-05] frontend/src/app/(dashboard)/students/record/page.tsx -> retain leading realtime invalidation plus in-flight dirty state and immediate local mutation reconciliation."
+  - "E-04 [AC-01..AC-06] focused backend/frontend specs -> add the exact two-negative/three-positive fixture, assert +2 end to end, assert ShieldAlert accessibility/color, and retain grouping/filter/realtime regressions."
 
 temporary_artifacts:
   create: []
@@ -33,10 +34,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested rolling taskscope"]
 
 verification:
-  - "V-01 [AC-01,AC-02,AC-05] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand -> grouped/default cases pass."
-  - "V-02 [AC-05] npm --prefix backend test -- src/academic-record/academic-record.controller.spec.ts --runInBand -> query/guard cases pass."
-  - "V-03 [AC-01..AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' -> grouped list/SSE/detail cases pass."
-  - "V-04 [AC-01..AC-05] npm --prefix backend run build; npm --prefix frontend run typecheck -> cả hai exit 0."
+  - "V-01 [AC-02,AC-03,AC-06] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand -> mixed-sign +2, score semantics, RBAC/filter, and default-contract cases pass."
+  - "V-02 [AC-01..AC-06] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' -> ShieldAlert, +2 display, mutation, and realtime coalescing cases pass."
+  - "V-03 [AC-01..AC-06] npm --prefix backend run build; npm --prefix frontend run typecheck -> both exit 0."
 
-risks: ["Aggregation phải áp RBAC/filter trước group để không lộ hoặc đếm dữ liệu ngoài quyền.", "Group row không được làm mơ hồ đích sửa/xóa/xuất; mọi mutation vẫn cần record ID cụ thể."]
-stop_conditions: ["Dừng nếu product muốn tổng số ghi nhận toàn lịch sử thay vì theo bộ lọc hiện tại.", "Dừng nếu checkbox/xóa ở group được hiểu là xóa toàn bộ lịch sử sinh viên; hành vi đó cần phê duyệt riêng.", "Dừng nếu cần đổi schema, migration hoặc response mặc định của GET /academic-records."]
+risks: ["A record's effective score may already incorporate quantity; multiplying again during grouping would double count it.", "Duplicating score-engine rules inside grouping can drift; parity tests must cover every supported action type and both signs.", "Realtime invalidation remains concurrency-sensitive and must not lose an event received during an active fetch."]
+stop_conditions: ["Stop if the example means each of two records is -3 and each of three records is +5, rather than their category subtotals being -3 and +5.", "Stop if totalPoints must ignore active list filters and instead use an entire-semester SummaryPoint total.", "Stop if exact score parity requires a schema migration, denormalization, or grading formula change.", "Stop if realtime guarantees must work across multiple backend processes, because that requires approved shared pub/sub infrastructure."]

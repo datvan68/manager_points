@@ -96,7 +96,13 @@ const makeAcademicRecord = (index: number) => ({
   recorded_at: '2026-08-25T00:00:00.000Z',
 });
 
-const makeStudentGroup = (studentId = 'student-1', recordId = 'record-1', recordCount = 1) => ({
+const makeStudentGroup = (
+  studentId = 'student-1',
+  recordId = 'record-1',
+  recordCount = 1,
+  recordTypes = ['ky_luat'],
+  totalPoints = -5,
+) => ({
   studentId,
   latestRecord: {
     _id: recordId,
@@ -112,6 +118,8 @@ const makeStudentGroup = (studentId = 'student-1', recordId = 'record-1', record
     createdAt: '2026-08-25T00:00:00.000Z',
   },
   recordCount,
+  recordTypes,
+  totalPoints,
 });
 
 vi.mock('@/components/guards/RouteGuard', () => ({
@@ -382,11 +390,38 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
   });
 
-  it('refreshes an existing group after an academic record SSE event without duplicating the student', async () => {
+  it('renders de-duplicated grouped type icons and the signed grouped total', async () => {
+    const group = makeStudentGroup(
+      'student-1',
+      'latest-record-1',
+      4,
+      ['khen_thuong', 'cong_diem', 'ky_luat'],
+      7,
+    );
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [group],
+      meta: { total: 1, totalPages: 1, has_more: false },
+    });
+
+    render(<StudentRecordPage />);
+
+    expect(await screen.findAllByLabelText('Khen thưởng')).not.toHaveLength(0);
+    expect(await screen.findAllByLabelText('Cộng điểm')).not.toHaveLength(0);
+    expect(await screen.findAllByLabelText('Kỷ luật')).not.toHaveLength(0);
+    expect(screen.getAllByText('+7')).not.toHaveLength(0);
+    expect(screen.queryByText('Khen thưởng')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cộng điểm')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kỷ luật')).not.toBeInTheDocument();
+  });
+
+  it('refreshes immediately, coalesces an SSE burst, and trails an event during fetch', async () => {
     const initialGroup = makeStudentGroup('student-1', 'latest-record-1', 1);
     const updatedGroup = makeStudentGroup('student-1', 'latest-record-2', 2);
+    let resolveRefresh!: (value: unknown) => void;
+    const refreshPromise = new Promise((resolve) => { resolveRefresh = resolve; });
     (academicRecordApi.getAcademicRecords as any)
       .mockResolvedValueOnce({ data: [initialGroup], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockReturnValueOnce(refreshPromise)
       .mockResolvedValue({ data: [updatedGroup], meta: { total: 1, totalPages: 1, has_more: false } });
 
     render(<StudentRecordPage />);
@@ -394,13 +429,18 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     await act(async () => {
       mockRealtimeOptions.onEvent({ type: 'academic_record_changed' });
-      await new Promise((resolve) => setTimeout(resolve, 2100));
+      mockRealtimeOptions.onEvent({ type: 'academic_record_changed' });
     });
 
-    await waitFor(() => expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(2));
+    expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveRefresh({ data: [updatedGroup], meta: { total: 1, totalPages: 1, has_more: false } });
+    });
+
+    await waitFor(() => expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(3));
     expect(await screen.findAllByText('Student 1')).toHaveLength(2);
     expect(screen.getAllByText('2 lần ghi nhận').length).toBeGreaterThan(0);
-    vi.useRealTimers();
   });
 
   it('defers row reconciliation until all sequential delete batches finish and blocks duplicate deletes', async () => {

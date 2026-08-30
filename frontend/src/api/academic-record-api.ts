@@ -42,6 +42,8 @@ export interface AcademicRecordStudentGroup {
   studentId: string;
   latestRecord: AcademicRecord;
   recordCount: number;
+  recordTypes: Array<'khen_thuong' | 'cong_diem' | 'ky_luat'>;
+  totalPoints: number;
 }
 
 export interface PaginatedAcademicRecordStudentGroups {

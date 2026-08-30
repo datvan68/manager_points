@@ -1762,6 +1762,34 @@ export class AcademicRecordService {
     };
   }
 
+  private calculateGroupedRecordScore(record: any): number {
+    const criterion = record?.criterion;
+    if (!criterion) {
+      return typeof record?.points_effect === 'number'
+        ? record.points_effect
+        : 0;
+    }
+
+    const structured = extractStructuredData(record);
+    const result = this.scoreEngineService.calculate({
+      criterion,
+      calculation_context: 'manual',
+      count:
+        typeof record.quantity === 'number' && Number.isFinite(record.quantity)
+          ? record.quantity
+          : 1,
+      selected_option_id: structured.selected_option_id,
+      selected_option_label: structured.selected_option_label,
+      selected_option_score: structured.selected_option_score,
+      manual_score: structured.manual_score,
+    });
+
+    return this.scoreEngineService.getCriterionContribution(
+      criterion,
+      result.system_score,
+    );
+  }
+
   async findAll(
     query?: AcademicRecordFindAllQuery,
     requester?: any,
@@ -2030,9 +2058,25 @@ export class AcademicRecordService {
     if (isGroupedByStudent) {
       const p = page && page > 0 ? page : 1;
       const l = limit && limit > 0 ? limit : 10;
+      const criterionCollection =
+        (this.criterionModel as any).collection?.name || 'criteria';
       const groupedResult = await this.academicRecordModel
         .aggregate([
           { $match: filter },
+          {
+            $lookup: {
+              from: criterionCollection,
+              localField: 'criterion_id',
+              foreignField: '_id',
+              as: 'criterion',
+            },
+          },
+          {
+            $unwind: {
+              path: '$criterion',
+              preserveNullAndEmptyArrays: true,
+            },
+          },
           {
             $sort: {
               createdAt: -1,
@@ -2047,6 +2091,33 @@ export class AcademicRecordService {
               latestCreatedAt: { $first: '$createdAt' },
               latestRecordedAt: { $first: '$recorded_at' },
               recordCount: { $sum: 1 },
+              recordTypes: { $addToSet: '$criterion.criterion_type' },
+              // Keep only the score inputs needed to reuse ScoreEngineService
+              // after pagination, without returning the full history payload.
+              scoreRecords: {
+                $push: {
+                  criterion: '$criterion',
+                  action_type: '$action_type',
+                  payload: '$payload',
+                  record_title: '$record_title',
+                  selected_option_id: '$selected_option_id',
+                  selected_option_label: '$selected_option_label',
+                  selected_option_score: '$selected_option_score',
+                  quantity: '$quantity',
+                  points_effect: '$points_effect',
+                },
+              },
+            },
+          },
+          {
+            $set: {
+              recordTypes: {
+                $filter: {
+                  input: ['khen_thuong', 'cong_diem', 'ky_luat'],
+                  as: 'recordType',
+                  cond: { $in: ['$$recordType', '$recordTypes'] },
+                },
+              },
             },
           },
           {
@@ -2092,6 +2163,17 @@ export class AcademicRecordService {
             studentId: group._id.toString(),
             latestRecord,
             recordCount: group.recordCount,
+            recordTypes: group.recordTypes || [],
+            totalPoints:
+              Array.isArray(group.scoreRecords) && group.scoreRecords.length > 0
+                ? group.scoreRecords.reduce(
+                    (total: number, scoreRecord: any) =>
+                      total + this.calculateGroupedRecordScore(scoreRecord),
+                    0,
+                  )
+                : typeof group.totalPoints === 'number'
+                  ? group.totalPoints
+                  : 0,
           };
         })
         .filter(Boolean);

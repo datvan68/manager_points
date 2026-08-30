@@ -1,6 +1,6 @@
 ---
 description: Routes work through proportional, token-efficient Quick or Full execution.
-version: 3.3.2
+version: 3.3.6
 ---
 
 # Orchestrator
@@ -17,22 +17,35 @@ it coordinates specialized workers when they are available and useful.
 1. Load canonical rules once. Create a formal Effective Rules Manifest only for
    Full, resumable, delegated, or audit-required work.
 2. Determine whether the request is read-only, planning-only, or implementation.
-3. Select Quick only when every `safety.md` condition is evidenced.
-4. Perform one focused Quick discovery pass or evidence-driven Full discovery.
-5. Create the applicable Taskscope Brief. Publish it in the response/runtime by
-   default. When the user explicitly asks to write, create, generate, or update
-   a taskscope, replace the entire contents of `docs/task/taskscope.md` with the
-   complete new brief; never append or merge with the previous contents.
-   Persist any other taskscope only when an authorized Full/resume flow needs a
-   separate temporary artifact.
-6. Stop if planning-only. Otherwise execute Quick directly or schedule Full as
+3. For execution/continue/resume from a persisted scope, resolve exactly one
+   user-linked/pinned taskscope file and apply the read-only pin contract in
+   `global.md`; the file alone selects the task. Stop on any `TASKSCOPE_PIN_*`
+   warning without changing any file. Migrate a valid legacy scope in place only
+   after conflict and freshness checks pass.
+4. Select Quick only when every `safety.md` condition is evidenced.
+5. Perform one focused Quick discovery pass or evidence-driven Full discovery.
+6. Create the applicable Taskscope Brief. Publish it in the response/runtime by
+   default. For an explicitly requested new persisted scope, select the
+   lowest reusable slot under `docs/task/`: migrated `taskscope.md` as slot `00`,
+   then numbered slots. If none is eligible, create the next unused
+   `taskscope-<NN>.md`. Apply the reuse gate from `global.md`, replace an eligible
+   slot completely with a new task/generation, and never overwrite an active or
+   unsafe slot. Amend only the current task's own scope, incrementing
+   `scope_revision`.
+7. Before publishing, starting, resuming, and immediately before mutation, scan
+   active taskscope lifecycle headers plus `scope.write` and compare them with
+   the candidate boundaries and `git status`. Record safe read/write ordering as
+   dependencies. Stop on `TASKSCOPE_CONFLICT`; do not mutate while status is
+   `blocked`.
+8. Stop if planning-only. Otherwise execute Quick directly or schedule Full as
    a dependency-aware pipeline.
-7. On successful execution, remove temporary persisted taskscopes and other
-   temporary Markdown artifacts recorded by the task. Preserve explicit durable
-   deliverables and canonical documentation updates. In particular, preserve
-   `docs/task/taskscope.md` when it was produced by an explicit taskscope
-   request.
-8. Verify results, artifact cleanup, final diff/status, and completion criteria.
+9. On successful execution, update only the assigned slot's completion block
+   with passed checks, changed paths, final state, and cleanup; then mark it
+   `completed` and evaluate `reuse_safe` through the global reuse gate. Remove
+   other temporary Markdown artifacts while preserving requested slots and
+   canonical documentation. A terminal status releases its write reservation
+   but does not authorize deletion or reuse without the reuse gate.
+10. Verify results, artifact cleanup, final diff/status, and completion criteria.
 
 Ask the user only for an inaccessible decision that materially changes behavior,
 scope, risk, data, external effects, or authority. Group questions.
@@ -70,9 +83,12 @@ skill and any path-specific instruction; add the test skill only when needed.
 Quick discovery is progressive: exact target, direct caller/dependency, then
 owning module. Stop as soon as path ownership, observed behavior, change boundary,
 acceptance criteria, and a focused verification command are established.
-When consuming a current Taskscope Brief, validate Git/worktree freshness and
-the named targets, then begin the ordered execution steps. Repeat discovery only
-for a stale fact, an explicit unknown, or a newly triggered boundary/gate.
+Consume only the exact taskscope linked/pinned by the user. After its pin passes,
+validate Git/worktree freshness and named targets, rescan active reservations,
+and confirm lifecycle identity when present. Migrate a structurally complete
+legacy scope in place, then mark only that scope `in_progress` and execute.
+Repeat discovery only for stale facts, explicit unknowns, or a triggered
+boundary/gate; apply targeted base-commit revalidation when the baseline moved.
 
 ## 4. Full mode
 
@@ -109,10 +125,11 @@ rules override summaries.
 
 ## 6. Conflict and completion
 
-Stop overlapping writers, stale artifacts, unsafe merges, gates, or boundary
-expansion. Resolve technical disagreement from acceptance criteria, repository
-evidence, tests, and domain ownership; ask the user only for unresolved product
-behavior.
+Apply the taskscope isolation codes and stop behavior from `global.md`. Report
+the involved task IDs and exact paths; never resolve a conflict by modifying
+another scope. Resolve technical disagreement from acceptance criteria,
+repository evidence, tests, and domain ownership; ask the user only for
+unresolved product behavior.
 
 Return a concise result with changed paths, checks actually run, remaining risk,
 gates, and next action. Do not report success while a completed task still owns
