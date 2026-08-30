@@ -319,14 +319,14 @@ describe('StudentRecordPage Infinite Scroll', () => {
         },
         recordCount: 2,
         recordTypes: ['ky_luat', 'cong_diem'],
-        totalPoints: 2,
+        totalPoints: -3,
       }],
       meta: { total: 1 },
     });
 
     render(<StudentRecordPage />);
 
-    expect((await screen.findAllByText('+2')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('-3')).length).toBeGreaterThan(0);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
       data: [
         { _id: 'negative', points_effect: 99, effectivePoints: -3, record_title: 'Negative' },

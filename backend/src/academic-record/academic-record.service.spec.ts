@@ -1037,6 +1037,64 @@ describe('AcademicRecordService - Import Flow', () => {
       );
     });
 
+    it('keeps the grouped total negative when discipline deductions exceed bonuses', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      const disciplineCriterion = {
+        criterion_type: 'ky_luat',
+        scoring_mode: 'count',
+        score_per_unit: -4,
+        min_score: 0,
+        max_score: 10,
+        is_score_counted: false,
+      };
+
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [
+              {
+                _id: studentId,
+                latestRecordId,
+                recordCount: 3,
+                recordTypeCounts: {
+                  khen_thuong: 0,
+                  cong_diem: 1,
+                  ky_luat: 2,
+                },
+                recordTypes: ['cong_diem', 'ky_luat'],
+                scoreRecords: [
+                  { criterion: disciplineCriterion, action_type: 'count', quantity: 1 },
+                  { criterion: disciplineCriterion, action_type: 'count', quantity: 1 },
+                  {
+                    criterion: {
+                      criterion_type: 'cong_diem',
+                      scoring_mode: 'count',
+                      score_per_unit: 1,
+                      min_score: 0,
+                      max_score: 10,
+                    },
+                    action_type: 'count',
+                    quantity: 1,
+                  },
+                ],
+              },
+            ],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0].totalPoints).toBe(-7);
+    });
+
     it('treats records without a resolved criterion as zero without using stored points', async () => {
       const studentId = new Types.ObjectId();
       const latestRecordId = new Types.ObjectId();
@@ -2558,6 +2616,80 @@ describe('AcademicRecordService - Import Flow', () => {
       const result = await service.findByStudentId(studentId);
 
       expect(result).toEqual([{ ...record, effectivePoints: 3 }]);
+    });
+
+    it('serializes a non-counted discipline from its criterion-defined raw score', async () => {
+      const record = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        criterion_id: {
+          criterion_type: 'ky_luat',
+          scoring_mode: 'count',
+          score_per_unit: 7.5,
+          min_score: 0,
+          max_score: 10,
+          is_score_counted: false,
+        },
+        action_type: 'count',
+        quantity: 1,
+        points_effect: 7.5,
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([record]),
+      });
+
+      const result = await service.findByStudentId(studentId);
+
+      expect(result).toEqual([{ ...record, effectivePoints: -2.5 }]);
+    });
+
+    it('serializes selected-option and manual scores without using stored points', async () => {
+      const optionRecord = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        criterion_id: {
+          criterion_type: 'khen_thuong',
+          scoring_mode: 'single_option',
+          score_per_unit: 1,
+          min_score: 0,
+          max_score: 10,
+          options: [{ id: 'excellent', label: 'Xuất sắc', score: 8.5 }],
+        },
+        action_type: 'select_option',
+        selected_option_id: 'excellent',
+        selected_option_score: 8.5,
+        quantity: 1,
+        points_effect: -99,
+      };
+      const manualRecord = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        criterion_id: {
+          criterion_type: 'cong_diem',
+          scoring_mode: 'count',
+          score_per_unit: 2,
+          min_score: 0,
+          max_score: 10,
+        },
+        action_type: 'manual_score',
+        payload: { manual_score: 4.25 },
+        quantity: 1,
+        points_effect: -99,
+      };
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([optionRecord, manualRecord]),
+      });
+
+      const result = await service.findByStudentId(studentId);
+
+      expect(result).toEqual([
+        { ...optionRecord, effectivePoints: 8.5 },
+        { ...manualRecord, effectivePoints: 4.25 },
+      ]);
     });
 
     it('returns paginated response with metadata when pagination is requested', async () => {
