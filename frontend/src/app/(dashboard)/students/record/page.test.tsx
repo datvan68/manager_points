@@ -102,6 +102,9 @@ const makeStudentGroup = (
   recordCount = 1,
   recordTypes = ['ky_luat'],
   totalPoints = -5,
+  recordTypeCounts = recordTypes.length === 1
+    ? { khen_thuong: 0, cong_diem: 0, ky_luat: recordCount }
+    : { khen_thuong: 1, cong_diem: 1, ky_luat: Math.max(0, recordCount - 2) },
 ) => ({
   studentId,
   latestRecord: {
@@ -118,6 +121,7 @@ const makeStudentGroup = (
     createdAt: '2026-08-25T00:00:00.000Z',
   },
   recordCount,
+  recordTypeCounts,
   recordTypes,
   totalPoints,
 });
@@ -526,9 +530,168 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(disciplineIcons[0]).toHaveClass('text-rose-600');
     expect(disciplineIcons[0].tagName.toLowerCase()).toBe('svg');
     expect(screen.getAllByText('+2')).not.toHaveLength(0);
+    const groupedRow = screen
+      .getAllByText('Student 1')
+      .map((element) => element.closest('tr'))
+      .find((row) => row !== null);
+    expect(groupedRow).not.toBeNull();
+    expect(groupedRow?.querySelector('[aria-label="Số lượng ghi nhận theo loại"]')).toBeNull();
     expect(screen.queryByText('Khen thưởng')).not.toBeInTheDocument();
     expect(screen.queryByText('Cộng điểm')).not.toBeInTheDocument();
     expect(screen.queryByText('Kỷ luật')).not.toBeInTheDocument();
+  });
+
+  it('loads every active student record in either drawer without list filters', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 3);
+    const history = [
+      {
+        ...group.latestRecord,
+        _id: 'history-record-newest',
+        record_title: 'Newest history record',
+        createdAt: '2026-08-27T00:00:00.000Z',
+      },
+      {
+        ...group.latestRecord,
+        _id: 'history-record-middle',
+        record_title: 'Middle history record',
+        createdAt: '2026-08-26T00:00:00.000Z',
+      },
+      {
+        ...group.latestRecord,
+        _id: 'history-record-oldest',
+        record_title: 'Oldest history record',
+        createdAt: '2026-08-25T00:00:00.000Z',
+      },
+    ];
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({
+        data: [group],
+        meta: { total: 1, totalPages: 1, has_more: false },
+      })
+      .mockResolvedValueOnce(history);
+
+    render(<StudentRecordPage />);
+
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getByTitle('Xem chi tiết'));
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith({
+        studentId: 'student-1',
+      });
+    });
+    expect(await screen.findByText('Newest history record')).toBeInTheDocument();
+    expect(screen.getByText('Middle history record')).toBeInTheDocument();
+    expect(screen.getByText('Oldest history record')).toBeInTheDocument();
+  });
+
+  it('renders the filtered total and reconciled per-type counts', async () => {
+    const group = makeStudentGroup(
+      'student-1',
+      'latest-record-1',
+      12,
+      ['khen_thuong', 'cong_diem', 'ky_luat'],
+      4,
+      { khen_thuong: 5, cong_diem: 5, ky_luat: 2 },
+    );
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [group],
+      meta: { total: 1, totalPages: 1, has_more: false },
+    });
+
+    render(<StudentRecordPage />);
+
+    expect(await screen.findAllByText('Tổng: 12')).not.toHaveLength(0);
+    expect(screen.getAllByText('Kỷ luật: 2')).not.toHaveLength(0);
+    expect(screen.getAllByText('Khen thưởng: 5')).not.toHaveLength(0);
+    expect(screen.getAllByText('Cộng điểm: 5')).not.toHaveLength(0);
+  });
+
+  it('expands selected student groups to filtered, de-duplicated child IDs', async () => {
+    const group1 = makeStudentGroup('student-1', 'latest-1', 2, ['ky_luat'], -10);
+    const group2Base = makeStudentGroup('student-2', 'latest-2', 2, ['cong_diem'], 10);
+    const group2 = {
+      ...group2Base,
+      latestRecord: {
+        ...group2Base.latestRecord,
+        student_id: {
+          ...group2Base.latestRecord.student_id,
+          _id: 'student-2',
+          student_code: 'SV002',
+          full_name: 'Student 2',
+        },
+      },
+    };
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({
+        data: [group1, group2],
+        meta: { total: 2, totalPages: 1, has_more: false },
+      })
+      .mockResolvedValueOnce([
+        { _id: 'child-1' },
+        { _id: 'child-2' },
+        { _id: 'child-1' },
+      ])
+      .mockResolvedValueOnce([
+        { _id: 'child-2' },
+        { _id: 'child-3' },
+      ])
+      .mockResolvedValue({ data: [], meta: { total: 0 } });
+    (academicRecordApi.bulkDeleteAcademicRecords as any).mockResolvedValue({
+      requested: 3,
+      succeeded: ['child-1', 'child-2', 'child-3'],
+      failed: [],
+      succeededCount: 3,
+      failedCount: 0,
+    });
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(2\)/ }));
+
+    expect(await screen.findByText(/2 sinh viên/)).toBeInTheDocument();
+    expect(screen.getByText(/3 ghi nhận/)).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    fireEvent.click(confirmDelete!);
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledWith([
+        'child-1', 'child-2', 'child-3',
+      ]);
+    });
+  });
+
+  it('keeps a grouped row selected when one child delete fails', async () => {
+    const group = makeStudentGroup('student-1', 'latest-1', 2, ['ky_luat'], -10);
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockResolvedValueOnce([{ _id: 'child-1' }, { _id: 'child-2' }])
+      .mockResolvedValue({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } });
+    (academicRecordApi.bulkDeleteAcademicRecords as any).mockResolvedValue({
+      requested: 2,
+      succeeded: ['child-1'],
+      failed: [{ id: 'child-2', message: 'Không đủ quyền' }],
+      succeededCount: 1,
+      failedCount: 1,
+    });
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(1\)/ }));
+    expect(await screen.findByText(/1 sinh viên/)).toBeInTheDocument();
+    expect(screen.getByText(/2 ghi nhận/)).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    fireEvent.click(confirmDelete!);
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledWith(['child-1', 'child-2']);
+      expect(screen.getByText(/vẫn được giữ lại trong danh sách chọn/)).toBeInTheDocument();
+      expect(screen.getAllByText('Student 1').length).toBeGreaterThan(0);
+    });
   });
 
   it('refreshes immediately, coalesces an SSE burst, and trails an event during fetch', async () => {
@@ -578,7 +741,10 @@ describe('StudentRecordPage Infinite Scroll', () => {
     await screen.findAllByText('Student 1');
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getByRole('button', { name: /Xóa \(26\)/ }));
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Xóa', exact: true })).at(-1)!);
+    expect(await screen.findByText('Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.')).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    fireEvent.click(confirmDelete!);
 
     await waitFor(() => {
       expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledTimes(1);
@@ -647,7 +813,10 @@ describe('StudentRecordPage Infinite Scroll', () => {
     await screen.findAllByText('Student 1');
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getByRole('button', { name: /Xóa \(2\)/ }));
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Xóa', exact: true })).at(-1)!);
+    expect(await screen.findByText('Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.')).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    fireEvent.click(confirmDelete!);
 
     await waitFor(() => {
       expect(screen.queryAllByText('Student 1')).toHaveLength(0);

@@ -770,6 +770,11 @@ describe('AcademicRecordService - Import Flow', () => {
                 _id: studentId,
                 latestRecordId,
                 recordCount: 3,
+                recordTypeCounts: {
+                  khen_thuong: 1,
+                  cong_diem: 2,
+                  ky_luat: 0,
+                },
                 recordTypes: ['khen_thuong', 'cong_diem'],
                 totalPoints: 12,
               },
@@ -795,6 +800,11 @@ describe('AcademicRecordService - Import Flow', () => {
             studentId: studentId.toString(),
             latestRecord,
             recordCount: 3,
+            recordTypeCounts: {
+              khen_thuong: 1,
+              cong_diem: 2,
+              ky_luat: 0,
+            },
             recordTypes: ['khen_thuong', 'cong_diem'],
             totalPoints: 12,
           },
@@ -814,6 +824,9 @@ describe('AcademicRecordService - Import Flow', () => {
           _id: '$student_id',
           latestRecordId: { $first: '$_id' },
           recordCount: { $sum: 1 },
+          khenThuongCount: expect.objectContaining({ $sum: expect.any(Object) }),
+          congDiemCount: expect.objectContaining({ $sum: expect.any(Object) }),
+          kyLuatCount: expect.objectContaining({ $sum: expect.any(Object) }),
           recordTypes: { $addToSet: '$criterion.criterion_type' },
           scoreRecords: expect.objectContaining({ $push: expect.any(Object) }),
         }),
@@ -833,6 +846,42 @@ describe('AcademicRecordService - Import Flow', () => {
       });
     });
 
+    it('returns a reconciled total and per-type counts for a grouped student', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [{
+              _id: studentId,
+              latestRecordId,
+              recordCount: 12,
+              recordTypeCounts: { khen_thuong: 5, cong_diem: 5, ky_luat: 2 },
+              recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+              scoreRecords: [],
+            }],
+            meta: [{ total: 1 }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0]).toEqual(expect.objectContaining({
+        recordCount: 12,
+        recordTypeCounts: { khen_thuong: 5, cong_diem: 5, ky_luat: 2 },
+      }));
+      expect(Object.values(result.data[0].recordTypeCounts).reduce(
+        (total: number, count: number) => total + count,
+        0,
+      )).toBe(result.data[0].recordCount);
+    });
+
     it('sums count, selected-option, and manual scores with signed discipline contribution', async () => {
       const studentId = new Types.ObjectId();
       const latestRecordId = new Types.ObjectId();
@@ -844,8 +893,13 @@ describe('AcademicRecordService - Import Flow', () => {
               {
                 _id: studentId,
                 latestRecordId,
-                recordCount: 4,
-                recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
+          recordCount: 4,
+          recordTypeCounts: {
+            khen_thuong: 1,
+            cong_diem: 2,
+            ky_luat: 1,
+          },
+          recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
                 scoreRecords: [
                   {
                     criterion: {
@@ -943,6 +997,11 @@ describe('AcademicRecordService - Import Flow', () => {
                 _id: studentId,
                 latestRecordId,
                 recordCount: 5,
+                recordTypeCounts: {
+                  khen_thuong: 1,
+                  cong_diem: 2,
+                  ky_luat: 2,
+                },
                 recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
                 scoreRecords: [
                   { criterion: disciplineCriterion, action_type: 'count', quantity: 1 },
@@ -967,6 +1026,11 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(result.data[0]).toEqual(
         expect.objectContaining({
           recordCount: 5,
+          recordTypeCounts: {
+            khen_thuong: 1,
+            cong_diem: 2,
+            ky_luat: 2,
+          },
           recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
           totalPoints: 2,
         }),
@@ -984,8 +1048,13 @@ describe('AcademicRecordService - Import Flow', () => {
               {
                 _id: studentId,
                 latestRecordId,
-                recordCount: 2,
-                recordTypes: ['ky_luat'],
+          recordCount: 2,
+          recordTypeCounts: {
+            khen_thuong: 0,
+            cong_diem: 0,
+            ky_luat: 2,
+          },
+          recordTypes: ['ky_luat'],
                 scoreRecords: [
                   { points_effect: -99 },
                   { criterion: null, points_effect: 5 },

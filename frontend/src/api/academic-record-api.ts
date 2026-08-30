@@ -43,6 +43,7 @@ export interface AcademicRecordStudentGroup {
   studentId: string;
   latestRecord: AcademicRecord;
   recordCount: number;
+  recordTypeCounts: Record<'khen_thuong' | 'cong_diem' | 'ky_luat', number>;
   recordTypes: Array<'khen_thuong' | 'cong_diem' | 'ky_luat'>;
   totalPoints: number;
 }

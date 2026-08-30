@@ -97,6 +97,8 @@ const NEW_BADGE_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 interface MappedAcademicRecord {
   id: string;
+  selectionId: string;
+  isGrouped: boolean;
   studentId: string;
   fullName: string;
   className: string;
@@ -106,6 +108,7 @@ interface MappedAcademicRecord {
   date: string;
   points: string;
   totalPoints: number;
+  recordTypeCounts: Record<AcademicRecordType, number>;
   original: AcademicRecord;
   recordCount: number;
   studentObjectId: string;
@@ -155,10 +158,39 @@ const RecordTypeIcons = ({ types }: { types: AcademicRecordType[] }) => (
   </span>
 );
 
+const recordTypeOrder: AcademicRecordType[] = [
+  "khen_thuong",
+  "cong_diem",
+  "ky_luat",
+];
+
+const RecordTypeCounts = ({
+  counts,
+  total,
+  className = "",
+}: {
+  counts: Record<AcademicRecordType, number>;
+  total: number;
+  className?: string;
+}) => (
+  <div
+    aria-label="Số lượng ghi nhận theo loại"
+    className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold text-slate-500 ${className}`}
+  >
+    <span className="font-bold text-slate-700">Tổng: {total}</span>
+    {recordTypeOrder.map((type) => (
+      <span key={type}>
+        {getAcademicRecordTypeLabel(type)}: {counts[type]}
+      </span>
+    ))}
+  </div>
+);
+
 type AcademicRecordListItem = AcademicRecord & {
   latestRecord?: AcademicRecord;
   recordCount?: number;
   studentId?: string;
+  recordTypeCounts?: Partial<Record<AcademicRecordType, number>>;
   recordTypes?: AcademicRecordType[];
   totalPoints?: number;
 };
@@ -685,7 +717,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
         if (studentId) {
           const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
-            ...getStudentHistoryParams(record),
             studentId,
           });
           const studentRecords = Array.isArray(studentRecordsResponse)
@@ -998,11 +1029,24 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     const recordTypes = Array.isArray(item.recordTypes) && item.recordTypes.length > 0
       ? item.recordTypes
       : [latestRecordType];
+    const recordCount = item.recordCount ?? 1;
+    const suppliedRecordTypeCounts = item.recordTypeCounts;
+    const recordTypeCounts: Record<AcademicRecordType, number> = {
+      khen_thuong: Number(suppliedRecordTypeCounts?.khen_thuong ?? 0),
+      cong_diem: Number(suppliedRecordTypeCounts?.cong_diem ?? 0),
+      ky_luat: Number(suppliedRecordTypeCounts?.ky_luat ?? 0),
+    };
+    if (!suppliedRecordTypeCounts) {
+      recordTypeCounts[latestRecordType] = recordCount;
+    }
     const totalPoints =
       typeof item.totalPoints === "number" ? item.totalPoints : pts;
+    const isGrouped = Boolean(item.latestRecord || item.studentId);
 
     return {
       id: r._id,
+      selectionId: isGrouped ? studentObjectId : r._id,
+      isGrouped,
       studentId: foundStudent ? foundStudent.student_code : "",
       fullName: foundStudent ? foundStudent.full_name : "",
       className: className,
@@ -1025,7 +1069,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       points: formatSignedPoints(totalPoints),
       totalPoints,
       original: r,
-      recordCount: item.recordCount ?? 1,
+      recordCount,
+      recordTypeCounts,
       studentObjectId,
     };
   }), [academicRecords, allCriteria, classes]);
@@ -1064,7 +1109,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const toggleSelectAll = useCallback(() => {
     if (!ghiNhanAccess.deleteStudentRecord) return;
 
-    const deletableIds = paginatedRecords.map((record) => record.id);
+    const deletableIds = paginatedRecords.map((record) => record.selectionId);
 
     if (deletableIds.length === 0) return;
 
@@ -1075,13 +1120,90 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     }
   }, [ghiNhanAccess.deleteStudentRecord, paginatedRecords, selectedIdSet]);
 
+  type StudentGroupDeletePlan = {
+    selectionId: string;
+    recordIds: string[];
+    error?: string;
+  };
+
+  const [deletePreview, setDeletePreview] = useState<{
+    groups: StudentGroupDeletePlan[];
+    recordIds: string[];
+  } | null>(null);
+  const [isPreparingDeletePreview, setIsPreparingDeletePreview] = useState(false);
+  const isPreparingDeletePreviewRef = useRef(false);
+
+  const prepareDeletePreview = async () => {
+    if (
+      !ghiNhanAccess.deleteStudentRecord ||
+      selectedIds.length === 0 ||
+      isDeletingRecordsRef.current ||
+      isPreparingDeletePreviewRef.current
+    ) {
+      return;
+    }
+
+    const selectedGroups = mappedRecords.filter((record) =>
+      selectedIdSet.has(record.selectionId),
+    );
+    if (selectedGroups.length === 0) {
+      toast.warning("Không còn nhóm sinh viên nào phù hợp với bộ lọc hiện tại.");
+      return;
+    }
+
+    isPreparingDeletePreviewRef.current = true;
+    setIsPreparingDeletePreview(true);
+    try {
+      const groups = await Promise.all(
+        selectedGroups.map(async (record): Promise<StudentGroupDeletePlan> => {
+          try {
+            if (!record.isGrouped) {
+              return {
+                selectionId: record.selectionId,
+                recordIds: [record.id],
+              };
+            }
+            const response = await academicRecordApi.getAcademicRecords({
+              ...getStudentHistoryParams(record),
+              studentId: record.studentObjectId,
+            });
+            const history = Array.isArray(response) ? response : response.data;
+            const recordIds = history
+              .map((child) => child?._id)
+              .filter((id): id is string => typeof id === "string");
+            return {
+              selectionId: record.selectionId,
+              recordIds: Array.from(new Set(recordIds)),
+            };
+          } catch (error: any) {
+            return {
+              selectionId: record.selectionId,
+              recordIds: [],
+              error: error?.message || "Không thể tải lịch sử để tạo bản xem trước.",
+            };
+          }
+        }),
+      );
+      const recordIds = Array.from(new Set(groups.flatMap((group) => group.recordIds)));
+      setDeletePreview({ groups, recordIds });
+      setIsDeleteConfirmOpen(true);
+    } finally {
+      isPreparingDeletePreviewRef.current = false;
+      setIsPreparingDeletePreview(false);
+    }
+  };
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   }, []);
 
-  const runBulkRecordDelete = async (ids: string[], permanent = false) => {
+  const runBulkRecordDelete = async (
+    ids: string[],
+    permanent = false,
+    groupPlan?: StudentGroupDeletePlan[],
+  ) => {
     const uniqueIds = Array.from(new Set(ids));
     if (isDeletingRecordsRef.current || isDeletingRecords || uniqueIds.length === 0) return;
     isDeletingRecordsRef.current = true;
@@ -1113,7 +1235,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         setDeletedRecords(prev => prev.filter(record => !succeededIds.has(record._id)));
         await fetchDeletedItems();
       } else {
-        setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
+        if (groupPlan) {
+          setSelectedIds((prev) =>
+            prev.filter((selectionId) => {
+              const group = groupPlan.find((item) => item.selectionId === selectionId);
+              return !group || group.recordIds.length === 0 ||
+                group.recordIds.some((id) => failedIds.has(id)) ||
+                !!group.error;
+            }),
+          );
+        } else {
+          setSelectedIds(prev => prev.filter(id => failedIds.has(id)));
+        }
         setAcademicRecords(prev => prev.filter(record => !succeededIds.has(record.latestRecord?._id || record._id)));
         await refreshAcademicRecords();
       }
@@ -1131,11 +1264,21 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleDelete = async () => {
     setIsDeleteConfirmOpen(false);
-    if (!ghiNhanAccess.deleteStudentRecord || selectedIds.length === 0) {
+    const preview = deletePreview;
+    setDeletePreview(null);
+    if (!ghiNhanAccess.deleteStudentRecord || !preview) {
       toast.error("Bạn không có quyền xóa các ghi nhận đã chọn.");
       return;
     }
-    await runBulkRecordDelete(selectedIds);
+    if (preview.recordIds.length === 0) {
+      toast.warning(
+        preview.groups.some((group) => group.error)
+          ? "Không thể xoá vì một số nhóm không tải được dữ liệu lọc."
+          : "Không có ghi nhận phù hợp để xoá; các nhóm vẫn được giữ lại.",
+      );
+      return;
+    }
+    await runBulkRecordDelete(preview.recordIds, false, preview.groups);
   };
 
   const handleDeleteRecordSingle = async (id: string) => {
@@ -1855,32 +1998,15 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           ).length;
 
           return (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
-                  Khen thưởng
-                </span>
-                <span className="text-xl font-black text-emerald-600 leading-none">
-                  {isDetailLoading ? "..." : khenThuongCount}
-                </span>
-              </div>
-              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">
-                  Cộng điểm
-                </span>
-                <span className="text-xl font-black text-blue-600 leading-none">
-                  {isDetailLoading ? "..." : congDiemCount}
-                </span>
-              </div>
-              <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
-                <span className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">
-                  Kỷ luật
-                </span>
-                <span className="text-xl font-black text-rose-600 leading-none">
-                  {isDetailLoading ? "..." : kyLuatCount}
-                </span>
-              </div>
-            </div>
+            <RecordTypeCounts
+              counts={{
+                khen_thuong: khenThuongCount,
+                cong_diem: congDiemCount,
+                ky_luat: kyLuatCount,
+              }}
+              total={isDetailLoading ? (detailRecord.recordCount ?? 0) : detailRecordHistory.length}
+              className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
+            />
           );
         })()}
 
@@ -2268,6 +2394,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
                             {record.recordCount} lần ghi nhận
                           </p>
+                          <RecordTypeCounts
+                            counts={record.recordTypeCounts}
+                            total={record.recordCount}
+                            className="mt-1"
+                          />
                           <div className="flex items-center gap-3 mt-2">
                             <RecordTypeIcons types={record.recordTypes} />
                             <span
@@ -2363,7 +2494,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           transition={{ duration: 0.15 }}
                           key={record.id}
                           className={`bg-white/45 backdrop-blur-md border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:border-[#1A73E8]/50 flex flex-col gap-3 relative group ${
-                            selectedIdSet.has(record.id)
+                            selectedIdSet.has(record.selectionId)
                               ? "border-[#1A73E8] bg-blue-50/20 shadow-[0_2px_12px_rgba(26,115,232,0.15)]"
                               : "border-white/70"
                           }`}
@@ -2374,8 +2505,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                               {record.original && !isStudent && (
                                 <input
                                   type="checkbox"
-                                  checked={selectedIdSet.has(record.id)}
-                                  onChange={() => toggleSelect(record.id)}
+                                  checked={selectedIdSet.has(record.selectionId)}
+                                  onChange={() => toggleSelect(record.selectionId)}
                                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                 />
                               )}
@@ -2400,6 +2531,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             <p className="text-[11.5px] font-semibold text-[#64748B] mt-0.5">
                               {record.className}
                             </p>
+                            <RecordTypeCounts
+                              counts={record.recordTypeCounts}
+                              total={record.recordCount}
+                              className="mt-1"
+                            />
                           </div>
 
                           {/* Criteria */}
@@ -2859,7 +2995,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             type="checkbox"
                             checked={
                               paginatedRecords.every((record) =>
-                                selectedIdSet.has(record.id),
+                              selectedIdSet.has(record.selectionId),
                               )
                             }
                             onChange={toggleSelectAll}
@@ -2946,7 +3082,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           >
                             <MemoizedAcademicRecordTableCells
                               record={record}
-                              selected={selectedIdSet.has(record.id)}
+                              selected={selectedIdSet.has(record.selectionId)}
                               isStudent={isStudent}
                               canDelete={ghiNhanAccess.deleteStudentRecord}
                               onToggle={toggleSelect}
@@ -4053,12 +4189,12 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               </button>
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (
                 <button
-                  onClick={() => setIsDeleteConfirmOpen(true)}
-                  disabled={isDeletingRecords}
+                  onClick={prepareDeletePreview}
+                  disabled={isDeletingRecords || isPreparingDeletePreview}
                   className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 size={13} strokeWidth={2.5} />
-                  <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
+                  <span className="hidden sm:inline">{isPreparingDeletePreview ? "Đang chuẩn bị..." : `Xóa (${selectedIds.length})`}</span>
                   <span className="inline sm:hidden">({selectedIds.length})</span>
                 </button>
               )}
@@ -4104,10 +4240,34 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       {/* Confirm delete HSSV */}
       <ConfirmModal
         isOpen={isDeleteConfirmOpen}
-        onClose={() => setIsDeleteConfirmOpen(false)}
+        onClose={() => {
+          setIsDeleteConfirmOpen(false);
+          setDeletePreview(null);
+        }}
         onConfirm={handleDelete}
         title="Xác nhận xóa ghi nhận"
-        message={`Bạn có chắc chắn muốn xóa ${selectedIds.length} ghi nhận HSSV đã chọn? Hành động này không thể hoàn tác.`}
+        message={
+          deletePreview ? (
+            <div className="flex flex-col gap-2">
+              <span>
+                Bạn đang xoá <strong>{deletePreview.groups.length} sinh viên</strong> với tổng cộng <strong>{deletePreview.recordIds.length} ghi nhận</strong> đang khớp bộ lọc hiện tại.
+              </span>
+              {deletePreview.groups.some((group) => group.error) && (
+                <span className="text-amber-700">
+                  Một số nhóm chưa tải được dữ liệu và sẽ được giữ lại để thử lại.
+                </span>
+              )}
+              {deletePreview.groups.some((group) => group.recordIds.length === 0 && !group.error) && (
+                <span className="text-slate-600">
+                  Nhóm không còn ghi nhận phù hợp sẽ không bị xoá.
+                </span>
+              )}
+              <span>Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.</span>
+            </div>
+          ) : (
+            "Đang tạo bản xem trước xoá..."
+          )
+        }
         confirmLabel="Xóa"
         cancelLabel="Hủy"
         variant="danger"

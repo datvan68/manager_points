@@ -2102,6 +2102,33 @@ export class AcademicRecordService {
               latestCreatedAt: { $first: '$createdAt' },
               latestRecordedAt: { $first: '$recorded_at' },
               recordCount: { $sum: 1 },
+              khenThuongCount: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$criterion.criterion_type', 'khen_thuong'] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              congDiemCount: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$criterion.criterion_type', 'cong_diem'] },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              kyLuatCount: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$criterion.criterion_type', 'ky_luat'] },
+                    1,
+                    0,
+                  ],
+                },
+              },
               recordTypes: { $addToSet: '$criterion.criterion_type' },
               // Keep only the score inputs needed to reuse ScoreEngineService
               // after pagination, without returning the full history payload.
@@ -2122,6 +2149,11 @@ export class AcademicRecordService {
           },
           {
             $set: {
+              recordTypeCounts: {
+                khen_thuong: '$khenThuongCount',
+                cong_diem: '$congDiemCount',
+                ky_luat: '$kyLuatCount',
+              },
               recordTypes: {
                 $filter: {
                   input: ['khen_thuong', 'cong_diem', 'ky_luat'],
@@ -2174,6 +2206,11 @@ export class AcademicRecordService {
             studentId: group._id.toString(),
             latestRecord,
             recordCount: group.recordCount,
+            recordTypeCounts: group.recordTypeCounts || {
+              khen_thuong: 0,
+              cong_diem: 0,
+              ky_luat: 0,
+            },
             recordTypes: group.recordTypes || [],
             totalPoints:
               Array.isArray(group.scoreRecords) && group.scoreRecords.length > 0

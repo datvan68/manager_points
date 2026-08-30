@@ -1,60 +1,59 @@
 slot_id: "taskscope-00"
-generation: 1
-task_id: "20260830-criterion-derived-group-total"
+generation: 3
+task_id: "20260830-165026-adjust-hssv-record-detail"
 scope_file: "docs/task/taskscope.md"
 status: completed
-scope_revision: 3
-created_at: "2026-08-30T16:10:00+07:00"
-updated_at: "2026-08-30T16:35:00+07:00"
-base_commit: "1009be21ec5b263bdcf781d29ce1b1743f7081d2"
-task: "Calculate grouped total from configured criterion points"
+scope_revision: 1
+created_at: "2026-08-30T16:50:26+07:00"
+updated_at: "2026-08-30T16:57:20+07:00"
+base_commit: "6f141a1849de3e284f1a136092c89d5987f05497"
+task: "Simplify record-type cells and show complete drawer history"
 pipeline: bug_fix
 profile: Quick
-objective: "Total points is the signed sum of in-scope records derived from existing criterion configuration."
+objective: "Keep Loại ghi nhận compact and show every active student record in the Chi tiết trạng thái drawer."
 
 coordination:
   depends_on: []
-  warnings: ["TASKSCOPE_WARNING: frontend/src/app/(dashboard)/students/record/page.test.tsx changed since original base; revalidated against current HEAD."]
-
-evidence:
-  current_behavior: "AcademicRecordService derives effectivePoints through ScoreEngineService but falls back to points_effect without a criterion."
-  required_rule: "Read criterion configuration, derive each contribution, and add algebraically; -3 + 5 = 2."
-
-scope:
-  write: ["backend/src/academic-record/academic-record.service.ts", "backend/src/academic-record/academic-record.service.spec.ts", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx"]
-  preserve: ["criterion configuration", "ScoreEngine modes", "RBAC/record filters", "pagination/API shape", "realtime refresh"]
-  out: ["criterion CRUD", "score persistence", "migration/backfill", "SummaryPoint", "UI redesign"]
-
-acceptance_criteria:
-  - "AC-01: Group/detail reads never write criterion configuration or stored record points."
-  - "AC-02: ScoreEngine derives each contribution from criterion configuration and the mode's quantity/option/manual input. An unresolved criterion contributes 0; points_effect never replaces configured values."
-  - "AC-03: group.totalPoints is the arithmetic sum of in-scope contributions, preserving negative, positive, decimal, and zero values without absolute conversion, sign reversal, aggregate clamping, or double quantity multiplication."
-  - "AC-04: Both detail views show the same contributions used by totalPoints; a regression displays -3, +5, and total 2."
-
-execution:
-  - "E-01 [AC-01..AC-03] Use calculateGroupedRecordScore as the read-only derivation for grouped reduction and effectivePoints."
-  - "E-02 [AC-04] Bind detail views only to backend effectivePoints."
-  - "E-03 [AC-01..AC-04] Cover mixed signs, decimals, missing criterion, and input immutability."
+  warnings: []
 
 completion:
-  completed_at: "2026-08-30T16:35:00+07:00"
+  completed_at: "2026-08-30T16:57:20+07:00"
   outcome: success
-  final_commit_or_state: "Working tree changes present; no commit created."
-  changed_paths: ["backend/src/academic-record/academic-record.service.ts", "backend/src/academic-record/academic-record.service.spec.ts", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx"]
-  checks_passed: ["backend academic-record service test", "frontend student record test (17 passed)", "backend build", "frontend typecheck", "git diff --check"]
+  final_commit_or_state: "Working tree changes present; no commit created. Pre-existing backend/API changes preserved."
+  changed_paths: ["frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx", "docs/task/taskscope.md"]
+  checks_passed: ["npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' (21 passed)", "npm --prefix frontend run typecheck", "git diff --check"]
   cleanup_pending: []
 
-verification:
-  - "npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand"
-  - "npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx'"
-  - "npm --prefix backend run build"
-  - "npm --prefix frontend run typecheck"
-  - "git diff --check"
+evidence:
+  current_behavior: "page.tsx:MemoizedAcademicRecordTableCells adds RecordTypeCounts below the icons; handleOpenDrawerChange applies list filters to drawer history."
+  expected_behavior: "The cell shows only icons; both drawers render all active records for the student."
+  root_cause: "Drawer history reuses list-filter parameters instead of querying by student ID alone."
 
-risks: ["Records with an unresolved criterion contribute 0."]
-stop_conditions: ["Stop if totals require historical criterion snapshots instead of current configuration."]
+scope:
+  inspect: ["frontend/src/api/academic-record-api.ts:getAcademicRecords unpaginated contract"]
+  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:MemoizedAcademicRecordTableCells and handleOpenDrawerChange", "frontend/src/app/(dashboard)/students/record/page.test.tsx:table-cell and drawer-history regressions"]
+  preserve: ["Grouped counts, list filters, drawer states/order/counts, RBAC, deletion, and both drawer entry points"]
+  out: ["Backend/API/schema changes", "Removing summary counts inside the drawer", "Changing non-drawer detail view or bulk-delete behavior"]
+
+acceptance_criteria:
+  - "AC-01: Loại ghi nhận shows existing icons without Total/per-type text below."
+  - "AC-02: Either drawer queries only studentId and renders every returned active record once."
+  - "AC-03: Drawer states, ordering, counts, permissions, and list filters remain unchanged."
+
+execution:
+  - "E-01 [AC-01] page.tsx:MemoizedAcademicRecordTableCells → remove its RecordTypeCounts."
+  - "E-02 [AC-02,AC-03] page.tsx:handleOpenDrawerChange → query by studentId only; retain mapping/order/states."
+  - "E-03 [AC-01..AC-03] page.test.tsx → cover compact cell and complete drawer history."
 
 temporary_artifacts:
   create: []
   cleanup: []
-  retain: ["docs/task/taskscope.md"]
+  retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
+
+verification:
+  - "V-01 [AC-01..AC-03] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → focused regressions pass."
+  - "V-02 [AC-01..AC-03] npm --prefix frontend run typecheck → affected page compiles."
+  - "V-03 [AC-01..AC-03] git diff --check → no whitespace errors."
+
+risks: ["Drawer visibility broadens within existing academic-record read permission."]
+stop_conditions: ["Resolve/incorporate the dirty-path conflict; stop if drawer history must stay semester-scoped."]
