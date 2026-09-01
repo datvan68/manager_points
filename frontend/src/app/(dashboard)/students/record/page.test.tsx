@@ -8,6 +8,14 @@ import { dailyClassReportApi } from '@/api/daily-class-report-api';
 
 let mockRecordPermissions: Record<string, boolean> = {};
 let mockRealtimeOptions: any = null;
+const mockXlsx = vi.hoisted(() => ({
+  utils: {
+    json_to_sheet: vi.fn((data: unknown[]) => data),
+    book_new: vi.fn(() => ({})),
+    book_append_sheet: vi.fn(),
+  },
+  writeFile: vi.fn(),
+}));
 
 // --- MOCKS ---
 
@@ -44,6 +52,8 @@ vi.mock('@/api/academic-record-api', () => ({
     deleteAcademicRecord: vi.fn(),
   }
 }));
+
+vi.mock('xlsx', () => mockXlsx);
 
 vi.mock('@/api/class-api', () => ({
   classApi: {
@@ -117,6 +127,7 @@ const makeStudentGroup = (
     },
     points_effect: -5,
     record_title: 'Latest record',
+    semester_id: 'semester-1',
     recorded_at: '2026-08-25T00:00:00.000Z',
     createdAt: '2026-08-25T00:00:00.000Z',
   },
@@ -192,6 +203,10 @@ describe('StudentRecordPage Infinite Scroll', () => {
     resolveSecondFetch = null;
     mockRecordPermissions = {};
     mockRealtimeOptions = null;
+    mockXlsx.utils.json_to_sheet.mockClear();
+    mockXlsx.utils.book_new.mockClear();
+    mockXlsx.utils.book_append_sheet.mockClear();
+    mockXlsx.writeFile.mockClear();
   });
   
   afterEach(() => {
@@ -503,9 +518,71 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
     await waitFor(() => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
-        expect.objectContaining({ studentId: 'student-1' }),
+        expect.objectContaining({ studentId: 'student-1', semesterId: 'semester-1' }),
       );
     });
+  });
+
+  it('uses one latest-record column and keeps grouped row actions read-only', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 3);
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [group],
+      meta: { total: 1, totalPages: 1, has_more: false },
+    });
+
+    render(<StudentRecordPage />);
+
+    expect(await screen.findByRole('columnheader', { name: 'Ghi nhận gần nhất' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Tiêu chí' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Ngày ghi nhận' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Latest record').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ngày: 25/08/2026').length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle('Xem chi tiết').length).toBeGreaterThan(0);
+    expect(screen.queryByTitle('Chỉnh sửa')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Xóa')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sửa ghi nhận')).not.toBeInTheDocument();
+  });
+
+  it('exports grouped summaries separately from filtered student history', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 2);
+    const history = [
+      { ...group.latestRecord, _id: 'history-1', record_title: 'History one' },
+      { ...group.latestRecord, _id: 'history-2', record_title: 'History two' },
+    ];
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({
+        data: [group],
+        meta: { total: 1, totalPages: 1, has_more: false },
+      })
+      .mockResolvedValueOnce(history);
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xuất tổng hợp theo sinh viên' }));
+    await waitFor(() => expect(mockXlsx.utils.json_to_sheet).toHaveBeenCalledTimes(1));
+    expect(mockXlsx.utils.json_to_sheet.mock.calls[0][0][0]).toEqual(
+      expect.objectContaining({
+        'Ghi nhận gần nhất - Tiêu chí': 'Latest record',
+        'Ghi nhận gần nhất - Ngày': '25/08/2026',
+        'Số lần ghi nhận': 2,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xuất lịch sử chi tiết theo ghi nhận' }));
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
+        expect.objectContaining({ studentId: 'student-1', semesterId: 'semester-1' }),
+      );
+      expect(mockXlsx.utils.json_to_sheet).toHaveBeenCalledTimes(2);
+    });
+    expect(mockXlsx.utils.json_to_sheet.mock.calls[1][0]).toHaveLength(2);
+    expect(mockXlsx.utils.json_to_sheet.mock.calls[1][0][0]).toEqual(
+      expect.objectContaining({
+        'Tiêu chí': 'History one',
+        'Ngày ghi nhận': '25/08/2026',
+      }),
+    );
   });
 
   it('renders de-duplicated grouped type icons and the mixed-sign grouped total', async () => {
@@ -542,7 +619,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Kỷ luật')).not.toBeInTheDocument();
   });
 
-  it('loads every active student record in either drawer without list filters', async () => {
+  it('loads every active student record in either drawer with history context', async () => {
     const group = makeStudentGroup('student-1', 'latest-record-1', 3);
     const history = [
       {
@@ -578,9 +655,9 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getByTitle('Xem chi tiết'));
 
     await waitFor(() => {
-      expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith({
-        studentId: 'student-1',
-      });
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
+        expect.objectContaining({ studentId: 'student-1', semesterId: 'semester-1' }),
+      );
     });
     expect(await screen.findByText('Newest history record')).toBeInTheDocument();
     expect(screen.getByText('Middle history record')).toBeInTheDocument();

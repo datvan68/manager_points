@@ -241,14 +241,13 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
       <td className="px-5 py-4">
         <RecordTypeIcons types={record.recordTypes} />
       </td>
-      <td
-        className="px-5 py-4 text-sm font-bold text-slate-700 max-w-[220px] truncate"
-        title={record.criteria || "Chưa có"}
-      >
-        {record.criteria || "Chưa có"}
-      </td>
-      <td className="px-5 py-4 text-sm font-medium text-[#64748B]">
-        {record.date}
+      <td className="px-5 py-4 text-sm text-slate-700 max-w-[260px]">
+        <div className="font-bold truncate" title={record.criteria || "Chưa có"}>
+          {record.criteria || "Chưa có"}
+        </div>
+        <div className="text-xs font-medium text-[#64748B] mt-1">
+          Ngày: {record.date}
+        </div>
       </td>
       <td className="px-5 py-4 text-sm font-semibold text-[#64748B]">
         {record.recordCount} lần
@@ -463,7 +462,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     "Không thể thực hiện hành động",
   );
   const [errorModalMessage, setErrorModalMessage] = useState("");
-  const [recordToDelete, setRecordToDelete] = useState<string | null>(null);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
@@ -521,8 +519,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   );
   const [editingAcademicRecord, setEditingAcademicRecord] =
     useState<AcademicRecord | null>(null);
-  const [isOpeningEditRecord, setIsOpeningEditRecord] = useState(false);
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [classCurrentPage, setClassCurrentPage] = useState(1);
   const [isDeletingClassReports, setIsDeletingClassReports] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
@@ -716,9 +712,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
         if (studentId) {
-          const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
-            studentId,
-          });
+            const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
+              ...getStudentHistoryParams(record),
+              studentId,
+            });
           const studentRecords = Array.isArray(studentRecordsResponse)
             ? studentRecordsResponse
             : studentRecordsResponse.data;
@@ -1281,24 +1278,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     await runBulkRecordDelete(preview.recordIds, false, preview.groups);
   };
 
-  const handleDeleteRecordSingle = async (id: string) => {
-    try {
-      if (!ghiNhanAccess.deleteStudentRecord) {
-        toast.error("Bạn không có quyền xóa ghi nhận này.");
-        return;
-      }
-      await academicRecordApi.deleteAcademicRecord(id);
-      toast.success("Đã xóa ghi nhận rèn luyện thành công.");
-      refreshAcademicRecords();
-    } catch (err: any) {
-      console.error(err);
-      const errMsg = err.message || "Không thể xóa ghi nhận rèn luyện.";
-      setErrorModalTitle("Không thể xóa ghi nhận");
-      setErrorModalMessage(errMsg);
-      setIsErrorModalOpen(true);
-    }
-  };
-
   // Class list toggle selects
   const toggleSelectAllClass = () => {
     const deletableIds = paginatedClassReports
@@ -1506,9 +1485,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         "Loại ghi nhận": r.recordTypes
           .map(getAcademicRecordTypeLabel)
           .join(", "),
-        "Mã tiêu chí": r.criterionCode,
-        "Tiêu chí": r.criteria || "Chưa có",
-        "Ngày ghi nhận": r.date,
+        "Mã tiêu chí gần nhất": r.criterionCode,
+        "Ghi nhận gần nhất - Tiêu chí": r.criteria || "Chưa có",
+        "Ghi nhận gần nhất - Ngày": r.date,
+        "Số lần ghi nhận": r.recordCount,
         "Tính điểm": r.points,
       }));
       const worksheet = XLSX.utils.json_to_sheet(data);
@@ -1522,6 +1502,85 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     } catch (error) {
       console.error(error);
       toast.error("Có lỗi xảy ra khi xuất file Excel");
+    }
+  };
+
+  const handleExportStudentHistoryExcel = async () => {
+    if (filteredRecords.length === 0) {
+      toast.error("Không có dữ liệu để xuất Excel");
+      return;
+    }
+
+    try {
+      const XLSX = await import("xlsx");
+      const historyByStudent = await Promise.all(
+        filteredRecords.map(async (record) => {
+          if (!record.isGrouped) return [record.original];
+
+          const response = await academicRecordApi.getAcademicRecords({
+            ...getStudentHistoryParams(record),
+            studentId: record.studentObjectId,
+          });
+          return Array.isArray(response) ? response : response.data;
+        }),
+      );
+      const data = historyByStudent.flatMap((history, groupIndex) => {
+        const group = filteredRecords[groupIndex];
+        return history.map((record: any) => {
+          const student = typeof record.student_id === "object"
+            ? record.student_id
+            : typeof group.original.student_id === "object"
+              ? group.original.student_id
+              : null;
+          const evalDetail = typeof record.evaluation_detail_id === "object"
+            ? record.evaluation_detail_id
+            : null;
+          const criterionId = record.criterion_id
+            ? typeof record.criterion_id === "object" ? record.criterion_id._id : record.criterion_id
+            : record.criteria_id
+              ? typeof record.criteria_id === "object" ? record.criteria_id._id : record.criteria_id
+              : evalDetail
+                ? typeof evalDetail.criterion_id === "object" ? evalDetail.criterion_id._id : evalDetail.criterion_id
+                : record.evaluation_detail_id;
+          const criterion = allCriteria.find((item) => item._id === criterionId);
+          const points = Number.isFinite(record.effectivePoints)
+            ? record.effectivePoints
+            : Number(record.points_effect ?? 0);
+          const rawDate = record.recorded_at || record.date_record || record.createdAt;
+          const date = rawDate ? format(new Date(rawDate), "dd/MM/yyyy") : "N/A";
+          const recordType = criterion?.criterion_type
+            || (points < 0 ? "ky_luat" : "cong_diem");
+
+          return {
+            "Mã SV": student?.student_code || group.studentId,
+            "Họ và tên": student?.full_name || group.fullName,
+            Lớp: group.className,
+            "Loại ghi nhận": getAcademicRecordTypeLabel(recordType as AcademicRecordType),
+            "Mã tiêu chí": criterion?.criterion_code || "",
+            "Tiêu chí": criterion?.criterion_name || record.record_title || "Chưa có",
+            "Ngày ghi nhận": date,
+            "Tính điểm": formatSignedPoints(points),
+            "Nguồn": record.daily_report_id ? "Ghi nhận lớp" : "Ghi nhận HSSV",
+          };
+        });
+      });
+
+      if (data.length === 0) {
+        toast.error("Không có lịch sử phù hợp với bộ lọc hiện tại");
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Lịch sử chi tiết");
+      XLSX.writeFile(
+        workbook,
+        `Lich_su_ghi_nhan_HSSV_${format(new Date(), "yyyyMMdd_HHmmss")}.xlsx`,
+      );
+      toast.success("Đã xuất file Excel lịch sử ghi nhận HSSV thành công!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Có lỗi xảy ra khi xuất lịch sử ghi nhận");
     }
   };
 
@@ -1577,7 +1636,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     try {
       const XLSX = await import("xlsx");
       const selectedRecords = mappedRecords.filter((r) =>
-        selectedIdSet.has(r.id),
+        selectedIdSet.has(r.selectionId),
       );
       const data = selectedRecords.map((r) => ({
         "Mã SV": r.studentId,
@@ -1586,8 +1645,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         "Loại ghi nhận": r.recordTypes
           .map(getAcademicRecordTypeLabel)
           .join(", "),
-        "Tiêu chí": r.criteria || "Chưa có",
-        "Ngày ghi nhận": r.date,
+        "Mã tiêu chí gần nhất": r.criterionCode,
+        "Ghi nhận gần nhất - Tiêu chí": r.criteria || "Chưa có",
+        "Ghi nhận gần nhất - Ngày": r.date,
+        "Số lần ghi nhận": r.recordCount,
         "Tính điểm": r.points,
       }));
       const worksheet = XLSX.utils.json_to_sheet(data);
@@ -1669,40 +1730,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       return;
     }
     setCurrentView("add");
-  };
-
-  const handleEdit = async (recordId: string) => {
-    if (!ghiNhanAccess.editStudentRecord) {
-      toast.error("Bạn không có quyền chỉnh sửa ghi nhận HSSV.");
-      return;
-    }
-
-    setIsOpeningEditRecord(true);
-    setEditingRecordId(recordId);
-    try {
-      const existingRecord =
-        academicRecords.find((record) => record._id === recordId)?.latestRecord ||
-        academicRecords.find((record) => record.latestRecord?._id === recordId)?.latestRecord ||
-        academicRecords.find((record) => record._id === recordId) ||
-        (await academicRecordApi.getAcademicRecord(recordId));
-
-      if (!existingRecord) {
-        throw new Error("Không tìm thấy ghi nhận để chỉnh sửa.");
-      }
-
-      setEditingAcademicRecord(existingRecord);
-      setEditingReport(null);
-      setActiveSubTab("student");
-      setCurrentView("edit");
-    } catch (err: any) {
-      console.error("Lỗi khi mở form chỉnh sửa ghi nhận:", err);
-      toast.error(err.message || "Không thể tải ghi nhận để chỉnh sửa.");
-      setCurrentView("list");
-      setEditingAcademicRecord(null);
-    } finally {
-      setIsOpeningEditRecord(false);
-      setEditingRecordId(null);
-    }
   };
 
   const handleEditClassReport = (report: DailyClassReport) => {
@@ -2195,6 +2222,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     </div>
                   )}
 
+                  <Button
+                    variant="outline"
+                    onClick={handleExportStudentExcel}
+                    aria-label="Xuất tổng hợp theo sinh viên"
+                    className="flex items-center gap-1.5 px-3 h-9 border border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Tổng hợp</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleExportStudentHistoryExcel}
+                    aria-label="Xuất lịch sử chi tiết theo ghi nhận"
+                    className="flex items-center gap-1.5 px-3 h-9 border border-blue-200 bg-blue-50/70 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Lịch sử chi tiết</span>
+                  </Button>
+
                   {ghiNhanAccess.configRecord && (
                     <Button
                       variant="outline"
@@ -2231,6 +2277,24 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </button>
                 </div>
               )}
+              <div className="lg:hidden flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={handleExportStudentExcel}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 border border-emerald-200 bg-emerald-50/70 text-emerald-700 rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Tổng hợp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportStudentHistoryExcel}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 border border-blue-200 bg-blue-50/70 text-blue-700 rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Lịch sử chi tiết</span>
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -2414,7 +2478,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       </div>
 
                       <div className="bg-slate-50/50 border border-slate-100 rounded-lg p-2.5 text-[12px] text-[#334155] font-medium leading-relaxed">
-                        {record.criteria || "Không có tiêu chí"}
+                        <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Ghi nhận gần nhất
+                        </span>
+                        <span className="block">{record.criteria || "Không có tiêu chí"}</span>
+                        <span className="block text-[11px] text-slate-500 mt-1">Ngày: {record.date}</span>
                       </div>
 
                       <div className="flex justify-end pt-1">
@@ -2502,9 +2570,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           {/* Checkbox & Badge */}
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              {record.original && !isStudent && (
+                              {record.original && !isStudent && ghiNhanAccess.deleteStudentRecord && (
                                 <input
                                   type="checkbox"
+                                  aria-label={`Chọn sinh viên ${record.fullName}`}
                                   checked={selectedIdSet.has(record.selectionId)}
                                   onChange={() => toggleSelect(record.selectionId)}
                                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -2538,9 +2607,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             />
                           </div>
 
-                          {/* Criteria */}
-                          <div className="bg-white/30 border border-white/50 rounded-xl p-2.5 text-[12px] text-[#1E293B] font-medium line-clamp-2 h-10 flex items-center">
-                            {record.criteria || "Không có tiêu chí"}
+                          {/* Latest filtered record */}
+                          <div className="bg-white/30 border border-white/50 rounded-xl p-2.5 text-[12px] text-[#1E293B] font-medium min-h-14">
+                            <span className="block text-[9px] text-[#64748B] font-semibold uppercase tracking-wider mb-1">
+                              Ghi nhận gần nhất
+                            </span>
+                            <span className="block line-clamp-2">{record.criteria || "Không có tiêu chí"}</span>
+                            <span className="block text-[10px] font-semibold text-slate-500 mt-1">Ngày: {record.date}</span>
                           </div>
 
                           {/* Date, Point & Action */}
@@ -2570,8 +2643,12 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                 }
                               >
                                 <DrawerTrigger asChild>
-                                  <button className="w-8 h-8 rounded-xl border border-white/70 hover:border-[#1A73E8]/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-[#1E293B] flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm">
-                                    <MoreHorizontal className="w-4.5 h-4.5" />
+                                  <button
+                                    aria-label="Xem chi tiết"
+                                    title="Xem chi tiết"
+                                    className="w-8 h-8 rounded-xl border border-white/70 hover:border-[#1A73E8]/50 bg-white/50 hover:bg-white/80 text-[#64748B] hover:text-[#1E293B] flex items-center justify-center transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer shadow-sm"
+                                  >
+                                    <Eye className="w-4 h-4" />
                                   </button>
                                 </DrawerTrigger>
 
@@ -2922,7 +2999,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                   </div>
 
                                   {/* Modal Footer actions */}
-                                  <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
+                                  {!isStudent && <div className="p-4 border-t border-slate-100 bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.02)] shrink-0 flex items-center justify-between gap-3">
                                     {isSelectingHistory ? (
                                       <>
                                         <button
@@ -2956,23 +3033,15 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                         </button>
                                       </>
                                     ) : (
-                                      <>
-                                        <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
-                                          <Edit className="w-4 h-4 text-slate-600" />
-                                          Sửa ghi nhận
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            setIsSelectingHistory(true)
-                                          }
-                                          className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
-                                        >
-                                          <CheckSquare className="w-4 h-4 text-slate-600" />
-                                          Chọn
-                                        </button>
-                                      </>
+                                      <button
+                                        onClick={() => setIsSelectingHistory(true)}
+                                        className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                      >
+                                        <CheckSquare className="w-4 h-4 text-slate-600" />
+                                        Chọn ghi nhận trong lịch sử
+                                      </button>
                                     )}
-                                  </div>
+                                  </div>}
                                 </DrawerContent>
                               </Drawer>
                             </div>
@@ -2998,6 +3067,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           paginatedRecords.length > 0 && (
                           <input
                             type="checkbox"
+                            aria-label="Chọn tất cả sinh viên"
                             checked={
                               paginatedRecords.every((record) =>
                               selectedIdSet.has(record.selectionId),
@@ -3022,10 +3092,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       Loại ghi nhận
                     </th>
                     <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
-                      Tiêu chí
-                    </th>
-                    <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
-                      Ngày ghi nhận
+                      Ghi nhận gần nhất
                     </th>
                     <th className="px-5 py-3 text-xs font-bold text-[#334155] uppercase tracking-wide border-b border-white/80">
                       Số lần
@@ -3061,9 +3128,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           </td>
                           <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-40 h-4" />
-                          </td>
-                          <td className="px-5 py-4 border-b border-white/40">
-                            <Skeleton className="w-24 h-4" />
+                            <Skeleton className="w-24 h-3 mt-2" />
                           </td>
                           <td className="px-5 py-4 border-b border-white/40">
                             <Skeleton className="w-10 h-4" />
@@ -3515,55 +3580,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                             </button>
                                           </>
                                         ) : (
-                                          <>
-                                            <button className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">
-                                              <Edit className="w-4 h-4 text-slate-600" />
-                                              Sửa ghi nhận
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                setIsSelectingHistory(true)
-                                              }
-                                              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
-                                            >
-                                              <CheckSquare className="w-4 h-4 text-slate-600" />
-                                              Chọn
-                                            </button>
-                                          </>
+                                          <button
+                                            onClick={() => setIsSelectingHistory(true)}
+                                            className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white border border-slate-200 text-[13px] font-bold text-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm"
+                                          >
+                                            <CheckSquare className="w-4 h-4 text-slate-600" />
+                                            Chọn ghi nhận trong lịch sử
+                                          </button>
                                         )}
                                       </div>
                                     )}
                                   </DrawerContent>
                                 </Drawer>
 
-                                {ghiNhanAccess.editStudentRecord && (
-                                  <button
-                                    onClick={() => handleEdit(record.id)}
-                                    disabled={isOpeningEditRecord && editingRecordId === record.id}
-                                    className={`p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] ${
-                                      isOpeningEditRecord && editingRecordId === record.id
-                                        ? "text-gray-300 cursor-not-allowed bg-slate-50/40"
-                                        : "text-slate-500 hover:text-[#1A73E8] hover:bg-white/70"
-                                    }`}
-                                    title="Chỉnh sửa"
-                                  >
-                                    {isOpeningEditRecord && editingRecordId === record.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Edit className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                )}
-
-                                {ghiNhanAccess.deleteStudentRecord && (
-                                  <button
-                                    onClick={() => setRecordToDelete(record.id)}
-                                    className="text-gray-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
-                                    title="Xóa"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </motion.tr>
@@ -4191,15 +4220,17 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={handleExportSelectedStudentExcel}
+                aria-label="Xuất tổng hợp các sinh viên đã chọn"
                 className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
               >
                 <FileSpreadsheet size={13} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Xuất Excel ({selectedIds.length})</span>
+                <span className="hidden sm:inline">Xuất tổng hợp ({selectedIds.length})</span>
                 <span className="inline sm:hidden">({selectedIds.length})</span>
               </button>
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (
                 <button
                   onClick={prepareDeletePreview}
+                  title="Xóa toàn bộ ghi nhận của sinh viên đã chọn"
                   disabled={isDeletingRecords || isPreparingDeletePreview}
                   className="bg-[#e11d48] hover:bg-rose-600 text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(225,29,72,0.25)] active:scale-95 cursor-pointer h-9 shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -4255,7 +4286,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           setDeletePreview(null);
         }}
         onConfirm={handleDelete}
-        title="Xác nhận xóa ghi nhận"
+        title="Xác nhận xóa toàn bộ ghi nhận của sinh viên"
         message={
           deletePreview ? (
             <div className="flex flex-col gap-2">
@@ -4290,20 +4321,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         onConfirm={handleDeleteClassReportsBulk}
         title="Xác nhận xóa báo cáo lớp"
         message={`Bạn có chắc chắn muốn xóa ${selectedReportIds.length} báo cáo lớp học đã chọn? Hành động này không thể hoàn tác.`}
-        confirmLabel="Xóa"
-        cancelLabel="Hủy"
-        variant="danger"
-      />
-
-      {/* Confirm delete 1 ghi nhận HSSV */}
-      <ConfirmModal
-        isOpen={recordToDelete !== null}
-        onClose={() => setRecordToDelete(null)}
-        onConfirm={() =>
-          recordToDelete && handleDeleteRecordSingle(recordToDelete)
-        }
-        title="Xác nhận xóa ghi nhận"
-        message="Bạn có chắc chắn muốn xóa ghi nhận rèn luyện này? Hành động này không thể hoàn tác."
         confirmLabel="Xóa"
         cancelLabel="Hủy"
         variant="danger"

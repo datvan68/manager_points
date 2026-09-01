@@ -1,49 +1,58 @@
 slot_id: "taskscope-00"
-generation: 8
-task_id: "20260901-205416-compact-subsystem-group-cards"
+generation: 9
+task_id: "20260901-214051-align-grouped-student-records-ui"
 scope_file: "docs/task/taskscope.md"
 status: completed
 scope_revision: 1
-created_at: "2026-09-01T20:54:16+07:00"
-updated_at: "2026-09-01T20:58:01+07:00"
-base_commit: "9c3eb91996b56db1d7da8e5da8c9012152ca2fa1"
-task: "Tinh gọn thẻ nhóm trong Quản lý Phân hệ Hệ thống"
+created_at: "2026-09-01T21:40:51+07:00"
+updated_at: "2026-09-01T21:56:00+07:00"
+base_commit: "efd6bd4b22855d07d7e9600258b91342d252cb59"
+task: "Align grouped student-record table actions and exports"
 pipeline: feature_development
 profile: Quick
-objective: "Các thẻ phân hệ trong popup quản lý phân hệ có mô tả ngắn, bố cục compact và không còn nội dung thống kê/phụ phía dưới mô tả."
+objective: "Mỗi dòng Tình hình HSSV thể hiện một sinh viên và toàn bộ ghi nhận khớp bộ lọc, với thông tin gần nhất, thao tác nhóm và chế độ xuất dữ liệu không gây nhầm lẫn."
 
 coordination:
   depends_on: []
-  warnings: ["Worktree đang có thay đổi chưa commit từ taskscope-00 generation 7 tại trang /system; phạm vi này chỉ ghi SubsystemPopup và test tương ứng nên không xung đột."]
+  warnings: []
 
 completion:
-  completed_at: "2026-09-01T20:58:01+07:00"
-  outcome: "success"
-  final_commit_or_state: "Working tree retains scoped changes; no commit requested."
-  changed_paths: ["frontend/src/components/popups/SubsystemPopup.tsx", "frontend/src/components/popups/SubsystemPopup.test.tsx"]
-  checks_passed: ["npm --prefix frontend test -- src/components/popups/SubsystemPopup.test.tsx (10 passed)", "npm --prefix frontend run typecheck", "rg footer marker: no border-t matches; hidden wrappers present", "git diff --check"]
+  completed_at: "2026-09-01T21:56:00+07:00"
+  outcome: "Grouped student records now show the latest filtered record in one labeled column, expose only detail viewing per row, keep bulk student deletion filter-scoped, and provide separate summary/detail Excel exports."
+  final_commit_or_state: "Working tree on main at base commit efd6bd4b22855d07d7e9600258b91342d252cb59; changes uncommitted."
+  changed_paths:
+    - "frontend/src/app/(dashboard)/students/record/page.tsx"
+    - "frontend/src/app/(dashboard)/students/record/page.test.tsx"
+    - "docs/task/taskscope.md"
+  checks_passed:
+    - "npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' --run (24 tests passed)"
+    - "npm --prefix frontend run typecheck (passed)"
+    - "git diff --check (passed; only line-ending normalization warnings)"
   cleanup_pending: []
 
 evidence:
-  current_behavior: "SubsystemPopup.tsx lặp markup thẻ theo bốn nhóm; mỗi thẻ có mô tả dài và footer stat/progress/event/avatar bên dưới mô tả."
-  expected_behavior: "Mỗi thẻ chỉ giữ biểu tượng, tên, điều khiển trạng thái cần thiết và mô tả ngắn; không hiển thị footer thông tin phụ dưới mô tả."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:mappedRecords/TableCells/actions/exports → dòng nhóm trộn tổng hợp với tiêu chí-ngày của latestRecord; sửa/xóa cuối dòng tác động latestRecord; checkbox mở rộng thành các child ID khớp bộ lọc; footer drawer có nút sửa không hoạt động; Excel nhóm mang cột chi tiết."
+  expected_behavior: "Bảng nhóm hiển thị Ghi nhận gần nhất, chỉ xem chi tiết ở từng dòng; xóa toàn nhóm chỉ qua checkbox chọn sinh viên; drawer không có nút sửa chung; xuất tổng hợp và chi tiết tách biệt."
   root_cause: null
 
 scope:
-  inspect: ["docs/design/DESIGN.compact.md", "frontend/src/components/popups/SubsystemPopup.tsx: INITIAL_MODULES và card markup theo nhóm"]
-  write: ["frontend/src/components/popups/SubsystemPopup.tsx: card content/description", "frontend/src/components/popups/SubsystemPopup.test.tsx: focused card coverage"]
-  preserve: ["RBAC, tìm kiếm, điều hướng, trạng thái bảo trì và badge trạng thái", "Tên nhóm, tên phân hệ, href và API contracts", "Không thêm dependency"]
-  out: ["Trang /system", "Backend/API/schema", "Thay đổi quyền hoặc nghiệp vụ bảo trì"]
+  inspect: ["frontend/src/api/academic-record-api.ts:getAcademicRecords contracts", "frontend/src/components/grading/AddRecordView.tsx:edit contract"]
+  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:GhiNhanTab grouped table/drawer/export flows", "frontend/src/app/(dashboard)/students/record/page.test.tsx:grouped table/actions/export coverage"]
+  preserve: ["RBAC and student read-only state", "groupBy=student, active filters, pagination, totals, detail-history loading and soft-delete APIs", "No API/schema/dependency change"]
+  out: ["Backend changes", "Tình hình lớp học", "Per-record edit redesign inside history", "Permanent-delete/trash flows"]
 
 acceptance_criteria:
-  - "AC-01: Mô tả của toàn bộ phân hệ được rút gọn nhưng vẫn nêu đúng công dụng chính và vẫn được dùng khi tìm kiếm."
-  - "AC-02: Mọi thẻ không còn footer/stat/progress/event/avatar hoặc mục phụ nào phía dưới mô tả; chiều cao và khoảng cách được thu gọn theo docs/design/."
-  - "AC-03: Click điều hướng, lọc theo quyền, tìm kiếm, badge trạng thái và công tắc bảo trì của quản trị viên vẫn hoạt động."
+  - "AC-01: Mỗi dòng vẫn là một sinh viên với toàn bộ ghi nhận khớp bộ lọc; Tiêu chí và Ngày ghi nhận được thay bằng một cột Ghi nhận gần nhất chứa đúng tiêu chí và ngày của latestRecord."
+  - "AC-02: Hành động từng dòng HSSV chỉ còn Xem chi tiết; không còn sửa hoặc xóa latestRecord tại dòng, và nút Sửa ghi nhận chung ở footer drawer bị loại bỏ."
+  - "AC-03: Checkbox được trình bày là chọn sinh viên; xóa toàn nhóm chỉ xuất hiện qua bulk action, bản xem trước tiếp tục nêu số sinh viên và tổng child records khớp bộ lọc trước khi xóa mềm."
+  - "AC-04: Người dùng có hai chế độ xuất rõ ràng: tổng hợp theo sinh viên và lịch sử chi tiết theo từng ghi nhận; tiêu chí/ngày chỉ là cột chi tiết hoặc được ghi nhãn là thông tin gần nhất trong bản tổng hợp."
+  - "AC-05: Người dùng thiếu quyền sửa/xóa và vai trò sinh viên không nhận thêm hành động; bộ lọc hiện hành tiếp tục giới hạn lịch sử, preview xóa và dữ liệu xuất chi tiết."
 
 execution:
-  - "E-01 [AC-01] Rút gọn INITIAL_MODULES.desc mà không đổi id/group/name/href/status."
-  - "E-02 [AC-02, AC-03] Tinh gọn card markup của mọi nhóm, bỏ footer stat và giữ các control trạng thái cần thiết."
-  - "E-03 [AC-01, AC-02, AC-03] Bổ sung test xác nhận mô tả ngắn, không có nội dung footer cũ và điều hướng/control không hồi quy."
+  - "E-01 [AC-01,AC-02] page.tsx:TableCells/table actions/drawer footer → gộp latest criterion-date, giữ Eye, bỏ edit/delete dòng và sửa chung."
+  - "E-02 [AC-03] page.tsx:selection/FloatingActionBar/delete preview → làm rõ chọn sinh viên và chỉ giữ group deletion qua checkbox với số lượng ảnh hưởng."
+  - "E-03 [AC-04,AC-05] page.tsx:Excel handlers → tách workbook tổng hợp nhóm và lịch sử child records, tái dùng filter/history params và RBAC hiện có."
+  - "E-04 [AC-01..AC-05] page.test.tsx → cập nhật focused tests cho cột, action, selection/delete preview, hai chế độ export và quyền."
 
 temporary_artifacts:
   create: []
@@ -51,10 +60,8 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-01, AC-02, AC-03] npm --prefix frontend test -- src/components/popups/SubsystemPopup.test.tsx"
-  - "V-02 [AC-01, AC-02, AC-03] npm --prefix frontend run typecheck"
-  - "V-03 [AC-02] rg -n 'border-t border-slate-100/60|className=\"hidden\"' frontend/src/components/popups/SubsystemPopup.tsx -> footer cũ không còn hiển thị."
-  - "V-04 [AC-01, AC-02, AC-03] git diff --check"
+  - "V-01 [AC-01..AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → Vitest target passes."
+  - "V-02 [AC-01..AC-05] npm --prefix frontend run typecheck → TypeScript exits 0."
 
-risks: ["Markup thẻ đang lặp theo nhóm; phải sửa đồng nhất và không xóa nhầm công tắc bảo trì hoặc badge trạng thái."]
-stop_conditions: ["Dừng nếu yêu cầu bỏ cả badge trạng thái/công tắc bảo trì hoặc thay đổi quyền truy cập phân hệ."]
+risks: ["Xuất chi tiết có thể cần tải nhiều child records; phải giữ đúng bộ lọc và không thay đổi API contract."]
+stop_conditions: ["Dừng nếu cần API/schema mới, thay đổi RBAC, dependency, backend, hoặc xử lý dữ liệu ngoài bộ lọc hiện hành."]
