@@ -171,7 +171,7 @@ describe('Sidebar Component', () => {
     expect(sidebar?.classList.contains('w-20')).toBe(true); // Should remain collapsed
   });
 
-  it('opens on click of a menu item and sets a 60-second timer to close', async () => {
+  it('does not expand on click of a menu item', async () => {
     render(<Sidebar />);
     await ensureCollapsed();
     await waitForSidebarItems();
@@ -179,69 +179,15 @@ describe('Sidebar Component', () => {
     const sidebar = getSidebarElement();
     expect(sidebar?.classList.contains('w-20')).toBe(true);
     
-    // Find the 'Trang chủ' link, since we are mocking admin, it should be visible
-    // In collapsed mode, the link has a title="Trang chủ"
+    // Find the 'Trang chủ' link
     const homeLink = screen.getAllByTitle('Trang chủ')[0];
     
     // Click on the menu item
     fireEvent.click(homeLink);
     
-    // Should be expanded now
-    expect(sidebar?.classList.contains('w-64')).toBe(true);
-    expect(sidebar?.classList.contains('w-20')).toBe(false);
-    
-    // Fast-forward 59 seconds
-    act(() => {
-      vi.advanceTimersByTime(59000);
-    });
-    // Should still be expanded
-    expect(sidebar?.classList.contains('w-64')).toBe(true);
-    
-    // Fast-forward 1 more second to reach 60 seconds
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    
-    // Should be collapsed after 60 seconds
+    // Should remain collapsed
     expect(sidebar?.classList.contains('w-20')).toBe(true);
-  });
-
-  it('resets the 60-second timer if a menu item is clicked again before it expires', async () => {
-    render(<Sidebar />);
-    await ensureCollapsed();
-    await waitForSidebarItems();
-
-    const sidebar = getSidebarElement();
-    const homeLink = screen.getAllByTitle('Trang chủ')[0];
-    
-    // First click
-    fireEvent.click(homeLink);
-    expect(sidebar?.classList.contains('w-64')).toBe(true);
-    
-    // Wait 30 seconds
-    act(() => {
-      vi.advanceTimersByTime(30000);
-    });
-    expect(sidebar?.classList.contains('w-64')).toBe(true);
-    
-    // Second click (should reset timer)
-    fireEvent.click(homeLink);
-    
-    // Wait another 40 seconds (total 70s from first click)
-    act(() => {
-      vi.advanceTimersByTime(40000);
-    });
-    
-    // Should still be expanded because the timer was reset
-    expect(sidebar?.classList.contains('w-64')).toBe(true);
-    
-    // Wait 20 more seconds to reach 60s from the second click
-    act(() => {
-      vi.advanceTimersByTime(20000);
-    });
-    
-    // Now it should be collapsed
-    expect(sidebar?.classList.contains('w-20')).toBe(true);
+    expect(sidebar?.classList.contains('w-64')).toBe(false);
   });
 
   it('toggles state when clicking the compact button', async () => {

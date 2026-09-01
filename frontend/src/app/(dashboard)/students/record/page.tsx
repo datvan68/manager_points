@@ -2810,6 +2810,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                                 {mr.recordType}{" "}
                                                                 ({mr.points}đ)
                                                               </span>
+                                                              {mr.original?.daily_report_id && (
+                                                                <span className="ml-1 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-violet-500/10 text-violet-700 border border-violet-500/20">
+                                                                  Ghi nhận lớp
+                                                                </span>
+                                                              )}
                                                             </div>
                                                           </div>
                                                           <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">
@@ -3355,6 +3360,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                                     ({mr.points}
                                                                     đ)
                                                                   </span>
+                                                                  {mr.original?.daily_report_id && (
+                                                                    <span className="ml-1 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-violet-500/10 text-violet-700 border border-violet-500/20">
+                                                                      Ghi nhận lớp
+                                                                    </span>
+                                                                  )}
                                                                 </div>
                                                               </div>
                                                               <button className="p-1 rounded text-slate-400 group-hover:text-blue-600 mt-1">

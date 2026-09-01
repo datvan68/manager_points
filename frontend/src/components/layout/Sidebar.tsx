@@ -77,43 +77,12 @@ const Sidebar = () => {
   const branding = useAppBranding();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(globalIsCollapsed);
-  const closeTimeoutRef = React.useRef<any>(null);
-
-  const startCloseTimer = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsCollapsed(true);
-      globalIsCollapsed = true;
-    }, 60000);
-  };
-
-  const handleMenuItemClick = () => {
-    setIsCollapsed(false);
-    globalIsCollapsed = false;
-    startCloseTimer();
-  };
 
   const handleCompactClick = () => {
     const nextCollapsed = !isCollapsed;
     setIsCollapsed(nextCollapsed);
     globalIsCollapsed = nextCollapsed;
-    if (nextCollapsed) {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
-      }
-    }
   };
-
-  useEffect(() => {
-    return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const isExpanded = !isCollapsed;
 
@@ -402,7 +371,6 @@ const Sidebar = () => {
                 <Link
                   key={index}
                   href={targetHref}
-                  onClick={handleMenuItemClick}
                   className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-300 ease-in-out hover:scale-[1.01] ${isActive
                     ? `border ${activeControl}`
                     : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8] hover:shadow-sm"
@@ -423,7 +391,6 @@ const Sidebar = () => {
           <div className="p-3 border-t border-white/75 space-y-1.5">
             <Link 
               href="/system/settings" 
-              onClick={handleMenuItemClick}
               className={`w-full flex items-center gap-3 px-3 h-8 rounded-xl text-[13px] font-semibold transition-all duration-150 ease-out hover:scale-[1.01] hover:shadow-sm ${pathname === "/system/settings" ? "bg-[#1A73E8]/10 border border-[#1A73E8]/20 text-[#1A73E8]" : "text-[#64748B] border border-transparent hover:bg-[#1A73E8]/10 hover:border-[#1A73E8]/20 hover:text-[#1A73E8]"} ${isExpanded ? "" : "justify-center"}`}
               title={isExpanded ? "" : "Cài đặt"}
             >

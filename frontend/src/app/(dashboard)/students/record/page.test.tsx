@@ -550,6 +550,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
         _id: 'history-record-newest',
         record_title: 'Newest history record',
         createdAt: '2026-08-27T00:00:00.000Z',
+        daily_report_id: 'class-report-1',
       },
       {
         ...group.latestRecord,
@@ -584,6 +585,27 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(await screen.findByText('Newest history record')).toBeInTheDocument();
     expect(screen.getByText('Middle history record')).toBeInTheDocument();
     expect(screen.getByText('Oldest history record')).toBeInTheDocument();
+    expect(screen.getByText('Ghi nhận lớp')).toBeInTheDocument();
+  });
+
+  it('does not mark recent records without a class report source', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 1);
+    const history = [{
+      ...group.latestRecord,
+      _id: 'history-record-manual',
+      record_title: 'Manual history record',
+      createdAt: '2026-08-27T00:00:00.000Z',
+    }];
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockResolvedValueOnce(history);
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getByTitle('Xem chi tiết'));
+
+    expect(await screen.findByText('Manual history record')).toBeInTheDocument();
+    expect(screen.queryByText('Ghi nhận lớp')).not.toBeInTheDocument();
   });
 
   it('renders the filtered total and reconciled per-type counts', async () => {
