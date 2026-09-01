@@ -140,4 +140,38 @@ describe('SystemPage - Backup Import/Restore Modal', () => {
       });
     });
   });
+
+  it('renders the compact system header and only permitted features without decorative motion', async () => {
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: { role: { permissions: ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ', 'SYSTEM_PERFORMANCE_READ'] } },
+      hasPermission: (perm: string) => ['LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'DATABASE_BACKUP_READ', 'SYSTEM_PERFORMANCE_READ'].includes(perm),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+
+    const { container } = render(<SystemPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Quản lý Phân hệ Hệ thống' })).toBeTruthy();
+    expect(screen.getByText('Truy cập các tính năng hệ thống theo quyền được cấp.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Lịch sử đăng nhập/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Quản lý yêu cầu/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Sao lưu database/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Hiệu năng/ })).toBeTruthy();
+    const headerMarkup = container.querySelector('main > div')?.innerHTML ?? '';
+    expect(headerMarkup).not.toMatch(/animate-in|animate-pulse|hover:scale|transition-(all|colors)/);
+  });
+
+  it('hides feature navigation when its read permission is absent', () => {
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+      user: { role: { permissions: ['LOGIN_LOG_READ'] } },
+      hasPermission: (perm: string) => perm === 'LOGIN_LOG_READ',
+      forceLogoutAfterRestore: vi.fn(),
+    });
+
+    render(<SystemPage />);
+
+    expect(screen.getByRole('button', { name: /Lịch sử đăng nhập/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Quản lý yêu cầu/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Sao lưu database/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Hiệu năng/ })).toBeNull();
+  });
 });

@@ -812,7 +812,7 @@ function SystemAdminDashboard() {
       priority: "primary",
       render: (_, req) => (
         <div className="flex flex-col">
-          <span className="font-semibold text-[#1E293B] hover:text-[#1A73E8] transition-colors">
+          <span className="font-semibold text-[#1E293B] hover:text-[#1A73E8]">
             {req.title}
           </span>
           <span className="text-[10px] text-[#64748B] truncate max-w-xs">
@@ -905,7 +905,7 @@ function SystemAdminDashboard() {
       header: "Trạng thái",
       priority: "metadata",
       render: (_, job) => {
-        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
+        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
         if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
         if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]" title={job.error_message}>Failed</span>;
         return <span className="bg-slate-500/10 text-[#64748B] border border-slate-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Queued</span>;
@@ -921,7 +921,7 @@ function SystemAdminDashboard() {
             <button
               disabled={job.status !== "success"}
               onClick={() => handleDownloadBackup(job)}
-              className="p-1.5 text-[#1A73E8] hover:bg-white/50 disabled:opacity-40 disabled:hover:bg-transparent rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              className="p-1.5 text-[#1A73E8] hover:bg-white/50 disabled:opacity-40 disabled:hover:bg-transparent rounded-xl"
               title="Tải xuống"
             >
               <Download size={14} />
@@ -931,7 +931,7 @@ function SystemAdminDashboard() {
             <button
               disabled={job.status === "queued" || job.status === "running"}
               onClick={() => requestDeleteBackup(job._id)}
-              className={`p-1.5 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05] ${
+              className={`p-1.5 rounded-xl ${
                 job.status === "queued" || job.status === "running" ? "text-slate-300 cursor-not-allowed hidden" : "text-rose-600 hover:bg-white/50"
               }`}
               title="Xóa"
@@ -946,7 +946,7 @@ function SystemAdminDashboard() {
                 setJobToForceCancel({ id: job._id, type: 'backup' });
                 setIsConfirmForceCancelOpen(true);
               }}
-              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl"
               title="Force Cancel (Đánh dấu thất bại)"
             >
               <X size={14} />
@@ -990,7 +990,7 @@ function SystemAdminDashboard() {
       header: "Trạng thái",
       priority: "metadata",
       render: (_, job) => {
-        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] animate-pulse flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
+        if (job.status === "running") return <span className="bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px] flex items-center gap-1 w-fit"><RefreshCw size={10} className="animate-spin" /> Running</span>;
         if (job.status === "success") return <span className="bg-purple-500/10 text-purple-700 border border-purple-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Success</span>;
         if (job.status === "failed") return <span className="bg-rose-500/10 text-rose-700 border border-rose-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]" title={job.error_message}>Failed</span>;
         if (job.status === "preview") return <span className="bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded-xl font-bold text-[10px]">Preview</span>;
@@ -1012,7 +1012,7 @@ function SystemAdminDashboard() {
                 setJobToForceCancel({ id: job._id, type: 'restore' });
                 setIsConfirmForceCancelOpen(true);
               }}
-              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+              className="p-1.5 text-rose-600 hover:bg-white/50 rounded-xl"
               title="Force Cancel (Đánh dấu thất bại)"
             >
               <X size={14} />
@@ -1058,16 +1058,16 @@ function SystemAdminDashboard() {
 
   return (
     <>
-        <main className="flex-1 p-5 md:p-6 overflow-y-auto space-y-4 bg-transparent animate-in fade-in duration-300">
+        <main className="flex-1 p-5 md:p-6 overflow-y-auto space-y-4 bg-transparent">
           {/* Header Panel */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-5 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl transition-all duration-150 ease-out hover:scale-[1.01]">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-5 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl flex items-center justify-center shadow-sm">
                 <Shield size={24} />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-[#1E293B]">Quản trị Hệ thống</h1>
-                <p className="text-xs text-[#64748B] mt-0.5">Theo dõi lịch sử đăng nhập, phê duyệt các yêu cầu vận hành và sao lưu dữ liệu hệ thống.</p>
+                <h1 className="text-xl font-bold text-[#1E293B]">Quản lý Phân hệ Hệ thống</h1>
+                <p className="text-xs text-[#64748B] mt-0.5">Truy cập các tính năng hệ thống theo quyền được cấp.</p>
               </div>
             </div>
         
@@ -1076,7 +1076,7 @@ function SystemAdminDashboard() {
           {canReadLogs && (
             <button
               onClick={() => setActiveTab("logs")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold ${
                 activeTab === "logs" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
@@ -1087,7 +1087,7 @@ function SystemAdminDashboard() {
           {canReadRequests && (
             <button
               onClick={() => setActiveTab("requests")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold ${
                 activeTab === "requests" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
@@ -1098,7 +1098,7 @@ function SystemAdminDashboard() {
           {canReadBackups && (
             <button
               onClick={() => setActiveTab("backup")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold ${
                 activeTab === "backup" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
@@ -1109,7 +1109,7 @@ function SystemAdminDashboard() {
           {canReadPerformance && (
             <button
               onClick={() => setActiveTab("performance")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 ease-out hover:scale-[1.01] ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold ${
                 activeTab === "performance" ? "bg-white/80 backdrop-blur-sm text-[#1E293B] shadow-sm border border-white/60" : "text-[#64748B] hover:text-[#1E293B]"
               }`}
             >
@@ -1134,7 +1134,7 @@ function SystemAdminDashboard() {
             <>
               {/* KPI Dashboard */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                   <span className="text-xs font-semibold text-[#64748B]">
                     {logsSelectedDate ? format(logsSelectedDate, "dd/MM/yyyy") === format(new Date(), "dd/MM/yyyy") ? "Đăng nhập hôm nay" : `Đăng nhập ngày ${format(logsSelectedDate, "dd/MM/yyyy")}` : "Đăng nhập hôm nay"}
                   </span>
@@ -1146,7 +1146,7 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
                 
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                   <span className="text-xs font-semibold text-[#64748B]">Đăng nhập thành công</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-emerald-600">
@@ -1160,7 +1160,7 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                   <span className="text-xs font-semibold text-[#64748B]">Đăng nhập thất bại</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-rose-600">
@@ -1174,7 +1174,7 @@ function SystemAdminDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                   <span className="text-xs font-semibold text-[#64748B]">Đổi/Reset mật khẩu</span>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-2xl font-bold text-indigo-600">
@@ -1193,7 +1193,7 @@ function SystemAdminDashboard() {
                     {/* Realtime Polling Indicator */}
                     <div className="flex items-center gap-1.5 ml-2 bg-slate-200/50 backdrop-blur-sm border border-white/40 px-2 py-0.5 rounded-xl">
                       <span className={`w-2 h-2 rounded-full ${
-                        sseStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-[#64748B]"
+                        sseStatus === "connected" ? "bg-emerald-500" : "bg-[#64748B]"
                       }`} />
                       <span className="text-[10px] text-[#64748B] font-bold capitalize">
                         {sseStatus === "connected" ? "Realtime (Polling)" : "Tắt Realtime"}
@@ -1209,7 +1209,7 @@ function SystemAdminDashboard() {
                         placeholder="Tìm IP, User..."
                         value={logsSearchInput}
                         onChange={(e) => setLogsSearchInput(e.target.value)}
-                        className="pl-8 pr-3 py-1.5 w-full h-9 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
+                        className="pl-8 pr-3 py-1.5 w-full h-9 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
                       />
                       <Search size={14} className="absolute left-2.5 text-[#64748B]" />
                     </form>
@@ -1254,7 +1254,7 @@ function SystemAdminDashboard() {
                                 setLogsSelectedDate(null);
                                 setLogsPage(1);
                               }}
-                              className="p-0.5 hover:bg-slate-200/50 rounded-full transition-colors flex items-center justify-center"
+                              className="p-0.5 hover:bg-slate-200/50 rounded-full flex items-center justify-center"
                             >
                               <X size={12} className="text-[#64748B]" />
                             </span>
@@ -1279,7 +1279,7 @@ function SystemAdminDashboard() {
 
                     <button
                       onClick={() => setRealtimeEnabled(!realtimeEnabled)}
-                      className={`h-9 shrink-0 whitespace-nowrap flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-150 ease-out hover:scale-[1.01] ${
+                      className={`h-9 shrink-0 whitespace-nowrap flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border ${
                         realtimeEnabled 
                           ? "bg-blue-500/10 text-[#1A73E8] border-blue-500/20" 
                           : "bg-white/50 text-[#64748B] border-white/80"
@@ -1312,14 +1312,14 @@ function SystemAdminDashboard() {
                           <button
                             disabled={logsPage === 1}
                             onClick={() => setLogsPage(prev => prev - 1)}
-                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                           >
                             Trước
                           </button>
                           <button
                             disabled={logsPage === logsTotalPages}
                             onClick={() => setLogsPage(prev => prev + 1)}
-                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                           >
                             Sau
                           </button>
@@ -1356,7 +1356,7 @@ function SystemAdminDashboard() {
                       placeholder="Tìm kiếm yêu cầu..."
                       value={requestsSearchInput}
                       onChange={(e) => setRequestsSearchInput(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 w-48 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
+                      className="pl-8 pr-3 py-1.5 w-48 text-xs bg-white/50 backdrop-blur-sm border border-white/80 focus:border-[#1A73E8] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 text-[#1E293B]"
                     />
                     <Search size={14} className="absolute left-2.5 text-[#64748B]" />
                   </form>
@@ -1367,7 +1367,7 @@ function SystemAdminDashboard() {
                       setRequestsFilterStatus(e.target.value);
                       setRequestsPage(1);
                     }}
-                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="">Mọi trạng thái</option>
                     <option value="pending">Pending</option>
@@ -1384,7 +1384,7 @@ function SystemAdminDashboard() {
                       setRequestsFilterType(e.target.value);
                       setRequestsPage(1);
                     }}
-                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                    className="px-3 py-1.5 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="">Mọi thể loại</option>
                     <option value="access">Access</option>
@@ -1397,7 +1397,7 @@ function SystemAdminDashboard() {
                   {canManageRequests && (
                     <button
                       onClick={() => setIsCreateModalOpen(true)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl shadow-sm"
                     >
                       <Plus size={14} />
                       Tạo yêu cầu
@@ -1432,14 +1432,14 @@ function SystemAdminDashboard() {
                         <button
                           disabled={requestsPage === 1}
                           onClick={() => setRequestsPage(prev => prev - 1)}
-                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                         >
                           Trước
                         </button>
                         <button
                           disabled={requestsPage === requestsTotalPages}
                           onClick={() => setRequestsPage(prev => prev + 1)}
-                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                          className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                         >
                           Sau
                         </button>
@@ -1488,7 +1488,7 @@ function SystemAdminDashboard() {
                       setJobToForceCancel({ type: 'cleanup' });
                       setIsConfirmForceCancelOpen(true);
                     }}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap ml-4"
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-sm whitespace-nowrap ml-4"
                   >
                     Dọn dẹp ngay
                   </button>
@@ -1496,7 +1496,7 @@ function SystemAdminDashboard() {
               )}
               {/* Action Trigger Card */}
               <div className="lg:col-span-1 space-y-6">
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4">
                   <div className="space-y-2">
                     <h3 className="text-sm font-bold text-[#1E293B]">Thao tác Sao lưu</h3>
                     <p className="text-xs text-[#64748B] leading-relaxed">
@@ -1516,7 +1516,7 @@ function SystemAdminDashboard() {
                   <button
                     disabled={isBackupRunning || !canCreateBackup}
                     onClick={() => setIsConfirmBackupOpen(true)}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-150 ease-out hover:scale-[1.01] ${
+                    className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm ${
                       isBackupRunning || !canCreateBackup
                         ? "bg-white/20 text-[#64748B] cursor-not-allowed border border-white/40"
                         : "bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white"
@@ -1537,7 +1537,7 @@ function SystemAdminDashboard() {
                 </div>
 
                 {/* Import Restore Card */}
-                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                <div className="bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 flex flex-col justify-between h-fit space-y-4">
                   <div className="space-y-2">
                     <h3 className="text-sm font-bold text-[#1E293B]">Khôi phục dữ liệu (Import)</h3>
                     <p className="text-xs text-[#64748B] leading-relaxed">
@@ -1555,7 +1555,7 @@ function SystemAdminDashboard() {
                     />
                     <button
                       disabled={isImportLoading || isBackupRunning || !canRestoreBackup}
-                      className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all duration-150 ease-out ${
+                      className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm ${
                         isImportLoading || isBackupRunning || !canRestoreBackup
                           ? "bg-white/20 text-[#64748B] border border-white/40"
                           : "bg-white text-[#1A73E8] hover:bg-blue-50 border border-blue-500/30"
@@ -1572,7 +1572,7 @@ function SystemAdminDashboard() {
               </div>
 
               {/* Backup Jobs List */}
-              <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+              <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
                 <h2 className="text-sm font-bold text-[#1E293B]">Lịch sử và danh sách các bản sao lưu</h2>
 
                 {/* Backups Table */}
@@ -1596,14 +1596,14 @@ function SystemAdminDashboard() {
                           <button
                             disabled={backupsPage === 1}
                             onClick={() => setBackupsPage(prev => prev - 1)}
-                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                           >
                             Trước
                           </button>
                           <button
                             disabled={backupsPage === backupsTotalPages}
                             onClick={() => setBackupsPage(prev => prev + 1)}
-                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50 transition-all duration-150 ease-out hover:scale-[1.01]"
+                            className="px-3 py-1 bg-white/50 hover:bg-white/80 border border-white/60 text-[#1E293B] text-xs font-bold rounded-xl disabled:opacity-50"
                           >
                             Sau
                           </button>
@@ -1615,7 +1615,7 @@ function SystemAdminDashboard() {
               </div>
 
               {/* Restore Jobs List */}
-              <div className="lg:col-span-3 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+              <div className="lg:col-span-3 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
                 <h2 className="text-sm font-bold text-[#1E293B]">Lịch sử khôi phục dữ liệu</h2>
 
                 <ResponsiveDataView
@@ -1653,7 +1653,7 @@ function SystemAdminDashboard() {
                 <button
                   onClick={fetchPerformance}
                   disabled={performanceLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 border border-white/80 text-[#64748B] rounded-xl text-xs font-semibold hover:bg-white/80 transition-all duration-150 ease-out hover:scale-[1.01] disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 border border-white/80 text-[#64748B] rounded-xl text-xs font-semibold hover:bg-white/80 disabled:opacity-50"
                 >
                   <RefreshCw size={14} className={performanceLoading ? "animate-spin" : ""} />
                   Làm mới
@@ -1672,7 +1672,7 @@ function SystemAdminDashboard() {
                 <>
                   {/* KPI Dashboard */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                       <span className="text-xs font-semibold text-[#64748B]">Tải trang (Load p75)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p75?.load_event_ms > 3000 ? "text-amber-600" : "text-emerald-600"}`}>
@@ -1682,7 +1682,7 @@ function SystemAdminDashboard() {
                       </div>
                     </div>
                     
-                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                       <span className="text-xs font-semibold text-[#64748B]">Render (LCP p75)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p75?.lcp_ms > 2500 ? "text-amber-600" : "text-emerald-600"}`}>
@@ -1692,7 +1692,7 @@ function SystemAdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                       <span className="text-xs font-semibold text-[#64748B]">API Total (p95)</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className={`text-2xl font-bold ${performanceSummary.p95?.api_total_ms > 2000 ? "text-rose-600" : "text-indigo-600"}`}>
@@ -1702,7 +1702,7 @@ function SystemAdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="bg-white/40 backdrop-blur-md border border-white/70 p-5 rounded-2xl shadow-sm shadow-slate-300/40 flex flex-col justify-between">
                       <span className="text-xs font-semibold text-[#64748B]">Tổng mẫu thu thập</span>
                       <div className="flex items-baseline gap-2 mt-2">
                         <span className="text-2xl font-bold text-[#1E293B]">
@@ -1716,7 +1716,7 @@ function SystemAdminDashboard() {
                   {/* Layout cho Recommendations và Slow APIs */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Slow APIs Table */}
-                    <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="lg:col-span-2 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
                       <h2 className="text-sm font-bold text-[#1E293B]">Các API chậm nhất (Theo p95)</h2>
                       <ResponsiveDataView
                         data={performanceSummary.slow_apis}
@@ -1732,7 +1732,7 @@ function SystemAdminDashboard() {
                     </div>
 
                     {/* Recommendations Panel */}
-                    <div className="lg:col-span-1 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4 transition-all duration-150 ease-out hover:scale-[1.01]">
+                    <div className="lg:col-span-1 bg-white/40 backdrop-blur-md border border-white/70 shadow-sm shadow-slate-300/40 rounded-2xl p-5 space-y-4">
                       <h2 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
                         <AlertTriangle size={16} className="text-amber-500" />
                         Đề xuất tối ưu
@@ -1769,15 +1769,15 @@ function SystemAdminDashboard() {
       {/* DRAWER: REQUEST DETAILS */}
       {/* --------------------------------------------------------------------- */}
       {isDetailDrawerOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex justify-end animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex justify-end">
           {/* Overlay */}
           <div 
             onClick={() => setIsDetailDrawerOpen(false)} 
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-all duration-300"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm duration-300"
           />
           
           {/* Content */}
-          <div className="relative w-full max-w-lg bg-white/85 backdrop-blur-md h-screen border-l border-white/60 shadow-2xl flex flex-col p-5 space-y-4 overflow-y-auto slide-in-from-right duration-300 text-[#1E293B]">
+          <div className="relative w-full max-w-lg bg-white/85 backdrop-blur-md h-screen border-l border-white/60 shadow-2xl flex flex-col p-5 space-y-4 overflow-y-auto text-[#1E293B]">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/30 pb-4">
               <div>
@@ -1786,7 +1786,7 @@ function SystemAdminDashboard() {
               </div>
               <button 
                 onClick={() => setIsDetailDrawerOpen(false)}
-                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl"
               >
                 <X size={18} />
               </button>
@@ -1828,7 +1828,7 @@ function SystemAdminDashboard() {
                     <select
                       value={selectedRequest.assignee_id?._id ?? ""}
                       onChange={(e) => handleAssignRequest(e.target.value)}
-                      className="mt-1 w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                      className="mt-1 w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                     >
                       <option value="">Chưa phân công</option>
                       {systemUsers.map(u => (
@@ -1845,7 +1845,7 @@ function SystemAdminDashboard() {
                       <select
                         value={updateStatusVal}
                         onChange={(e) => setUpdateStatusVal(e.target.value)}
-                        className="px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                        className="px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                       >
                         <option value="pending">Pending</option>
                         <option value="in_progress">In Progress</option>
@@ -1857,7 +1857,7 @@ function SystemAdminDashboard() {
                       
                       <button
                         type="submit"
-                        className="bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
+                        className="bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-sm"
                       >
                         Lưu trạng thái
                       </button>
@@ -1868,7 +1868,7 @@ function SystemAdminDashboard() {
                       value={updateDecisionNote}
                       onChange={(e) => setUpdateDecisionNote(e.target.value)}
                       rows={2}
-                      className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none text-[#1E293B]"
+                      className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30 resize-none text-[#1E293B]"
                     />
                   </form>
                 </>
@@ -1904,7 +1904,7 @@ function SystemAdminDashboard() {
               <div className="border-t border-white/30 pt-4 flex gap-2">
                 <button
                   onClick={() => handleDeleteRequest(selectedRequest._id)}
-                  className="flex items-center gap-1 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-700 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01]"
+                  className="flex items-center gap-1 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-700 text-xs font-semibold rounded-xl"
                 >
                   <Trash2 size={14} />
                   Xóa Yêu cầu
@@ -1919,7 +1919,7 @@ function SystemAdminDashboard() {
       {/* MODAL: CREATE REQUEST */}
       {/* --------------------------------------------------------------------- */}
       {isCreateModalOpen && canManageRequests && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
             onClick={() => setIsCreateModalOpen(false)} 
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -1933,7 +1933,7 @@ function SystemAdminDashboard() {
               <button 
                 type="button" 
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150 ease-out hover:scale-[1.05]"
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl"
               >
                 <X size={16} />
               </button>
@@ -1947,7 +1947,7 @@ function SystemAdminDashboard() {
                   placeholder="Nhập tiêu đề yêu cầu..."
                   value={newRequestTitle}
                   onChange={(e) => setNewRequestTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                   required
                 />
               </div>
@@ -1959,7 +1959,7 @@ function SystemAdminDashboard() {
                   value={newRequestDesc}
                   onChange={(e) => setNewRequestDesc(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
+                  className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
                 />
               </div>
 
@@ -1969,7 +1969,7 @@ function SystemAdminDashboard() {
                   <select
                     value={newRequestType}
                     onChange={(e) => setNewRequestType(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="support">Support</option>
                     <option value="access">Access</option>
@@ -1984,7 +1984,7 @@ function SystemAdminDashboard() {
                   <select
                     value={newRequestPriority}
                     onChange={(e) => setNewRequestPriority(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30"
+                    className="w-full px-3 py-2 text-xs bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -2001,7 +2001,7 @@ function SystemAdminDashboard() {
                   value={newRequestMeta}
                   onChange={(e) => setNewRequestMeta(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 text-xs font-mono bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] transition-all duration-150 ease-out focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
+                  className="w-full px-3 py-2 text-xs font-mono bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:border-[#1A73E8] text-[#1E293B] focus:ring-2 focus:ring-[#1A73E8]/30 resize-none"
                 />
               </div>
             </div>
@@ -2010,13 +2010,13 @@ function SystemAdminDashboard() {
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80 transition-all duration-150 ease-out hover:scale-[1.01]"
+                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80"
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
+                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm"
               >
                 Tạo mới
               </button>
@@ -2029,7 +2029,7 @@ function SystemAdminDashboard() {
       {/* MODAL: CONFIRM BACKUP */}
       {/* --------------------------------------------------------------------- */}
       {isConfirmBackupOpen && canCreateBackup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
             onClick={() => setIsConfirmBackupOpen(false)} 
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -2050,7 +2050,7 @@ function SystemAdminDashboard() {
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">Định dạng sao lưu</label>
               <div className="space-y-1.5">
-                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60">
                   <input
                     type="radio"
                     name="backupFormat"
@@ -2064,7 +2064,7 @@ function SystemAdminDashboard() {
                     <p className="text-[10px] text-[#64748B] mt-0.5">Ưu tiên Archive (nhanh), tự chuyển sang NDJSON nếu không có công cụ.</p>
                   </div>
                 </label>
-                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60">
                   <input
                     type="radio"
                     name="backupFormat"
@@ -2079,7 +2079,7 @@ function SystemAdminDashboard() {
                     <p className="text-[10px] text-[#64748B] mt-0.5">Khôi phục được trên mọi môi trường mà không cần cài thêm công cụ.</p>
                   </div>
                 </label>
-                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60 transition-colors">
+                <label className="flex items-start gap-2.5 cursor-pointer p-2 rounded-xl hover:bg-white/60">
                   <input
                     type="radio"
                     name="backupFormat"
@@ -2099,13 +2099,13 @@ function SystemAdminDashboard() {
             <div className="flex justify-end gap-2 text-xs pt-2">
               <button
                 onClick={() => setIsConfirmBackupOpen(false)}
-                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80 transition-all duration-150 ease-out hover:scale-[1.01]"
+                className="px-4 py-2 hover:bg-white/50 rounded-xl font-semibold text-[#64748B] border border-transparent hover:border-white/80"
               >
                 Hủy
               </button>
               <button
                 onClick={handleCreateBackup}
-                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm transition-all duration-150 ease-out hover:scale-[1.01]"
+                className="px-4 py-2 bg-[#1A73E8] hover:bg-[#1A73E8]/90 text-white rounded-xl font-semibold shadow-sm"
               >
                 Tiến hành sao lưu
               </button>
@@ -2138,7 +2138,7 @@ function SystemAdminDashboard() {
       {/* MODAL: PREVIEW & RESTORE BACKUP */}
       {/* --------------------------------------------------------------------- */}
       {isImportModalOpen && importPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
             onClick={() => !isImportLoading && handleCloseImportModal()} 
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -2151,7 +2151,7 @@ function SystemAdminDashboard() {
               </div>
               <button 
                 onClick={() => !isImportLoading && handleCloseImportModal()}
-                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl transition-all duration-150"
+                className="p-1 text-[#64748B] hover:text-[#1E293B] hover:bg-white/50 rounded-xl"
               >
                 <X size={20} />
               </button>
@@ -2216,7 +2216,7 @@ function SystemAdminDashboard() {
               <label className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">Các collections tìm thấy trong bản sao lưu</label>
               <div className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
                 {importPreview.collections.map((col: any) => (
-                  <div key={col.name} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                  <div key={col.name} className="p-3 flex items-center justify-between hover:bg-slate-50">
                     <label className="flex items-center gap-3 cursor-pointer flex-1">
                       <input 
                         type="checkbox" 
@@ -2270,7 +2270,7 @@ function SystemAdminDashboard() {
               </label>
               
               {(restoreChecked && reloginChecked) && (
-                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="">
                   <label className="text-xs text-slate-600 block mb-1">
                     Vui lòng gõ chữ <b className="text-rose-600">RESTORE</b> để xác nhận.
                   </label>
@@ -2289,14 +2289,14 @@ function SystemAdminDashboard() {
               <button
                 disabled={isImportLoading}
                 onClick={handleCloseImportModal}
-                className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600 transition-colors"
+                className="px-4 py-2 hover:bg-slate-100 rounded-xl font-semibold text-slate-600"
               >
                 Hủy bỏ
               </button>
               <button
                 disabled={isImportLoading || !restoreChecked || !reloginChecked || confirmText !== "RESTORE" || selectedCollections.length === 0}
                 onClick={handleRestore}
-                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 text-white rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 text-white rounded-xl font-bold shadow-sm flex items-center gap-2"
               >
                 {isImportLoading ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
                 Tiến hành khôi phục

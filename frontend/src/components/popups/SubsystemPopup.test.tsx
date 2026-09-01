@@ -157,6 +157,17 @@ describe('SubsystemPopup', () => {
     expect(mockPush).toHaveBeenCalledWith('/activities');
   });
 
+  it('renders compact cards without secondary stat content', async () => {
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    expect(await screen.findByText('Quản trị hệ thống')).toBeInTheDocument();
+    expect(screen.getByText('Theo dõi log, yêu cầu vận hành và sao lưu dữ liệu.')).toBeInTheDocument();
+    expect(screen.getByText('65%').closest('[aria-hidden="true"]')).toHaveClass('hidden');
+    expect(screen.queryByText('Hoạt động')).toBeInTheDocument();
+  });
+
   it('shows storage management to an admin and navigates to its route', async () => {
     vi.mocked(isAdminUser).mockReturnValue(true);
     vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);

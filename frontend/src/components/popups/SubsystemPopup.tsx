@@ -45,7 +45,7 @@ const INITIAL_MODULES = [
     id: 'sv-profile',
     group: 'Học sinh',
     name: 'Hồ sơ sinh viên',
-    desc: 'Quản lý thông tin cá nhân, học bạ và lịch sử đào tạo tập trung.',
+    desc: 'Quản lý hồ sơ, học bạ và lịch sử đào tạo.',
     status: 'ACTIVE',
     stat: { type: 'avatar', count: 12 },
     href: '/students',
@@ -55,7 +55,7 @@ const INITIAL_MODULES = [
     id: 'grading',
     group: 'Học sinh',
     name: 'Đánh giá điểm số',
-    desc: 'Hệ thống tính toán điểm trung bình và xếp loại học tập tự động.',
+    desc: 'Tính điểm trung bình và xếp loại học tập.',
     status: 'ACTIVE',
     stat: { type: 'growth', label: '+8% tháng này' },
     href: '/grading',
@@ -65,7 +65,7 @@ const INITIAL_MODULES = [
     id: 'attendance',
     group: 'Học sinh',
     name: 'Theo dõi chuyên cần',
-    desc: 'Điểm danh thông minh và báo cáo tỷ lệ vắng mặt thời gian thực.',
+    desc: 'Điểm danh và theo dõi tỷ lệ vắng mặt.',
     status: 'ACTIVE',
     stat: { type: 'time', label: 'Cập nhật: 5 phút trước' },
     href: '/students/record',
@@ -75,7 +75,7 @@ const INITIAL_MODULES = [
     id: 'dormitory',
     group: 'KTX',
     name: 'Quản lý KTX',
-    desc: 'Quản lý phòng ốc, đăng ký lưu trú và hóa đơn dịch vụ ký túc xá.',
+    desc: 'Quản lý phòng, lưu trú và hóa đơn ký túc xá.',
     status: 'ACTIVE',
     stat: { type: 'time', label: 'Mới cập nhật' },
     href: '/dormitory',
@@ -85,7 +85,7 @@ const INITIAL_MODULES = [
     id: 'club',
     group: 'Club',
     name: 'Hoạt động',
-    desc: 'Nơi sinh hoạt ngoại khóa, đăng ký tham gia và lên kế hoạch hoạt động.',
+    desc: 'Tổ chức hoạt động ngoại khóa và đăng ký tham gia.',
     status: 'ACTIVE',
     stat: { type: 'event', label: 'Đang mở đăng ký' },
     href: '/activities',
@@ -95,7 +95,7 @@ const INITIAL_MODULES = [
     id: 'security',
     group: 'Hệ thống',
     name: 'Kiểm soát phân quyền',
-    desc: 'Thiết lập vai trò, quyền truy cập tài liệu và bảo mật hệ thống.',
+    desc: 'Thiết lập vai trò và quyền truy cập hệ thống.',
     status: 'RESTRICTED',
     stat: { type: 'restricted', label: 'Bị giới hạn' },
     href: '/permissions',
@@ -105,7 +105,7 @@ const INITIAL_MODULES = [
     id: 'config',
     group: 'Hệ thống',
     name: 'Quản trị hệ thống',
-    desc: 'Theo dõi logs, quản lý các yêu cầu vận hành và sao lưu dữ liệu hệ thống.',
+    desc: 'Theo dõi log, yêu cầu vận hành và sao lưu dữ liệu.',
     status: 'ACTIVE',
     stat: { type: 'progress', percent: 65, label: '65%' },
     href: '/system',
@@ -115,7 +115,7 @@ const INITIAL_MODULES = [
     id: 'storage',
     group: 'Hệ thống',
     name: 'Quản lý lưu trữ',
-    desc: 'Theo dõi dung lượng và quản lý tài nguyên lưu trữ của hệ thống.',
+    desc: 'Theo dõi dung lượng và tài nguyên lưu trữ.',
     status: 'ACTIVE',
     stat: { type: 'event', label: 'Chỉ dành cho quản trị viên' },
     href: '/system/storage',
@@ -125,7 +125,7 @@ const INITIAL_MODULES = [
     id: 'events',
     group: 'Học sinh',
     name: 'Nhiệm vụ',
-    desc: 'Lên lịch biểu, quản lý các kỳ thi và giao nhiệm vụ học tập cho HSSV.',
+    desc: 'Lên lịch, quản lý kỳ thi và giao nhiệm vụ học tập.',
     status: 'ACTIVE',
     stat: { type: 'event', label: '2 sự kiện sắp tới' },
     href: '/students/tasks',
@@ -135,7 +135,7 @@ const INITIAL_MODULES = [
     id: 'reports',
     group: 'Hệ thống',
     name: 'Thống kê báo cáo',
-    desc: 'Tổng hợp số liệu rèn luyện, chuyên cần và học tập toàn trường.',
+    desc: 'Tổng hợp số liệu rèn luyện, chuyên cần và học tập.',
     status: 'ACTIVE',
     stat: { type: 'growth', label: 'Xuất PDF/Excel' },
     href: '/reports',
@@ -145,7 +145,7 @@ const INITIAL_MODULES = [
     id: 'notifications',
     group: 'Hệ thống',
     name: 'Quản lý thông báo',
-    desc: 'Cấu hình và gửi thông báo tự động, theo dõi lịch sử thông báo hệ thống.',
+    desc: 'Cấu hình, gửi và theo dõi thông báo hệ thống.',
     status: 'ACTIVE',
     stat: { type: 'event', label: 'Hoạt động' },
     href: '/notifications',
@@ -525,7 +525,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                             <p className="text-[11px] text-slate-400 font-medium leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
 
-                          <div className="border-t border-slate-100/60 pt-2 flex items-center justify-between">
+                          <div className="hidden" aria-hidden="true">
                             <div>
                               {mod.stat.type === 'avatar' && (
                                 <div className="flex -space-x-2">
@@ -604,7 +604,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                             <p className="text-[11px] text-slate-400 font-medium leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
 
-                          <div className="border-t border-slate-100/60 pt-2 flex items-center justify-between">
+                          <div className="hidden" aria-hidden="true">
                             <div>
                               {mod.stat.type === 'time' && (
                                 <span className="text-[10px] font-medium text-slate-400">{mod.stat.label}</span>
@@ -669,7 +669,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                             <p className="text-[11px] text-slate-400 font-medium leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
 
-                          <div className="border-t border-slate-100/60 pt-2 flex items-center justify-between">
+                          <div className="hidden" aria-hidden="true">
                             <div>
                               {mod.stat.type === 'event' && (
                                 <span className="text-[10px] font-semibold text-slate-500">{mod.stat.label}</span>
@@ -734,7 +734,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
                             <p className="text-[11px] text-slate-400 font-medium leading-relaxed line-clamp-2">{mod.desc}</p>
                           </div>
 
-                          <div className="border-t border-slate-100/60 pt-2 flex items-center justify-between">
+                          <div className="hidden" aria-hidden="true">
                             <div className="flex-1 mr-4">
                               {mod.stat.type === 'restricted' && (
                                 <div className="flex items-center gap-1.5 text-amber-600">
