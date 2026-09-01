@@ -689,9 +689,15 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   };
 
   const getStudentHistoryParams = (record: any) => {
-    const semester = record.original?.semester_id;
     return {
       studentId: record.studentObjectId,
+    };
+  };
+
+  const getFilteredStudentHistoryParams = (record: any) => {
+    const semester = record.original?.semester_id;
+    return {
+      ...getStudentHistoryParams(record),
       semesterId: typeof semester === "object" ? semester?._id : semester,
       classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
       startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
@@ -1161,7 +1167,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               };
             }
             const response = await academicRecordApi.getAcademicRecords({
-              ...getStudentHistoryParams(record),
+              ...getFilteredStudentHistoryParams(record),
               studentId: record.studentObjectId,
             });
             const history = Array.isArray(response) ? response : response.data;
@@ -1502,85 +1508,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     } catch (error) {
       console.error(error);
       toast.error("Có lỗi xảy ra khi xuất file Excel");
-    }
-  };
-
-  const handleExportStudentHistoryExcel = async () => {
-    if (filteredRecords.length === 0) {
-      toast.error("Không có dữ liệu để xuất Excel");
-      return;
-    }
-
-    try {
-      const XLSX = await import("xlsx");
-      const historyByStudent = await Promise.all(
-        filteredRecords.map(async (record) => {
-          if (!record.isGrouped) return [record.original];
-
-          const response = await academicRecordApi.getAcademicRecords({
-            ...getStudentHistoryParams(record),
-            studentId: record.studentObjectId,
-          });
-          return Array.isArray(response) ? response : response.data;
-        }),
-      );
-      const data = historyByStudent.flatMap((history, groupIndex) => {
-        const group = filteredRecords[groupIndex];
-        return history.map((record: any) => {
-          const student = typeof record.student_id === "object"
-            ? record.student_id
-            : typeof group.original.student_id === "object"
-              ? group.original.student_id
-              : null;
-          const evalDetail = typeof record.evaluation_detail_id === "object"
-            ? record.evaluation_detail_id
-            : null;
-          const criterionId = record.criterion_id
-            ? typeof record.criterion_id === "object" ? record.criterion_id._id : record.criterion_id
-            : record.criteria_id
-              ? typeof record.criteria_id === "object" ? record.criteria_id._id : record.criteria_id
-              : evalDetail
-                ? typeof evalDetail.criterion_id === "object" ? evalDetail.criterion_id._id : evalDetail.criterion_id
-                : record.evaluation_detail_id;
-          const criterion = allCriteria.find((item) => item._id === criterionId);
-          const points = Number.isFinite(record.effectivePoints)
-            ? record.effectivePoints
-            : Number(record.points_effect ?? 0);
-          const rawDate = record.recorded_at || record.date_record || record.createdAt;
-          const date = rawDate ? format(new Date(rawDate), "dd/MM/yyyy") : "N/A";
-          const recordType = criterion?.criterion_type
-            || (points < 0 ? "ky_luat" : "cong_diem");
-
-          return {
-            "Mã SV": student?.student_code || group.studentId,
-            "Họ và tên": student?.full_name || group.fullName,
-            Lớp: group.className,
-            "Loại ghi nhận": getAcademicRecordTypeLabel(recordType as AcademicRecordType),
-            "Mã tiêu chí": criterion?.criterion_code || "",
-            "Tiêu chí": criterion?.criterion_name || record.record_title || "Chưa có",
-            "Ngày ghi nhận": date,
-            "Tính điểm": formatSignedPoints(points),
-            "Nguồn": record.daily_report_id ? "Ghi nhận lớp" : "Ghi nhận HSSV",
-          };
-        });
-      });
-
-      if (data.length === 0) {
-        toast.error("Không có lịch sử phù hợp với bộ lọc hiện tại");
-        return;
-      }
-
-      const worksheet = XLSX.utils.json_to_sheet(data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Lịch sử chi tiết");
-      XLSX.writeFile(
-        workbook,
-        `Lich_su_ghi_nhan_HSSV_${format(new Date(), "yyyyMMdd_HHmmss")}.xlsx`,
-      );
-      toast.success("Đã xuất file Excel lịch sử ghi nhận HSSV thành công!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Có lỗi xảy ra khi xuất lịch sử ghi nhận");
     }
   };
 
@@ -2225,20 +2152,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   <Button
                     variant="outline"
                     onClick={handleExportStudentExcel}
-                    aria-label="Xuất tổng hợp theo sinh viên"
+                    aria-label="Xuất Excel"
                     className="flex items-center gap-1.5 px-3 h-9 border border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Tổng hợp</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleExportStudentHistoryExcel}
-                    aria-label="Xuất lịch sử chi tiết theo ghi nhận"
-                    className="flex items-center gap-1.5 px-3 h-9 border border-blue-200 bg-blue-50/70 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Lịch sử chi tiết</span>
+                    <span>Xuất Excel</span>
                   </Button>
 
                   {ghiNhanAccess.configRecord && (
@@ -2281,18 +2199,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 <button
                   type="button"
                   onClick={handleExportStudentExcel}
+                  aria-label="Xuất Excel"
                   className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 border border-emerald-200 bg-emerald-50/70 text-emerald-700 rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Tổng hợp</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportStudentHistoryExcel}
-                  className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 border border-blue-200 bg-blue-50/70 text-blue-700 rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Lịch sử chi tiết</span>
+                  <span>Xuất Excel</span>
                 </button>
               </div>
             </>
@@ -4220,11 +4131,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={handleExportSelectedStudentExcel}
-                aria-label="Xuất tổng hợp các sinh viên đã chọn"
+                aria-label="Xuất Excel các sinh viên đã chọn"
                 className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
               >
                 <FileSpreadsheet size={13} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Xuất tổng hợp ({selectedIds.length})</span>
+                <span className="hidden sm:inline">Xuất Excel ({selectedIds.length})</span>
                 <span className="inline sm:hidden">({selectedIds.length})</span>
               </button>
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (

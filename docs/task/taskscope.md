@@ -1,58 +1,51 @@
 slot_id: "taskscope-00"
-generation: 9
-task_id: "20260901-214051-align-grouped-student-records-ui"
+generation: 10
+task_id: "20260901-230522-show-full-student-history"
 scope_file: "docs/task/taskscope.md"
 status: completed
 scope_revision: 1
-created_at: "2026-09-01T21:40:51+07:00"
-updated_at: "2026-09-01T21:56:00+07:00"
-base_commit: "efd6bd4b22855d07d7e9600258b91342d252cb59"
-task: "Align grouped student-record table actions and exports"
-pipeline: feature_development
+created_at: "2026-09-01T23:05:22+07:00"
+updated_at: "2026-09-01T23:32:53+07:00"
+base_commit: "e3ef88d5155d713bc1450d4ce50d2a4b609f1640"
+task: "Show complete student history and simplify Excel export"
+pipeline: bug_fix
 profile: Quick
-objective: "Mỗi dòng Tình hình HSSV thể hiện một sinh viên và toàn bộ ghi nhận khớp bộ lọc, với thông tin gần nhất, thao tác nhóm và chế độ xuất dữ liệu không gây nhầm lẫn."
+objective: "Drawer Tình hình HSSV hiển thị toàn bộ ghi nhận của sinh viên, còn màn hình chỉ cung cấp một hành động Xuất Excel thông thường."
 
 coordination:
   depends_on: []
   warnings: []
 
 completion:
-  completed_at: "2026-09-01T21:56:00+07:00"
-  outcome: "Grouped student records now show the latest filtered record in one labeled column, expose only detail viewing per row, keep bulk student deletion filter-scoped, and provide separate summary/detail Excel exports."
-  final_commit_or_state: "Working tree on main at base commit efd6bd4b22855d07d7e9600258b91342d252cb59; changes uncommitted."
-  changed_paths:
-    - "frontend/src/app/(dashboard)/students/record/page.tsx"
-    - "frontend/src/app/(dashboard)/students/record/page.test.tsx"
-    - "docs/task/taskscope.md"
-  checks_passed:
-    - "npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' --run (24 tests passed)"
-    - "npm --prefix frontend run typecheck (passed)"
-    - "git diff --check (passed; only line-ending normalization warnings)"
+  completed_at: "2026-09-01T23:32:53+07:00"
+  outcome: success
+  final_commit_or_state: "HEAD e3ef88d5155d713bc1450d4ce50d2a4b609f1640; scoped changes remain in working tree"
+  changed_paths: ["docs/task/taskscope.md", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx"]
+  checks_passed: ["V-01: focused Vitest 24/24 passed", "V-02: frontend typecheck passed", "git diff --check passed"]
   cleanup_pending: []
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:mappedRecords/TableCells/actions/exports → dòng nhóm trộn tổng hợp với tiêu chí-ngày của latestRecord; sửa/xóa cuối dòng tác động latestRecord; checkbox mở rộng thành các child ID khớp bộ lọc; footer drawer có nút sửa không hoạt động; Excel nhóm mang cột chi tiết."
-  expected_behavior: "Bảng nhóm hiển thị Ghi nhận gần nhất, chỉ xem chi tiết ở từng dòng; xóa toàn nhóm chỉ qua checkbox chọn sinh viên; drawer không có nút sửa chung; xuất tổng hợp và chi tiết tách biệt."
-  root_cause: null
+  current_behavior: "page.tsx:handleOpenDrawerChange gọi getAcademicRecords với getStudentHistoryParams nên lịch sử bị giới hạn theo học kỳ/lớp/ngày/người tạo; toolbar đồng thời render Xuất tổng hợp và Xuất lịch sử chi tiết."
+  expected_behavior: "Drawer tải mọi academic record của studentId, không phụ thuộc bộ lọc bảng; xóa nhóm vẫn giới hạn theo bộ lọc; màn hình chỉ còn một nút Xuất Excel."
+  root_cause: "frontend/src/app/(dashboard)/students/record/page.tsx:getStudentHistoryParams được chia sẻ sai giữa drawer toàn lịch sử và delete preview theo bộ lọc."
 
 scope:
-  inspect: ["frontend/src/api/academic-record-api.ts:getAcademicRecords contracts", "frontend/src/components/grading/AddRecordView.tsx:edit contract"]
-  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:GhiNhanTab grouped table/drawer/export flows", "frontend/src/app/(dashboard)/students/record/page.test.tsx:grouped table/actions/export coverage"]
-  preserve: ["RBAC and student read-only state", "groupBy=student, active filters, pagination, totals, detail-history loading and soft-delete APIs", "No API/schema/dependency change"]
-  out: ["Backend changes", "Tình hình lớp học", "Per-record edit redesign inside history", "Permanent-delete/trash flows"]
+  inspect: ["frontend/src/api/academic-record-api.ts:getAcademicRecords response contract", "backend/src/academic-record/academic-record.service.ts:findAll unpaginated student filter"]
+  write: ["frontend/src/app/(dashboard)/students/record/page.tsx:drawer history params and Excel actions", "frontend/src/app/(dashboard)/students/record/page.test.tsx:drawer/export regression coverage"]
+  preserve: ["groupBy=student table filters, sorting, totals and RBAC", "Bulk group deletion must keep class/date/semester/creator filters and preview child IDs", "Single summary Excel format and selected-student export", "No API/schema/dependency change"]
+  out: ["Backend changes", "Drawer layout redesign", "Individual record edit", "Class-report tab and trash/permanent-delete flows"]
 
 acceptance_criteria:
-  - "AC-01: Mỗi dòng vẫn là một sinh viên với toàn bộ ghi nhận khớp bộ lọc; Tiêu chí và Ngày ghi nhận được thay bằng một cột Ghi nhận gần nhất chứa đúng tiêu chí và ngày của latestRecord."
-  - "AC-02: Hành động từng dòng HSSV chỉ còn Xem chi tiết; không còn sửa hoặc xóa latestRecord tại dòng, và nút Sửa ghi nhận chung ở footer drawer bị loại bỏ."
-  - "AC-03: Checkbox được trình bày là chọn sinh viên; xóa toàn nhóm chỉ xuất hiện qua bulk action, bản xem trước tiếp tục nêu số sinh viên và tổng child records khớp bộ lọc trước khi xóa mềm."
-  - "AC-04: Người dùng có hai chế độ xuất rõ ràng: tổng hợp theo sinh viên và lịch sử chi tiết theo từng ghi nhận; tiêu chí/ngày chỉ là cột chi tiết hoặc được ghi nhãn là thông tin gần nhất trong bản tổng hợp."
-  - "AC-05: Người dùng thiếu quyền sửa/xóa và vai trò sinh viên không nhận thêm hành động; bộ lọc hiện hành tiếp tục giới hạn lịch sử, preview xóa và dữ liệu xuất chi tiết."
+  - "AC-01: Mở Xem chi tiết gọi lịch sử bằng studentId mà không truyền classId, semesterId, startDate, endDate hoặc creator; drawer sắp xếp và hiển thị toàn bộ kết quả trả về."
+  - "AC-02: Bộ đếm và danh sách trong drawer phản ánh cùng tập toàn bộ ghi nhận, bao gồm ghi nhận nằm ngoài bộ lọc bảng hiện hành."
+  - "AC-03: Delete preview cho sinh viên vẫn dùng đúng bộ lọc bảng hiện hành và chỉ xóa các child ID đã xem trước."
+  - "AC-04: Toolbar desktop/mobile chỉ có một nút Xuất Excel; không còn nút/handler Xuất tổng hợp và Xuất lịch sử chi tiết riêng, còn xuất sinh viên đã chọn dùng nhãn Xuất Excel."
+  - "AC-05: Vai trò sinh viên và người thiếu quyền không nhận thêm hành động sửa/xóa; tải lịch sử tiếp tục qua API read hiện có."
 
 execution:
-  - "E-01 [AC-01,AC-02] page.tsx:TableCells/table actions/drawer footer → gộp latest criterion-date, giữ Eye, bỏ edit/delete dòng và sửa chung."
-  - "E-02 [AC-03] page.tsx:selection/FloatingActionBar/delete preview → làm rõ chọn sinh viên và chỉ giữ group deletion qua checkbox với số lượng ảnh hưởng."
-  - "E-03 [AC-04,AC-05] page.tsx:Excel handlers → tách workbook tổng hợp nhóm và lịch sử child records, tái dùng filter/history params và RBAC hiện có."
-  - "E-04 [AC-01..AC-05] page.test.tsx → cập nhật focused tests cho cột, action, selection/delete preview, hai chế độ export và quyền."
+  - "E-01 [AC-01..AC-03] page.tsx:history query helpers/callers → tách params drawer toàn bộ khỏi params delete preview theo bộ lọc."
+  - "E-02 [AC-04,AC-05] page.tsx:export handlers/toolbars/FloatingActionBar → giữ một luồng Xuất Excel và loại bỏ luồng chi tiết riêng."
+  - "E-03 [AC-01..AC-05] page.test.tsx → thêm regression cho lịch sử ngoài filter, giữ filtered deletion và xác nhận chỉ một export action."
 
 temporary_artifacts:
   create: []
@@ -60,8 +53,8 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-01..AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → Vitest target passes."
-  - "V-02 [AC-01..AC-05] npm --prefix frontend run typecheck → TypeScript exits 0."
+  - "V-01 [AC-01..AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → focused Vitest passes."
+  - "V-02 [AC-01..AC-05] npm --prefix frontend run typecheck → exits 0."
 
-risks: ["Xuất chi tiết có thể cần tải nhiều child records; phải giữ đúng bộ lọc và không thay đổi API contract."]
-stop_conditions: ["Dừng nếu cần API/schema mới, thay đổi RBAC, dependency, backend, hoặc xử lý dữ liệu ngoài bộ lọc hiện hành."]
+risks: ["Một sinh viên có lịch sử lớn sẽ được tải đầy đủ trong một request; giữ contract hiện tại và dừng nếu cần phân trang/API mới."]
+stop_conditions: ["Dừng nếu yêu cầu toàn bộ lịch sử cần backend/API/schema mới, thay đổi RBAC hoặc thay đổi phạm vi xóa nhóm."]
