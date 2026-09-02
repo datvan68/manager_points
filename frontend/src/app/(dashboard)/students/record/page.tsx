@@ -574,6 +574,18 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [isDeletingClassReports, setIsDeletingClassReports] = useState(false);
   const [detailRecord, setDetailRecord] = useState<any>(null);
   const [detailRecordHistory, setDetailRecordHistory] = useState<any[]>([]);
+  const [detailHistoryFilter, setDetailHistoryFilter] = useState<
+    "Khen thưởng" | "Cộng điểm" | "Kỷ luật" | null
+  >(null);
+  const visibleDetailRecordHistory = useMemo(
+    () =>
+      detailHistoryFilter
+        ? detailRecordHistory.filter(
+            (item) => item.recordType === detailHistoryFilter,
+          )
+        : detailRecordHistory,
+    [detailRecordHistory, detailHistoryFilter],
+  );
   const [isDetailLoading, setIsDetailLoading] = useState(false);
 
   // Global configurations for absent criteria
@@ -1738,6 +1750,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleOpenDetailView = async (record: any) => {
     setDetailRecord(record);
+    setDetailHistoryFilter(null);
     setCurrentView("detail");
     setIsDetailLoading(true);
     try {
@@ -1984,6 +1997,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               setCurrentView("list");
               setDetailRecord(null);
               setDetailRecordHistory([]);
+              setDetailHistoryFilter(null);
             }}
             className="p-1.5 hover:bg-white/60 active:bg-white/85 rounded-xl text-blue-650 border border-transparent hover:border-white/50 shadow-sm flex items-center justify-center transition-colors"
           >
@@ -2024,15 +2038,41 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           ).length;
 
           return (
-            <RecordTypeCounts
-              counts={{
-                khen_thuong: khenThuongCount,
-                cong_diem: congDiemCount,
-                ky_luat: kyLuatCount,
-              }}
-              total={isDetailLoading ? (detailRecord.recordCount ?? 0) : detailRecordHistory.length}
-              className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
-            />
+            <div className="flex flex-col gap-2">
+              <RecordTypeCounts
+                counts={{
+                  khen_thuong: khenThuongCount,
+                  cong_diem: congDiemCount,
+                  ky_luat: kyLuatCount,
+                }}
+                total={isDetailLoading ? (detailRecord.recordCount ?? 0) : detailRecordHistory.length}
+                className="text-xs"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {(["Khen thưởng", "Cộng điểm", "Kỷ luật"] as const).map(
+                  (type) => (
+                    <DrawerTypeFilterButton
+                      key={type}
+                      type={type}
+                      count={
+                        type === "Khen thưởng"
+                          ? khenThuongCount
+                          : type === "Cộng điểm"
+                            ? congDiemCount
+                            : kyLuatCount
+                      }
+                      active={detailHistoryFilter === type}
+                      loading={isDetailLoading}
+                      onClick={() =>
+                        setDetailHistoryFilter((current) =>
+                          current === type ? null : type,
+                        )
+                      }
+                    />
+                  ),
+                )}
+              </div>
+            </div>
           );
         })()}
 
@@ -2053,13 +2093,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               ))}
             </div>
-          ) : detailRecordHistory.length === 0 ? (
+          ) : visibleDetailRecordHistory.length === 0 ? (
             <div className="text-center py-8 text-slate-400 italic text-[12px] bg-white/30 border border-dashed border-white/60 rounded-xl">
               Chưa có ghi nhận nào cho học sinh này.
             </div>
           ) : (
             <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-              {detailRecordHistory.map((mr, i) => {
+              {visibleDetailRecordHistory.map((mr, i) => {
                 const isKyLuat = mr.recordType === "Kỷ luật";
                 const isKhenThuong = mr.recordType === "Khen thưởng";
 
