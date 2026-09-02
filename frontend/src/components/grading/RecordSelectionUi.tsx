@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/Input';
+import { cn } from '@/lib/utils';
 
 export type SelectionValue = string | string[];
 
@@ -63,6 +64,7 @@ export function RecordOptionRow({
 
 export interface RecordSelectionDialogProps {
   label: string;
+  labelClassName?: string;
   title: string;
   description?: string;
   hideHeader?: boolean;
@@ -85,7 +87,7 @@ export interface RecordSelectionDialogProps {
 }
 
 export function RecordSelectionDialog({
-  label, title, description, hideHeader = false, value, displayValue, multiple = false, disabled, placeholder, searchValue = '', onSearchChange,
+  label, labelClassName, title, description, hideHeader = false, value, displayValue, multiple = false, disabled, placeholder, searchValue = '', onSearchChange,
   onConfirm, loading, onLoadMore, hasMore, searchable = false, isMobile = false, children,
   mobileShowCloseButton = true, mobilePreventOpenAutoFocus = false,
 }: RecordSelectionDialogProps) {
@@ -141,7 +143,7 @@ export function RecordSelectionDialog({
           value={onSearchChange ? searchValue : internalSearch}
           onChange={e => onSearchChange ? onSearchChange(e.target.value) : setInternalSearch(e.target.value)}
           placeholder={`Tìm ${label.toLowerCase()}...`}
-          className="h-11 md:h-10 min-h-[44px] md:min-h-0 rounded-xl bg-white text-sm md:text-xs"
+          className="h-11 md:h-10 min-h-[44px] md:min-h-0 rounded-xl bg-white text-sm md:text-xs focus-visible:!border-slate-200 focus-visible:!ring-0"
         />
       )}
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3" role="listbox" aria-label={`Danh sách ${label.toLowerCase()}`}>
@@ -158,7 +160,7 @@ export function RecordSelectionDialog({
 
   return (
     <div className="flex flex-col w-full">
-      <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">{label}</label>
+      <label className={cn("text-[11px] md:text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5 ml-1", labelClassName)}>{label}</label>
       {isMobile ? (
         <>
           <Button
@@ -168,7 +170,7 @@ export function RecordSelectionDialog({
             aria-haspopup="dialog"
             aria-expanded={open}
             onClick={() => setOpen(true)}
-            className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60"
+            className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 focus-visible:!border-slate-200 focus-visible:!ring-0"
           >
             <span className={`truncate ${committedLabel === placeholder ? 'font-normal text-[#64748B]/60' : ''}`}>{committedLabel}</span>
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
@@ -192,7 +194,7 @@ export function RecordSelectionDialog({
               disabled={disabled}
               aria-haspopup="dialog"
               aria-expanded={open}
-              className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60"
+              className="h-11 md:h-9 md:sm:h-10 min-h-[44px] md:min-h-0 w-full justify-between rounded-xl border border-white/70 bg-white/40 backdrop-blur-sm px-3.5 text-left text-sm md:text-xs md:sm:text-[12.5px] font-semibold text-[#1E293B] shadow-xs hover:bg-white/60 focus-visible:!border-slate-200 focus-visible:!ring-0"
             >
               <span className={`truncate ${committedLabel === placeholder ? 'font-normal text-[#64748B]/60' : ''}`}>{committedLabel}</span>
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />

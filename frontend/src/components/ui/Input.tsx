@@ -9,16 +9,17 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement |
   required?: boolean;
   error?: string;
   containerClassName?: string;
+  labelClassName?: string;
   multiline?: boolean;
   rows?: number;
 }
 
 const Input = React.forwardRef<any, InputProps>(
-  ({ className, label, required, error, containerClassName, type, multiline, rows = 3, ...props }, ref) => {
+  ({ className, label, required, error, containerClassName, labelClassName, type, multiline, rows = 3, ...props }, ref) => {
     return (
       <div className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
         {label && (
-          <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">
+          <label className={cn("flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]", labelClassName)}>
             {label}
             {required && <span className="text-red-500">*</span>}
           </label>

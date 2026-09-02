@@ -819,15 +819,18 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         ) : (
           <form onSubmit={handleSave} className="flex flex-col gap-2 md:flex-1 md:min-h-0">
             {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-3.5 sm:gap-4 w-full md:flex-1 md:min-h-0">
+            <div className="grid grid-cols-12 gap-3 sm:gap-3.5 w-full md:flex-1 md:min-h-0">
 
               {/* Left Column: Core Info (col-span-12 md:col-span-5 lg:col-span-4) */}
               <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4 md:min-h-0">
                 {/* Section 1: Thông tin cơ bản */}
-                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3 w-full md:flex-1 md:min-h-0">
-                  <div className="flex gap-2 items-center text-[#005bbf]">
-                    <FileText className="w-4 h-4 shrink-0" />
-                    <h3 className="font-bold text-sm lg:text-[15px] leading-none">Thông tin cơ bản</h3>
+                <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3.5 sm:p-4 lg:p-4.5 flex flex-col gap-3.5 w-full md:flex-none">
+                  <div className="flex gap-2.5 items-start text-[#005bbf] border-b border-slate-200/60 pb-3">
+                    <FileText className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-sm lg:text-[15px] leading-none">Thông tin cơ bản</h3>
+                      <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">Thiết lập lớp, tiêu chí và thông tin báo cáo</p>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
@@ -835,6 +838,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     <div className="flex flex-col w-full relative">
                       <RecordSelectionDialog
                         label="Mã lớp học"
+                        labelClassName="text-[11px] md:text-[10px] uppercase tracking-wide text-slate-500"
                         title="Chọn mã lớp học"
                         description={isEditMode ? 'Chọn một lớp học cho báo cáo này.' : 'Chọn một hoặc nhiều lớp học rồi nhấn Xác nhận để áp dụng.'}
                         hideHeader={true}
@@ -847,7 +851,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                                 : '')
                         }
                         multiple={!isEditMode}
-                        placeholder="Chọn mã lớp học..."
+                        placeholder="Chọn lớp"
                         searchable
                         isMobile={isMobile}
                         mobileShowCloseButton={false}
@@ -900,16 +904,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                           );
                         }}
                       </RecordSelectionDialog>
-                      {!isEditMode && (
-                        <span className="mt-1 ml-1 text-xs md:text-[11px] text-slate-500" aria-live="polite">
-                          {classIds.length > 0 ? `Đã chọn ${classIds.length} lớp` : 'Chọn mã lớp học...'}
-                        </span>
-                      )}
                     </div>
 
                     {/* Tiêu chí ghi nhận (AC-03: rendered exactly once inside Thông tin cơ bản) */}
                     <div className="flex flex-col w-full">
-                      <label className="text-sm md:text-xs font-semibold text-slate-600 mb-1 ml-1">Tiêu chí ghi nhận</label>
+                      <label className="text-[11px] md:text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5 ml-1">Tiêu chí ghi nhận</label>
                       {!isMobile ? (
                         <Select
                           value={selectedCriterionId}
@@ -1008,6 +1007,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                     {/* Tên giảng viên */}
                     <Input
+                      labelClassName="text-[11px] md:text-[10px] uppercase tracking-wide text-slate-500"
                       type="text"
                       label="Tên giảng viên"
                       value={teacherName}
@@ -1018,6 +1018,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     />
 
                     <Input
+                      labelClassName="text-[11px] md:text-[10px] uppercase tracking-wide text-slate-500"
                       multiline
                       rows={3}
                       label="Ghi chú lớp"
@@ -1030,7 +1031,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
                     {/* Ngày báo cáo */}
                     <div className="flex flex-col w-full">
-                      <label className="text-sm md:text-xs font-medium text-[#414754] mb-1 ml-1">Ngày báo cáo</label>
+                      <label className="text-[11px] md:text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5 ml-1">Ngày báo cáo</label>
                       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger asChild>
                           <Button
@@ -1147,7 +1148,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
             )}
 
             {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full shrink-0">
+            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full md:w-[calc(66.666%-0.5rem)] md:ml-[calc(33.333%+0.5rem)] shrink-0">
               <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
                 Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
               </div>
