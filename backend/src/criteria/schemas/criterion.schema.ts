@@ -19,6 +19,9 @@ export class Criterion {
   @Prop({ required: true })
   criterion_name: string;
 
+  @Prop({ trim: true })
+  description?: string;
+
   @Prop({ required: true, default: 1 })
   score_per_unit: number;
 

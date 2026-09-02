@@ -1,13 +1,18 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, BarChart3 } from 'lucide-react';
-import { toast } from 'sonner';
-import { criteriaApi } from '../../api/criteria-api';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
-import { Input } from '../ui/Input';
-
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Save, BarChart3 } from "lucide-react";
+import { toast } from "sonner";
+import { criteriaApi } from "../../api/criteria-api";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "../ui/select";
+import { Input } from "../ui/Input";
 
 interface CriteriaModalProps {
   isOpen: boolean;
@@ -28,127 +33,158 @@ export default function CriteriaModal({
   categories = [],
   criteria = [],
   onSave,
-  defaultCategoryId = ''
+  defaultCategoryId = "",
 }: CriteriaModalProps) {
   const [formData, setFormData] = useState({
-    id: '',
-    code: '',
-    name: '',
-    type: 'cong_diem' as 'khen_thuong' | 'cong_diem' | 'ky_luat',
+    id: "",
+    code: "",
+    name: "",
+    description: "",
+    type: "cong_diem" as "khen_thuong" | "cong_diem" | "ky_luat",
     points: 1,
     minPoints: 0,
     maxPoints: 10,
-    categoryId: '',
+    categoryId: "",
     is_locked: false,
     is_score_counted: true,
-    scoring_mode: 'count' as 'count' | 'single_option',
-    options: [] as { id: string; label: string; score: number }[]
+    scoring_mode: "count" as "count" | "single_option",
+    options: [] as { id: string; label: string; score: number }[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSuggestedCode, setIsSuggestedCode] = useState(false);
   const [isSuggestingCode, setIsSuggestingCode] = useState(false);
-  const [suggestCodeError, setSuggestCodeError] = useState('');
+  const [suggestCodeError, setSuggestCodeError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       let isCodeEmpty = false;
-      let initialCatId = '';
+      let initialCatId = "";
 
       if (isEditing && initialData) {
-        initialCatId = initialData.categoryId || defaultCategoryId || (categories[0]?.id || '');
-        const currentCode = initialData.code || initialData.criterion_code || '';
+        initialCatId =
+          initialData.categoryId ||
+          defaultCategoryId ||
+          categories[0]?.id ||
+          "";
+        const currentCode =
+          initialData.code || initialData.criterion_code || "";
         if (!currentCode) isCodeEmpty = true;
 
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
-          id: initialData.id || '',
+          id: initialData.id || "",
           code: currentCode,
-          name: initialData.name || '',
-          type: initialData.type || 'cong_diem',
+          name: initialData.name || "",
+          description: initialData.description || "",
+          type: initialData.type || "cong_diem",
           points: Math.abs(initialData.points || 1), // Lưu dạng số dương trong form, dấu do type quyết định
-          minPoints: initialData.minPoints !== undefined ? initialData.minPoints : 0,
+          minPoints:
+            initialData.minPoints !== undefined ? initialData.minPoints : 0,
           maxPoints: initialData.maxPoints || 10,
           categoryId: initialCatId,
           is_locked: !!initialData.is_locked,
           is_score_counted: initialData.is_score_counted !== false,
-          scoring_mode: initialData.scoring_mode || 'count',
-          options: initialData.options || []
+          scoring_mode: initialData.scoring_mode || "count",
+          options: initialData.options || [],
         }));
       } else {
-        initialCatId = defaultCategoryId || (categories[0]?.id || '');
+        initialCatId = defaultCategoryId || categories[0]?.id || "";
         isCodeEmpty = true;
 
         // Initialize form data only once per modal open
-        setFormData(prev => ({
-          id: '',
-          code: '',
-          name: '',
-          type: 'cong_diem',
+        setFormData((prev) => ({
+          id: "",
+          code: "",
+          name: "",
+          description: "",
+          type: "cong_diem",
           points: 1,
           minPoints: 0,
           maxPoints: 10,
           categoryId: initialCatId,
           is_locked: false,
           is_score_counted: true,
-          scoring_mode: 'count',
-          options: []
+          scoring_mode: "count",
+          options: [],
         }));
       }
       setErrors({});
 
-      const isValidId = (id: any) => id && typeof id === 'string' && id.trim().length > 0 && id !== 'undefined' && id !== 'null';
+      const isValidId = (id: any) =>
+        id &&
+        typeof id === "string" &&
+        id.trim().length > 0 &&
+        id !== "undefined" &&
+        id !== "null";
 
       let active = true;
       if (isCodeEmpty && isValidId(initialCatId)) {
-        const catObjectId = categories.find(c => c.id === initialCatId || c._id === initialCatId)?._id || initialCatId;
+        const catObjectId =
+          categories.find(
+            (c) => c.id === initialCatId || c._id === initialCatId,
+          )?._id || initialCatId;
         if (isValidId(catObjectId)) {
           setIsSuggestingCode(true);
-          setSuggestCodeError('');
-          criteriaApi.suggestCriterionCode(catObjectId).then(res => {
-            if (!active) return;
-            const suggestedCode = res.suggestedCode || '';
-            setFormData(prev => ({ ...prev, code: suggestedCode }));
-            setIsSuggestedCode(true);
-          }).catch((err) => {
-            if (!active) return;
-            setSuggestCodeError('Không lấy được mã gợi ý, vui lòng nhập thủ công');
-            setIsSuggestedCode(false);
-          }).finally(() => {
-            if (active) setIsSuggestingCode(false);
-          });
+          setSuggestCodeError("");
+          criteriaApi
+            .suggestCriterionCode(catObjectId)
+            .then((res) => {
+              if (!active) return;
+              const suggestedCode = res.suggestedCode || "";
+              setFormData((prev) => ({ ...prev, code: suggestedCode }));
+              setIsSuggestedCode(true);
+            })
+            .catch((err) => {
+              if (!active) return;
+              setSuggestCodeError(
+                "Không lấy được mã gợi ý, vui lòng nhập thủ công",
+              );
+              setIsSuggestedCode(false);
+            })
+            .finally(() => {
+              if (active) setIsSuggestingCode(false);
+            });
         } else {
           setIsSuggestedCode(false);
         }
       } else {
         setIsSuggestedCode(false);
       }
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
-  }, [isOpen, defaultCategoryId, isEditing, initialData?.id, categories.length]); // Tách dependency để lấy data mới khi có categories
+  }, [
+    isOpen,
+    defaultCategoryId,
+    isEditing,
+    initialData?.id,
+    categories.length,
+  ]); // Tách dependency để lấy data mới khi có categories
 
   const handleSave = async () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.code.trim()) newErrors.code = 'Vui lòng nhập mã tiêu chí';
-    if (!formData.name.trim()) newErrors.name = 'Vui lòng nhập tên tiêu chí';
-    if (!formData.categoryId) newErrors.categoryId = 'Vui lòng chọn danh mục';
+    if (!formData.code.trim()) newErrors.code = "Vui lòng nhập mã tiêu chí";
+    if (!formData.name.trim()) newErrors.name = "Vui lòng nhập tên tiêu chí";
+    if (!formData.categoryId) newErrors.categoryId = "Vui lòng chọn danh mục";
 
-    if (formData.scoring_mode === 'single_option') {
+    if (formData.scoring_mode === "single_option") {
       if (formData.options.length === 0) {
-        newErrors.options = 'Vui lòng thêm ít nhất 1 lựa chọn';
+        newErrors.options = "Vui lòng thêm ít nhất 1 lựa chọn";
       } else {
         for (let i = 0; i < formData.options.length; i++) {
           if (!formData.options[i].label.trim()) {
-            newErrors.options = 'Nhãn lựa chọn không được để trống';
+            newErrors.options = "Nhãn lựa chọn không được để trống";
             break;
           }
         }
       }
     } else {
       if (formData.minPoints > formData.maxPoints) {
-        newErrors.minPoints = 'Điểm tối thiểu không được lớn hơn điểm tối đa';
+        newErrors.minPoints = "Điểm tối thiểu không được lớn hơn điểm tối đa";
       }
       if (formData.points > formData.maxPoints) {
-        newErrors.points = 'Bước nhảy điểm không được lớn hơn điểm tối đa';
+        newErrors.points = "Bước nhảy điểm không được lớn hơn điểm tối đa";
       }
     }
 
@@ -158,26 +194,34 @@ export default function CriteriaModal({
       else if (newErrors.minPoints) toast.error(newErrors.minPoints);
       else if (newErrors.maxPoints) toast.error(newErrors.maxPoints);
       else if (newErrors.points) toast.error(newErrors.points);
-      else toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+      else toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
 
     // Đảm bảo điểm số Kỷ luật lưu dạng âm, còn lại là dương
-    const signedPoints = formData.type === 'ky_luat' ? -Math.abs(formData.points) : Math.abs(formData.points);
+    const signedPoints =
+      formData.type === "ky_luat"
+        ? -Math.abs(formData.points)
+        : Math.abs(formData.points);
 
     try {
       if (onSave) {
         await onSave({
           ...formData,
           criterion_code: formData.code.trim(),
+          description: formData.description.trim() || undefined,
           points: signedPoints,
-          id: formData.id || `CRI_${Date.now()}` // Tự sinh ID nếu là tạo mới
+          id: formData.id || `CRI_${Date.now()}`, // Tự sinh ID nếu là tạo mới
         });
       }
-      toast.success(isEditing ? 'Cập nhật tiêu chí thành công' : 'Thêm tiêu chí mới thành công');
+      toast.success(
+        isEditing
+          ? "Cập nhật tiêu chí thành công"
+          : "Thêm tiêu chí mới thành công",
+      );
       onClose();
     } catch (error: any) {
-      toast.error(error.message || 'Có lỗi xảy ra khi lưu tiêu chí');
+      toast.error(error.message || "Có lỗi xảy ra khi lưu tiêu chí");
     }
   };
 
@@ -200,8 +244,8 @@ export default function CriteriaModal({
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 380 }}
-              className={`w-full transition-all duration-300 ${formData.scoring_mode === 'single_option' ? 'max-w-[800px]' : 'max-w-[480px]'} bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-white/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans`}
+              transition={{ type: "spring", damping: 25, stiffness: 380 }}
+              className="w-full max-w-[920px] bg-[linear-gradient(135deg,#EBF2FA_0%,#DCE6F1_100%)] border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-300/40 pointer-events-auto flex flex-col overflow-hidden max-h-[95vh] font-sans"
             >
               {/* Header theo thiết kế Figma */}
               <div className="border-b border-white/50 bg-white/40 flex items-center justify-between px-[20px] py-[16px] shrink-0 relative">
@@ -211,10 +255,11 @@ export default function CriteriaModal({
                   </div>
                   <div className="flex flex-col gap-[2px] items-start">
                     <h2 className="font-semibold text-[#0f172a] text-[18px] leading-[24px]">
-                      {isEditing ? 'Cập nhật tiêu chí' : 'Thêm tiêu chí mới'}
+                      {isEditing ? "Cập nhật tiêu chí" : "Thêm tiêu chí mới"}
                     </h2>
                     <p className="font-normal text-[#64748b] text-[13px] leading-[18px]">
-                      Vui lòng điền thông tin chi tiết cho tiêu chí đánh giá mới.
+                      Vui lòng điền thông tin chi tiết cho tiêu chí đánh giá
+                      mới.
                     </p>
                   </div>
                 </div>
@@ -227,245 +272,333 @@ export default function CriteriaModal({
               </div>
 
               {/* Body Form theo thiết kế Figma */}
-              <div className={`flex-1 overflow-y-auto px-[20px] py-[20px] ${formData.scoring_mode === 'single_option' ? 'grid grid-cols-2 gap-[24px] items-start' : 'flex flex-col'}`}>
+              <div className="min-h-0 flex-1 overflow-y-auto px-[20px] py-[20px] grid grid-cols-1 lg:grid-cols-2 gap-[24px] items-start">
                 {/* Cột trái: Thông tin cơ bản */}
-                <div className="flex flex-col space-y-[16px] w-full">
+                <div className="contents lg:contents">
                   {/* Phân loại danh mục */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                      Phân loại danh mục <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <Select
-                    value={formData.categoryId}
-                    onValueChange={(val: string) => {
-                      setFormData(prev => ({ ...prev, categoryId: val }));
-                      const isValidId = (id: any) => id && typeof id === 'string' && id.trim().length > 0 && id !== 'undefined' && id !== 'null';
-
-                      if ((!formData.code || isSuggestedCode) && isValidId(val)) {
-                        const catObjectId = categories.find(c => c.id === val || c._id === val)?._id || val;
-                        if (isValidId(catObjectId)) {
-                          setIsSuggestingCode(true);
-                          setSuggestCodeError('');
-                          criteriaApi.suggestCriterionCode(catObjectId).then(res => {
-                            const suggestedCode = res.suggestedCode || '';
-                            setFormData(prev => ({ ...prev, code: suggestedCode, categoryId: val }));
-                            setIsSuggestedCode(true);
-                          }).catch((err) => {
-                            setSuggestCodeError('Không lấy được mã gợi ý, vui lòng nhập thủ công');
-                            setIsSuggestedCode(false);
-                          }).finally(() => {
-                            setIsSuggestingCode(false);
-                          });
-                        }
-                      }
-                    }}
-                    error={errors.categoryId}
-                  >
-                    <SelectTrigger className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30 ${errors.categoryId ? 'border-rose-400 ring-2 ring-rose-100' : ''
-                      }`}>
-                      <SelectValue placeholder="Chọn danh mục" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Mã tiêu chí */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="flex justify-between items-center w-full pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                      Mã tiêu chí <span className="text-[#ef4444]">*</span>
-                    </label>
-                    {isSuggestedCode && !isSuggestingCode && (
-                      <span className="flex items-center gap-1 text-[12px] font-medium text-[#059669]">
-                        ✅ Gợi ý tự động
-                      </span>
-                    )}
-                    {isSuggestingCode && (
-                      <span className="flex items-center gap-1 text-[12px] font-medium text-[#64748b]">
-                        Đang lấy gợi ý...
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative w-full flex flex-col gap-1">
-                    <div className="relative w-full">
-                      <Input
-                        required
-                        error={errors.code}
-                        placeholder="Ví dụ: I.A"
-                        className={`text-[13px] ${isSuggestedCode ? 'pr-8 font-medium text-[#059669]' : ''}`}
-                        value={formData.code}
-                        onChange={(e) => {
-                          setFormData({ ...formData, code: e.target.value });
-                          setIsSuggestedCode(false);
-                          setSuggestCodeError('');
-                        }}
-                      />
-                      {isSuggestedCode && !isSuggestingCode && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px] pointer-events-none select-none" title="Mã được gợi ý tự động">
-                          ✅
-                        </div>
-                      )}
-                    </div>
-                    {suggestCodeError && (
-                      <p className="text-[12px] font-medium text-rose-500 pl-[4px]">
-                        {suggestCodeError}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tên tiêu chí */}
-                <Input
-                  label="Tên tiêu chí"
-                  required
-                  error={errors.name}
-                  placeholder="Nhập tên chi tiết cho tiêu chí này..."
-                  multiline
-                  rows={3}
-                  className="text-[13px] min-h-[60px]"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-
-                {/* Loại điểm */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                      Loại điểm <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(val: string) => setFormData({ ...formData, type: val as any })}
-                  >
-                    <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
-                      <SelectValue placeholder="Chọn loại điểm" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="khen_thuong">Khen thưởng</SelectItem>
-                      <SelectItem value="cong_diem">Cộng điểm</SelectItem>
-                      <SelectItem value="ky_luat">Kỷ luật</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Hình thức chấm điểm */}
-                <div className="flex flex-col gap-[8px] items-start w-full">
-                  <div className="pl-[4px]">
-                    <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                      Hình thức chấm điểm <span className="text-[#ef4444]">*</span>
-                    </label>
-                  </div>
-                  <Select
-                    value={formData.scoring_mode}
-                    onValueChange={(val: 'count' | 'single_option') => setFormData({ ...formData, scoring_mode: val })}
-                  >
-                    <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
-                      <SelectValue placeholder="Chọn hình thức" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="count">Đếm số lần (Cộng dồn)</SelectItem>
-                      <SelectItem value="single_option">Chọn 1 tùy chọn (Option)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Grid 2 cột: Khoảng điểm & Bước nhảy điểm */}
-                <div className="grid grid-cols-2 gap-[16px] w-full items-start">
-                  {/* Khoảng điểm */}
                   <div className="flex flex-col gap-[8px] items-start w-full">
                     <div className="pl-[4px]">
                       <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                        Khoảng điểm
+                        Phân loại danh mục{" "}
+                        <span className="text-[#ef4444]">*</span>
                       </label>
                     </div>
-                    <div className="flex gap-[8px] items-center w-full">
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="Min"
-                        value={formData.minPoints}
-                        onChange={(e) => setFormData({ ...formData, minPoints: Number(e.target.value) })}
-                        className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.minPoints ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
-                          }`}
-                      />
-                      <span className="text-[#94a3b8] text-[14px] font-normal select-none">−</span>
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="Max"
-                        value={formData.maxPoints}
-                        onChange={(e) => setFormData({ ...formData, maxPoints: Number(e.target.value) })}
-                        className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.minPoints || errors.maxPoints ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'
-                          }`}
-                      />
-                    </div>
+                    <Select
+                      value={formData.categoryId}
+                      onValueChange={(val: string) => {
+                        setFormData((prev) => ({ ...prev, categoryId: val }));
+                        const isValidId = (id: any) =>
+                          id &&
+                          typeof id === "string" &&
+                          id.trim().length > 0 &&
+                          id !== "undefined" &&
+                          id !== "null";
 
-                    {/* Tùy chọn nâng cao nằm dưới khoảng điểm */}
-                    <div className="flex flex-col gap-[12px] mt-[4px] pl-[4px]">
-                      <label className="flex items-center gap-[8px] cursor-pointer select-none group">
-                        <input
-                          type="checkbox"
-                          checked={formData.is_locked}
-                          onChange={(e) => setFormData({ ...formData, is_locked: e.target.checked })}
-                          className="w-[16px] h-[16px] rounded-[4px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
-                        />
-                        <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
-                          <span className="text-[13px]">Khóa tiêu chí</span>
-                        </span>
+                        if (
+                          (!formData.code || isSuggestedCode) &&
+                          isValidId(val)
+                        ) {
+                          const catObjectId =
+                            categories.find(
+                              (c) => c.id === val || c._id === val,
+                            )?._id || val;
+                          if (isValidId(catObjectId)) {
+                            setIsSuggestingCode(true);
+                            setSuggestCodeError("");
+                            criteriaApi
+                              .suggestCriterionCode(catObjectId)
+                              .then((res) => {
+                                const suggestedCode = res.suggestedCode || "";
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  code: suggestedCode,
+                                  categoryId: val,
+                                }));
+                                setIsSuggestedCode(true);
+                              })
+                              .catch((err) => {
+                                setSuggestCodeError(
+                                  "Không lấy được mã gợi ý, vui lòng nhập thủ công",
+                                );
+                                setIsSuggestedCode(false);
+                              })
+                              .finally(() => {
+                                setIsSuggestingCode(false);
+                              });
+                          }
+                        }
+                      }}
+                      error={errors.categoryId}
+                    >
+                      <SelectTrigger
+                        className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30 ${
+                          errors.categoryId
+                            ? "border-rose-400 ring-2 ring-rose-100"
+                            : ""
+                        }`}
+                      >
+                        <SelectValue placeholder="Chọn danh mục" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Mã tiêu chí */}
+                  <div className="flex flex-col gap-[8px] items-start w-full">
+                    <div className="flex justify-between items-center w-full pl-[4px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                        Mã tiêu chí <span className="text-[#ef4444]">*</span>
                       </label>
-                      {formData.type === 'ky_luat' && (
+                      {isSuggestedCode && !isSuggestingCode && (
+                        <span className="flex items-center gap-1 text-[12px] font-medium text-[#059669]">
+                          ✅ Gợi ý tự động
+                        </span>
+                      )}
+                      {isSuggestingCode && (
+                        <span className="flex items-center gap-1 text-[12px] font-medium text-[#64748b]">
+                          Đang lấy gợi ý...
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative w-full flex flex-col gap-1">
+                      <div className="relative w-full">
+                        <Input
+                          required
+                          error={errors.code}
+                          placeholder="Ví dụ: I.A"
+                          className={`text-[13px] ${isSuggestedCode ? "pr-8 font-medium text-[#059669]" : ""}`}
+                          value={formData.code}
+                          onChange={(e) => {
+                            setFormData({ ...formData, code: e.target.value });
+                            setIsSuggestedCode(false);
+                            setSuggestCodeError("");
+                          }}
+                        />
+                        {isSuggestedCode && !isSuggestingCode && (
+                          <div
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px] pointer-events-none select-none"
+                            title="Mã được gợi ý tự động"
+                          >
+                            ✅
+                          </div>
+                        )}
+                      </div>
+                      {suggestCodeError && (
+                        <p className="text-[12px] font-medium text-rose-500 pl-[4px]">
+                          {suggestCodeError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tên tiêu chí */}
+                  <Input
+                    label="Tên tiêu chí"
+                    required
+                    error={errors.name}
+                    placeholder="Nhập tên chi tiết cho tiêu chí này..."
+                    multiline
+                    rows={3}
+                    className="text-[13px] min-h-[60px]"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                  />
+
+                  <Input
+                    label="Mô tả (không bắt buộc)"
+                    placeholder="Mô tả ngắn hiển thị bên dưới tên tiêu chí..."
+                    multiline
+                    rows={3}
+                    className="text-[13px] min-h-[60px]"
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                  />
+
+                  {/* Loại điểm */}
+                  <div className="flex flex-col gap-[8px] items-start w-full">
+                    <div className="pl-[4px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                        Loại điểm <span className="text-[#ef4444]">*</span>
+                      </label>
+                    </div>
+                    <Select
+                      value={formData.type}
+                      onValueChange={(val: string) =>
+                        setFormData({ ...formData, type: val as any })
+                      }
+                    >
+                      <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
+                        <SelectValue placeholder="Chọn loại điểm" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="khen_thuong">Khen thưởng</SelectItem>
+                        <SelectItem value="cong_diem">Cộng điểm</SelectItem>
+                        <SelectItem value="ky_luat">Kỷ luật</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Hình thức chấm điểm */}
+                  <div className="flex flex-col gap-[8px] items-start w-full">
+                    <div className="pl-[4px]">
+                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                        Hình thức chấm điểm{" "}
+                        <span className="text-[#ef4444]">*</span>
+                      </label>
+                    </div>
+                    <Select
+                      value={formData.scoring_mode}
+                      onValueChange={(val: "count" | "single_option") =>
+                        setFormData({ ...formData, scoring_mode: val })
+                      }
+                    >
+                      <SelectTrigger className="w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl text-[13px] font-medium text-[#1E293B] focus-within:ring-2 focus-within:ring-[#1A73E8]/30">
+                        <SelectValue placeholder="Chọn hình thức" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="count">
+                          Đếm số lần (Cộng dồn)
+                        </SelectItem>
+                        <SelectItem value="single_option">
+                          Chọn 1 tùy chọn (Option)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Grid 2 cột: Khoảng điểm & Bước nhảy điểm */}
+                  <div className="grid grid-cols-2 gap-[16px] w-full items-start">
+                    {/* Khoảng điểm */}
+                    <div className="flex flex-col gap-[8px] items-start w-full">
+                      <div className="pl-[4px]">
+                        <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                          Khoảng điểm
+                        </label>
+                      </div>
+                      <div className="flex gap-[8px] items-center w-full">
+                        <input
+                          type="number"
+                          min={0}
+                          placeholder="Min"
+                          value={formData.minPoints}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              minPoints: Number(e.target.value),
+                            })
+                          }
+                          className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${
+                            errors.minPoints
+                              ? "border-rose-400 ring-2 ring-rose-100"
+                              : "border-white/70"
+                          }`}
+                        />
+                        <span className="text-[#94a3b8] text-[14px] font-normal select-none">
+                          −
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          placeholder="Max"
+                          value={formData.maxPoints}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              maxPoints: Number(e.target.value),
+                            })
+                          }
+                          className={`w-full h-[36px] text-center bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${
+                            errors.minPoints || errors.maxPoints
+                              ? "border-rose-400 ring-2 ring-rose-100"
+                              : "border-white/70"
+                          }`}
+                        />
+                      </div>
+
+                      {/* Tùy chọn nâng cao nằm dưới khoảng điểm */}
+                      <div className="flex flex-col gap-[12px] mt-[4px] pl-[4px]">
                         <label className="flex items-center gap-[8px] cursor-pointer select-none group">
                           <input
                             type="checkbox"
-                            checked={formData.is_score_counted}
-                            onChange={(e) => setFormData({ ...formData, is_score_counted: e.target.checked })}
+                            checked={formData.is_locked}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                is_locked: e.target.checked,
+                              })
+                            }
                             className="w-[16px] h-[16px] rounded-[4px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
                           />
                           <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
-                            <span className="text-[13px]">Cộng điểm kỷ luật vào tổng điểm</span>
+                            <span className="text-[13px]">Khóa tiêu chí</span>
                           </span>
                         </label>
+                        {formData.type === "ky_luat" && (
+                          <label className="flex items-center gap-[8px] cursor-pointer select-none group">
+                            <input
+                              type="checkbox"
+                              checked={formData.is_score_counted}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  is_score_counted: e.target.checked,
+                                })
+                              }
+                              className="w-[16px] h-[16px] rounded-[4px] border-[#cbd5e1] text-[#135bec] focus:ring-[#135bec] cursor-pointer transition-colors"
+                            />
+                            <span className="font-semibold text-[#475569] group-hover:text-slate-900 text-[14px] leading-[20px] transition-colors">
+                              <span className="text-[13px]">
+                                Cộng điểm kỷ luật vào tổng điểm
+                              </span>
+                            </span>
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bước nhảy điểm */}
+                    <div className="flex flex-col gap-[8px] items-start w-full">
+                      <div className="pl-[4px]">
+                        <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
+                          Bước nhảy điểm
+                        </label>
+                      </div>
+                      <input
+                        type="number"
+                        min={0.5}
+                        step={0.5}
+                        placeholder="Ví dụ: 0.5 hoặc 1"
+                        value={formData.points}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            points: Number(e.target.value),
+                          })
+                        }
+                        disabled={formData.scoring_mode === "single_option"}
+                        className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.points ? "border-rose-400 ring-2 ring-rose-100" : "border-white/70"} ${formData.scoring_mode === "single_option" ? "opacity-50" : ""}`}
+                      />
+                      {errors.points && (
+                        <p className="text-[12px] font-medium text-red-500 mt-1 pl-[4px]">
+                          {errors.points}
+                        </p>
                       )}
                     </div>
                   </div>
-
-                  {/* Bước nhảy điểm */}
-                  <div className="flex flex-col gap-[8px] items-start w-full">
-                    <div className="pl-[4px]">
-                      <label className="font-semibold text-[#334155] text-[13px] leading-[20px]">
-                        Bước nhảy điểm
-                      </label>
-                    </div>
-                    <input
-                      type="number"
-                      min={0.5}
-                      step={0.5}
-                      placeholder="Ví dụ: 0.5 hoặc 1"
-                      value={formData.points}
-                      onChange={(e) => setFormData({ ...formData, points: Number(e.target.value) })}
-                      disabled={formData.scoring_mode === 'single_option'}
-                      className={`w-full px-3 py-1.5 h-[36px] bg-white/50 backdrop-blur-sm border rounded-xl text-[13px] font-medium text-[#1E293B] placeholder:text-slate-400 transition-all outline-none focus:bg-white/80 focus:ring-2 focus:ring-[#1A73E8]/30 ${errors.points ? 'border-rose-400 ring-2 ring-rose-100' : 'border-white/70'} ${formData.scoring_mode === 'single_option' ? 'opacity-50' : ''}`}
-                    />
-                    {errors.points && (
-                      <p className="text-[12px] font-medium text-red-500 mt-1 pl-[4px]">
-                        {errors.points}
-                      </p>
-                    )}
-                  </div>
-                </div>
                 </div>
 
                 {/* Quản lý danh sách tùy chọn (chỉ hiện khi scoring_mode === 'single_option') */}
-                {formData.scoring_mode === 'single_option' && (
+                {formData.scoring_mode === "single_option" && (
                   <div className="flex flex-col gap-3 w-full p-4 bg-white/40 border border-white/70 rounded-xl shadow-sm h-full">
                     <div className="flex justify-between items-center pb-2 border-b border-white/50">
                       <label className="font-semibold text-[#334155] text-[14px] leading-[20px]">
@@ -473,25 +606,48 @@ export default function CriteriaModal({
                       </label>
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          options: [...prev.options, { id: 'opt_' + Date.now() + Math.random().toString(36).substr(2, 5), label: '', score: formData.maxPoints }]
-                        }))}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            options: [
+                              ...prev.options,
+                              {
+                                id:
+                                  "opt_" +
+                                  Date.now() +
+                                  Math.random().toString(36).substr(2, 5),
+                                label: "",
+                                score: formData.maxPoints,
+                              },
+                            ],
+                          }))
+                        }
                         className="text-[12px] font-bold text-white bg-[#1A73E8] hover:bg-[#155FC0] px-3 py-1.5 rounded-lg transition-colors shadow-sm"
                       >
                         + Thêm tùy chọn
                       </button>
                     </div>
-                    {errors.options && <p className="text-[13px] text-red-500 font-medium bg-red-50 p-2 rounded-lg">{errors.options}</p>}
+                    {errors.options && (
+                      <p className="text-[13px] text-red-500 font-medium bg-red-50 p-2 rounded-lg">
+                        {errors.options}
+                      </p>
+                    )}
                     <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar flex-1 max-h-[400px] pr-1">
                       {formData.options.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                          <p className="text-[13px] italic mb-2">Chưa có tùy chọn nào</p>
-                          <p className="text-[11px]">Bấm "+ Thêm tùy chọn" để bắt đầu</p>
+                          <p className="text-[13px] italic mb-2">
+                            Chưa có tùy chọn nào
+                          </p>
+                          <p className="text-[11px]">
+                            Bấm "+ Thêm tùy chọn" để bắt đầu
+                          </p>
                         </div>
                       )}
                       {formData.options.map((opt, idx) => (
-                        <div key={opt.id} className="flex items-center gap-2 bg-white/50 p-2 rounded-xl border border-white/60">
+                        <div
+                          key={opt.id}
+                          className="flex items-center gap-2 bg-white/50 p-2 rounded-xl border border-white/60"
+                        >
                           <input
                             type="text"
                             placeholder="Nhãn (VD: Cán bộ lớp)"

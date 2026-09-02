@@ -3,6 +3,41 @@ import { CreateCriterionDto } from '../dto/create-criterion.dto';
 import { plainToInstance } from 'class-transformer';
 
 describe('CreateCriterionDto', () => {
+  it('should accept an optional description and remain compatible when omitted', async () => {
+    const withDescription = plainToInstance(CreateCriterionDto, {
+      category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-DESC',
+      criterion_name: 'Short name',
+      description: '  Supporting detail  ',
+      criterion_type: 'cong_diem',
+      scoring_mode: 'count',
+    });
+    const withoutDescription = plainToInstance(CreateCriterionDto, {
+      category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-NO-DESC',
+      criterion_name: 'Legacy criterion',
+      criterion_type: 'cong_diem',
+      scoring_mode: 'count',
+    });
+
+    expect((await validate(withDescription)).length).toBe(0);
+    expect((await validate(withoutDescription)).length).toBe(0);
+  });
+
+  it('should reject a non-string description', async () => {
+    const dto = plainToInstance(CreateCriterionDto, {
+      category_id: '60c72b2f9b1d8e251c888888',
+      criterion_code: 'CRI-BAD-DESC',
+      criterion_name: 'Invalid description',
+      description: 123,
+      criterion_type: 'cong_diem',
+      scoring_mode: 'count',
+    });
+
+    expect(
+      (await validate(dto)).find((error) => error.property === 'description'),
+    ).toBeDefined();
+  });
   it('should validate successfully when scoring_mode is count and options are not provided', async () => {
     const dto = plainToInstance(CreateCriterionDto, {
       category_id: '60c72b2f9b1d8e251c888888',

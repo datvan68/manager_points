@@ -65,6 +65,15 @@ export class CreateCriterionDto {
   criterion_name: string;
 
   @ApiProperty({
+    description: 'Mô tả ngắn hiển thị bổ sung cho tiêu chí',
+    required: false,
+    example: 'Tham gia đầy đủ các hoạt động của lớp',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({
     description: 'Bước nhảy điểm (số điểm thay đổi mỗi lần chấm)',
     example: 1,
     default: 1,
