@@ -186,6 +186,43 @@ const RecordTypeCounts = ({
   </div>
 );
 
+const DrawerTypeFilterButton = ({
+  type,
+  count,
+  active,
+  loading,
+  onClick,
+}: {
+  type: "Khen thưởng" | "Cộng điểm" | "Kỷ luật";
+  count: number;
+  active: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) => {
+  const styles = type === "Khen thưởng"
+    ? { text: "text-emerald-600", light: "bg-emerald-50/50", active: "bg-emerald-100", border: "border-emerald-100", activeBorder: "border-emerald-300", ring: "focus-visible:ring-emerald-500", hover: "hover:bg-emerald-100/70", skeleton: "bg-emerald-200/60", number: "text-emerald-600", suffix: "text-emerald-500" }
+    : type === "Kỷ luật"
+      ? { text: "text-rose-600", light: "bg-rose-50/50", active: "bg-rose-100", border: "border-rose-100", activeBorder: "border-rose-300", ring: "focus-visible:ring-rose-500", hover: "hover:bg-rose-100/70", skeleton: "bg-rose-200/60", number: "text-rose-600", suffix: "text-rose-500" }
+      : { text: "text-blue-600", light: "bg-blue-50/50", active: "bg-blue-100", border: "border-blue-100", activeBorder: "border-blue-300", ring: "focus-visible:ring-blue-500", hover: "hover:bg-blue-100/70", skeleton: "bg-blue-200/60", number: "text-blue-600", suffix: "text-blue-500" };
+  return (
+    <button
+      type="button"
+      aria-label={`Lọc ${type}`}
+      aria-pressed={active}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className={`rounded-xl border p-3 flex flex-col items-center justify-center text-center transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 ${styles.ring} ${active ? `${styles.active} ${styles.activeBorder} shadow-sm` : `${styles.light} ${styles.border} ${styles.hover}`}`}
+    >
+      <span className={`text-[9px] font-bold ${styles.text} uppercase tracking-wider mb-1`}>{type}</span>
+      <div className="flex items-baseline gap-0.5 min-h-[24px] justify-center items-center">
+        {loading ? <Skeleton className={`w-10 h-5 rounded ${styles.skeleton} animate-pulse`} /> : <><span className={`text-xl font-black ${styles.number} leading-none`}>{count}</span><span className={`text-[10px] font-semibold ${styles.suffix} ml-0.5`}>lần</span></>}
+      </div>
+    </button>
+  );
+};
+
 type AcademicRecordListItem = AcademicRecord & {
   latestRecord?: AcademicRecord;
   recordCount?: number;
@@ -442,13 +479,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   } | null>(null);
   const [isCalendarDesktopOpen, setIsCalendarDesktopOpen] = useState(false);
   const [isSelectingHistory, setIsSelectingHistory] = useState(false);
-  const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>(
+  const [selectedHistoryItems, setSelectedHistoryItems] = useState<string[]>(
     [],
   );
+  const [drawerHistoryFilter, setDrawerHistoryFilter] = useState<
+    "Khen thưởng" | "Cộng điểm" | "Kỷ luật" | null
+  >(null);
   const [historyDeleteIds, setHistoryDeleteIds] = useState<string[]>([]);
   const [isHistoryDeleteConfirmOpen, setIsHistoryDeleteConfirmOpen] = useState(false);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerHistory, setDrawerHistory] = useState<any[]>([]);
+  const visibleDrawerHistory = useMemo(
+    () => drawerHistoryFilter
+      ? drawerHistory.filter((item) => item.recordType === drawerHistoryFilter)
+      : drawerHistory,
+    [drawerHistory, drawerHistoryFilter],
+  );
+  const toggleDrawerHistoryFilter = useCallback((type: "Khen thưởng" | "Cộng điểm" | "Kỷ luật") => {
+    setDrawerHistoryFilter((current) => current === type ? null : type);
+  }, []);
   const canCreateRecords =
     activeSubTab === "class"
       ? ghiNhanAccess.createClassRecord
@@ -710,6 +759,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleOpenDrawerChange = async (isOpen: boolean, record: any) => {
     setOpenDrawerId(isOpen ? record.id : null);
+    if (isOpen) setDrawerHistoryFilter(null);
     if (isOpen) {
       setDrawerLoading(true);
       try {
@@ -817,6 +867,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     } else {
       setIsSelectingHistory(false);
       setSelectedHistoryItems([]);
+      setDrawerHistoryFilter(null);
       setDrawerHistory([]);
     }
   };
@@ -1269,7 +1320,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const requestHistoryDelete = () => {
     const ids = selectedHistoryItems
-      .map((idx) => drawerHistory[idx]?.id)
+      .filter((id) => drawerHistory.some((item) => item.id === id))
       .filter((id): id is string => Boolean(id));
     if (ids.length === 0) return;
     setHistoryDeleteIds(ids);
@@ -2619,6 +2670,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                       return (
                                         <>
                                           <div className="grid grid-cols-3 gap-2">
+                                            <DrawerTypeFilterButton type="Khen thưởng" count={khenThuongCount} active={drawerHistoryFilter === "Khen thưởng"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Khen thưởng")} />
+                                            <DrawerTypeFilterButton type="Cộng điểm" count={congDiemCount} active={drawerHistoryFilter === "Cộng điểm"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Cộng điểm")} />
+                                            <DrawerTypeFilterButton type="Kỷ luật" count={kyLuatCount} active={drawerHistoryFilter === "Kỷ luật"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Kỷ luật")} />
+                                          <div className="hidden">
                                             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
                                               <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
                                                 Khen thưởng
@@ -2678,6 +2733,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                             </div>
                                           </div>
 
+                                          </div>
+
                                           <div className="flex flex-col pb-4">
                                             <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">
                                               Ghi nhận gần đây
@@ -2701,14 +2758,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                   ),
                                                 )}
                                               </div>
-                                            ) : drawerHistory.length === 0 ? (
+                                            ) : visibleDrawerHistory.length === 0 ? (
                                               <div className="text-center py-6 text-slate-400 italic text-[12px]">
                                                 Chưa có ghi nhận nào cho học
                                                 sinh này.
                                               </div>
                                             ) : (
                                               <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                {drawerHistory.map((mr, i) => {
+                                                {visibleDrawerHistory.map((mr, i) => {
                                                   const isKyLuat =
                                                     mr.recordType === "Kỷ luật";
                                                   const isKhenThuong =
@@ -2736,36 +2793,32 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                   return (
                                                     <div
                                                       key={mr.id}
+                                                      data-testid={`drawer-history-${mr.id}`}
                                                       className="flex gap-4 relative mb-6 last:mb-0"
                                                     >
                                                       <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
                                                         {isSelectingHistory ? (
                                                           <div
                                                             role="checkbox"
-                                                            aria-checked={selectedHistoryItems.includes(i)}
-                                                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
+                                                            aria-checked={selectedHistoryItems.includes(mr.id)}
+                                                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(mr.id) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
                                                               setSelectedHistoryItems(
                                                                 (prev) =>
-                                                                  prev.includes(
-                                                                    i,
-                                                                  )
+                                                                  prev.includes(mr.id)
                                                                     ? prev.filter(
                                                                         (x) =>
-                                                                          x !==
-                                                                          i,
+                                                                          x !== mr.id,
                                                                       )
                                                                     : [
                                                                         ...prev,
-                                                                        i,
+                                                                        mr.id,
                                                                       ],
                                                               );
                                                             }}
                                                           >
-                                                            {selectedHistoryItems.includes(
-                                                              i,
-                                                            ) && (
+                                                            {selectedHistoryItems.includes(mr.id) && (
                                                               <Check
                                                                 className="w-3.5 h-3.5 text-white"
                                                                 strokeWidth={3}
@@ -3136,6 +3189,10 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                         return (
                                           <>
                                             <div className="grid grid-cols-3 gap-2">
+                                              <DrawerTypeFilterButton type="Khen thưởng" count={khenThuongCount} active={drawerHistoryFilter === "Khen thưởng"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Khen thưởng")} />
+                                              <DrawerTypeFilterButton type="Cộng điểm" count={congDiemCount} active={drawerHistoryFilter === "Cộng điểm"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Cộng điểm")} />
+                                              <DrawerTypeFilterButton type="Kỷ luật" count={kyLuatCount} active={drawerHistoryFilter === "Kỷ luật"} loading={drawerLoading} onClick={() => toggleDrawerHistoryFilter("Kỷ luật")} />
+                                            <div className="hidden">
                                               <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex flex-col items-center justify-center text-center">
                                                 <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
                                                   Khen thưởng
@@ -3195,6 +3252,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                               </div>
                                             </div>
 
+                                            </div>
+
                                             <div className="flex flex-col pb-4">
                                               <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-4">
                                                 Ghi nhận gần đây
@@ -3218,14 +3277,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                     </div>
                                                   ))}
                                                 </div>
-                                              ) : drawerHistory.length === 0 ? (
+                                              ) : visibleDrawerHistory.length === 0 ? (
                                                 <div className="text-center py-6 text-slate-400 italic text-[12px]">
                                                   Chưa có ghi nhận nào cho học
                                                   sinh này.
                                                 </div>
                                               ) : (
                                                 <div className="flex flex-col relative before:content-[''] before:absolute before:left-3 before:top-4 before:h-[calc(100%-1.5rem)] before:w-[1px] before:bg-slate-100 ml-1">
-                                                  {drawerHistory.map(
+                                                  {visibleDrawerHistory.map(
                                                     (mr, i) => {
                                                       const isKyLuat =
                                                         mr.recordType ===
@@ -3255,40 +3314,36 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                       return (
                                                         <div
                                                           key={mr.id}
+                                                          data-testid={`drawer-history-${mr.id}`}
                                                           className="flex gap-4 relative mb-6 last:mb-0"
                                                         >
                                                           <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
                                                             {isSelectingHistory ? (
                                                               <div
                                                                 role="checkbox"
-                                                                aria-checked={selectedHistoryItems.includes(i)}
-                                                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
+                                                                aria-checked={selectedHistoryItems.includes(mr.id)}
+                                                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(mr.id) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
                                                                 onClick={(
                                                                   e,
                                                                 ) => {
                                                                   e.stopPropagation();
                                                                   setSelectedHistoryItems(
                                                                     (prev) =>
-                                                                      prev.includes(
-                                                                        i,
-                                                                      )
+                                                                      prev.includes(mr.id)
                                                                         ? prev.filter(
                                                                             (
                                                                               x,
                                                                             ) =>
-                                                                              x !==
-                                                                              i,
+                                                                              x !== mr.id,
                                                                           )
                                                                         : [
                                                                             ...prev,
-                                                                            i,
+                                                                            mr.id,
                                                                           ],
                                                                   );
                                                                 }}
                                                               >
-                                                                {selectedHistoryItems.includes(
-                                                                  i,
-                                                                ) && (
+                                                                {selectedHistoryItems.includes(mr.id) && (
                                                                   <Check
                                                                     className="w-3.5 h-3.5 text-white"
                                                                     strokeWidth={

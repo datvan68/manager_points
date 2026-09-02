@@ -543,6 +543,27 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Sửa ghi nhận')).not.toBeInTheDocument();
   });
 
+  it('filters drawer history by clicking a record-type summary button', async () => {
+    const group = makeStudentGroup('student-1', 'latest-record-1', 3);
+    const history = [
+      { ...group.latestRecord, _id: 'reward-1', effectivePoints: 5, record_title: 'Reward history' },
+      { ...group.latestRecord, _id: 'discipline-1', effectivePoints: -5, record_title: 'Discipline history' },
+      { ...group.latestRecord, _id: 'bonus-1', effectivePoints: 0, record_title: 'Bonus history' },
+    ];
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockResolvedValueOnce(history);
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByTitle('Xem chi tiết')[0]);
+    await screen.findByTestId('drawer-history-reward-1');
+
+    const rewardFilter = screen.getAllByRole('button', { name: 'Lọc Khen thưởng' }).at(-1)!;
+    fireEvent.click(rewardFilter);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Lọc Khen thưởng' }).some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true));
+  });
+
   it('does not expose Excel export actions on the student situation tab', async () => {
     const group = makeStudentGroup('student-1', 'latest-record-1', 2);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
