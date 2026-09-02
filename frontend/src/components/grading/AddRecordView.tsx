@@ -25,6 +25,9 @@ import { useRecordDraft } from '@/hooks/useRecordDraft';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 import { RecordSelectionDialog, quickGridClass, toggleSelectionValue, MobileStudentSelectionDialog } from './RecordSelectionUi';
 
+const getDisplayClassName = (className?: string) =>
+  String(className || '').replace(/\s*\(\d{4}\s*-\s*\d{4}\)\s*$/, '').trim();
+
 interface ViolationItem {
   student_id: string;
   class_id?: string;
@@ -745,9 +748,9 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         value={isEditMode ? (classId || '') : classIds}
                         displayValue={
                           isEditMode
-                            ? (classes.find(c => c._id === (classId || ''))?.class_name || '')
+                            ? getDisplayClassName(classes.find(c => c._id === (classId || ''))?.class_name)
                             : (classIds.length > 0
-                                ? classIds.map(id => classes.find(c => c._id === id)?.class_name).filter(Boolean).join(', ')
+                                ? classIds.map(id => getDisplayClassName(classes.find(c => c._id === id)?.class_name)).filter(Boolean).join(', ')
                                 : '')
                         }
                         multiple={!isEditMode}
@@ -792,7 +795,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                                         : 'hover:bg-slate-50 text-slate-700'
                                     }`}
                                   >
-                                    <span className="truncate">{c.class_name}{c.class_year ? ` (${c.class_year})` : ''}</span>
+                                    <span className="truncate">{getDisplayClassName(c.class_name)}</span>
                                     {isSelected && <Check className="h-4 w-4 shrink-0 text-[#1A73E8] ml-2" />}
                                   </button>
                                 );

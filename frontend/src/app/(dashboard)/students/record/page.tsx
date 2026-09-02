@@ -125,6 +125,10 @@ const academicRecordTypeLabels: Record<AcademicRecordType, string> = {
 const getAcademicRecordTypeLabel = (type: AcademicRecordType) =>
   academicRecordTypeLabels[type];
 
+/** Display class codes without the academic-year suffix. */
+const getDisplayClassName = (className?: string) =>
+  String(className || "N/A").replace(/\s*\(\d{4}\s*-\s*\d{4}\)\s*$/, "").trim();
+
 const formatSignedPoints = (points: number) =>
   `${points > 0 ? "+" : ""}${points}`;
 
@@ -822,7 +826,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   ? student.class_id?._id
                   : student.class_id;
               const foundClass = classes.find((c) => c._id === classId);
-              className = foundClass ? foundClass.class_name : "N/A";
+              className = getDisplayClassName(foundClass?.class_name);
             }
 
             const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
@@ -1069,7 +1073,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           ? foundStudent.class_id?._id
           : foundStudent.class_id;
       const foundClass = classes.find((c) => c._id === classId);
-      className = foundClass ? foundClass.class_name : "N/A";
+      className = getDisplayClassName(foundClass?.class_name);
     }
 
     const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
@@ -1605,7 +1609,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       const data = filteredClassReports.map((report) => {
         const classObj =
           typeof report.class_id === "object" ? report.class_id : null;
-        const className = classObj ? classObj.class_name : "CS-101-A";
+        const className = getDisplayClassName(classObj?.class_name || "CS-101-A");
         const totalPresent = report.total_present || 0;
         const totalAbsent = report.total_absent || 0;
         const totalStudents = totalPresent + totalAbsent;
@@ -1695,7 +1699,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       const data = selectedReports.map((report) => {
         const classObj =
           typeof report.class_id === "object" ? report.class_id : null;
-        const className = classObj ? classObj.class_name : "CS-101-A";
+        const className = getDisplayClassName(classObj?.class_name || "CS-101-A");
         const totalPresent = report.total_present || 0;
         const totalAbsent = report.total_absent || 0;
         const totalStudents = totalPresent + totalAbsent;
@@ -1801,7 +1805,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 ? student.class_id?._id
                 : student.class_id;
             const foundClass = classes.find((c) => c._id === classId);
-            className = foundClass ? foundClass.class_name : "N/A";
+            className = getDisplayClassName(foundClass?.class_name);
           }
 
           const pts = Number.isFinite(r.effectivePoints) ? r.effectivePoints : 0;
@@ -2253,7 +2257,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           <SelectItem value="all">Tất cả các lớp</SelectItem>
                           {classes.map((c) => (
                             <SelectItem key={c._id} value={c._id}>
-                              {c.class_name}
+                              {getDisplayClassName(c.class_name)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -2366,7 +2370,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         <SelectItem value="all">Tất cả các lớp</SelectItem>
                         {classes.map((c) => (
                           <SelectItem key={c._id} value={c._id}>
-                            {c.class_name}
+                            {getDisplayClassName(c.class_name)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -3656,7 +3660,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         ? report.class_id
                         : null;
                     const className = classObj
-                      ? classObj.class_name
+                      ? getDisplayClassName(classObj.class_name)
                       : "CS-101-A";
 
                     const totalPresent = report.total_present || 0;
@@ -3777,7 +3781,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           ? report.class_id
                           : null;
                       const className = classObj
-                        ? classObj.class_name
+                        ? getDisplayClassName(classObj.class_name)
                         : "CS-101-A";
 
                       const totalPresent = report.total_present || 0;
@@ -4021,7 +4025,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             ? report.class_id
                             : null;
                         const className = classObj
-                          ? classObj.class_name
+                          ? getDisplayClassName(classObj.class_name)
                           : "CS-101-A";
 
                         const totalPresent = report.total_present || 0;
@@ -4748,7 +4752,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             ? rep.class_id
                             : null;
                         const className = classObj
-                          ? classObj.class_name
+                          ? getDisplayClassName(classObj.class_name)
                           : "N/A";
                         return (
                           <tr
@@ -4807,7 +4811,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   <div className="grid gap-3 md:hidden">
                     {deletedReports.map((rep) => {
                       const classObj = typeof rep.class_id === "object" ? rep.class_id : null;
-                      const className = classObj ? classObj.class_name : "N/A";
+                      const className = getDisplayClassName(classObj?.class_name);
                       return (
                         <article key={rep._id} className="rounded-xl border border-white/75 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30">
                           <div className="grid gap-2 text-xs">
