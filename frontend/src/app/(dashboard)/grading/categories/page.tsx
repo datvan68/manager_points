@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import TabNavigation from "@/components/ui/TabNavigation";
 import CategoryModal from "@/components/grading/CategoryModal";
@@ -42,7 +42,6 @@ function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [criteria, setCriteria] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [categoryModal, setCategoryModal] = useState({
     open: false,
     edit: false,
@@ -121,13 +120,6 @@ function CategoriesPage() {
     fetchData();
   }, [hasUser, isAdmin, isStudent, router]);
 
-  const visibleCategories = useMemo(
-    () =>
-      categories.filter((cat) =>
-        `${cat.id} ${cat.name}`.toLowerCase().includes(search.toLowerCase()),
-      ),
-    [categories, search],
-  );
   const active = categories.find((cat) => cat.id === selectedId);
   const activeCriteria = criteria.filter(
     (item) => item.categoryId === active?.id,
@@ -236,9 +228,6 @@ function CategoriesPage() {
               <h1 className="text-[18px] font-semibold text-[#1E293B]">
                 Quản lý Danh mục & Tiêu chí
               </h1>
-              <p className="mt-1 text-[12px] text-[#64748B]">
-                Chọn danh mục để quản lý các tiêu chí chấm điểm.
-              </p>
             </div>
             <button
               type="button"
@@ -254,19 +243,6 @@ function CategoriesPage() {
             <aside
               className={`flex min-h-0 w-full flex-col gap-3 lg:w-2/5 ${active ? "hidden lg:flex" : "flex"}`}
             >
-              <label className="relative shrink-0">
-                <Search
-                  size={15}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  aria-label="Tìm danh mục"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Tìm danh mục..."
-                  className="w-full rounded-xl border border-white/70 bg-white/50 px-3 py-2.5 pl-9 text-[13px] text-[#1E293B] outline-none transition-all duration-150 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/30"
-                />
-              </label>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {loading ? (
                   Array.from({ length: 4 }).map((_, index) => (
@@ -278,8 +254,8 @@ function CategoriesPage() {
                       <Skeleton className="mt-3 h-3 w-1/3 rounded-xl" />
                     </div>
                   ))
-                ) : visibleCategories.length ? (
-                  visibleCategories.map((cat) => {
+                ) : categories.length ? (
+                  categories.map((cat) => {
                     const items = criteria.filter(
                       (item) => item.categoryId === cat.id,
                     );
@@ -292,19 +268,21 @@ function CategoriesPage() {
                         type="button"
                         key={cat.id}
                         onClick={() => setSelectedId(cat.id)}
-                        className={`${action} group w-full rounded-xl border p-4 text-left ${cat.id === selectedId ? "border-blue-200 bg-white/70 shadow-sm" : "border-white/70 bg-white/40 hover:bg-white/65"}`}
+                        className={`${action} focus:!ring-0 focus-visible:!ring-1 group w-full rounded-xl border-[0.5px] p-4 text-left ${cat.id === selectedId ? "border-blue-200 bg-white/70 shadow-sm" : "border-white/70 bg-white/40 hover:bg-white/65"}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <span className="rounded-xl bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase text-[#1A73E8]">
-                              {cat.id}
-                            </span>
-                            <h2 className="mt-2 truncate text-[14px] font-semibold text-[#1E293B]">
-                              <FullContent
-                                content={cat.name}
-                                label="Danh mục:"
-                              />
-                            </h2>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="shrink-0 rounded-xl bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase text-[#1A73E8]">
+                                {cat.id}
+                              </span>
+                              <h2 className="min-w-0 truncate text-[14px] font-semibold text-[#1E293B]">
+                                <FullContent
+                                  content={cat.name}
+                                  label="Danh mục:"
+                                />
+                              </h2>
+                            </div>
                           </div>
                           <div className="flex shrink-0 gap-1">
                             <span
@@ -354,7 +332,7 @@ function CategoriesPage() {
                   })
                 ) : (
                   <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-[13px] text-slate-500">
-                    Chưa có danh mục phù hợp.
+                    Chưa có danh mục.
                     <button
                       type="button"
                       className="mt-3 rounded-xl px-3 py-1.5 font-semibold text-blue-600 hover:bg-white/60"
@@ -367,7 +345,7 @@ function CategoriesPage() {
               </div>
             </aside>
             <section
-              className={`min-h-0 w-full ${active ? "flex" : "hidden lg:flex"} ${glassCard} flex-col overflow-hidden`}
+              className={`min-h-0 w-full ${active ? "flex" : "hidden lg:flex"} flex-col overflow-hidden`}
             >
               {!active ? (
                 <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-500">
@@ -380,7 +358,7 @@ function CategoriesPage() {
                 </div>
               ) : (
                 <>
-                  <header className="shrink-0 border-b border-white/70 bg-white/30 p-4">
+                  <header className="shrink-0 p-4">
                     <div className="flex items-start gap-2">
                       <button
                         type="button"
@@ -390,11 +368,11 @@ function CategoriesPage() {
                       >
                         <ChevronLeft size={18} />
                       </button>
-                      <div className="min-w-0 flex-1">
-                        <span className="rounded-xl bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase text-[#1A73E8]">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="shrink-0 rounded-xl bg-blue-500/10 px-2 py-1 text-[10px] font-bold uppercase text-[#1A73E8]">
                           {active.id}
                         </span>
-                        <h2 className="mt-2 truncate text-[16px] font-semibold text-[#1E293B]">
+                        <h2 className="min-w-0 truncate text-[16px] font-semibold text-[#1E293B]">
                           <FullContent
                             content={active.name}
                             label="Danh mục:"
@@ -446,22 +424,22 @@ function CategoriesPage() {
                         >
                           <div className="flex items-start gap-3">
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <span className="rounded-xl bg-slate-500/10 px-2 py-1 font-mono text-[10px] text-slate-600">
                                   {item.code}
                                 </span>
+                                <h3 className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#1E293B]">
+                                  <FullContent
+                                    content={item.name}
+                                    label="Tiêu chí:"
+                                  />
+                                </h3>
                                 {item.is_locked && (
-                                  <span className="rounded-xl bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-700">
+                                  <span className="shrink-0 rounded-xl bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-700">
                                     Đã khóa
                                   </span>
                                 )}
                               </div>
-                              <h3 className="mt-2 text-[13px] font-semibold text-[#1E293B]">
-                                <FullContent
-                                  content={item.name}
-                                  label="Tiêu chí:"
-                                />
-                              </h3>
                               {item.description && (
                                 <p className="mt-1 break-words text-[11px] leading-[17px] text-slate-500">
                                   {item.description}

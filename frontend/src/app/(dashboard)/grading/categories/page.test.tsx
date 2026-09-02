@@ -23,15 +23,15 @@ const criteria = [{ _id: 'cri-1', category_id: 'cat-1', criterion_code: 'C-1', c
 describe('CategoriesPage master-detail workspace', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(categoryApi.getCategories).mockResolvedValue(categories as any); vi.mocked(criteriaApi.getCriteria).mockResolvedValue(criteria as any); });
 
-  it('loads categories and criteria in one searchable master-detail flow', async () => {
+  it('loads all categories and criteria in one master-detail flow', async () => {
     render(<CategoriesPage />);
     expect((await screen.findAllByText('Rèn luyện')).length).toBeGreaterThan(0);
     expect(screen.getByText('Tham gia hoạt động')).toBeInTheDocument();
     expect(screen.getByText('Mô tả hoạt động')).toBeInTheDocument();
     expect(screen.queryByText('Kanban')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Tìm danh mục'), { target: { value: 'học' } });
     expect(screen.getByText('Học tập')).toBeInTheDocument();
-    expect(screen.getAllByText('Rèn luyện')).toHaveLength(1);
+    expect(screen.queryByLabelText('Tìm danh mục')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chọn danh mục để quản lý các tiêu chí chấm điểm.')).not.toBeInTheDocument();
   });
 
   it('supports mobile drill-down and returns to the category list', async () => {
@@ -40,7 +40,7 @@ describe('CategoriesPage master-detail workspace', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Học tập/ })[0]);
     expect(await screen.findByText('Điểm học tập')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Quay lại danh sách' }));
-    expect(screen.getByLabelText('Tìm danh mục')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Tìm danh mục')).not.toBeInTheDocument();
   });
 
   it('keeps category and criterion CRUD entry points', async () => {
@@ -59,7 +59,7 @@ describe('CategoriesPage master-detail workspace', () => {
     vi.mocked(categoryApi.getCategories).mockResolvedValue([]);
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
     render(<CategoriesPage />);
-    expect(await screen.findByText('Chưa có danh mục phù hợp.')).toBeInTheDocument();
+    expect(await screen.findByText('Chưa có danh mục.')).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 
