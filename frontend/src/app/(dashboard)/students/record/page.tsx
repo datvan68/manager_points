@@ -469,6 +469,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     "list",
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -2289,18 +2290,39 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               </div>
 
-              {/* Mobile View: Only 'Thêm ghi nhận' button */}
-              {ghiNhanAccess.createStudentRecord && (
-                <div className="lg:hidden w-full">
+              {/* Mobile View: Search expands to full width beside the create action */}
+              <div className="lg:hidden w-full">
+                {isMobileSearchOpen ? (
+                  <div className="flex items-center gap-2 h-10 px-3 bg-white/70 border border-[#1A73E8]/30 rounded-xl shadow-sm">
+                    <Search className="w-4 h-4 shrink-0 text-slate-400" />
+                    <input
+                      autoFocus
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Tìm kiếm..."
+                      className="min-w-0 flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400"
+                    />
+                    <button type="button" onClick={() => { setSearchTerm(""); setIsMobileSearchOpen(false); }} aria-label="Đóng tìm kiếm" className="p-1 text-slate-400 hover:text-slate-700">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setIsMobileSearchOpen(true)} aria-label="Tìm kiếm" title="Tìm kiếm" className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm">
+                      <Search className="w-4 h-4" />
+                    </button>
+                    {ghiNhanAccess.createStudentRecord && (
                   <button
                     onClick={handleCreate}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Thêm ghi nhận</span>
                   </button>
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -2401,25 +2423,46 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 </div>
               </div>
 
-              {/* Mobile View: Only 'Thêm ghi nhận' button */}
-              {ghiNhanAccess.createClassRecord && (
-                <div className="lg:hidden w-full">
+              {/* Mobile View: Search expands to full width beside the create action */}
+              <div className="lg:hidden w-full">
+                {isMobileSearchOpen ? (
+                  <div className="flex items-center gap-2 h-10 px-3 bg-white/70 border border-[#1A73E8]/30 rounded-xl shadow-sm">
+                    <Search className="w-4 h-4 shrink-0 text-slate-400" />
+                    <input
+                      autoFocus
+                      value={classSearchTerm}
+                      onChange={(e) => setClassSearchTerm(e.target.value)}
+                      placeholder="Tìm kiếm..."
+                      className="min-w-0 flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400"
+                    />
+                    <button type="button" onClick={() => { setClassSearchTerm(""); setIsMobileSearchOpen(false); }} aria-label="Đóng tìm kiếm" className="p-1 text-slate-400 hover:text-slate-700">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setIsMobileSearchOpen(true)} aria-label="Tìm kiếm" title="Tìm kiếm" className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm">
+                      <Search className="w-4 h-4" />
+                    </button>
+                    {ghiNhanAccess.createClassRecord && (
                   <button
                     onClick={handleCreate}
-                    className="w-full flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Thêm ghi nhận</span>
                   </button>
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
       </div>
 
       {/* Main card containing only the table/content */}
-      <div className="flex-1 bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl shadow-sm shadow-slate-300/40 overflow-hidden flex flex-col min-h-0 w-full">
+      <div className="flex-1 lg:bg-white/45 lg:backdrop-blur-md lg:border lg:border-white/70 lg:rounded-2xl lg:shadow-sm lg:shadow-slate-300/40 overflow-hidden flex flex-col min-h-0 w-full">
         {activeSubTab === "student" ? (
           <>
             {/* Table Content student record */}
@@ -2442,10 +2485,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               ) : (
                 <div className="flex flex-col gap-4">
                   {paginatedRecords.map((record) => (
-                    <div
-                      key={record.id}
-                      className="bg-white/50 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm flex flex-col gap-3"
-                    >
+                    <div key={record.id} className="bg-white/50 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm flex flex-col gap-3">
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-2">
@@ -2461,26 +2501,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                           <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
                             Lớp: {record.className}
                           </p>
-                          <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">
-                            {record.recordCount} lần ghi nhận
+                          <p className="text-[11px] font-semibold text-[#64748B] mt-0.5">{record.recordCount} lần ghi nhận</p>
+                          <p className="text-[11px] font-semibold text-[#64748B] mt-1">
+                            Tổng điểm: <span className={record.totalPoints < 0 ? "text-rose-500" : "text-emerald-500"}>{record.points}</span>
                           </p>
-                          <RecordTypeCounts
-                            counts={record.recordTypeCounts}
-                            total={record.recordCount}
-                            className="mt-1"
-                          />
-                          <div className="flex items-center gap-3 mt-2">
-                            <RecordTypeIcons types={record.recordTypes} />
-                            <span
-                              className={`text-sm font-bold ${record.totalPoints < 0 ? "text-rose-500" : "text-emerald-500"}`}
-                            >
-                              {record.points}
-                            </span>
-                          </div>
                         </div>
-                        <span className="text-[11px] text-slate-500 font-semibold bg-white/70 border border-white/90 px-2 py-0.5 rounded-full shadow-sm shrink-0">
-                          {record.date}
-                        </span>
                       </div>
 
                       <div className="bg-slate-50/50 border border-slate-100 rounded-lg p-2.5 text-[12px] text-[#334155] font-medium leading-relaxed">

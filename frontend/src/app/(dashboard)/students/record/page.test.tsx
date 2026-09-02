@@ -680,7 +680,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Ghi nhận lớp')).not.toBeInTheDocument();
   });
 
-  it('renders the filtered total and reconciled per-type counts', async () => {
+  it('renders the compact mobile student record summary', async () => {
     const group = makeStudentGroup(
       'student-1',
       'latest-record-1',
@@ -696,10 +696,11 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     render(<StudentRecordPage />);
 
-    expect(await screen.findAllByText('Tổng: 12')).not.toHaveLength(0);
-    expect(screen.getAllByText('Kỷ luật: 2')).not.toHaveLength(0);
-    expect(screen.getAllByText('Khen thưởng: 5')).not.toHaveLength(0);
-    expect(screen.getAllByText('Cộng điểm: 5')).not.toHaveLength(0);
+    expect(await screen.findAllByText('12 lần ghi nhận')).not.toHaveLength(0);
+    expect(screen.getAllByText('Tổng điểm:').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Kỷ luật: 2')).not.toBeInTheDocument();
+    expect(screen.queryByText('Khen thưởng: 5')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cộng điểm: 5')).not.toBeInTheDocument();
   });
 
   it('expands selected student groups to filtered, de-duplicated child IDs', async () => {
