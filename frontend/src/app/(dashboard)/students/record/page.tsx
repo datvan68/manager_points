@@ -216,7 +216,7 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
             <input
               type="checkbox"
               checked={selected}
-              onChange={() => onToggle(record.id)}
+              onChange={() => onToggle(record.selectionId)}
               className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
           )}
@@ -445,6 +445,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [selectedHistoryItems, setSelectedHistoryItems] = useState<number[]>(
     [],
   );
+  const [historyDeleteIds, setHistoryDeleteIds] = useState<string[]>([]);
+  const [isHistoryDeleteConfirmOpen, setIsHistoryDeleteConfirmOpen] = useState(false);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerHistory, setDrawerHistory] = useState<any[]>([]);
   const canCreateRecords =
@@ -1263,6 +1265,25 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       isDeletingRecordsRef.current = false;
       setIsDeletingRecords(false);
     }
+  };
+
+  const requestHistoryDelete = () => {
+    const ids = selectedHistoryItems
+      .map((idx) => drawerHistory[idx]?.id)
+      .filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+    setHistoryDeleteIds(ids);
+    setIsHistoryDeleteConfirmOpen(true);
+  };
+
+  const confirmHistoryDelete = async () => {
+    if (historyDeleteIds.length === 0) return;
+    await runBulkRecordDelete(historyDeleteIds);
+    const current = paginatedRecords.find((record) => record.id === openDrawerId);
+    if (current) await handleOpenDrawerChange(true, current);
+    setSelectedHistoryItems([]);
+    setIsSelectingHistory(false);
+    setHistoryDeleteIds([]);
   };
 
   const handleDelete = async () => {
@@ -2149,16 +2170,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     </div>
                   )}
 
-                  <Button
-                    variant="outline"
-                    onClick={handleExportStudentExcel}
-                    aria-label="Xuất Excel"
-                    className="flex items-center gap-1.5 px-3 h-9 border border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-semibold shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Xuất Excel</span>
-                  </Button>
-
                   {ghiNhanAccess.configRecord && (
                     <Button
                       variant="outline"
@@ -2195,17 +2206,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </button>
                 </div>
               )}
-              <div className="lg:hidden flex gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={handleExportStudentExcel}
-                  aria-label="Xuất Excel"
-                  className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 border border-emerald-200 bg-emerald-50/70 text-emerald-700 rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Xuất Excel</span>
-                </button>
-              </div>
             </>
           ) : (
             <>
@@ -2563,7 +2563,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                   </button>
                                 </DrawerTrigger>
 
-                                <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white border-l border-gray-100 flex flex-col items-stretch outline-none overflow-hidden">
+                                <DrawerContent className="w-[450px] sm:max-w-md h-full bg-white/95 backdrop-blur-xl border-l border-white/60 shadow-2xl flex flex-col items-stretch outline-none overflow-hidden">
                                   {/* Modal Header */}
                                   <div className="flex justify-between items-center py-[17px] px-6 border-b border-gray-100 bg-white shrink-0">
                                     <DrawerTitle className="text-base font-bold text-slate-900">
@@ -2741,7 +2741,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                       <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
                                                         {isSelectingHistory ? (
                                                           <div
-                                                            className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600" : "border-slate-300 bg-slate-50 hover:border-blue-400"}`}
+                                                            role="checkbox"
+                                                            aria-checked={selectedHistoryItems.includes(i)}
+                                                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
                                                             onClick={(e) => {
                                                               e.stopPropagation();
                                                               setSelectedHistoryItems(
@@ -2923,17 +2925,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                           Hủy
                                         </button>
                                         <button
-                                          onClick={async () => {
-                                            if (
-                                              selectedHistoryItems.length > 0
-                                            ) {
-                                              await runBulkRecordDelete(
-                                                selectedHistoryItems.map((idx) => drawerHistory[idx].id),
-                                              );
-                                              setIsSelectingHistory(false);
-                                              setSelectedHistoryItems([]);
-                                            }
-                                          }}
+                                          onClick={requestHistoryDelete}
                                           disabled={
                                             selectedHistoryItems.length === 0
                                           }
@@ -3268,7 +3260,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                                           <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center shrink-0 z-10">
                                                             {isSelectingHistory ? (
                                                               <div
-                                                                className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600" : "border-slate-300 bg-slate-50 hover:border-blue-400"}`}
+                                                                role="checkbox"
+                                                                aria-checked={selectedHistoryItems.includes(i)}
+                                                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center cursor-pointer transition-all duration-150 shadow-sm ring-1 ring-white ${selectedHistoryItems.includes(i) ? "bg-blue-600 border-blue-600 shadow-blue-200/70" : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60"}`}
                                                                 onClick={(
                                                                   e,
                                                                 ) => {
@@ -3470,17 +3464,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                                               Hủy
                                             </button>
                                             <button
-                                              onClick={async () => {
-                                                if (
-                                                  selectedHistoryItems.length > 0
-                                                ) {
-                                                  await runBulkRecordDelete(
-                                                    selectedHistoryItems.map((idx) => drawerHistory[idx].id),
-                                                  );
-                                                  setIsSelectingHistory(false);
-                                                  setSelectedHistoryItems([]);
-                                                }
-                                              }}
+                                              onClick={requestHistoryDelete}
                                               disabled={
                                                 selectedHistoryItems.length === 0
                                               }
@@ -4129,15 +4113,6 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           variant="dark"
           actions={
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <button
-                onClick={handleExportSelectedStudentExcel}
-                aria-label="Xuất Excel các sinh viên đã chọn"
-                className="bg-[#107c41] hover:bg-[#0e6c38] text-white font-bold text-[12px] px-3 sm:px-5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-[0_2px_8px_rgba(16,124,65,0.25)] active:scale-95 cursor-pointer h-9 shrink-0"
-              >
-                <FileSpreadsheet size={13} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Xuất Excel ({selectedIds.length})</span>
-                <span className="inline sm:hidden">({selectedIds.length})</span>
-              </button>
               {selectedIds.length > 0 && ghiNhanAccess.deleteStudentRecord && (
                 <button
                   onClick={prepareDeletePreview}
@@ -4220,6 +4195,20 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             "Đang tạo bản xem trước xoá..."
           )
         }
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={isHistoryDeleteConfirmOpen}
+        onClose={() => {
+          setIsHistoryDeleteConfirmOpen(false);
+          setHistoryDeleteIds([]);
+        }}
+        onConfirm={confirmHistoryDelete}
+        title="Xác nhận xóa ghi nhận"
+        message={`Bạn có chắc chắn muốn xóa ${historyDeleteIds.length} ghi nhận đã chọn trong lịch sử sinh viên?`}
         confirmLabel="Xóa"
         cancelLabel="Hủy"
         variant="danger"

@@ -543,7 +543,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.queryByText('Sửa ghi nhận')).not.toBeInTheDocument();
   });
 
-  it('exports grouped student summaries through one Excel action', async () => {
+  it('does not expose Excel export actions on the student situation tab', async () => {
     const group = makeStudentGroup('student-1', 'latest-record-1', 2);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
       data: [group],
@@ -553,17 +553,9 @@ describe('StudentRecordPage Infinite Scroll', () => {
     render(<StudentRecordPage />);
     await screen.findAllByText('Student 1');
 
-    expect(screen.getAllByRole('button', { name: 'Xuất Excel' })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: 'Xuất lịch sử chi tiết theo ghi nhận' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Xuất Excel' })[0]);
-    await waitFor(() => expect(mockXlsx.utils.json_to_sheet).toHaveBeenCalledTimes(1));
-    expect(mockXlsx.utils.json_to_sheet.mock.calls[0][0][0]).toEqual(
-      expect.objectContaining({
-        'Ghi nhận gần nhất - Tiêu chí': 'Latest record',
-        'Ghi nhận gần nhất - Ngày': '25/08/2026',
-        'Số lần ghi nhận': 2,
-      }),
-    );
+    expect(screen.queryByRole('button', { name: 'Xuất Excel' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xuất Excel các sinh viên đã chọn' })).not.toBeInTheDocument();
+    expect(mockXlsx.utils.json_to_sheet).not.toHaveBeenCalled();
     expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledTimes(1);
   });
 
