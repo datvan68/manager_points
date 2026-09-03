@@ -163,11 +163,15 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getAllByText('Máy lạnh').length).toBeGreaterThan(1);
   });
 
-  it('switches both large data sections to complete compact cards below lg', async () => {
+  it('shows concise room cards below lg', async () => {
     compactViewport = true;
     render(<DormitoryOverviewPage />);
     await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByRole('table')).not.toBeInTheDocument());
+    expect(screen.getByText('A100', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Trống', { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText((_, element) => element?.tagName === 'P' && element.textContent === 'Thường · Còn 2 chỗ')).toHaveLength(2);
+    expect(screen.queryByText('Phòng A100', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem thành viên phòng A101' })).toBeInTheDocument();
     expect(screen.getAllByText((content) => content.includes('350.000')).length).toBeGreaterThan(0);
   });

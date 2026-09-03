@@ -390,15 +390,14 @@ export default function DormitoryOverviewPage() {
               return (
                 <article key={room.room_id} className="rounded-xl border border-white/75 bg-white/55 p-3 shadow-2xs">
                   <div className="flex items-start justify-between gap-3">
-                    <div><div className="font-semibold text-slate-900">{room.room_code}</div><div className="text-xs text-slate-500">{room.room_name}</div></div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="truncate font-semibold text-slate-900">{room.room_code}</div>
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${config.badgeBg} ${config.badgeBorder} ${config.badgeText}`}><span className={`h-1.5 w-1.5 rounded-full ${config.dotColor}`} />{room.state}</span>
+                    </div>
                     <span aria-label={`${room.state}, ${occupancy}% đã sử dụng`} className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10.5px] font-bold ${isFull ? 'text-rose-700' : occupancy > 0 ? 'text-indigo-700' : 'text-slate-500'}`} style={{ background: occupancy > 0 ? `conic-gradient(${isFull ? '#e11d48' : config.ringColor} ${occupancy}%, #e2e8f0 0)` : '#e2e8f0' }}><span className="grid h-6.5 w-6.5 place-items-center rounded-full bg-white/90 shadow-2xs">{occupancy}%</span></span>
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-white/60 pt-3 text-xs">
-                    <div><dt className="text-slate-500">Loại phòng</dt><dd className="mt-0.5 font-semibold text-slate-700">{room.room_type}</dd></div>
-                    <div><dt className="text-slate-500">Giường</dt><dd className="mt-0.5 font-semibold text-slate-700">{room.occupied_beds}/{room.total_beds}</dd></div>
-                    <div><dt className="text-slate-500">Còn chỗ</dt><dd className={`mt-0.5 font-semibold ${room.free_beds > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{room.free_beds}</dd></div>
-                    <div className="text-right"><dt className="sr-only">Thành viên</dt><dd><button type="button" aria-label={`Xem thành viên phòng ${room.room_code}`} onClick={() => setSelectedRoom(room)} className="inline-flex items-center rounded-lg border border-white/80 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-blue-600">Chi tiết</button></dd></div>
-                  </dl>
+                  <p className={`mt-1 text-xs font-medium ${room.free_beds > 0 ? 'text-slate-600' : 'text-slate-500'}`}>{room.room_type} <span aria-hidden="true">·</span> Còn <span className={room.free_beds > 0 ? 'text-emerald-600' : 'text-slate-400'}>{room.free_beds}</span> chỗ</p>
+                  <button type="button" aria-label={`Xem thành viên phòng ${room.room_code}`} onClick={() => setSelectedRoom(room)} className="mt-2 inline-flex items-center rounded-lg border border-white/80 bg-white/70 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white hover:text-blue-600">Chi tiết</button>
                 </article>
               );
             })}
