@@ -4636,16 +4636,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
       {/* Dialog Thùng rác thực tế */}
       <Dialog open={isTrashOpen} onOpenChange={setIsTrashOpen}>
-        <DialogContent className="max-w-[900px] w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border border-white/75 bg-white/45 backdrop-blur-xl shadow-sm shadow-slate-300/40 p-4 sm:p-5">
+        <DialogContent className="max-w-[900px] w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] overflow-hidden rounded-2xl border border-white/75 bg-[#edf2fa] backdrop-blur-xl shadow-sm shadow-slate-300/40 p-4 sm:p-5">
           <DialogTitle className="text-[17px] font-bold text-[#1E293B] flex items-center gap-2 border-b border-white/75 pb-3">
             <Trash2 className="w-4.5 h-4.5 text-rose-500" />
             Thùng rác hệ thống
           </DialogTitle>
-          <DialogDescription className="text-[12.5px] leading-5 text-[#64748B] mt-1">
-            Danh sách các báo cáo ngày và ghi nhận vi phạm đã bị xóa tạm thời.
-            Bạn có thể khôi phục lại hoặc xóa vĩnh viễn chúng.
-          </DialogDescription>
-
           {/* Tabs */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/75 mt-4 mb-4 pb-2">
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="Nội dung thùng rác">

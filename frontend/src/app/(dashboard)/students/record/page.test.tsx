@@ -438,7 +438,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveClass('max-h-[calc(100vh-1rem)]', 'overflow-hidden', 'rounded-2xl', 'shadow-sm');
-    expect(dialog).toHaveClass('bg-white/45', 'backdrop-blur-xl');
+    expect(dialog).toHaveClass('bg-[#edf2fa]', 'backdrop-blur-xl');
     expect(screen.getByRole('tab', { name: /Vi phạm sinh viên/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /Báo cáo của lớp/ })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getAllByText('Student 1')).not.toHaveLength(0);
