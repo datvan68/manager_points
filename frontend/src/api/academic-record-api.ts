@@ -107,6 +107,29 @@ export interface BulkDeleteAcademicRecordsResult {
   failedCount: number;
 }
 
+export interface AcademicRecordDeletePreviewRequest {
+  studentIds: string[];
+  classId?: string;
+  startDate?: string;
+  endDate?: string;
+  creator?: 'admin' | 'supervisor' | 'teacher' | 'student';
+}
+
+export interface AcademicRecordDeletePreviewGroup {
+  studentId: string;
+  recordIds: string[];
+  preservedDailyReportCount: number;
+  failures: Array<{ id: string; message: string }>;
+}
+
+export interface AcademicRecordDeletePreviewResult {
+  requestedStudentCount: number;
+  groups: AcademicRecordDeletePreviewGroup[];
+  recordIds: string[];
+  preservedDailyReportCount: number;
+  failedStudentCount: number;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
@@ -273,6 +296,21 @@ export const academicRecordApi = {
       body: JSON.stringify({ ids }),
     });
     return handleResponse<BulkDeleteAcademicRecordsResult>(res);
+  },
+
+  async previewBulkDeleteAcademicRecords(
+    request: AcademicRecordDeletePreviewRequest,
+  ): Promise<AcademicRecordDeletePreviewResult> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/delete-preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(request),
+    });
+    return handleResponse<AcademicRecordDeletePreviewResult>(res);
   },
 
   async getDeletedAcademicRecords(): Promise<AcademicRecord[]> {

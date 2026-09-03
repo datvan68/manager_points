@@ -34,6 +34,7 @@ describe('AcademicRecordController - Import Flow', () => {
     bulkRemove: jest.fn(),
     bulkForceRemove: jest.fn(),
     forceRemove: jest.fn(),
+    previewBulkRemove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -124,6 +125,7 @@ describe('AcademicRecordController - Import Flow', () => {
       ['forceRemove', 'DELETE_STUDENT_RECORD'],
       ['bulkRemove', 'DELETE_STUDENT_RECORD'],
       ['bulkForceRemove', 'DELETE_STUDENT_RECORD'],
+      ['previewBulkRemove', 'DELETE_STUDENT_RECORD'],
     ])('%s requires %s and rejects view-only access', async (method, permission) => {
       const Guard = guardsFor(method)[0];
       expect(Guard).not.toBe(JwtAuthGuard);
@@ -208,6 +210,18 @@ describe('AcademicRecordController - Import Flow', () => {
 
     expect(service.bulkRemove).toHaveBeenCalledWith(dto.ids, req.user);
     expect(service.bulkForceRemove).toHaveBeenCalledWith(dto.ids, req.user, true);
+  });
+
+  it('forwards the bulk delete preview request with requester context', async () => {
+    const dto = { studentIds: ['student-1'], startDate: '2026-08-01', endDate: '2026-08-31' };
+    const req = { user: { roleName: 'Admin' } };
+    const expected = { requestedStudentCount: 1, groups: [], recordIds: [], preservedDailyReportCount: 0, failedStudentCount: 0 };
+    mockAcademicRecordService.previewBulkRemove.mockResolvedValue(expected);
+
+    const result = await controller.previewBulkRemove(dto as any, req);
+
+    expect(service.previewBulkRemove).toHaveBeenCalledWith(dto, req.user);
+    expect(result).toEqual(expected);
   });
 
   it('resolves bulk and single permanent-delete URLs to their matching handlers', async () => {

@@ -34,6 +34,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { isAdminUser, isStudent } from '../auth/utils/role.util';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 import { BulkDeleteAcademicRecordDto } from './dto/bulk-delete-academic-record.dto';
+import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
 
 function checkAcademicRecordReadAccess(): Type<CanActivate> {
   @Injectable()
@@ -213,6 +214,18 @@ export class AcademicRecordController {
       },
       requester,
     );
+  }
+
+  @Post('delete-preview')
+  @UseGuards(checkAcademicRecordSelfServiceOrPermission('DELETE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  @ApiBody({ type: DeletePreviewAcademicRecordDto })
+  @ApiOperation({ summary: 'Preview eligible academic records for bulk deletion' })
+  previewBulkRemove(
+    @Body() dto: DeletePreviewAcademicRecordDto,
+    @Request() req: any,
+  ) {
+    return this.academicRecordService.previewBulkRemove(dto, req.user);
   }
 
   @Get('deleted/all')

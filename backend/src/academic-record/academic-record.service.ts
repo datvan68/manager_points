@@ -55,6 +55,7 @@ import {
 } from './count-resolution.service';
 import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
+import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -2296,6 +2297,119 @@ export class AcademicRecordService {
         this.serializeRecordWithEffectivePoints(record),
       );
     }
+  }
+
+  async previewBulkRemove(dto: DeletePreviewAcademicRecordDto, requester: any) {
+    const requestedStudentIds = Array.from(new Set(dto.studentIds));
+    const studentObjectIds = requestedStudentIds.map((id) => new Types.ObjectId(id));
+    const filter: any = {
+      student_id: { $in: studentObjectIds },
+      status: 'active',
+      is_deleted: { $ne: true },
+    };
+
+    const intersectStudentIds = (allowedIds: any[]) => {
+      const allowed = new Set(allowedIds.map((id) => id.toString()));
+      filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
+        allowed.has(id.toString()),
+      );
+    };
+
+    const roleName = (requester?.roleName || '').toLowerCase();
+    if (roleName.includes('student')) {
+      const student = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(requester.userId) })
+        .select('_id')
+        .exec();
+      intersectStudentIds(student ? [student._id] : []);
+    } else if (
+      roleName.includes('teacher') ||
+      roleName.includes('advisor') ||
+      roleName.includes('giảng viên')
+    ) {
+      const classes = await this.classModel
+        .find({ advisor_id: requester.userId })
+        .select('_id')
+        .exec();
+      const students = await this.studentModel
+        .find({ class_id: { $in: classes.map((item: any) => item._id) } })
+        .select('_id')
+        .exec();
+      intersectStudentIds(students.map((item: any) => item._id));
+    }
+
+    if (dto.classId) {
+      const classStudents = await this.studentModel
+        .find({ class_id: new Types.ObjectId(dto.classId) })
+        .select('_id')
+        .exec();
+      intersectStudentIds(classStudents.map((item: any) => item._id));
+    }
+
+    if (dto.startDate || dto.endDate) {
+      const dateFilter: any = {};
+      if (dto.startDate) dateFilter.$gte = new Date(`${dto.startDate}T00:00:00.000Z`);
+      if (dto.endDate) dateFilter.$lte = new Date(`${dto.endDate}T23:59:59.999Z`);
+      if (Number.isNaN(dateFilter.$gte?.getTime?.()) || Number.isNaN(dateFilter.$lte?.getTime?.())) {
+        throw new BadRequestException('Khoảng ngày không hợp lệ');
+      }
+      filter.$and = [{ $or: [{ recorded_at: dateFilter }, { date_record: dateFilter }] }];
+    }
+
+    if (dto.creator) {
+      const roleRegex = dto.creator === 'admin'
+        ? 'admin'
+        : dto.creator === 'supervisor'
+          ? 'supervisor|quản sinh|quan sinh'
+          : dto.creator === 'teacher'
+            ? 'teacher|advisor|giảng viên|giang vien'
+            : 'student|học sinh|sinh viên';
+      const roleModel = this.academicRecordModel.db.model('Role');
+      const userModel = this.academicRecordModel.db.model('User');
+      const roles = await roleModel.find({ name: { $regex: roleRegex, $options: 'i' } }).select('_id').exec();
+      const users = await userModel.find({ role: { $in: roles.map((role: any) => role._id) } }).select('_id').exec();
+      filter.recorded_by = { $in: users.map((user: any) => user._id) };
+    }
+
+    const records = await this.academicRecordModel
+      .find(filter)
+      .populate('student_id')
+      .populate({ path: 'recorded_by', populate: { path: 'role' } })
+      .exec();
+    const groups = new Map<string, any>();
+    requestedStudentIds.forEach((studentId) => {
+      groups.set(studentId, {
+        studentId,
+        recordIds: [],
+        preservedDailyReportCount: 0,
+        failures: [],
+      });
+    });
+
+    for (const record of records as any[]) {
+      const studentId = normalizeObjectId(record.student_id);
+      const group = studentId ? groups.get(studentId) : undefined;
+      if (!group) continue;
+      if (record.daily_report_id) {
+        group.preservedDailyReportCount += 1;
+        continue;
+      }
+      try {
+        this.checkHierarchyPermission(record, requester);
+        group.recordIds.push(record._id.toString());
+      } catch (error: any) {
+        group.failures.push({ id: record._id.toString(), message: error?.message || 'Không đủ quyền xoá' });
+      }
+    }
+
+    const resultGroups = Array.from(groups.values());
+    return {
+      requestedStudentCount: requestedStudentIds.length,
+      groups: resultGroups,
+      recordIds: Array.from(new Set(resultGroups.flatMap((group) => group.recordIds))),
+      preservedDailyReportCount: resultGroups.reduce((total, group) => total + group.preservedDailyReportCount, 0),
+      failedStudentCount: resultGroups.filter((group) => group.failures.length > 0).length,
+    };
   }
 
   async findDeleted(requester?: any): Promise<AcademicRecord[]> {

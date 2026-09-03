@@ -17,6 +17,7 @@ import { Types } from 'mongoose';
 import { normalizeObjectId } from './academic-record.utils';
 import { ScoreEngineService } from './score-engine.service';
 import { CountResolutionService } from './count-resolution.service';
+import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
 
 describe('AcademicRecordService - Import Flow', () => {
   let service: AcademicRecordService;
@@ -123,6 +124,75 @@ describe('AcademicRecordService - Import Flow', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('previewBulkRemove', () => {
+    it('applies date/student filters and excludes daily-report records without mutating data', async () => {
+      const studentId = new Types.ObjectId();
+      const deletableId = new Types.ObjectId();
+      const dailyReportId = new Types.ObjectId();
+      const records = [
+        { _id: deletableId, student_id: { _id: studentId }, recorded_at: new Date('2026-08-10T00:00:00.000Z') },
+        { _id: new Types.ObjectId(), student_id: { _id: studentId }, daily_report_id: dailyReportId },
+      ];
+      const query = {
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(records),
+      };
+      mockAcademicRecordModel.find.mockReturnValueOnce(query);
+
+      const dto: DeletePreviewAcademicRecordDto = {
+        studentIds: [studentId.toString()],
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+      };
+      const result = await service.previewBulkRemove(dto, { roleName: 'Admin' });
+
+      expect(mockAcademicRecordModel.find).toHaveBeenCalledWith(expect.objectContaining({
+        student_id: { $in: [expect.any(Types.ObjectId)] },
+        status: 'active',
+        is_deleted: { $ne: true },
+        $and: [{ $or: [{ recorded_at: expect.any(Object) }, { date_record: expect.any(Object) }] }],
+      }));
+      expect(result.recordIds).toEqual([deletableId.toString()]);
+      expect(result.preservedDailyReportCount).toBe(1);
+      expect(result.groups[0].recordIds).toEqual([deletableId.toString()]);
+      expect(mockAcademicRecordModel.bulkWrite).not.toHaveBeenCalled();
+      expect(mockAcademicRecordModel.deleteOne).not.toHaveBeenCalled();
+    });
+
+    it('reports same-level records created by another user as deletion failures', async () => {
+      const studentId = new Types.ObjectId();
+      const ownId = new Types.ObjectId();
+      const otherId = new Types.ObjectId();
+      const records = [
+        {
+          _id: new Types.ObjectId(),
+          student_id: { _id: studentId },
+          recorded_by: { _id: ownId, role: { name: 'Supervisor' } },
+        },
+        {
+          _id: new Types.ObjectId(),
+          student_id: { _id: studentId },
+          recorded_by: { _id: otherId, role: { name: 'Supervisor' } },
+        },
+      ];
+      mockAcademicRecordModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(records),
+      });
+
+      const result = await service.previewBulkRemove(
+        { studentIds: [studentId.toString()] },
+        { roleName: 'Supervisor', userId: ownId.toString() },
+      );
+
+      expect(result.recordIds).toEqual([records[0]._id.toString()]);
+      expect(result.failedStudentCount).toBe(1);
+      expect(result.groups[0].failures).toEqual([
+        expect.objectContaining({ id: records[1]._id.toString() }),
+      ]);
+    });
   });
 
   describe('importPreview', () => {

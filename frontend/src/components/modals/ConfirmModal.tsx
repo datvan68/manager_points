@@ -16,6 +16,7 @@ export interface ConfirmModalProps {
   cancelLabel?: string;
   variant?: 'danger' | 'warning' | 'info' | 'success';
   showCancel?: boolean;
+  disabled?: boolean;
 }
 
 export default function ConfirmModal({
@@ -27,7 +28,8 @@ export default function ConfirmModal({
   confirmLabel = "Xác nhận",
   cancelLabel = "Hủy bỏ",
   variant = "info",
-  showCancel = true
+  showCancel = true,
+  disabled = false
 }: ConfirmModalProps) {
   const [mounted, setMounted] = useState(false);
   const [pending, setPending] = useState(false);
@@ -130,7 +132,7 @@ export default function ConfirmModal({
                   )}
                   <button
                     onClick={async () => {
-                      if (pending) return;
+                      if (pending || disabled) return;
                       setPending(true);
                       try {
                         await onConfirm();
@@ -139,8 +141,8 @@ export default function ConfirmModal({
                         setPending(false);
                       }
                     }}
-                    disabled={pending}
-                    className={cn("w-full sm:w-auto px-6 py-2.5 rounded-xl text-[14px] font-bold transition-all", styles.confirmBtn)}
+                    disabled={pending || disabled}
+                    className={cn("w-full sm:w-auto px-6 py-2.5 rounded-xl text-[14px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50", styles.confirmBtn)}
                   >
                     {confirmLabel}
                   </button>

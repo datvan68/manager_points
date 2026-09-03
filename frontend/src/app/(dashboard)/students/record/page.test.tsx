@@ -47,6 +47,7 @@ vi.mock('@/api/academic-record-api', () => ({
     getAcademicRecords: vi.fn(),
     getAcademicRecordsByStudent: vi.fn().mockResolvedValue([]),
     getDeletedAcademicRecords: vi.fn().mockResolvedValue([]),
+    previewBulkDeleteAcademicRecords: vi.fn(),
     bulkDeleteAcademicRecords: vi.fn(),
     bulkForceDeleteAcademicRecords: vi.fn(),
     deleteAcademicRecord: vi.fn(),
@@ -740,6 +741,16 @@ describe('StudentRecordPage Infinite Scroll', () => {
       succeededCount: 3,
       failedCount: 0,
     });
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 2,
+      groups: [
+        { studentId: 'student-1', recordIds: ['child-1', 'child-2'], preservedDailyReportCount: 0, failures: [] },
+        { studentId: 'student-2', recordIds: ['child-2', 'child-3'], preservedDailyReportCount: 0, failures: [] },
+      ],
+      recordIds: ['child-1', 'child-2', 'child-3'],
+      preservedDailyReportCount: 0,
+      failedStudentCount: 0,
+    });
 
     render(<StudentRecordPage />);
     await screen.findAllByText('Student 1');
@@ -748,13 +759,14 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     expect(await screen.findByText(/2 sinh viên/)).toBeInTheDocument();
     expect(screen.getByText(/3 ghi nhận/)).toBeInTheDocument();
-    expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith({
-      studentId: 'student-1',
+    expect(academicRecordApi.previewBulkDeleteAcademicRecords).toHaveBeenCalledWith({
+      studentIds: ['student-1', 'student-2'],
       classId: undefined,
       startDate: undefined,
       endDate: undefined,
       creator: undefined,
     });
+    expect(academicRecordApi.previewBulkDeleteAcademicRecords).toHaveBeenCalledTimes(1);
     const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
       .find((button) => button.className.includes('bg-[#D92D20]'));
     fireEvent.click(confirmDelete!);
@@ -783,6 +795,13 @@ describe('StudentRecordPage Infinite Scroll', () => {
       succeededCount: 2,
       failedCount: 0,
     });
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 1,
+      groups: [{ studentId: 'student-1', recordIds: ['manual-1', 'manual-2'], preservedDailyReportCount: 1, failures: [] }],
+      recordIds: ['manual-1', 'manual-2'],
+      preservedDailyReportCount: 1,
+      failedStudentCount: 0,
+    });
 
     render(<StudentRecordPage />);
     await screen.findAllByText('Student 1');
@@ -800,11 +819,35 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
   });
 
+  it('disables confirmation when the active filter has no deletable records', async () => {
+    const group = makeStudentGroup('student-1', 'latest-1', 1);
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValueOnce({
+      data: [group],
+      meta: { total: 1, totalPages: 1, has_more: false },
+    });
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 1,
+      groups: [{ studentId: 'student-1', recordIds: [], preservedDailyReportCount: 1, failures: [] }],
+      recordIds: [],
+      preservedDailyReportCount: 1,
+      failedStudentCount: 0,
+    });
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(1\)/ }));
+
+    expect(await screen.findByText('Không có ghi nhận phù hợp để xóa.')).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    expect(confirmDelete).toBeDisabled();
+  });
+
   it('keeps a grouped row selected when one child delete fails', async () => {
     const group = makeStudentGroup('student-1', 'latest-1', 2, ['ky_luat'], -10);
     (academicRecordApi.getAcademicRecords as any)
       .mockResolvedValueOnce({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } })
-      .mockResolvedValueOnce([{ _id: 'child-1' }, { _id: 'child-2' }])
       .mockResolvedValue({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } });
     (academicRecordApi.bulkDeleteAcademicRecords as any).mockResolvedValue({
       requested: 2,
@@ -812,6 +855,13 @@ describe('StudentRecordPage Infinite Scroll', () => {
       failed: [{ id: 'child-2', message: 'Không đủ quyền' }],
       succeededCount: 1,
       failedCount: 1,
+    });
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 1,
+      groups: [{ studentId: 'student-1', recordIds: ['child-1', 'child-2'], preservedDailyReportCount: 0, failures: [] }],
+      recordIds: ['child-1', 'child-2'],
+      preservedDailyReportCount: 0,
+      failedStudentCount: 0,
     });
 
     render(<StudentRecordPage />);
@@ -873,12 +923,24 @@ describe('StudentRecordPage Infinite Scroll', () => {
     (academicRecordApi.bulkDeleteAcademicRecords as any)
       .mockReturnValueOnce(firstBatch)
       .mockReturnValueOnce(secondBatch);
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 26,
+      groups: records.map((record) => ({
+        studentId: record.student_id._id,
+        recordIds: [record._id],
+        preservedDailyReportCount: 0,
+        failures: [],
+      })),
+      recordIds: records.map((record) => record._id),
+      preservedDailyReportCount: 0,
+      failedStudentCount: 0,
+    });
 
     render(<StudentRecordPage />);
     await screen.findAllByText('Student 1');
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getByRole('button', { name: /Xóa \(26\)/ }));
-    expect(await screen.findByText('Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.')).toBeInTheDocument();
+    expect(await screen.findByText(/26 sinh viên/)).toBeInTheDocument();
     const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
       .find((button) => button.className.includes('bg-[#D92D20]'));
     fireEvent.click(confirmDelete!);
@@ -945,12 +1007,24 @@ describe('StudentRecordPage Infinite Scroll', () => {
       succeededCount: 1,
       failedCount: 1,
     });
+    (academicRecordApi.previewBulkDeleteAcademicRecords as any).mockResolvedValue({
+      requestedStudentCount: 2,
+      groups: records.map((record) => ({
+        studentId: record.student_id._id,
+        recordIds: [record._id],
+        preservedDailyReportCount: 0,
+        failures: [],
+      })),
+      recordIds: records.map((record) => record._id),
+      preservedDailyReportCount: 0,
+      failedStudentCount: 0,
+    });
 
     render(<StudentRecordPage />);
     await screen.findAllByText('Student 1');
     fireEvent.click(screen.getAllByRole('checkbox')[0]);
     fireEvent.click(screen.getByRole('button', { name: /Xóa \(2\)/ }));
-    expect(await screen.findByText('Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.')).toBeInTheDocument();
+    expect(await screen.findByText(/2 sinh viên/)).toBeInTheDocument();
     const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
       .find((button) => button.className.includes('bg-[#D92D20]'));
     fireEvent.click(confirmDelete!);
@@ -959,7 +1033,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
       expect(screen.queryAllByText('Student 1')).toHaveLength(0);
       expect(screen.getAllByText('Student 2')).not.toHaveLength(0);
       expect(screen.getAllByText('Xóa (1)')).not.toHaveLength(0);
-      expect(screen.getByText(/vẫn được giữ lại trong danh sách chọn/)).toBeInTheDocument();
+      expect(screen.getByText(/ghi nhận chưa xoá được/)).toBeInTheDocument();
       expect(screen.getByTestId('bulk-delete-status')).toHaveTextContent('Hoàn tất một phần');
       expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
     });

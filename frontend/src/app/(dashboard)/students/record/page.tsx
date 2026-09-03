@@ -70,7 +70,12 @@ import {
   DailyClassReport,
 } from "@/api/daily-class-report-api";
 import { classApi, Class } from "@/api/class-api";
-import { academicRecordApi, AcademicRecord, BulkDeleteAcademicRecordsResult } from "@/api/academic-record-api";
+import {
+  academicRecordApi,
+  AcademicRecord,
+  BulkDeleteAcademicRecordsResult,
+  AcademicRecordDeletePreviewResult,
+} from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -785,10 +790,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         const studentId = record.studentObjectId || studentObj?._id || record.original?.student_id;
 
         if (studentId) {
-            const studentRecordsResponse = await academicRecordApi.getAcademicRecords({
-              ...getStudentHistoryParams(record),
-              studentId,
-            });
+          const studentRecordsResponse = await academicRecordApi.getAcademicRecords(
+            getFilteredStudentHistoryParams({ ...record, studentObjectId: studentId }),
+          );
           const studentRecords = Array.isArray(studentRecordsResponse)
             ? studentRecordsResponse
             : studentRecordsResponse.data;
@@ -1227,49 +1231,37 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     isPreparingDeletePreviewRef.current = true;
     setIsPreparingDeletePreview(true);
     try {
-      const groups = await Promise.all(
-        selectedGroups.map(async (record): Promise<StudentGroupDeletePlan> => {
-          try {
-            if (!record.isGrouped) {
-              const isDailyReportRecord = Boolean(record.original?.daily_report_id);
-              return {
-                selectionId: record.selectionId,
-                recordIds: isDailyReportRecord ? [] : [record.id],
-                preservedDailyReportCount: isDailyReportRecord ? 1 : 0,
-              };
-            }
-            const response = await academicRecordApi.getAcademicRecords({
-              ...getFilteredStudentHistoryParams(record),
-              studentId: record.studentObjectId,
-            });
-            const history: any[] = Array.isArray(response) ? response : response.data;
-            const dailyReportCount = history.filter((child) => Boolean(child?.daily_report_id)).length;
-            const recordIds = history
-              .filter((child) => !child?.daily_report_id)
-              .map((child) => child?._id)
-              .filter((id): id is string => typeof id === "string");
-            return {
-              selectionId: record.selectionId,
-              recordIds: Array.from(new Set(recordIds)),
-              preservedDailyReportCount: dailyReportCount,
-            };
-          } catch (error: any) {
-            return {
-              selectionId: record.selectionId,
-              recordIds: [],
-              preservedDailyReportCount: 0,
-              error: error?.message || "Không thể tải lịch sử để tạo bản xem trước.",
-            };
-          }
-        }),
-      );
-      const recordIds = Array.from(new Set(groups.flatMap((group) => group.recordIds)));
-      const preservedDailyReportCount = groups.reduce(
-        (total, group) => total + group.preservedDailyReportCount,
-        0,
-      );
-      setDeletePreview({ groups, recordIds, preservedDailyReportCount });
+      const response: AcademicRecordDeletePreviewResult =
+        await academicRecordApi.previewBulkDeleteAcademicRecords({
+          studentIds: selectedGroups.map((record) => record.studentObjectId),
+          classId:
+            selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
+          startDate: filterDateRange?.start
+            ? format(filterDateRange.start, "yyyy-MM-dd")
+            : undefined,
+          endDate: filterDateRange?.end
+            ? format(filterDateRange.end, "yyyy-MM-dd")
+            : undefined,
+          creator: creatorFilter !== "all" ? creatorFilter : undefined,
+        });
+      const groups: StudentGroupDeletePlan[] = response.groups.map((group) => ({
+        selectionId:
+          selectedGroups.find((selectedGroup) => selectedGroup.studentObjectId === group.studentId)
+            ?.selectionId || group.studentId,
+        recordIds: Array.from(new Set(group.recordIds)),
+        preservedDailyReportCount: group.preservedDailyReportCount,
+        error: group.failures.length > 0
+          ? `${group.failures.length} ghi nhận không đủ quyền xoá.`
+          : undefined,
+      }));
+      setDeletePreview({
+        groups,
+        recordIds: Array.from(new Set(response.recordIds)),
+        preservedDailyReportCount: response.preservedDailyReportCount,
+      });
       setIsDeleteConfirmOpen(true);
+    } catch (error: any) {
+      toast.error(error?.message || "Không thể tạo bản xem trước xoá.");
     } finally {
       isPreparingDeletePreviewRef.current = false;
       setIsPreparingDeletePreview(false);
@@ -1322,8 +1314,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           setSelectedIds((prev) =>
             prev.filter((selectionId) => {
               const group = groupPlan.find((item) => item.selectionId === selectionId);
-              return !group || group.recordIds.length === 0 ||
-                group.recordIds.some((id) => failedIds.has(id)) ||
+              return !group ||
+                (group.recordIds.length > 0 && group.recordIds.some((id) => failedIds.has(id))) ||
                 !!group.error;
             }),
           );
@@ -4306,12 +4298,12 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           setDeletePreview(null);
         }}
         onConfirm={handleDelete}
-        title="Xác nhận xóa toàn bộ ghi nhận của sinh viên"
+        title="Xác nhận xóa ghi nhận"
         message={
           deletePreview ? (
             <div className="flex flex-col gap-2">
               <span>
-                Bạn đang xoá <strong>{deletePreview.groups.length} sinh viên</strong> với tổng cộng <strong>{deletePreview.recordIds.length} ghi nhận</strong> đang khớp bộ lọc hiện tại.
+                <strong>{deletePreview.groups.length} sinh viên</strong> · <strong>{deletePreview.recordIds.length} ghi nhận</strong> sẽ bị xóa.
               </span>
               {deletePreview.preservedDailyReportCount > 0 && (
                 <span className="text-slate-600">
@@ -4320,15 +4312,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               )}
               {deletePreview.groups.some((group) => group.error) && (
                 <span className="text-amber-700">
-                  Một số nhóm chưa tải được dữ liệu và sẽ được giữ lại để thử lại.
+                  Không thể kiểm tra {deletePreview.groups.filter((group) => group.error).length} sinh viên.
                 </span>
               )}
-              {deletePreview.groups.some((group) => group.recordIds.length === 0 && !group.error) && (
+              {deletePreview.recordIds.length === 0 && !deletePreview.groups.some((group) => group.error) && (
                 <span className="text-slate-600">
-                  Nhóm không còn ghi nhận phù hợp sẽ không bị xoá.
+                  Không có ghi nhận phù hợp để xóa.
                 </span>
               )}
-              <span>Chỉ các ID trong bản xem trước này được gửi đến API xoá mềm.</span>
             </div>
           ) : (
             "Đang tạo bản xem trước xoá..."
@@ -4336,6 +4327,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         }
         confirmLabel="Xóa"
         cancelLabel="Hủy"
+        disabled={!deletePreview || deletePreview.recordIds.length === 0}
         variant="danger"
       />
 
