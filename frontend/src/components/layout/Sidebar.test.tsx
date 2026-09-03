@@ -140,14 +140,19 @@ describe('Sidebar Component', () => {
     expect(mobileNav?.textContent).not.toContain('Trang chủ');
   });
 
-  it('omits subsystem entries that are available from the subsystem modal', async () => {
+  it('replaces the primary Activities entry with KTX on desktop and mobile', async () => {
     render(<Sidebar />);
     await waitForSidebarItems();
 
     expect(screen.queryByTitle('Thông báo')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Báo cáo')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Quản trị hệ thống')).not.toBeInTheDocument();
-    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
+    expect(screen.queryByTitle('Hoạt động')).not.toBeInTheDocument();
+    expect(screen.getAllByTitle('KTX')).not.toHaveLength(0);
+    screen.getAllByTitle('KTX').forEach((link) => {
+      expect(link).toHaveAttribute('href', '/dormitory');
+    });
+    expect(within(document.querySelector('.mobile-bottom-nav') as HTMLElement).getByRole('link', { name: 'KTX' })).toHaveAttribute('href', '/dormitory');
     expect(within(document.querySelector('.mobile-bottom-nav') as HTMLElement).queryByRole('link', { name: 'Thông báo' })).not.toBeInTheDocument();
   });
 
@@ -211,7 +216,7 @@ describe('Sidebar Component', () => {
     expect(sidebar?.classList.contains('w-20')).toBe(true);
   });
 
-  it('keeps Activities visible for a student with a restrictive route mapping', async () => {
+  it('hides KTX for a non-admin without an active mapped permission', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: 'student-id', roleCode: 'STUDENT' },
       isLoading: false,
@@ -227,38 +232,100 @@ describe('Sidebar Component', () => {
     vi.mocked(isAdminUser).mockReturnValue(false);
     vi.mocked(isStudentRole).mockReturnValue(true);
     vi.mocked(isTeacherRole).mockReturnValue(false);
-    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([
-      { route_path: '/activities', is_active: true, type: 'page', permissions: ['ACTIVITY_MANAGE'] },
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.queryByTitle('KTX')).not.toBeInTheDocument();
+  });
+
+  it('shows KTX only when the non-admin satisfies its active mapping', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValue([
+      { route_path: '/dormitory', is_active: true, type: 'page', check_type: 'any', permissions: ['DORMITORY_READ'] },
+    ]);
+
+    const { unmount } = render(<Sidebar />);
+    await waitForSidebarItems();
+    await act(async () => {
+      window.dispatchEvent(new Event('route-permissions-updated'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTitle('KTX')).not.toBeInTheDocument();
+
+    unmount();
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn((permission) => permission === 'DORMITORY_READ'),
+      hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    expect(screen.getAllByTitle('KTX')).not.toHaveLength(0);
+  });
+
+  it('shows KTX when the non-admin satisfies an all mapping', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'teacher-id', roleCode: 'TEACHER' },
+      isLoading: false,
+      hasPermission: vi.fn(() => false),
+      hasAnyPermission: vi.fn(() => false),
+      hasAllPermissions: vi.fn((...permissions) =>
+        permissions.includes('DORMITORY_READ') && permissions.includes('DORMITORY_MANAGE'),
+      ),
+      isAuthenticated: true,
+      permissions: [],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(false);
+    vi.mocked(isTeacherRole).mockReturnValue(true);
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValue([
+      {
+        route_path: '/dormitory',
+        is_active: true,
+        type: 'page',
+        check_type: 'all',
+        permissions: ['DORMITORY_READ', 'DORMITORY_MANAGE'],
+      },
     ]);
 
     render(<Sidebar />);
     await waitForSidebarItems();
-
-    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
-  });
-
-  it('keeps Activities visible for a student when route mappings fail to load', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      user: { id: 'student-id', roleCode: 'STUDENT' },
-      isLoading: false,
-      hasPermission: vi.fn(() => false),
-      hasAnyPermission: vi.fn(() => false),
-      hasAllPermissions: vi.fn(() => false),
-      isAuthenticated: true,
-      permissions: [],
-      logout: vi.fn(),
-      checkAuth: vi.fn(),
-      forceLogoutAfterRestore: vi.fn(),
+    await act(async () => {
+      window.dispatchEvent(new Event('route-permissions-updated'));
+      await Promise.resolve();
+      await Promise.resolve();
     });
-    vi.mocked(isAdminUser).mockReturnValue(false);
-    vi.mocked(isStudentRole).mockReturnValue(true);
-    vi.mocked(isTeacherRole).mockReturnValue(false);
-    vi.mocked(authApi.getRoutePermissionsPublic).mockRejectedValueOnce(new Error('network unavailable'));
 
-    render(<Sidebar />);
-    await waitForSidebarItems();
-
-    expect(screen.getAllByTitle('Hoạt động')).not.toHaveLength(0);
+    expect(screen.getAllByTitle('KTX')).not.toHaveLength(0);
   });
 
   it('places search trigger at the visual center of mobile navigation for admin', async () => {

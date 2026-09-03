@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  Building2,
   GraduationCap,
   PanelLeftClose,
   PanelLeftOpen,
@@ -12,7 +13,6 @@ import {
   LayoutGrid,
   User,
   Shield,
-  Compass,
   Search,
 } from "lucide-react";
 import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
@@ -52,7 +52,7 @@ async function fetchSidebarMappings(token?: string): Promise<any[]> {
 const allMenuItems = [
   { icon: LayoutDashboard, label: "Trang chủ", href: "/" },
   { icon: Users, label: "Học sinh sinh viên", href: "/students/record" },
-  { icon: Compass, label: "Hoạt động", href: "/activities" },
+  { icon: Building2, label: "KTX", href: "/dormitory" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
 ];
 
@@ -198,9 +198,22 @@ const Sidebar = () => {
             return true;
           }
 
-          // Luôn hiển thị mục "Hoạt động" cho tất cả người dùng đăng nhập
-          if (item.href === "/activities") {
-            return true;
+          // KTX requires an explicit active route mapping for non-admin users.
+          if (item.href === "/dormitory") {
+            const mapping = mappings.find(
+              (m: any) =>
+                m.route_path === "/dormitory" &&
+                m.is_active !== false,
+            );
+            if (!mapping || !Array.isArray(mapping.permissions) || mapping.permissions.length === 0) {
+              return false;
+            }
+            const requiredCodes = mapping.permissions.map(
+              (p: any) => p.code || p,
+            );
+            return mapping.check_type === "any"
+              ? hasAnyPermission(...requiredCodes)
+              : hasAllPermissions(...requiredCodes);
           }
 
           const mapping = mappings.find(
@@ -237,9 +250,6 @@ const Sidebar = () => {
 
           if (item.href === "/students/record") {
             return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK");
-          }
-          if (item.href === "/activities") {
-            return true;
           }
           if (item.href === "/grading") {
             return isTeacherUser || hasPermission("GRADING_PAGE") || hasPermission("GRADING_READ");
