@@ -750,7 +750,6 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(screen.getByText(/3 ghi nhận/)).toBeInTheDocument();
     expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith({
       studentId: 'student-1',
-      semesterId: 'semester-1',
       classId: undefined,
       startDate: undefined,
       endDate: undefined,
@@ -764,6 +763,40 @@ describe('StudentRecordPage Infinite Scroll', () => {
       expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledWith([
         'child-1', 'child-2', 'child-3',
       ]);
+    });
+  });
+
+  it('excludes daily-report records from the deletion preview and explains the preserved count', async () => {
+    const group = makeStudentGroup('student-1', 'latest-1', 3, ['ky_luat'], -15);
+    (academicRecordApi.getAcademicRecords as any)
+      .mockResolvedValueOnce({ data: [group], meta: { total: 1, totalPages: 1, has_more: false } })
+      .mockResolvedValueOnce([
+        { _id: 'manual-1', semester_id: 'semester-1' },
+        { _id: 'daily-1', semester_id: 'semester-2', daily_report_id: 'report-1' },
+        { _id: 'manual-2', semester_id: 'semester-2' },
+      ])
+      .mockResolvedValue({ data: [], meta: { total: 0 } });
+    (academicRecordApi.bulkDeleteAcademicRecords as any).mockResolvedValue({
+      requested: 2,
+      succeeded: ['manual-1', 'manual-2'],
+      failed: [],
+      succeededCount: 2,
+      failedCount: 0,
+    });
+
+    render(<StudentRecordPage />);
+    await screen.findAllByText('Student 1');
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa \(1\)/ }));
+
+    expect(await screen.findByText(/2 ghi nhận/)).toBeInTheDocument();
+    expect(screen.getByText('1 ghi nhận ngày')).toBeInTheDocument();
+    const confirmDelete = screen.getAllByRole('button', { name: 'Xóa', exact: true })
+      .find((button) => button.className.includes('bg-[#D92D20]'));
+    fireEvent.click(confirmDelete!);
+
+    await waitFor(() => {
+      expect(academicRecordApi.bulkDeleteAcademicRecords).toHaveBeenCalledWith(['manual-1', 'manual-2']);
     });
   });
 

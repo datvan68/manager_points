@@ -763,10 +763,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   };
 
   const getFilteredStudentHistoryParams = (record: any) => {
-    const semester = record.original?.semester_id;
     return {
       ...getStudentHistoryParams(record),
-      semesterId: typeof semester === "object" ? semester?._id : semester,
       classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
       startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
       endDate: filterDateRange?.end ? format(filterDateRange.end, "yyyy-MM-dd") : undefined,
@@ -1196,12 +1194,14 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   type StudentGroupDeletePlan = {
     selectionId: string;
     recordIds: string[];
+    preservedDailyReportCount: number;
     error?: string;
   };
 
   const [deletePreview, setDeletePreview] = useState<{
     groups: StudentGroupDeletePlan[];
     recordIds: string[];
+    preservedDailyReportCount: number;
   } | null>(null);
   const [isPreparingDeletePreview, setIsPreparingDeletePreview] = useState(false);
   const isPreparingDeletePreviewRef = useRef(false);
@@ -1231,34 +1231,44 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         selectedGroups.map(async (record): Promise<StudentGroupDeletePlan> => {
           try {
             if (!record.isGrouped) {
+              const isDailyReportRecord = Boolean(record.original?.daily_report_id);
               return {
                 selectionId: record.selectionId,
-                recordIds: [record.id],
+                recordIds: isDailyReportRecord ? [] : [record.id],
+                preservedDailyReportCount: isDailyReportRecord ? 1 : 0,
               };
             }
             const response = await academicRecordApi.getAcademicRecords({
               ...getFilteredStudentHistoryParams(record),
               studentId: record.studentObjectId,
             });
-            const history = Array.isArray(response) ? response : response.data;
+            const history: any[] = Array.isArray(response) ? response : response.data;
+            const dailyReportCount = history.filter((child) => Boolean(child?.daily_report_id)).length;
             const recordIds = history
+              .filter((child) => !child?.daily_report_id)
               .map((child) => child?._id)
               .filter((id): id is string => typeof id === "string");
             return {
               selectionId: record.selectionId,
               recordIds: Array.from(new Set(recordIds)),
+              preservedDailyReportCount: dailyReportCount,
             };
           } catch (error: any) {
             return {
               selectionId: record.selectionId,
               recordIds: [],
+              preservedDailyReportCount: 0,
               error: error?.message || "Không thể tải lịch sử để tạo bản xem trước.",
             };
           }
         }),
       );
       const recordIds = Array.from(new Set(groups.flatMap((group) => group.recordIds)));
-      setDeletePreview({ groups, recordIds });
+      const preservedDailyReportCount = groups.reduce(
+        (total, group) => total + group.preservedDailyReportCount,
+        0,
+      );
+      setDeletePreview({ groups, recordIds, preservedDailyReportCount });
       setIsDeleteConfirmOpen(true);
     } finally {
       isPreparingDeletePreviewRef.current = false;
@@ -4303,6 +4313,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               <span>
                 Bạn đang xoá <strong>{deletePreview.groups.length} sinh viên</strong> với tổng cộng <strong>{deletePreview.recordIds.length} ghi nhận</strong> đang khớp bộ lọc hiện tại.
               </span>
+              {deletePreview.preservedDailyReportCount > 0 && (
+                <span className="text-slate-600">
+                  Giữ lại <strong>{deletePreview.preservedDailyReportCount} ghi nhận ngày</strong> vì các bản ghi này thuộc báo cáo điểm danh ngày.
+                </span>
+              )}
               {deletePreview.groups.some((group) => group.error) && (
                 <span className="text-amber-700">
                   Một số nhóm chưa tải được dữ liệu và sẽ được giữ lại để thử lại.
