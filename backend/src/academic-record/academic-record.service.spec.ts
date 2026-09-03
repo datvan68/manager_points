@@ -36,6 +36,8 @@ describe('AcademicRecordService - Import Flow', () => {
       sort: jest.fn().mockReturnThis(),
       exec: jest.fn().mockResolvedValue(null),
     }),
+    findById: jest.fn(),
+    findByIdAndDelete: jest.fn(),
     insertMany: jest.fn(),
     deleteOne: jest.fn(),
     create: jest.fn(),
@@ -2336,6 +2338,51 @@ describe('AcademicRecordService - Import Flow', () => {
       await expect(service.handleScoreIntent(intentDto as any)).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it('should reject public permanent deletion of an active record', async () => {
+      const existingRecord = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        status: 'active',
+        is_deleted: false,
+      };
+      mockAcademicRecordModel.findById.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord),
+      });
+
+      await expect(
+        service.forceRemove(existingRecord._id.toString(), { roleName: 'Admin' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ reasonCode: 'ACADEMIC_RECORD_NOT_TRASHED' }),
+      });
+      expect(mockAcademicRecordModel.findByIdAndDelete).not.toHaveBeenCalled();
+    });
+
+    it('should reject public permanent deletion of a report-owned record', async () => {
+      const existingRecord = {
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        daily_report_id: new Types.ObjectId(),
+        status: 'inactive',
+        is_deleted: true,
+      };
+      mockAcademicRecordModel.findById.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(existingRecord),
+      });
+
+      await expect(
+        service.forceRemove(existingRecord._id.toString(), { roleName: 'Admin' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ reasonCode: 'ACADEMIC_RECORD_DAILY_REPORT_OWNED' }),
+      });
+      expect(mockAcademicRecordModel.findByIdAndDelete).not.toHaveBeenCalled();
     });
   });
 

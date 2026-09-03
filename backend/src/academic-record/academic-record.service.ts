@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import {
   AcademicRecord,
   AcademicRecordDocument,
@@ -68,6 +68,11 @@ export interface AcademicRecordFindAllQuery {
   startDate?: string;
   endDate?: string;
   creator?: string;
+}
+
+export interface AcademicRecordMutationOptions {
+  session?: ClientSession;
+  deferSync?: boolean;
 }
 
 @Injectable()
@@ -149,17 +154,27 @@ export class AcademicRecordService {
     };
   }
 
+  private applySession(query: any, session?: ClientSession): any {
+    if (session && typeof query?.session === 'function') {
+      return query.session(session);
+    }
+    return query;
+  }
+
   private async checkSummaryLocked(
     studentId: any,
     semesterId: any,
+    session?: ClientSession,
   ): Promise<void> {
     if (!studentId || !semesterId) return;
-    const summary = await this.summaryPointModel
-      .findOne({
+    const summaryQuery = this.applySession(
+      this.summaryPointModel.findOne({
         student_id: new Types.ObjectId(normalizeObjectId(studentId)),
         semester_id: new Types.ObjectId(normalizeObjectId(semesterId)),
-      } as any)
-      .exec();
+      } as any),
+      session,
+    );
+    const summary = await summaryQuery.exec();
     if (summary && summary.status === 'locked') {
       throw new BadRequestException({
         statusCode: 400,
@@ -170,8 +185,12 @@ export class AcademicRecordService {
     }
   }
 
-  private async safeSync(record: any): Promise<void> {
+  private async safeSync(
+    record: any,
+    options?: AcademicRecordMutationOptions,
+  ): Promise<void> {
     if (!record) return;
+    if (options?.deferSync) return;
     const studentId = normalizeObjectId(record.student_id);
     const semesterId = normalizeObjectId(record.semester_id);
     const criterionId = normalizeObjectId(record.criterion_id);
@@ -2644,6 +2663,7 @@ export class AcademicRecordService {
     dailyReportId: string,
     includeDeleted: boolean = false,
     requester?: any,
+    options?: AcademicRecordMutationOptions,
   ): Promise<AcademicRecord[]> {
     if (!Types.ObjectId.isValid(dailyReportId)) {
       return [];
@@ -2683,8 +2703,11 @@ export class AcademicRecordService {
       }
     }
 
-    return this.academicRecordModel
-      .find(query)
+    const recordsQuery = this.applySession(
+      this.academicRecordModel.find(query),
+      options?.session,
+    );
+    return recordsQuery
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
@@ -2785,13 +2808,21 @@ export class AcademicRecordService {
     id: string,
     requester: any,
     bypassDailyReportCheck: boolean = false,
+    options?: AcademicRecordMutationOptions,
   ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel
-      .findOne({ _id: id, status: 'active', is_deleted: { $ne: true } })
+    const recordQuery = this.applySession(
+      this.academicRecordModel.findOne({
+        _id: id,
+        status: 'active',
+        is_deleted: { $ne: true },
+      }),
+      options?.session,
+    );
+    const record = await recordQuery
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -2815,7 +2846,10 @@ export class AcademicRecordService {
     }
 
     const deleted = await this.academicRecordModel
-      .findByIdAndUpdate(id, updatePayload, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, updatePayload, {
+        returnDocument: 'after',
+        ...(options?.session ? { session: options.session } : {}),
+      })
       .exec();
 
     if (!deleted) {
@@ -2823,7 +2857,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    await this.safeSync(deleted);
+    await this.safeSync(deleted, options);
 
     return deleted;
   }
@@ -2862,13 +2896,23 @@ export class AcademicRecordService {
     return this.bulkDelete(ids, (id) => this.remove(id, requester));
   }
 
-  async restore(id: string, requester?: any): Promise<AcademicRecord> {
+  async restore(
+    id: string,
+    requester?: any,
+    options?: AcademicRecordMutationOptions,
+  ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel
-      .findOne({ _id: id, $or: [{ status: 'inactive' }, { is_deleted: true }] })
+    const recordQuery = this.applySession(
+      this.academicRecordModel.findOne({
+        _id: id,
+        $or: [{ status: 'inactive' }, { is_deleted: true }],
+      }),
+      options?.session,
+    );
+    const record = await recordQuery
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -2878,7 +2922,11 @@ export class AcademicRecordService {
       );
     }
 
-    await this.checkSummaryLocked(record.student_id, record.semester_id);
+    await this.checkSummaryLocked(
+      record.student_id,
+      record.semester_id,
+      options?.session,
+    );
 
     if (requester) {
       this.checkHierarchyPermission(record, requester);
@@ -2886,10 +2934,12 @@ export class AcademicRecordService {
 
     record.status = 'active';
     record.is_deleted = false;
-    const saved = await record.save();
+    const saved = options?.session
+      ? await record.save({ session: options.session })
+      : await record.save();
 
     // Sync score update
-    await this.safeSync(saved);
+    await this.safeSync(saved, options);
 
     return saved.populate([
       { path: 'criterion_id' },
@@ -2904,13 +2954,17 @@ export class AcademicRecordService {
     id: string,
     requester: any,
     bypassDailyReportCheck: boolean = false,
+    options?: AcademicRecordMutationOptions,
   ): Promise<AcademicRecord> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
-    const record = await this.academicRecordModel
-      .findById(id)
+    const recordQuery = this.applySession(
+      this.academicRecordModel.findById(id),
+      options?.session,
+    );
+    const record = await recordQuery
       .populate('student_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
       .exec();
@@ -2922,25 +2976,37 @@ export class AcademicRecordService {
 
     if (
       !bypassDailyReportCheck &&
-      record.status !== 'inactive' &&
-      record.is_deleted !== true
+      (record.status !== 'inactive' || record.is_deleted !== true)
     ) {
-      throw new BadRequestException(
-        'Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.',
-      );
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Chỉ có thể xóa vĩnh viễn ghi nhận rèn luyện đã nằm trong thùng rác.',
+        error: 'Bad Request',
+        reasonCode: 'ACADEMIC_RECORD_NOT_TRASHED',
+        operationPhase: 'precondition',
+        failedObjectId: id,
+      });
     }
 
     if (record.daily_report_id && !bypassDailyReportCheck) {
-      throw new BadRequestException(
-        'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể xoá vĩnh viễn trực tiếp. Vui lòng xoá báo cáo ngày tương ứng.',
-      );
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Ghi nhận này thuộc báo cáo điểm danh ngày, không thể xoá vĩnh viễn trực tiếp. Vui lòng xoá báo cáo ngày tương ứng.',
+        error: 'Bad Request',
+        reasonCode: 'ACADEMIC_RECORD_DAILY_REPORT_OWNED',
+        operationPhase: 'precondition',
+        failedObjectId: id,
+      });
     }
 
     if (!bypassDailyReportCheck) {
       this.checkHierarchyPermission(record, requester);
     }
 
-    const deleted = await this.academicRecordModel.findByIdAndDelete(id).exec();
+    const deleteQuery = options?.session
+      ? this.academicRecordModel.findByIdAndDelete(id, { session: options.session })
+      : this.academicRecordModel.findByIdAndDelete(id);
+    const deleted = await deleteQuery.exec();
     if (!deleted) {
       throw new NotFoundException(
         `AcademicRecord with ID ${id} not found or already deleted`,
@@ -2948,7 +3014,7 @@ export class AcademicRecordService {
     }
 
     // Sync score update
-    await this.safeSync(deleted);
+    await this.safeSync(deleted, options);
 
     return deleted;
   }

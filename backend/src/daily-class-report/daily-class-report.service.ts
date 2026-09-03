@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import {
   DailyClassReport,
   DailyClassReportDocument,
@@ -364,78 +364,185 @@ export class DailyClassReportService {
     }
   }
 
+  private applySession(query: any, session?: ClientSession): any {
+    if (session && typeof query?.session === 'function') {
+      return query.session(session);
+    }
+    return query;
+  }
+
+  private async withTransaction<T>(
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.dailyClassReportModel.db.startSession();
+    try {
+      let result!: T;
+      await session.withTransaction(async () => {
+        result = await work(session);
+      });
+      return result;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private cascadeFailure(
+    error: any,
+    operationPhase: string,
+    failedObjectId: string,
+    fallbackReasonCode: string,
+  ): BadRequestException {
+    const response = error?.getResponse?.();
+    const rawMessage = typeof response === 'string'
+      ? response
+      : response?.message || error?.message || 'Không thể hoàn tất thao tác';
+    const message = Array.isArray(rawMessage)
+      ? rawMessage.join(', ')
+      : String(rawMessage);
+    return new BadRequestException({
+      statusCode: 400,
+      message,
+      error: 'Bad Request',
+      reasonCode: response?.reasonCode || fallbackReasonCode,
+      operationPhase,
+      failedObjectId,
+    });
+  }
+
+  private async reconcileAfterTransaction(
+    targets: Array<{ student_id: any; semester_id: any; criterion_id: any }>,
+    reportId: string,
+  ): Promise<void> {
+    if (targets.length === 0) return;
+    try {
+      await this.academicRecordService.syncMultipleStudentCriterionScores(
+        targets,
+      );
+    } catch (error) {
+      throw this.cascadeFailure(
+        error,
+        'reconcile',
+        reportId,
+        'DAILY_REPORT_RECONCILIATION_FAILED',
+      );
+    }
+  }
+
   async remove(id: string, requester: any): Promise<DailyClassReport> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException(`ID báo cáo không hợp lệ: ${id}`);
     }
 
-    const report = await this.dailyClassReportModel
-      .findOne({ _id: id, is_delete: { $ne: true } })
-      .exec();
-    if (!report) {
-      throw new NotFoundException(
-        `Báo cáo lớp học với ID ${id} không tồn tại hoặc đã bị xóa`,
+    const syncTargets: Array<{ student_id: any; semester_id: any; criterion_id: any }> = [];
+    const deleted = await this.withTransaction(async (session) => {
+      const reportQuery = this.applySession(
+        this.dailyClassReportModel.findOne({ _id: id, is_delete: { $ne: true } }),
+        session,
       );
-    }
-
-    this.checkReportPermission(report, requester);
-
-    // Soft-delete tất cả AcademicRecord liên kết trước
-    const associatedRecords =
-      await this.academicRecordService.findByDailyReportId(id);
-    for (const record of associatedRecords) {
-      const recordId = (record as any)._id
-        ? (record as any)._id.toString()
-        : record.toString();
-      try {
-        await this.academicRecordService.remove(recordId, requester, true);
-      } catch (err) {
-        console.warn(
-          `Could not soft-delete associated record ${recordId} for report ${id}:`,
-          err,
+      const report = await reportQuery.exec();
+      if (!report) {
+        throw new NotFoundException(
+          `Báo cáo lớp học với ID ${id} không tồn tại hoặc đã bị xóa`,
         );
       }
-    }
 
-    const deleted = await this.dailyClassReportModel
-      .findByIdAndUpdate(id, { is_delete: true }, { returnDocument: 'after' })
-      .populate('class_id')
-      .populate('reported_by', 'user_name email')
-      .exec();
-    if (!deleted) {
-      throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
-    }
+      this.checkReportPermission(report, requester);
+
+      const associatedRecords =
+        await this.academicRecordService.findByDailyReportId(id, false, undefined, { session });
+      for (const record of associatedRecords) {
+        const recordId = (record as any)._id
+          ? (record as any)._id.toString()
+          : record.toString();
+        try {
+          await this.academicRecordService.remove(recordId, requester, true, {
+            session,
+            deferSync: true,
+          });
+          syncTargets.push(record as any);
+        } catch (error) {
+          throw this.cascadeFailure(
+            error,
+            'child_remove',
+            recordId,
+            'DAILY_REPORT_CHILD_REMOVE_FAILED',
+          );
+        }
+      }
+
+      const updated = await this.dailyClassReportModel
+        .findByIdAndUpdate(
+          id,
+          { is_delete: true },
+          { returnDocument: 'after', session },
+        )
+        .populate('class_id')
+        .populate('reported_by', 'user_name email')
+        .exec();
+      if (!updated) {
+        throw this.cascadeFailure(
+          new NotFoundException(`DailyClassReport with ID ${id} not found`),
+          'parent_remove',
+          id,
+          'DAILY_REPORT_PARENT_REMOVE_FAILED',
+        );
+      }
+      return updated;
+    });
+    await this.reconcileAfterTransaction(syncTargets, id);
     return deleted;
   }
 
   async restore(id: string, requester?: any): Promise<DailyClassReport> {
     const scopeFilter = await this.getScopeFilter(requester);
-    const report = await this.dailyClassReportModel
-      .findOne({ _id: id, is_delete: true, ...scopeFilter })
-      .exec();
-    if (!report) {
-      throw new NotFoundException(
-        `DailyClassReport with ID ${id} not found trong thùng rác`,
+    const syncTargets: Array<{ student_id: any; semester_id: any; criterion_id: any }> = [];
+    const saved = await this.withTransaction(async (session) => {
+      const reportQuery = this.applySession(
+        this.dailyClassReportModel.findOne({ _id: id, is_delete: true, ...scopeFilter }),
+        session,
       );
-    }
+      const report = await reportQuery.exec();
+      if (!report) {
+        throw new NotFoundException(
+          `DailyClassReport with ID ${id} not found trong thùng rác`,
+        );
+      }
 
-    if (requester) {
-      this.checkReportPermission(report, requester);
-    }
+      if (requester) {
+        this.checkReportPermission(report, requester);
+      }
 
-    // Khôi phục tất cả AcademicRecord liên kết (kể cả đã bị soft-deleted)
-    const associatedRecords =
-      await this.academicRecordService.findByDailyReportId(id, true);
-    for (const record of associatedRecords) {
-      const recordId = (record as any)._id
-        ? (record as any)._id.toString()
-        : record.toString();
-      await this.academicRecordService.restore(recordId, requester);
-    }
+      const associatedRecords =
+        await this.academicRecordService.findByDailyReportId(id, true, undefined, { session });
+      for (const record of associatedRecords) {
+        const recordId = (record as any)._id
+          ? (record as any)._id.toString()
+          : record.toString();
+        const isAlreadyActive =
+          (record as any).status === 'active' && (record as any).is_deleted !== true;
+        if (isAlreadyActive) continue;
+        try {
+          await this.academicRecordService.restore(recordId, requester, {
+            session,
+            deferSync: true,
+          });
+          syncTargets.push(record as any);
+        } catch (error) {
+          throw this.cascadeFailure(
+            error,
+            'child_restore',
+            recordId,
+            'DAILY_REPORT_CHILD_RESTORE_FAILED',
+          );
+        }
+      }
 
-    report.is_delete = false;
-    const saved = await report.save();
-    return saved.populate(['class_id', 'reported_by']);
+      report.is_delete = false;
+      const updatedReport = await report.save({ session });
+      return updatedReport.populate(['class_id', 'reported_by']);
+    });
+    await this.reconcileAfterTransaction(syncTargets, id);
+    return saved;
   }
 
   async forceRemove(id: string, requester: any): Promise<DailyClassReport> {
@@ -443,36 +550,65 @@ export class DailyClassReportService {
       throw new BadRequestException(`ID báo cáo không hợp lệ: ${id}`);
     }
 
-    const report = await this.dailyClassReportModel.findById(id).exec();
-    if (!report) {
-      throw new NotFoundException(`Báo cáo lớp học với ID ${id} không tồn tại`);
-    }
+    const syncTargets: Array<{ student_id: any; semester_id: any; criterion_id: any }> = [];
+    const deleted = await this.withTransaction(async (session) => {
+      const reportQuery = this.applySession(
+        this.dailyClassReportModel.findById(id),
+        session,
+      );
+      const report = await reportQuery.exec();
+      if (!report) {
+        throw new NotFoundException(`Báo cáo lớp học với ID ${id} không tồn tại`);
+      }
 
-    this.checkReportPermission(report, requester);
+      this.checkReportPermission(report, requester);
+      if (report.is_delete !== true) {
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Chỉ có thể xóa vĩnh viễn báo cáo đã nằm trong thùng rác.',
+          error: 'Bad Request',
+          reasonCode: 'DAILY_REPORT_NOT_TRASHED',
+          operationPhase: 'precondition',
+          failedObjectId: id,
+        });
+      }
 
-    // Xoá vĩnh viễn tất cả AcademicRecord liên kết (kể cả đã bị soft-deleted)
-    const associatedRecords =
-      await this.academicRecordService.findByDailyReportId(id, true);
-    for (const record of associatedRecords) {
-      const recordId = (record as any)._id
-        ? (record as any)._id.toString()
-        : record.toString();
-      try {
-        await this.academicRecordService.forceRemove(recordId, requester, true);
-      } catch (err) {
-        console.warn(
-          `Could not force delete associated record ${recordId} for report ${id}:`,
-          err,
+      const associatedRecords =
+        await this.academicRecordService.findByDailyReportId(id, true, undefined, { session });
+      for (const record of associatedRecords) {
+        const recordId = (record as any)._id
+          ? (record as any)._id.toString()
+          : record.toString();
+        try {
+          await this.academicRecordService.forceRemove(recordId, requester, true, {
+            session,
+            deferSync: true,
+          });
+          syncTargets.push(record as any);
+        } catch (error) {
+          throw this.cascadeFailure(
+            error,
+            'child_force_remove',
+            recordId,
+            'DAILY_REPORT_CHILD_FORCE_REMOVE_FAILED',
+          );
+        }
+      }
+
+      const deletedReport = await this.dailyClassReportModel
+        .findByIdAndDelete(id, { session })
+        .exec();
+      if (!deletedReport) {
+        throw this.cascadeFailure(
+          new NotFoundException(`DailyClassReport with ID ${id} not found`),
+          'parent_force_remove',
+          id,
+          'DAILY_REPORT_PARENT_FORCE_REMOVE_FAILED',
         );
       }
-    }
-
-    const deleted = await this.dailyClassReportModel
-      .findByIdAndDelete(id)
-      .exec();
-    if (!deleted) {
-      throw new NotFoundException(`DailyClassReport with ID ${id} not found`);
-    }
+      return deletedReport;
+    });
+    await this.reconcileAfterTransaction(syncTargets, id);
     return deleted;
   }
 

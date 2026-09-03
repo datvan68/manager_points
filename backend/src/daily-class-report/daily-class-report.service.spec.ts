@@ -4,20 +4,45 @@ import { getModelToken } from '@nestjs/mongoose';
 import { DailyClassReport } from './schemas/daily-class-report.schema';
 import { AcademicRecordService } from '../academic-record/academic-record.service';
 import { Types } from 'mongoose';
+import { BadRequestException } from '@nestjs/common';
 
 describe('DailyClassReportService', () => {
   let service: DailyClassReportService;
 
   const mockDailyClassReportModel: any = Object.assign(jest.fn(), {
-    db: { model: jest.fn() },
+    db: { model: jest.fn(), startSession: jest.fn() },
     find: jest.fn(),
+    findOne: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
     countDocuments: jest.fn(),
   });
 
   const mockAcademicRecordService = {
     classModel: { find: jest.fn() },
     studentModel: { findOne: jest.fn() },
+    findByDailyReportId: jest.fn(),
+    remove: jest.fn(),
+    restore: jest.fn(),
+    forceRemove: jest.fn(),
+    syncMultipleStudentCriterionScores: jest.fn(),
   };
+
+  const makeSession = () => {
+    const session = {
+      withTransaction: jest.fn(async (work: () => Promise<void>) => work()),
+      endSession: jest.fn().mockResolvedValue(undefined),
+    };
+    mockDailyClassReportModel.db.startSession.mockResolvedValue(session);
+    return session;
+  };
+
+  const makeQuery = (value: any) => ({
+    session: jest.fn().mockReturnThis(),
+    populate: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(value),
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -138,5 +163,100 @@ describe('DailyClassReportService', () => {
       total_absent: 0,
       teacher_name: '',
     })).resolves.toEqual({ teacher_name: '' });
+  });
+
+  it('aborts the report soft-delete transaction when a child mutation fails', async () => {
+    const session = makeSession();
+    const reportId = new Types.ObjectId().toString();
+    const childId = new Types.ObjectId().toString();
+    const report = { _id: reportId, reported_by: 'owner-1' };
+    const child = {
+      _id: childId,
+      student_id: new Types.ObjectId(),
+      semester_id: new Types.ObjectId(),
+      criterion_id: new Types.ObjectId(),
+    };
+    mockDailyClassReportModel.findOne.mockReturnValue(makeQuery(report));
+    mockAcademicRecordService.findByDailyReportId.mockResolvedValue([child]);
+    mockAcademicRecordService.remove.mockRejectedValue(
+      new BadRequestException({ reasonCode: 'CHILD_FAILURE', message: 'child failed' }),
+    );
+
+    const error = await service
+      .remove(reportId, { userId: 'owner-1', roleName: 'Teacher' })
+      .catch((value) => value);
+
+    expect(error.getResponse()).toEqual(expect.objectContaining({
+      reasonCode: 'CHILD_FAILURE',
+      operationPhase: 'child_remove',
+      failedObjectId: childId,
+    }));
+    expect(mockDailyClassReportModel.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(session.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores only deleted children and reconciles once after commit', async () => {
+    const session = makeSession();
+    const reportId = new Types.ObjectId().toString();
+    const activeChild = {
+      _id: new Types.ObjectId(),
+      status: 'active',
+      is_deleted: false,
+    };
+    const deletedChild = {
+      _id: new Types.ObjectId(),
+      status: 'inactive',
+      is_deleted: true,
+      student_id: new Types.ObjectId(),
+      semester_id: new Types.ObjectId(),
+      criterion_id: new Types.ObjectId(),
+    };
+    const report = {
+      _id: reportId,
+      is_delete: true,
+      reported_by: 'owner-1',
+      save: jest.fn().mockResolvedValue({
+        populate: jest.fn().mockResolvedValue({ _id: reportId, is_delete: false }),
+      }),
+    };
+    mockDailyClassReportModel.findOne.mockReturnValue(makeQuery(report));
+    mockAcademicRecordService.findByDailyReportId.mockResolvedValue([
+      activeChild,
+      deletedChild,
+    ]);
+    mockAcademicRecordService.restore.mockResolvedValue(deletedChild);
+
+    await service.restore(reportId, { userId: 'owner-1', roleName: 'Teacher' });
+
+    expect(mockAcademicRecordService.restore).toHaveBeenCalledTimes(1);
+    expect(mockAcademicRecordService.restore).toHaveBeenCalledWith(
+      deletedChild._id.toString(),
+      { userId: 'owner-1', roleName: 'Teacher' },
+      { session, deferSync: true },
+    );
+    expect(mockAcademicRecordService.syncMultipleStudentCriterionScores)
+      .toHaveBeenCalledTimes(1);
+    expect(report.save).toHaveBeenCalledWith({ session });
+  });
+
+  it('rejects permanent deletion of an active report before touching children', async () => {
+    const session = makeSession();
+    const reportId = new Types.ObjectId().toString();
+    mockDailyClassReportModel.findById.mockReturnValue(
+      makeQuery({ _id: reportId, is_delete: false, reported_by: 'owner-1' }),
+    );
+
+    await expect(
+      service.forceRemove(reportId, { userId: 'owner-1', roleName: 'Teacher' }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        reasonCode: 'DAILY_REPORT_NOT_TRASHED',
+        operationPhase: 'precondition',
+        failedObjectId: reportId,
+      }),
+    });
+    expect(mockAcademicRecordService.findByDailyReportId).not.toHaveBeenCalled();
+    expect(session.endSession).toHaveBeenCalledTimes(1);
   });
 });

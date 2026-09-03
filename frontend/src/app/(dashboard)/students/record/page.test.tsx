@@ -79,6 +79,8 @@ vi.mock('@/api/daily-class-report-api', () => ({
   dailyClassReportApi: {
     getDailyClassReports: vi.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
     getDeletedDailyClassReports: vi.fn().mockResolvedValue([]),
+    forceDeleteDailyClassReport: vi.fn(),
+    restoreDailyClassReport: vi.fn(),
   }
 }));
 
@@ -546,6 +548,73 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(await screen.findByText('Thùng rác báo cáo lớp trống.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Quay lại cấu hình' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đóng thùng rác' })).toBeInTheDocument();
+  });
+
+  it('isolates trash source failures and retries only the failed tab', async () => {
+    (academicRecordApi.getDeletedAcademicRecords as any).mockResolvedValue([
+      makeAcademicRecord(1),
+    ]);
+    (dailyClassReportApi.getDeletedDailyClassReports as any)
+      .mockRejectedValueOnce(new Error('Báo cáo tạm thời không khả dụng'))
+      .mockResolvedValueOnce([]);
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+    fireEvent.click(await screen.findByText('Thùng rác'));
+
+    expect(await screen.findAllByText('Student 1')).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole('tab', { name: /Báo cáo của lớp/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Báo cáo tạm thời không khả dụng',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Thử tải lại' }));
+
+    await waitFor(() => {
+      expect(dailyClassReportApi.getDeletedDailyClassReports).toHaveBeenCalledTimes(2);
+      expect(academicRecordApi.getDeletedAcademicRecords).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByText('Thùng rác báo cáo lớp trống.')).toBeInTheDocument();
+  });
+
+  it('limits bulk report purge to five requests and reports retained failures', async () => {
+    const reports = Array.from({ length: 7 }, (_, index) => ({
+      _id: `report-${index + 1}`,
+      class_id: { class_name: `CS-${index + 1}` },
+      report_date: '2026-08-24',
+      reported_by: { user_name: 'Teacher' },
+    }));
+    const failedReport = reports[2];
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    (dailyClassReportApi.getDeletedDailyClassReports as any)
+      .mockResolvedValueOnce(reports)
+      .mockResolvedValueOnce([failedReport]);
+    (dailyClassReportApi.forceDeleteDailyClassReport as any).mockImplementation(
+      async (id: string) => {
+        activeRequests += 1;
+        maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        activeRequests -= 1;
+        if (id === failedReport._id) throw new Error('Backend từ chối xóa');
+        return {};
+      },
+    );
+
+    render(<StudentRecordPage />);
+    fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
+    fireEvent.click(await screen.findByText('Thùng rác'));
+    fireEvent.click(screen.getByRole('tab', { name: /Báo cáo của lớp/ }));
+    await screen.findAllByText('CS-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa tất cả', exact: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá tất cả', exact: true }));
+
+    await waitFor(() => {
+      expect(dailyClassReportApi.forceDeleteDailyClassReport).toHaveBeenCalledTimes(7);
+      expect(screen.getByRole('status')).toHaveTextContent('Đã xoá thành công 6 báo cáo');
+      expect(screen.getByRole('status')).toHaveTextContent('CS-3 (report-3): Backend từ chối xóa');
+    });
+    expect(maxActiveRequests).toBeLessThanOrEqual(5);
+    expect(screen.getAllByText('CS-3').length).toBeGreaterThan(0);
   });
 
   it('offers 500 rows for student pagination and refetches page one', async () => {

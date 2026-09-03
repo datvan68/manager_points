@@ -121,6 +121,12 @@ interface MappedAcademicRecord {
 }
 
 type AcademicRecordType = "khen_thuong" | "cong_diem" | "ky_luat";
+type TrashSource = "records" | "reports";
+
+type TrashSourceState = {
+  loading: boolean;
+  error: string | null;
+};
 
 const academicRecordTypeLabels: Record<AcademicRecordType, string> = {
   khen_thuong: "Khen thưởng",
@@ -134,6 +140,12 @@ const getAcademicRecordTypeLabel = (type: AcademicRecordType) =>
 /** Display class codes without the academic-year suffix. */
 const getDisplayClassName = (className?: string) =>
   String(className || "N/A").replace(/\s*\(\d{4}\s*-\s*\d{4}\)\s*$/, "").trim();
+
+const getTrashErrorMessage = (error: any, fallback: string) => {
+  const response = error?.response;
+  const message = response?.message || error?.message;
+  return Array.isArray(message) ? message.join(", ") : String(message || fallback);
+};
 
 const formatSignedPoints = (points: number) =>
   `${points > 0 ? "+" : ""}${points}`;
@@ -528,9 +540,17 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
   const [deletedReports, setDeletedReports] = useState<DailyClassReport[]>([]);
-  const [isTrashLoading, setIsTrashLoading] = useState(false);
+  const [trashLoadState, setTrashLoadState] = useState<Record<TrashSource, TrashSourceState>>({
+    records: { loading: false, error: null },
+    reports: { loading: false, error: null },
+  });
   const [isDeleteAllRecordsConfirmOpen, setIsDeleteAllRecordsConfirmOpen] = useState(false);
   const [isDeleteAllReportsConfirmOpen, setIsDeleteAllReportsConfirmOpen] = useState(false);
+  const [isDeletingReports, setIsDeletingReports] = useState(false);
+  const [reportBulkResult, setReportBulkResult] = useState<{
+    succeeded: number;
+    failed: Array<{ id: string; label: string; message: string }>;
+  } | null>(null);
   const [isDeletingRecords, setIsDeletingRecords] = useState(false);
   const isDeletingRecordsRef = useRef(false);
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ processed: 0, total: 0, failed: [] as Array<{ id: string; message: string }> });
@@ -1507,21 +1527,40 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     }
   };
 
-  const fetchDeletedItems = async () => {
-    setIsTrashLoading(true);
-    try {
-      const [recs, reps] = await Promise.all([
-        academicRecordApi.getDeletedAcademicRecords(),
-        dailyClassReportApi.getDeletedDailyClassReports(),
-      ]);
-      setDeletedRecords(recs);
-      setDeletedReports(reps);
-    } catch (err) {
-      console.error("Lỗi khi tải dữ liệu thùng rác:", err);
-      toast.error("Không thể tải danh sách thùng rác.");
-    } finally {
-      setIsTrashLoading(false);
-    }
+  const fetchDeletedItems = async (source?: TrashSource) => {
+    const sources: TrashSource[] = source ? [source] : ["records", "reports"];
+    const loadSource = async (currentSource: TrashSource) => {
+      setTrashLoadState((previous) => ({
+        ...previous,
+        [currentSource]: { loading: true, error: null },
+      }));
+      try {
+        if (currentSource === "records") {
+          setDeletedRecords(await academicRecordApi.getDeletedAcademicRecords());
+        } else {
+          setDeletedReports(await dailyClassReportApi.getDeletedDailyClassReports());
+        }
+      } catch (error) {
+        const message = getTrashErrorMessage(
+          error,
+          currentSource === "records"
+            ? "Không thể tải danh sách ghi nhận đã xóa."
+            : "Không thể tải danh sách báo cáo đã xóa.",
+        );
+        console.error(`Lỗi khi tải dữ liệu thùng rác (${currentSource}):`, error);
+        setTrashLoadState((previous) => ({
+          ...previous,
+          [currentSource]: { loading: false, error: message },
+        }));
+        return;
+      }
+      setTrashLoadState((previous) => ({
+        ...previous,
+        [currentSource]: { loading: false, error: null },
+      }));
+    };
+
+    await Promise.all(sources.map(loadSource));
   };
 
   const handleRestoreRecord = async (id: string) => {
@@ -1551,7 +1590,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleForceDeleteRecord = async (id: string) => {
     try {
-      await academicRecordApi.forceDeleteAcademicRecord(id, true);
+      await academicRecordApi.forceDeleteAcademicRecord(id);
       toast.success("Đã xóa vĩnh viễn ghi nhận vi phạm.");
       setRecordToForceDelete(null);
       fetchDeletedItems();
@@ -1588,27 +1627,49 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleForceDeleteAllReports = async () => {
     setIsDeleteAllReportsConfirmOpen(false);
-    if (deletedReports.length === 0) return;
+    if (isDeletingReports || deletedReports.length === 0) return;
+    setIsDeletingReports(true);
+    setReportBulkResult(null);
     const toastId = toast.loading("Đang xóa vĩnh viễn tất cả báo cáo lớp học...");
-    try {
-      const results = await Promise.allSettled(
-        deletedReports.map((rep) =>
-          dailyClassReportApi.forceDeleteDailyClassReport(rep._id),
-        ),
-      );
-      const successCount = results.filter((r) => r.status === "fulfilled").length;
-      const failCount = results.filter((r) => r.status === "rejected").length;
-
-      if (failCount > 0) {
-        toast.warning(`Đã xóa vĩnh viễn ${successCount} báo cáo. Thất bại ${failCount} báo cáo.`, { id: toastId });
-      } else {
-        toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
+    const reports = [...deletedReports];
+    const failed: Array<{ id: string; label: string; message: string }> = [];
+    const succeededIds = new Set<string>();
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < reports.length) {
+        const report = reports[nextIndex++];
+        const classObj = typeof report.class_id === "object" ? report.class_id : null;
+        const label = getDisplayClassName(classObj?.class_name);
+        try {
+          await dailyClassReportApi.forceDeleteDailyClassReport(report._id);
+          succeededIds.add(report._id);
+        } catch (error) {
+          failed.push({
+            id: report._id,
+            label,
+            message: getTrashErrorMessage(error, "Không thể xóa vĩnh viễn báo cáo."),
+          });
+        }
       }
-      fetchDeletedItems();
-    } catch (err: any) {
-      console.error("Lỗi khi xóa vĩnh viễn tất cả báo cáo:", err);
-      toast.error(err.message || "Xóa vĩnh viễn thất bại.", { id: toastId });
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(5, reports.length) }, () => worker()),
+    );
+    setDeletedReports((previous) =>
+      previous.filter((report) => !succeededIds.has(report._id)),
+    );
+    setReportBulkResult({ succeeded: succeededIds.size, failed });
+    if (failed.length > 0) {
+      toast.warning(
+        `Đã xóa vĩnh viễn ${succeededIds.size} báo cáo. Thất bại ${failed.length} báo cáo.`,
+        { id: toastId },
+      );
+    } else {
+      toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
     }
+    await fetchDeletedItems("reports");
+    setIsDeletingReports(false);
   };
 
   const handleExportStudentExcel = async () => {
@@ -1920,6 +1981,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     : bulkDeleteResult?.failed.length
       ? "Hoàn tất một phần"
       : "Hoàn tất";
+  const trashSource: TrashSource = trashTab === "student" ? "records" : "reports";
+  const activeTrashSourceState = trashLoadState[trashSource];
 
   if (currentView === "add" && canCreateRecords) {
     return (
@@ -4719,6 +4782,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                     setIsDeleteAllReportsConfirmOpen(true);
                   }
                 }}
+                disabled={trashTab === "class" && isDeletingReports}
                 className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-500/20 flex items-center gap-1.5 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
               >
                 <Trash2 size={13} />
@@ -4728,10 +4792,21 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           </div>
 
           <div className="mt-2 min-h-0 max-h-[min(56vh,440px)] overflow-y-auto pr-1 custom-scrollbar">
-            {isTrashLoading ? (
+            {activeTrashSourceState.loading ? (
               <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
                 <span>Đang tải dữ liệu thùng rác...</span>
+              </div>
+            ) : activeTrashSourceState.error ? (
+              <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-rose-700" role="alert">
+                <p>{activeTrashSourceState.error}</p>
+                <button
+                  type="button"
+                  onClick={() => void fetchDeletedItems(trashSource)}
+                  className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-500/20"
+                >
+                  Thử tải lại
+                </button>
               </div>
             ) : trashTab === "student" ? (
               <>
@@ -4901,6 +4976,34 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               </>
             )}
           </div>
+
+          {reportBulkResult && (
+            <div
+              className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-700"
+              role="status"
+              aria-live="polite"
+            >
+              <p className="font-bold">
+                Đã xoá thành công {reportBulkResult.succeeded} báo cáo; còn {reportBulkResult.failed.length} báo cáo thất bại.
+              </p>
+              {reportBulkResult.failed.length > 0 && (
+                <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+                  {reportBulkResult.failed.map((item) => (
+                    <div key={item.id}>
+                      {item.label} ({item.id}): {item.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setReportBulkResult(null)}
+                className="mt-2 rounded-lg border border-rose-500/20 bg-white/50 px-2.5 py-1 font-semibold hover:bg-white/80"
+              >
+                Đóng thông báo
+              </button>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-white/75 pt-4">
             <button

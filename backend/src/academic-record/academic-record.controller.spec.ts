@@ -209,7 +209,7 @@ describe('AcademicRecordController - Import Flow', () => {
     await controller.bulkForceRemove(dto, req);
 
     expect(service.bulkRemove).toHaveBeenCalledWith(dto.ids, req.user);
-    expect(service.bulkForceRemove).toHaveBeenCalledWith(dto.ids, req.user, true);
+    expect(service.bulkForceRemove).toHaveBeenCalledWith(dto.ids, req.user);
   });
 
   it('forwards the bulk delete preview request with requester context', async () => {
@@ -269,12 +269,10 @@ describe('AcademicRecordController - Import Flow', () => {
       expect(service.bulkForceRemove).toHaveBeenCalledWith(
         ['record-1', 'record-2'],
         { roleName: 'Admin' },
-        true,
       );
       expect(service.forceRemove).toHaveBeenCalledWith(
         'record-1',
         { roleName: 'Admin' },
-        true,
       );
       expect(service.forceRemove).not.toHaveBeenCalledWith(
         'bulk',

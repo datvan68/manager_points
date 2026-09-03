@@ -331,11 +331,8 @@ export class AcademicRecordController {
   remove(
     @Param('id') id: string,
     @Request() req: any,
-    @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
-    const bypass = bypassDailyReportCheck === 'true';
-    const requester = req.user;
-    return this.academicRecordService.remove(id, requester, bypass);
+    return this.academicRecordService.remove(id, req.user);
   }
 
   @Patch(':id/restore')
@@ -355,7 +352,7 @@ export class AcademicRecordController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Permanently delete multiple academic records' })
   bulkForceRemove(@Body() dto: BulkDeleteAcademicRecordDto, @Request() req: any) {
-    return this.academicRecordService.bulkForceRemove(dto.ids, req.user, true);
+    return this.academicRecordService.bulkForceRemove(dto.ids, req.user);
   }
 
   @Delete(':id/force')
@@ -368,10 +365,7 @@ export class AcademicRecordController {
   forceRemove(
     @Param('id') id: string,
     @Request() req: any,
-    @Query('bypassDailyReportCheck') bypassDailyReportCheck?: string,
   ) {
-    const bypass = bypassDailyReportCheck === 'true';
-    const requester = req.user;
-    return this.academicRecordService.forceRemove(id, requester, bypass);
+    return this.academicRecordService.forceRemove(id, req.user);
   }
 }
