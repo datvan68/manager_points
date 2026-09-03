@@ -2,6 +2,7 @@ jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
 import { DormitoryRosterService } from './dormitory-roster.service';
+import { dormitoryOverviewEventEmitter } from '../dormitory-overview-event-emitter';
 
 function query<T>(value: T) {
   const result: any = { exec: jest.fn().mockResolvedValue(value), lean: jest.fn(() => result), populate: jest.fn(() => result), sort: jest.fn(() => result), skip: jest.fn(() => result), limit: jest.fn(() => result) };
@@ -48,6 +49,36 @@ describe('DormitoryRosterService', () => {
     expect(result.identity_state).toBe('UNLINKED');
     expect(result.roster_entry_code).toBeDefined();
     expect(result).not.toHaveProperty('status');
+  });
+
+  it('imports valid rows, reports in-file duplicates and row errors, and emits one invalidation', async () => {
+    const { service, saved, rosterModel } = setup();
+    const events: unknown[] = [];
+    const listener = (event: unknown) => events.push(event);
+    dormitoryOverviewEventEmitter.on('dormitory_overview_event', listener);
+
+    const result = await service.importRows({ rows: [
+      { full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678' },
+      { full_name: '  nguyễn   văn a ', date_of_birth: '2004-01-02', gender: 'Female', phone_number: '0912345679' },
+      { full_name: 'B', date_of_birth: 'not-a-date', gender: 'unknown', phone_number: 'bad' },
+    ] } as any);
+
+    dormitoryOverviewEventEmitter.off('dormitory_overview_event', listener);
+    expect(result).toMatchObject({ requested: 3, created: 1, duplicated: 1, failed: 1 });
+    expect(result.results.map((item) => item.status)).toEqual(['created', 'duplicated', 'failed']);
+    expect(result.results[1].reason).toContain('tệp');
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(rosterModel).toHaveBeenCalledWith(expect.objectContaining({ room_type: 'Thường', identity_state: 'UNLINKED', semester_id: semester._id }));
+    expect(events).toHaveLength(1);
+  });
+
+  it('reports an existing normalized identity as duplicated without creating it', async () => {
+    const { service, rosterModel, saved } = setup();
+    rosterModel.find.mockReturnValue(query([{ full_name_normalized: 'nguyễn văn a', date_of_birth: new Date('2004-01-02') }]));
+
+    const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678' }] } as any);
+    expect(result).toMatchObject({ created: 0, duplicated: 1, failed: 0 });
+    expect(saved).not.toHaveBeenCalled();
   });
 
   it('refuses deletion while a contract references the roster entry', async () => {

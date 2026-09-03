@@ -7,10 +7,12 @@ import {
   isUnassignedRoom,
   selectedPdfRosterEntries,
   selectedPdfRosterEntry,
+  shouldShowRosterImport,
   studentName,
 } from './page';
 
-vi.mock('@/providers/auth-provider', () => ({ useAuth: () => ({ hasPermission: () => true }) }));
+const authState = vi.hoisted(() => ({ canCreate: true }));
+vi.mock('@/providers/auth-provider', () => ({ useAuth: () => ({ hasPermission: (permission: string) => permission === 'DORM_REG_CREATE' ? authState.canCreate : true }) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 let compactViewport = false;
@@ -29,6 +31,7 @@ const entry3 = { _id: 'entry-3', roster_entry_code: 'DK-3', full_name: 'Lê C', 
 
 describe('Danh sách KTX canonical page capabilities', () => {
   beforeEach(() => {
+    authState.canCreate = true;
     compactViewport = false;
     intersectionCallback = undefined;
     Object.defineProperty(window, 'matchMedia', {
@@ -46,6 +49,20 @@ describe('Danh sách KTX canonical page capabilities', () => {
     expect(selectedPdfRosterEntry([entry1], ['entry-1'])).toBe(entry1);
     expect(selectedPdfRosterEntry([entry1, entry2], ['entry-1', 'entry-2'])).toBeUndefined();
     expect(selectedPdfRosterEntry([entry1], [])).toBeUndefined();
+  });
+
+  it('exposes the Excel import entry point only for create-capable users', () => {
+    expect(shouldShowRosterImport(true)).toBe(true);
+    expect(shouldShowRosterImport(false)).toBe(false);
+  });
+
+  it('hides the Excel import button when create permission is absent', async () => {
+    authState.canCreate = false;
+    vi.spyOn(dormitoryApi.roster, 'getAll').mockResolvedValue({ data: [], meta: { total: 0, page: 1, limit: 40, totalPages: 0 } } as any);
+    const { default: DormitoryRosterPage } = await import('./page');
+    render(<DormitoryRosterPage />);
+    await waitFor(() => expect(dormitoryApi.roster.getAll).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Nhập danh sách KTX từ Excel' })).not.toBeInTheDocument();
   });
 
   it('filters selected PDF roster entries in deterministic table order', () => {
@@ -79,5 +96,6 @@ describe('Danh sách KTX canonical page capabilities', () => {
     await waitFor(() => expect(getAll).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })));
 
     expect(screen.getAllByText('Trần B').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Nhập danh sách KTX từ Excel' })).toBeInTheDocument();
   });
 });

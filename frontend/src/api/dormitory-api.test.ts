@@ -256,6 +256,22 @@ describe('dormitoryApi.roomFeeInvoices', () => {
   });
 });
 
+describe('dormitoryApi.roster import', () => {
+  it('posts typed bulk rows to the protected roster import endpoint', async () => {
+    const payload = {
+      rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '2004-01-02', gender: 'Male' as const, phone_number: '0912345678' }],
+    };
+    const response = { requested: 1, created: 1, duplicated: 0, failed: 0, results: [{ row: 2, status: 'created' as const }] };
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => response } as any);
+
+    await expect(dormitoryApi.roster.importRows(payload.rows)).resolves.toEqual(response);
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/roster/import'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) }),
+    );
+  });
+});
+
 describe('dormitoryApi.invoices', () => {
   beforeEach(() => {
     vi.clearAllMocks();

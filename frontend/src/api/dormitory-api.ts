@@ -99,6 +99,26 @@ export interface CreateDormitoryRosterEntryInput {
   applicant_profile?: ApplicantProfile;
 }
 
+export interface DormitoryRosterImportRowInput {
+  full_name: string;
+  date_of_birth: string;
+  gender: 'Male' | 'Female' | 'Other';
+  phone_number: string;
+}
+
+export interface DormitoryRosterImportResponse {
+  requested: number;
+  created: number;
+  duplicated: number;
+  failed: number;
+  results: Array<{
+    row: number;
+    status: 'created' | 'duplicated' | 'failed';
+    reason?: string;
+    roster_entry_code?: string;
+  }>;
+}
+
 export interface PublicDormitorySemester {
   semester_name: string;
   semester: string;
@@ -750,6 +770,10 @@ export const dormitoryApi = {
     },
     async create(dto: CreateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {
       const res = await httpClient(`${API_BASE}/dormitory/roster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
+      return handleResponse(res);
+    },
+    async importRows(rows: DormitoryRosterImportRowInput[]): Promise<DormitoryRosterImportResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) });
       return handleResponse(res);
     },
     async update(id: string, dto: UpdateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {

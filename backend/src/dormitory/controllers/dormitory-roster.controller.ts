@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DormitoryRosterService } from '../services/dormitory-roster.service';
 import { RoomAssignmentService } from '../services/room-assignment.service';
 import { CreateRosterEntryDto } from '../dto/create-roster-entry.dto';
+import { ImportRosterDto } from '../dto/import-roster.dto';
 import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
 import { AssignRoomDto } from '../dto/assign-room.dto';
 import { UnassignRoomDto } from '../dto/unassign-room.dto';
@@ -19,6 +20,10 @@ export class DormitoryRosterController {
     private readonly rosterService: DormitoryRosterService,
     private readonly roomAssignmentService: RoomAssignmentService,
   ) {}
+
+  @Post('import')
+  @UseGuards(checkPermission('DORM_REG_CREATE'))
+  import(@Body() dto: ImportRosterDto) { return this.rosterService.importRows(dto); }
 
   @Post()
   @UseGuards(checkPermission('DORM_REG_CREATE'))

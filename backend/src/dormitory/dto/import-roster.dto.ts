@@ -1,0 +1,39 @@
+import { Type, Transform } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+
+const asString = ({ value }: { value: unknown }) => value == null ? value : String(value);
+
+export class ImportRosterRowDto {
+  @IsOptional()
+  @Transform(asString)
+  @IsString()
+  @MaxLength(200)
+  full_name?: string;
+
+  @IsOptional()
+  @Transform(asString)
+  @IsString()
+  @MaxLength(50)
+  date_of_birth?: string;
+
+  @IsOptional()
+  @Transform(asString)
+  @IsString()
+  @MaxLength(30)
+  gender?: string;
+
+  @IsOptional()
+  @Transform(asString)
+  @IsString()
+  @MaxLength(50)
+  phone_number?: string;
+}
+
+export class ImportRosterDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5000)
+  @ValidateNested({ each: true })
+  @Type(() => ImportRosterRowDto)
+  rows: ImportRosterRowDto[];
+}

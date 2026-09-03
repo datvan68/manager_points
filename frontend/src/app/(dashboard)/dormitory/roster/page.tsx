@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, DoorOpen, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, X } from 'lucide-react';
+import { Calendar, DoorOpen, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, Upload, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
 import { ApplicantProfile, Bed, CreateDormitoryRosterEntryInput, dormitoryApi, DormitoryRosterEntry, Room } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
@@ -21,12 +21,14 @@ import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { emptyApplicantProfile } from '@/components/dormitory/PublicDormitoryRegistrationModal';
 import DormitoryRegistrationEditModal, { dateInputValue, mapActiveSemester } from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryRosterImportModal from '@/components/dormitory/DormitoryRosterImportModal';
 import type { ActiveSemesterValues } from '@/components/dormitory/DormitoryRegistrationEditModal';
 export { buildEditRegistrationPayload, mapActiveSemester } from '@/components/dormitory/DormitoryRegistrationEditModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
 export const REGISTRATION_TABLE_CLASS_NAME = 'text-xs';
 export const PUBLIC_REGISTRATION_PATH = '/public/dormitory/register';
+export const shouldShowRosterImport = (canCreate: boolean) => canCreate;
 export const getPublicRegistrationUrl = (origin: string) => `${origin.replace(/\/$/, '')}${PUBLIC_REGISTRATION_PATH}`;
 export const roomStatusLabel = (status: Room['status']) => ({ 'Trống': 'Trống', 'Đầy': 'Đầy', 'Khóa': 'Khóa', 'Bảo trì': 'Bảo trì' }[status] || status);
 export const roomQuantityLabel = (room: Pick<Room, 'available_bed_count'> & Partial<Pick<Room, 'max_students'>>) => room.max_students === undefined
@@ -266,7 +268,7 @@ export default function DormitoryRosterPage() {
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const rosterRequestRef = useRef(0); const studentRequestRef = useRef(0);
   const [mobileLoadingMore, setMobileLoadingMore] = useState(false); const [mobileLoadError, setMobileLoadError] = useState(false); const [mobileHasMore, setMobileHasMore] = useState(true); const mobilePageRef = useRef(1); const mobileHasMoreRef = useRef(true); const queryGenerationRef = useRef(0);
-  const [createOpen, setCreateOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false); const [activeSemesterName, setActiveSemesterName] = useState(''); const [calendarOpen, setCalendarOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false); const [importOpen, setImportOpen] = useState(false); const [createSaving, setCreateSaving] = useState(false); const [createError, setCreateError] = useState(''); const [semesterError, setSemesterError] = useState(''); const [semesterLoading, setSemesterLoading] = useState(false); const [activeSemesterName, setActiveSemesterName] = useState(''); const [calendarOpen, setCalendarOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false); const [qrDataUrl, setQrDataUrl] = useState(''); const [qrError, setQrError] = useState('');
   const [studentSearch, setStudentSearch] = useState(''); const [studentOptions, setStudentOptions] = useState<Student[]>([]); const [student, setStudent] = useState<Student | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
@@ -454,6 +456,7 @@ export default function DormitoryRosterPage() {
       {!mobileSearchOpen && <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex lg:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>}
       <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
         {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
+        {shouldShowRosterImport(canCreate) && <Button type="button" variant="outline" aria-label="Nhập danh sách KTX từ Excel" onClick={() => setImportOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Upload size={14} /> <span className="hidden sm:inline">Nhập Excel</span></Button>}
         {canCreate && <Button type="button" variant="outline" aria-label="Thêm sinh viên" onClick={() => setCreateOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Plus size={14} /> <span className="hidden sm:inline">Thêm sinh viên</span></Button>}
         <Button type="button" variant="outline" aria-label="Tải lại danh sách" title="Tải lại" onClick={() => void load(true)} disabled={refreshing} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /></Button>
       </div>
@@ -472,6 +475,7 @@ export default function DormitoryRosterPage() {
       </DialogContent>
     </Dialog>
     <DormitoryRegistrationEditModal open={Boolean(editRow)} registration={editRow} canEdit={canUpdate} onOpenChange={open => { if (!open) setEditRow(null); }} onSuccess={() => load(true)} />
+    <DormitoryRosterImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onSuccess={() => void load(true)} />
     <ConfirmModal
       isOpen={Boolean(deleteRow)}
       onClose={() => setDeleteRow(null)}

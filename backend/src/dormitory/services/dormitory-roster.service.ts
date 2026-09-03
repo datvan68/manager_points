@@ -20,6 +20,7 @@ import { Semester, SemesterDocument } from '../../semesters/schemas/semester.sch
 import { Contract, ContractDocument } from '../schemas/contract.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { CreateRosterEntryDto } from '../dto/create-roster-entry.dto';
+import { ImportRosterDto, ImportRosterRowDto } from '../dto/import-roster.dto';
 import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
@@ -58,6 +59,28 @@ export class DormitoryRosterService {
     return String(value || '').trim().normalize('NFKC').toLocaleUpperCase();
   }
 
+  private normalizeGender(value: unknown): 'Male' | 'Female' | 'Other' | null {
+    const normalized = String(value || '').trim().toLocaleLowerCase('vi-VN');
+    return ({ male: 'Male', female: 'Female', other: 'Other', nam: 'Male', nữ: 'Female', khac: 'Other', khác: 'Other' } as Record<string, 'Male' | 'Female' | 'Other'>)[normalized] || null;
+  }
+
+  private parseDateOfBirth(value: unknown): Date | null {
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+    const raw = String(value || '').trim();
+    const vietnamese = raw.match(/^(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{4})$/);
+    if (vietnamese) {
+      const date = new Date(Date.UTC(Number(vietnamese[3]), Number(vietnamese[2]) - 1, Number(vietnamese[1])));
+      return date.getUTCFullYear() === Number(vietnamese[3]) && date.getUTCMonth() === Number(vietnamese[2]) - 1 && date.getUTCDate() === Number(vietnamese[1]) ? date : null;
+    }
+    const date = raw ? new Date(raw) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  }
+
+  private dateKey(value: unknown) {
+    const date = value instanceof Date ? value : this.parseDateOfBirth(value);
+    return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '';
+  }
+
   private parseSemester(semester: SemesterDocument) {
     const parts = String(semester.semester_name || '').split(/\s*-\s*/);
     return { semester: parts[0] || '', academic_year: parts.slice(1).join('-').replace(/\s/g, '') };
@@ -73,12 +96,14 @@ export class DormitoryRosterService {
 
   private validateManualIdentity(input: { full_name?: unknown; date_of_birth?: unknown; gender?: unknown }) {
     const fullName = String(input.full_name || '').trim().replace(/\s+/g, ' ');
-    const dob = input.date_of_birth ? new Date(String(input.date_of_birth)) : null;
-    const gender = input.gender;
+    const dob = this.parseDateOfBirth(input.date_of_birth);
+    const gender = this.normalizeGender(input.gender);
     if (!fullName || fullName.length < 2) throw new BadRequestException('Họ tên không hợp lệ.');
-    if (!dob || Number.isNaN(dob.getTime()) || dob >= new Date()) throw new BadRequestException('Ngày sinh không hợp lệ.');
-    if (!['Male', 'Female', 'Other'].includes(String(gender))) throw new BadRequestException('Giới tính không hợp lệ.');
-    return { full_name: fullName, date_of_birth: dob, gender: gender as 'Male' | 'Female' | 'Other' };
+    const today = new Date();
+    const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    if (!dob || Number.isNaN(dob.getTime()) || dob >= todayUtc) throw new BadRequestException('Ngày sinh không hợp lệ.');
+    if (!gender) throw new BadRequestException('Giới tính không hợp lệ.');
+    return { full_name: fullName, date_of_birth: dob, gender };
   }
 
   private validateCommon(input: { phone_number?: unknown; room_type?: unknown; notes?: unknown }) {
@@ -173,6 +198,85 @@ export class DormitoryRosterService {
       identity_state: identityState,
     };
     return payload;
+  }
+
+  private exceptionMessage(error: unknown) {
+    const response = (error as any)?.response;
+    return Array.isArray(response?.message) ? response.message.join('; ') : String(response?.message || (error as any)?.message || 'Dữ liệu không hợp lệ.');
+  }
+
+  async importRows(dto: ImportRosterDto) {
+    const semester = await this.resolveActiveSemester();
+    const existingKeys = new Set<string>();
+    const validRows: Array<{ row: number; payload: any }> = [];
+    const results: Array<{ row: number; status: 'created' | 'duplicated' | 'failed'; reason?: string; roster_entry_code?: string }> = [];
+    const seenKeys = new Set<string>();
+    const candidates = (dto.rows || []).map((row) => {
+      try {
+        const identity = this.validateManualIdentity(row);
+        return { name: this.normalizeName(identity.full_name), date: identity.date_of_birth };
+      } catch {
+        return null;
+      }
+    }).filter(Boolean) as Array<{ name: string; date: Date }>;
+    if (candidates.length) {
+      const existing = await (this.rosterModel as any).find({
+        semester_id: semester._id,
+        $or: candidates.map((candidate) => ({ full_name_normalized: candidate.name, date_of_birth: candidate.date })),
+      }).lean().exec();
+      for (const entry of existing || []) existingKeys.add(`${this.normalizeName(entry.full_name_normalized || entry.full_name)}|${this.dateKey(entry.date_of_birth)}`);
+    }
+
+    for (let index = 0; index < dto.rows.length; index += 1) {
+      const rowNumber = index + 2;
+      const row: ImportRosterRowDto = dto.rows[index];
+      try {
+        const identity = this.validateManualIdentity(row);
+        const common = this.validateCommon({ phone_number: row.phone_number, room_type: 'Thường' });
+        const key = `${this.normalizeName(identity.full_name)}|${this.dateKey(identity.date_of_birth)}`;
+        if (seenKeys.has(key) || existingKeys.has(key)) {
+          results.push({ row: rowNumber, status: 'duplicated', reason: seenKeys.has(key) ? 'Trùng dữ liệu trong tệp.' : 'Đã có trong học kỳ active.' });
+          continue;
+        }
+        seenKeys.add(key);
+        validRows.push({
+          row: rowNumber,
+          payload: {
+            roster_entry_code: `DK-${randomUUID().substring(0, 8).toUpperCase()}`,
+            full_name: identity.full_name,
+            full_name_normalized: this.normalizeName(identity.full_name),
+            date_of_birth: identity.date_of_birth,
+            gender: identity.gender,
+            phone_number: common.phone_number,
+            semester_id: semester._id,
+            ...this.parseSemester(semester),
+            room_type: 'Thường',
+            identity_state: 'UNLINKED',
+          },
+        });
+      } catch (error) {
+        results.push({ row: rowNumber, status: 'failed', reason: this.exceptionMessage(error) });
+      }
+    }
+
+    for (const item of validRows) {
+      try {
+        const saved = await new (this.rosterModel as any)(item.payload).save();
+        results.push({ row: item.row, status: 'created', roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
+      } catch (error) {
+        results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });
+      }
+    }
+    results.sort((left, right) => left.row - right.row);
+    const created = results.filter((item) => item.status === 'created').length;
+    if (created) emitDormitoryOverviewInvalidated('roster');
+    return {
+      requested: dto.rows.length,
+      created,
+      duplicated: results.filter((item) => item.status === 'duplicated').length,
+      failed: results.filter((item) => item.status === 'failed').length,
+      results,
+    };
   }
 
   async create(dto: CreateRosterEntryDto, _user?: RosterUser) {
