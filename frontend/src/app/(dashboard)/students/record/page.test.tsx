@@ -5,6 +5,7 @@ import { academicRecordApi } from '@/api/academic-record-api';
 import { classApi } from '@/api/class-api';
 import { criteriaApi } from '@/api/criteria-api';
 import { dailyClassReportApi } from '@/api/daily-class-report-api';
+import { semesterApi } from '@/api/semester-api';
 
 let mockRecordPermissions: Record<string, boolean> = {};
 let mockRealtimeOptions: any = null;
@@ -79,6 +80,12 @@ vi.mock('@/api/daily-class-report-api', () => ({
     getDailyClassReports: vi.fn().mockResolvedValue({ data: [], meta: { total: 0 } }),
     getDeletedDailyClassReports: vi.fn().mockResolvedValue([]),
   }
+}));
+
+vi.mock('@/api/semester-api', () => ({
+  semesterApi: {
+    getSemesters: vi.fn(),
+  },
 }));
 
 vi.mock('@/providers/auth-provider', () => ({
@@ -200,6 +207,15 @@ describe('StudentRecordPage Infinite Scroll', () => {
     (criteriaApi.getCriteria as any).mockResolvedValue([]);
     (academicRecordApi.getDeletedAcademicRecords as any).mockResolvedValue([]);
     (dailyClassReportApi.getDeletedDailyClassReports as any).mockResolvedValue([]);
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      {
+        _id: 'semester-active',
+        semester_name: 'Học kỳ hiện tại',
+        start_date: '2026-08-01',
+        end_date: '2026-12-31',
+        status: 'active',
+      },
+    ]);
     resolveFirstFetch = null;
     resolveSecondFetch = null;
     mockRecordPermissions = {};
@@ -228,6 +244,61 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Tìm HSSV hoặc lớp...')).toBeInTheDocument();
+    });
+  });
+
+  it('loads student records only for the active semester', async () => {
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      {
+        _id: 'semester-hidden',
+        semester_name: 'Học kỳ đã ẩn',
+        start_date: '2026-01-01',
+        end_date: '2026-05-31',
+        status: 'inactive',
+      },
+      {
+        _id: 'semester-active',
+        semester_name: 'Học kỳ hiện tại',
+        start_date: '2026-08-01',
+        end_date: '2026-12-31',
+        status: 'active',
+      },
+    ]);
+    vi.mocked(academicRecordApi.getAcademicRecords).mockResolvedValue({
+      data: [],
+      meta: { total: 0, page: 1, limit: 40, totalPages: 0, has_more: false },
+    });
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).toHaveBeenCalledWith(
+        expect.objectContaining({ semesterId: 'semester-active' }),
+      );
+    });
+    expect(academicRecordApi.getAcademicRecords).not.toHaveBeenCalledWith(
+      expect.objectContaining({ semesterId: 'semester-hidden' }),
+    );
+  });
+
+  it('does not load student records when there is no active semester', async () => {
+    vi.mocked(semesterApi.getSemesters).mockResolvedValue([
+      {
+        _id: 'semester-hidden',
+        semester_name: 'Học kỳ đã ẩn',
+        start_date: '2026-01-01',
+        end_date: '2026-05-31',
+        status: 'inactive',
+      },
+    ]);
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(semesterApi.getSemesters).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(academicRecordApi.getAcademicRecords).not.toHaveBeenCalled();
     });
   });
 
@@ -503,7 +574,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     });
   });
 
-  it('renders one student group, shows the filtered count, and opens full student history', async () => {
+  it('renders one student group, shows the filtered count, and opens active-semester history', async () => {
     const group = makeStudentGroup('student-1', 'latest-record-1', 3);
     (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
       data: [group],
@@ -532,7 +603,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
     await waitFor(() => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
-        { studentId: 'student-1' },
+        { studentId: 'student-1', semesterId: 'semester-active' },
       );
     });
   });
@@ -549,7 +620,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     expect(await screen.findByRole('columnheader', { name: 'Ghi nhận gần nhất' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Tiêu chí' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Ngày ghi nhận' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Latest record').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Latest record')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ngày: 25/08/2026').length).toBeGreaterThan(0);
     expect(screen.getAllByTitle('Xem chi tiết').length).toBeGreaterThan(0);
     expect(screen.queryByTitle('Chỉnh sửa')).not.toBeInTheDocument();
@@ -665,7 +736,10 @@ describe('StudentRecordPage Infinite Scroll', () => {
 
     await waitFor(() => {
       expect(academicRecordApi.getAcademicRecords).toHaveBeenLastCalledWith(
-        { studentId: 'student-1' },
+        expect.objectContaining({
+          studentId: 'student-1',
+          semesterId: 'semester-active',
+        }),
       );
     });
     expect(await screen.findByText('Newest history record')).toBeInTheDocument();

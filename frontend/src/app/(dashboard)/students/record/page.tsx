@@ -77,6 +77,7 @@ import {
   AcademicRecordDeletePreviewResult,
 } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
+import { semesterApi } from "@/api/semester-api";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
 import { useRouter, useSearchParams } from "next/navigation";
 import TabNavigation from "@/components/ui/TabNavigation";
@@ -550,6 +551,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [academicRecords, setAcademicRecords] = useState<AcademicRecordListItem[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [allCriteria, setAllCriteria] = useState<Criterion[]>([]);
+  const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
+  const [hasResolvedActiveSemester, setHasResolvedActiveSemester] = useState(false);
 
   // Infinite scroll states
   const [hasMoreRecords, setHasMoreRecords] = useState(true);
@@ -637,6 +640,34 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchActiveSemester = async () => {
+      try {
+        const semesterList = await semesterApi.getSemesters();
+        if (!cancelled) {
+          setActiveSemesterId(
+            semesterList.find((semester) => semester.status === "active")?._id || null,
+          );
+        }
+      } catch (err) {
+        console.error("Lỗi khi nạp học kỳ đang hoạt động:", err);
+        if (!cancelled) {
+          setActiveSemesterId(null);
+          toast.error("Không thể xác định học kỳ đang hoạt động.");
+        }
+      } finally {
+        if (!cancelled) setHasResolvedActiveSemester(true);
+      }
+    };
+
+    void fetchActiveSemester();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const cachedLayout = localStorage.getItem("ghinhan_view_layout");
     if (cachedLayout === "table" || cachedLayout === "card") {
       setViewLayout(cachedLayout);
@@ -663,6 +694,16 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   // Fetch student academic records
   const fetchAcademicRecords = async (pageToFetch = 1, isAppend = false) => {
+    if (!hasResolvedActiveSemester || !activeSemesterId) {
+      if (!isAppend) {
+        setAcademicRecords([]);
+        setTotalRecords(0);
+        setHasMoreRecords(false);
+        setIsLoading(false);
+      }
+      return;
+    }
+
     if (isFetchingRef.current) {
       if (!isAppend && pageToFetch === 1) {
         pendingRecordsRefreshRef.current = true;
@@ -706,6 +747,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           page: pageToFetch,
           limit: itemsPerPage,
           groupBy: "student",
+          semesterId: activeSemesterId,
           search: debouncedSearchTerm || undefined,
           classId: selectedClassIdForStudent === "all" ? undefined : selectedClassIdForStudent,
           startDate: filterDateRange?.start ? format(filterDateRange.start, "yyyy-MM-dd") : undefined,
@@ -764,6 +806,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const getStudentHistoryParams = (record: any) => {
     return {
       studentId: record.studentObjectId,
+      semesterId: activeSemesterId || undefined,
     };
   };
 
@@ -984,7 +1027,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       loadMoreInitiatedRef.current = 1;
       fetchAcademicRecords(1, false);
     }
-  }, [activeSubTab, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter]);
+  }, [activeSubTab, itemsPerPage, debouncedSearchTerm, selectedClassIdForStudent, filterDateRange, creatorFilter, activeSemesterId, hasResolvedActiveSemester]);
 
   useEffect(() => {
     if (activeSubTab === "class" && canAccessClassTab) {
