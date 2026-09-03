@@ -1,23 +1,23 @@
 slot_id: "taskscope-00"
-generation: 22
-task_id: "20260903-143337-compact-dormitory-room-mobile-status"
+generation: 23
+task_id: "20260903-144231-hide-dormitory-room-debt"
 scope_file: "docs/task/taskscope.md"
 status: completed
 scope_revision: 1
-created_at: "2026-09-03T14:33:37+07:00"
-updated_at: "2026-09-03T14:36:26+07:00"
-base_commit: "f736dcb471d110315cfac462009b3885009f69dc"
-task: "Compact mobile dormitory room status"
+created_at: "2026-09-03T14:42:31+07:00"
+updated_at: "2026-09-03T14:45:20+07:00"
+base_commit: "6447346d8dfb5a90947b3431563a4c9015c84099"
+task: "Hide dormitory room debt section"
 pipeline: feature_development
 profile: Quick
-objective: "Make each room in /dormitory/overview easy to scan on mobile with room, type, available beds, details, and an explicit status."
+objective: "Temporarily remove the unused Công nợ theo phòng section from /dormitory/overview while retaining the rest of the overview."
 
 coordination:
   depends_on: []
   warnings: []
 
 completion:
-  completed_at: "2026-09-03T14:36:26+07:00"
+  completed_at: "2026-09-03T14:45:20+07:00"
   outcome: "success"
   final_commit_or_state: "Working tree contains the scoped implementation changes; no commit created."
   changed_paths: ["frontend/src/app/(dashboard)/dormitory/overview/page.tsx", "frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx", "docs/task/taskscope.md"]
@@ -25,25 +25,24 @@ completion:
   cleanup_pending: []
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage renders compact room cards below lg with room, type, occupied/total beds, available beds, detail button, and an unlabeled occupancy ring."
-  expected_behavior: "Below lg, each room card visibly and compactly presents Phòng, Loại, Còn chỗ, Chi tiết, and Trạng thái; status remains understandable without relying on the occupancy ring alone."
-  root_cause: "The compact card layout includes a non-required bed-count field and exposes the state only through an icon's accessible label."
+  current_behavior: "frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage always renders the Công nợ theo phòng Card, including totals, anomaly notice, and mobile/desktop room-debt rows."
+  expected_behavior: "The overview does not render the unused room-debt section at any viewport; room status and registration summary remain visible and function unchanged."
+  root_cause: "The debt Card remains in the page despite this overview feature not being used."
 
 scope:
-  inspect: ["frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage compact room-card branch", "frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx:compact viewport coverage"]
-  write: ["frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage compact room-card fields", "frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx:mobile room-card assertions"]
-  preserve: ["Desktop table layout and data fields", "Room search, room ordering, state derivation, occupancy accessibility label, and detail modal behavior", "Existing API and realtime refresh contracts"]
-  out: ["Backend/API/schema changes", "Desktop table redesign", "Other dormitory overview sections", "New dependencies"]
+  inspect: ["frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage invoiceSummary/invoices and room-debt Card", "frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx:debt assertions and empty-report coverage"]
+  write: ["frontend/src/app/(dashboard)/dormitory/overview/page.tsx:DormitoryOverviewPage room-debt rendering", "frontend/src/app/(dashboard)/dormitory/overview/page.test.tsx:overview assertions"]
+  preserve: ["Dashboard statistics request and partial-response warning", "Room status/search/detail behavior and registration summary", "Desktop/mobile layouts outside the hidden section", "API, schema, RBAC, and realtime refresh contracts"]
+  out: ["Backend/API/schema changes", "Invoice-report data contract changes", "Removing the invoice summary from the fetched response", "Other dormitory overview redesign"]
 
 acceptance_criteria:
-  - "AC-01: At a viewport below lg, every rendered room card visibly labels and displays Phòng, Loại, Còn chỗ, Chi tiết, and Trạng thái in a compact readable layout."
-  - "AC-02: The mobile status field shows the derived textual room state while retaining the existing occupancy context/accessibility; the non-required occupied/total-bed field is absent from the compact card."
-  - "AC-03: Mobile room-detail buttons, search filtering, empty state, and the desktop room table remain unchanged."
-  - "AC-04: Focused page tests assert the requested mobile fields and preserve room-detail access."
+  - "AC-01: Neither desktop nor mobile /dormitory/overview renders Công nợ theo phòng, its debt totals, anomaly notice, room-debt rows, or its empty state."
+  - "AC-02: Room status and Tóm tắt đăng ký continue to render after the removed section; data loading, failure, and partial-response behavior remain intact."
+  - "AC-03: Focused page tests replace the debt visibility expectation with absence coverage and retain relevant overview assertions."
 
 execution:
-  - "E-01 [AC-01..AC-03] page.tsx:DormitoryOverviewPage compact branch -> reorganize the card metadata around the five requested fields; render the state text beside or with the existing occupancy indicator and remove the compact occupied/total-bed field."
-  - "E-02 [AC-04] page.test.tsx:compact viewport test -> assert labelled mobile fields/state and existing detail-button access."
+  - "E-01 [AC-01,AC-02] page.tsx:DormitoryOverviewPage -> remove the room-debt Card and rendering-only invoice fallback that becomes unused; retain invoice-summary validation for the existing partial-response warning."
+  - "E-02 [AC-03] page.test.tsx:overview and empty-report tests -> remove debt-content expectations and assert the section is absent while preserving non-debt coverage."
 
 temporary_artifacts:
   create: []
@@ -51,9 +50,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-01..AC-04] npm --prefix frontend test -- 'src/app/(dashboard)/dormitory/overview/page.test.tsx' -> focused tests pass."
-  - "V-02 [AC-01..AC-03] npm --prefix frontend run typecheck -> exits 0."
-  - "V-03 [AC-01..AC-04] git diff --check -> no whitespace errors."
+  - "V-01 [AC-01..AC-03] npm --prefix frontend test -- 'src/app/(dashboard)/dormitory/overview/page.test.tsx' -> focused tests pass."
+  - "V-02 [AC-01,AC-02] npm --prefix frontend run typecheck -> exits 0."
+  - "V-03 [AC-01..AC-03] git diff --check -> no whitespace errors."
 
-risks: ["A status displayed only by color or an icon would not meet the requested mobile readability; retain both text and the current aria-label."]
-stop_conditions: ["Stop if the desired mobile status wording differs from the currently derived room states, or the change requires API, schema, RBAC, or a third implementation file."]
+risks: ["Removing invoice-summary validation as part of hiding the UI could conceal a structurally incomplete dashboard response; preserve that warning path."]
+stop_conditions: ["Stop if temporary hiding must change the dashboard API response or if the invoice-summary partial-response warning is intentionally being retired."]

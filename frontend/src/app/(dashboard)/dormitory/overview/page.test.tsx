@@ -141,7 +141,7 @@ describe('DormitoryOverviewPage', () => {
     vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValue(mockStats as any);
   });
 
-  it('renders room totals, derived room states, debt rows and registration summary', async () => {
+  it('renders room totals, derived room states, and registration summary without room debt', async () => {
     render(<DormitoryOverviewPage />);
 
     await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
@@ -154,8 +154,8 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getByText('Phòng A100')).toBeInTheDocument();
     expect(screen.getByLabelText('Trống, 0% đã sử dụng')).toBeInTheDocument();
     expect(screen.getByLabelText('Còn chỗ, 50% đã sử dụng')).toBeInTheDocument();
-    expect(screen.getByText('Công nợ theo phòng')).toBeInTheDocument();
-    expect(screen.getAllByText((content) => content.includes('350.000')).length).toBe(2);
+    expect(screen.queryByText('Công nợ theo phòng')).not.toBeInTheDocument();
+    expect(screen.queryByText('Không có phòng nào đang có hóa đơn chưa thu.')).not.toBeInTheDocument();
     expect(screen.getByText('Tóm tắt đăng ký')).toBeInTheDocument();
     expect(screen.getByText('Đã xếp phòng')).toBeInTheDocument();
     expect(screen.getByText('Nam')).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getAllByText((_, element) => element?.tagName === 'P' && element.textContent === 'Thường · Còn 2 chỗ')).toHaveLength(2);
     expect(screen.queryByText('Phòng A100', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem thành viên phòng A101' })).toBeInTheDocument();
-    expect(screen.getAllByText((content) => content.includes('350.000')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Công nợ theo phòng')).not.toBeInTheDocument();
   });
 
   it('searches room names and puts empty rooms first', async () => {
@@ -323,11 +323,10 @@ describe('DormitoryOverviewPage', () => {
     vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValueOnce({
       ...mockStats,
       room_rows: [],
-      invoice_summary: { ...mockStats.invoice_summary, rows: [], outstanding_invoice_count: 0, total_outstanding_amount: 0 },
     } as any);
     const { unmount } = render(<DormitoryOverviewPage />);
     await waitFor(() => expect(screen.getByText('Không có phòng phù hợp với tìm kiếm.')).toBeInTheDocument());
-    expect(screen.getByText('Không có phòng nào đang có hóa đơn chưa thu.')).toBeInTheDocument();
+    expect(screen.queryByText('Không có phòng nào đang có hóa đơn chưa thu.')).not.toBeInTheDocument();
     unmount();
 
     vi.mocked(dormitoryApi.reports.getDashboardStats).mockRejectedValueOnce(new Error('Mất kết nối'));

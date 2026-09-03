@@ -31,12 +31,6 @@ import {
 } from '@/components/ui/dialog';
 import { useDormitoryOverviewRealtime } from '@/hooks/useDormitoryOverviewRealtime';
 
-const money = new Intl.NumberFormat('vi-VN', {
-  style: 'currency',
-  currency: 'VND',
-  maximumFractionDigits: 0,
-});
-
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <section className={`rounded-2xl border border-white/75 bg-white/45 p-5 shadow-sm shadow-slate-300/30 backdrop-blur-md ${className}`}>
@@ -278,16 +272,6 @@ export default function DormitoryOverviewPage() {
     unassigned: 0,
     requested_room_type: { thuong: 0, may_lanh: 0, unknown: 0 },
   };
-  const invoices = invoiceSummary || {
-    outstanding_invoice_count: 0,
-    unpaid_count: 0,
-    overdue_count: 0,
-    total_outstanding_amount: 0,
-    anomaly_amount: 0,
-    anomaly_count: 0,
-    rows: [],
-  };
-
   return (
     <main className="w-full space-y-4 pb-8" aria-label="Tổng quan quản lý KTX">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -470,58 +454,6 @@ export default function DormitoryOverviewPage() {
                 );
               })}
               {!filteredRooms.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</td></tr>}
-            </tbody>
-          </table>
-        </div>}
-      </Card>
-
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2"><ReceiptText size={18} className="text-rose-600" /><h2 className="text-base font-bold text-slate-900">Công nợ theo phòng</h2></div>
-            <p className="mt-0.5 text-xs text-slate-500">Chỉ gồm hóa đơn Chưa thanh toán và Quá hạn; hóa đơn đã thanh toán không được tính.</p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-black text-rose-700">{money.format(invoices.total_outstanding_amount)}</p>
-            <p className="text-[11px] text-slate-500">{invoices.outstanding_invoice_count} hóa đơn · {invoices.unpaid_count} chưa thanh toán · {invoices.overdue_count} quá hạn</p>
-          </div>
-        </div>
-        {invoices.anomaly_count > 0 && <div role="status" className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/80 p-2.5 text-xs text-amber-900 backdrop-blur-sm">Có {invoices.anomaly_count} hóa đơn còn nợ ({money.format(invoices.anomaly_amount)}) chưa xác định được phòng; số này không cộng vào các dòng phòng.</div>}
-        {isCompact ? (
-          <div className="mt-3 space-y-3 lg:hidden">
-            {invoices.rows.map((row) => (
-              <article key={row.room_id} className="rounded-xl border border-white/75 bg-white/55 p-3 shadow-2xs">
-                <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-slate-900">{row.room_code}</div><div className="text-xs text-slate-500">{row.room_name} · {row.building_name}</div></div><div className="text-right font-bold text-rose-700">{money.format(row.total_outstanding_amount)}</div></div>
-                <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-white/60 pt-3 text-xs"><div><dt className="text-slate-500">Người nợ</dt><dd className="mt-0.5 font-semibold text-slate-700">{row.debtor_count}</dd></div><div><dt className="text-slate-500">Chưa thanh toán</dt><dd className="mt-0.5 font-semibold text-slate-700">{row.unpaid_count}</dd></div><div><dt className="text-slate-500">Quá hạn</dt><dd className="mt-0.5 font-semibold text-rose-700">{row.overdue_count}</dd></div></dl>
-              </article>
-            ))}
-            {!invoices.rows.length && <p className="rounded-xl border border-dashed border-white/80 px-4 py-8 text-center text-sm text-slate-500">Không có phòng nào đang có hóa đơn chưa thu.</p>}
-          </div>
-        ) : <div className="mt-3 max-h-[min(45vh,32rem)] overflow-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
-          <table className="min-w-[800px] w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 border-b border-white/60 bg-slate-50/95 text-xs uppercase tracking-wide text-slate-500 backdrop-blur-sm">
-              <tr>
-                <th className="px-4 py-3">Phòng</th>
-                <th className="px-4 py-3">Người nợ</th>
-                <th className="px-4 py-3">Chưa thanh toán</th>
-                <th className="px-4 py-3">Quá hạn</th>
-                <th className="px-4 py-3 text-right">Tổng còn nợ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/80">
-              {invoices.rows.map((row) => (
-                <tr key={row.room_id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-900">{row.room_code}</div>
-                    <div className="text-xs text-slate-500">{row.room_name} · {row.building_name}</div>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{row.debtor_count}</td>
-                  <td className="px-4 py-3 font-medium">{row.unpaid_count}</td>
-                  <td className="px-4 py-3 font-medium">{row.overdue_count}</td>
-                  <td className="px-4 py-3 text-right font-bold text-rose-700">{money.format(row.total_outstanding_amount)}</td>
-                </tr>
-              ))}
-              {!invoices.rows.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">Không có phòng nào đang có hóa đơn chưa thu.</td></tr>}
             </tbody>
           </table>
         </div>}
