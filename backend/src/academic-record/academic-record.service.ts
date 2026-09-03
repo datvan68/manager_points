@@ -1992,25 +1992,33 @@ export class AcademicRecordService {
           '\\$&',
         );
 
-        // Find students matching search
+        // Resolve class and criterion matches before the paginated record query.
+        const [matchingClasses, matchingCriteria] = await Promise.all([
+          this.classModel
+            .find({
+              class_name: { $regex: escapedSearch, $options: 'i' },
+            })
+            .select('_id')
+            .exec(),
+          this.criterionModel
+            .find({
+              criterion_name: { $regex: escapedSearch, $options: 'i' },
+            })
+            .select('_id')
+            .exec(),
+        ]);
+        const matchingClassIds = matchingClasses.map((c: any) => c._id);
         const matchingStudents = await this.studentModel
           .find({
             $or: [
               { full_name: { $regex: escapedSearch, $options: 'i' } },
               { student_code: { $regex: escapedSearch, $options: 'i' } },
+              { class_id: { $in: matchingClassIds } },
             ],
           })
           .select('_id')
           .exec();
         const studentIds = matchingStudents.map((s: any) => s._id);
-
-        // Find criteria matching search
-        const matchingCriteria = await this.criterionModel
-          .find({
-            criterion_name: { $regex: escapedSearch, $options: 'i' },
-          })
-          .select('_id')
-          .exec();
         const criterionIds = matchingCriteria.map((c: any) => c._id);
 
         if (!filter.$and) filter.$and = [];

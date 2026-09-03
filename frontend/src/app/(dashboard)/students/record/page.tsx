@@ -2199,7 +2199,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               {/* Desktop View: Full search input and normal filters/buttons */}
               <div className="hidden lg:flex items-center gap-2.5 w-full lg:w-auto justify-end">
                 <Research
-                  placeholder="Tìm kiếm..."
+                  placeholder="Tìm HSSV hoặc lớp..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   containerClassName="w-full sm:max-w-[220px]"
@@ -2301,7 +2301,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       autoFocus
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Tìm kiếm..."
+                      placeholder="Tìm HSSV hoặc lớp..."
                       className="min-w-0 flex-1 bg-transparent border-none outline-none text-sm text-slate-700 placeholder:text-slate-400"
                     />
                     <button type="button" onClick={() => { setSearchTerm(""); setIsMobileSearchOpen(false); }} aria-label="Đóng tìm kiếm" className="p-1 text-slate-400 hover:text-slate-700">

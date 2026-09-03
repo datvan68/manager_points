@@ -1,69 +1,52 @@
 slot_id: "taskscope-00"
-generation: 17
-task_id: "20260903-083015-bulk-delete-preview-filtered-drawer"
+generation: 18
+task_id: "20260903-094722-search-student-records-by-class"
 scope_file: "docs/task/taskscope.md"
 status: completed
-scope_revision: 2
-created_at: "2026-09-03T08:30:15+07:00"
-updated_at: "2026-09-03T08:51:37+07:00"
-base_commit: "c4f96fd838587c2c59bab54a1050a9f8be8809e1"
-task: "Batch student delete preview and align filtered drawer"
-pipeline: bug_fix
+scope_revision: 1
+created_at: "2026-09-03T09:47:22+07:00"
+updated_at: "2026-09-03T10:03:00+07:00"
+base_commit: "70563b59fe93ec01000475d029a324ac48f521d4"
+task: "Search student records by class without client-side lag"
+pipeline: feature_development
 profile: Full
-objective: "The student drawer matches active table filters and bulk-delete preview remains reliable for hundreds of selected students with a compact confirmation modal."
+objective: "The Tình hình HSSV search matches class names while retaining debounced, server-paginated loading and responsive table interaction."
 
 coordination:
   depends_on: []
   warnings: []
 
 completion:
-  completed_at: "2026-09-03T08:51:37+07:00"
-  outcome: "Implemented filtered drawer parity, single batch delete preview, compact zero-safe confirmation, and preserved partial-delete behavior. Self-review found no RBAC, filter, API, or data-safety blockers."
+  completed_at: "2026-09-03T10:03:00+07:00"
+  outcome: "success"
   final_commit_or_state: "working tree (uncommitted)"
-  changed_paths:
-    - "backend/src/academic-record/dto/delete-preview-academic-record.dto.ts"
-    - "backend/src/academic-record/academic-record.controller.ts"
-    - "backend/src/academic-record/academic-record.controller.spec.ts"
-    - "backend/src/academic-record/academic-record.service.ts"
-    - "backend/src/academic-record/academic-record.service.spec.ts"
-    - "frontend/src/api/academic-record-api.ts"
-    - "frontend/src/components/modals/ConfirmModal.tsx"
-    - "frontend/src/app/(dashboard)/students/record/page.tsx"
-    - "frontend/src/app/(dashboard)/students/record/page.test.tsx"
-  checks_passed:
-    - "V-01 controller spec: PASS (27 tests)"
-    - "V-02 service spec: PASS (80 tests, 2 todo)"
-    - "V-03 frontend page spec: PASS (27 tests)"
-    - "V-04 backend build: PASS"
-    - "V-05 frontend typecheck: PASS"
-    - "V-06 git diff --check: PASS"
+  changed_paths: ["backend/src/academic-record/academic-record.service.ts", "backend/src/academic-record/academic-record.service.spec.ts", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx"]
+  checks_passed: ["npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand (79 passed)", "npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx (28 passed)", "npm --prefix backend run build", "npm --prefix frontend run typecheck", "git diff --check"]
   cleanup_pending: []
 
 evidence:
-  current_behavior: "page.tsx:handleOpenDrawerChange sends only studentId; prepareDeletePreview launches one getAcademicRecords request per selected group via Promise.all. Selecting 288 students can exceed the global 30-request/10-second limit and produce a 0-record preview with group-load warnings."
-  expected_behavior: "Drawer history uses the table's class/date/creator scope; one guarded batch-preview request resolves all selected students and returns deletable IDs, preserved daily-report counts, and per-student failures."
-  root_cause: "Unfiltered drawer parameters diverge from the grouped table, while the N-request preview fan-out competes with the global IP rate limiter."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:fetchRecords sends debounced search and classId separately; backend/src/academic-record/academic-record.service.ts:findAll matches search against student name/code, record title/description, and criterion name, but not class_name."
+  expected_behavior: "Typing a full or partial class name returns matching HSSV groups through the existing paginated endpoint; the class dropdown, debounce, pagination, RBAC, and other search fields remain unchanged."
+  root_cause: "backend/src/academic-record/academic-record.service.ts:findAll never resolves search text against Class.class_name or includes students from matching classes."
 
 scope:
-  inspect: ["backend/src/core/rate-limit/rate-limit.constants.ts:global limits", "backend/src/academic-record/academic-record.service.ts:findAll/remove access and filter rules"]
-  write: ["backend/src/academic-record/dto/delete-preview-academic-record.dto.ts:new validated request", "backend/src/academic-record/academic-record.controller.ts:POST delete-preview", "backend/src/academic-record/academic-record.controller.spec.ts:route/guard/forwarding", "backend/src/academic-record/academic-record.service.ts:single-query preview", "backend/src/academic-record/academic-record.service.spec.ts:filter/RBAC/grouping coverage", "frontend/src/api/academic-record-api.ts:preview contract", "frontend/src/components/modals/ConfirmModal.tsx:optional disabled prop", "frontend/src/app/(dashboard)/students/record/page.tsx:filtered drawer, one-request preview, compact modal", "frontend/src/app/(dashboard)/students/record/page.test.tsx:drawer/288-selection/modal regressions"]
-  preserve: ["DELETE_STUDENT_RECORD and hierarchy enforcement", "active class/date/creator filters; search only locates students", "daily_report_id records are never deletion candidates", "25-ID delete batching, partial-failure selection, trash/restore/force-delete"]
-  out: ["Changing global rate limits", "Deleting daily-report records", "Class-report flows", "Schema/migration/general UI redesign"]
+  inspect: ["backend/src/academic-record/academic-record.service.ts:findAll access filters/grouped pagination", "frontend/src/app/(dashboard)/students/record/page.tsx:fetchRecords/search controls"]
+  write: ["backend/src/academic-record/academic-record.service.ts:findAll search resolution", "backend/src/academic-record/academic-record.service.spec.ts:class-search/performance regression coverage", "frontend/src/app/(dashboard)/students/record/page.tsx:Tình hình HSSV search hint", "frontend/src/app/(dashboard)/students/record/page.test.tsx:search request/UI coverage"]
+  preserve: ["GET /academic-records query contract and response shape", "debounce, server pagination/load-more, class/date/creator filters", "RBAC visibility and student self-scope", "existing name/code/title/description/criterion search semantics"]
+  out: ["Client-side filtering of all records", "Schema/index migration", "Tình hình lớp học search", "New dependency or UI redesign"]
 
 acceptance_criteria:
-  - "AC-01: If a filtered table row reports 4 records, opening its drawer requests the same class/date/creator scope and renders those 4 records; without filters it renders all active history."
-  - "AC-02: Preparing deletion for up to 500 selected students makes exactly one preview HTTP request and does not emit per-student requests."
-  - "AC-03: Preview validates IDs/filters, enforces requester visibility and deletion hierarchy, excludes daily_report_id records, and returns stable group results without mutating data."
-  - "AC-04: The modal uses a short title and at most three conditional summary lines: selected students/deletable records, preserved daily records, and failed students. Remove implementation-detail and empty-group prose."
-  - "AC-05: Confirm is disabled when no deletable IDs exist; failures remain selected, valid IDs retain existing sequential deletion behavior, and zero candidates never call delete."
+  - "AC-01: A case-insensitive full or partial class_name search returns only accessible HSSV groups belonging to matching classes and composes correctly with an explicit classId filter."
+  - "AC-02: Existing search fields, RBAC, filters, grouped response shape, debounce, page size, and load-more behavior remain unchanged."
+  - "AC-03: Class search is resolved by bounded backend queries before the existing paginated record query; the browser neither fetches all records/classes per keystroke nor performs client-side full-table filtering."
+  - "AC-04: Desktop and mobile search affordances indicate that class names are searchable and continue sending the debounced search parameter."
 
 execution:
-  - "E-01 [AC-02,AC-03] DTO/controller/service → add POST /academic-records/delete-preview with DELETE_STUDENT_RECORD guard, max 500 Mongo IDs, optional class/start/end/creator filters, one bounded query, hierarchy classification, and grouped response."
-  - "E-02 [AC-02,AC-03] backend specs → verify validation, guard, filter propagation, no mutation, daily-report exclusion, hierarchy failures, and grouped counts."
-  - "E-03 [AC-01,AC-02,AC-05] academic-record-api.ts/page.tsx → use filtered parameters for drawer and replace Promise.all fan-out with the batch-preview API."
-  - "E-04 [AC-04,AC-05] ConfirmModal/page.tsx → add optional disabled support, reduce confirmation copy, expose concise counts, disable zero-candidate confirmation, and retain actionable failure state."
-  - "E-05 [AC-01..AC-05] page.test.tsx → assert filtered/unfiltered drawer, one preview call for 288 selections, compact copy, zero-ID blocking, and partial success."
-  - "E-06 [AC-01..AC-05] independent review → verify RBAC, personal-data exposure, API compatibility, filter parity, and zero/partial states."
+  - "E-01 [AC-01..AC-03] backend service → resolve matching class IDs and combine class membership with current student name/code matches, preferably parallel with criterion lookup, then reuse the existing record filter and pagination."
+  - "E-02 [AC-01..AC-03] backend spec → cover partial/case-insensitive class lookup, no-match behavior, classId intersection, preserved search branches, and bounded query composition."
+  - "E-03 [AC-02,AC-04] frontend page → clarify the shared desktop/mobile placeholder without adding fetches or local filtering."
+  - "E-04 [AC-02..AC-04] frontend spec → verify debounce/request parameters and the class-search hint."
+  - "E-05 [AC-01..AC-04] independent review → check RBAC intersections, query fan-out, pagination stability, and absence of client-side full-data work."
 
 temporary_artifacts:
   create: []
@@ -71,12 +54,9 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-02,AC-03] npm --prefix backend test -- src/academic-record/academic-record.controller.spec.ts --runInBand → passes."
-  - "V-02 [AC-02,AC-03] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand → passes."
-  - "V-03 [AC-01,AC-02,AC-04,AC-05] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → passes."
-  - "V-04 [AC-02,AC-03] npm --prefix backend run build → exits 0."
-  - "V-05 [AC-01,AC-02,AC-04,AC-05] npm --prefix frontend run typecheck → exits 0."
-  - "V-06 [AC-01..AC-05] git diff --check → exits 0."
+  - "V-01 [AC-01..AC-03] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts --runInBand → focused service tests pass."
+  - "V-02 [AC-02,AC-04] npm --prefix frontend test -- 'src/app/(dashboard)/students/record/page.test.tsx' → focused page tests pass."
+  - "V-03 [AC-01..AC-04] npm --prefix backend run build && npm --prefix frontend run typecheck → both affected packages compile/typecheck successfully."
 
-risks: ["The new endpoint exposes candidate IDs and therefore must preserve existing requester visibility and hierarchy checks.", "Date boundaries must retain the existing UTC query semantics."]
-stop_conditions: ["Stop for any change to permission semantics, public delete behavior, date interpretation, schema, or global throttling."]
+risks: ["Regex class lookup must escape user input and remain constrained by existing RBAC/class filters; unbounded client-side data loading would regress responsiveness."]
+stop_conditions: ["Stop if satisfying class search requires an API response change, schema/index migration, authorization change, or writes outside the four declared paths."]

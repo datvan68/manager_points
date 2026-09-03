@@ -2901,4 +2901,38 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockStudentModel.updateOne).toBeUndefined();
     });
   });
+
+  describe('findAll class search', () => {
+    it('resolves partial class names into the existing student search filter', async () => {
+      const classId = new Types.ObjectId();
+      const studentId = new Types.ObjectId();
+      const chain = (value: any[]) => ({
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(value),
+      });
+
+      mockClassModel.find.mockReturnValueOnce(chain([{ _id: classId }]));
+      mockCriterionModel.find.mockReturnValueOnce(chain([]));
+      mockStudentModel.find.mockReturnValueOnce(chain([{ _id: studentId }]));
+      mockAcademicRecordModel.find.mockReturnValueOnce(chain([]));
+
+      await service.findAll({ search: 'k45' });
+
+      expect(mockClassModel.find).toHaveBeenCalledWith({
+        class_name: { $regex: 'k45', $options: 'i' },
+      });
+      expect(mockStudentModel.find).toHaveBeenCalledWith({
+        $or: [
+          { full_name: { $regex: 'k45', $options: 'i' } },
+          { student_code: { $regex: 'k45', $options: 'i' } },
+          { class_id: { $in: [classId] } },
+        ],
+      });
+      expect(mockAcademicRecordModel.find).toHaveBeenCalledWith(expect.objectContaining({
+        $and: [{ $or: expect.arrayContaining([{ student_id: { $in: [studentId] } }]) }],
+      }));
+    });
+  });
 });

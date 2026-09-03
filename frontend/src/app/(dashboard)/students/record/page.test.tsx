@@ -209,13 +209,26 @@ describe('StudentRecordPage Infinite Scroll', () => {
     mockXlsx.utils.book_append_sheet.mockClear();
     mockXlsx.writeFile.mockClear();
   });
-  
+
   afterEach(() => {
     if (resolveFirstFetch) resolveFirstFetch({ data: [], meta: { total: 0 } });
     if (resolveSecondFetch) resolveSecondFetch({ data: [], meta: { total: 0 } });
     cleanup();
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it('indicates that student and class names are searchable', async () => {
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [],
+      meta: { total: 0 },
+    });
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Tìm HSSV hoặc lớp...')).toBeInTheDocument();
+    });
   });
 
   it('should handle pagination correctly and prevent duplicate fetches during scroll', async () => {
