@@ -605,8 +605,9 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(await screen.findByText('Thùng rác'));
     fireEvent.click(screen.getByRole('tab', { name: /Báo cáo của lớp/ }));
     await screen.findAllByText('CS-1');
-    fireEvent.click(screen.getByRole('button', { name: 'Xóa tất cả', exact: true }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Xoá tất cả', exact: true }));
+    screen.getAllByRole('checkbox', { name: /^Chọn CS-/ }).slice(0, 7).forEach((checkbox) => fireEvent.click(checkbox));
+    fireEvent.click(screen.getByRole('button', { name: /Xóa đã chọn \(7\)/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá đã chọn', exact: true }));
 
     await waitFor(() => {
       expect(dailyClassReportApi.forceDeleteDailyClassReport).toHaveBeenCalledTimes(7);
@@ -1213,8 +1214,9 @@ describe('StudentRecordPage Infinite Scroll', () => {
     fireEvent.click(screen.getByTitle('Cấu hình tiêu chí vắng mặt'));
     fireEvent.click(await screen.findByText('Thùng rác'));
     await screen.findAllByText('Student 1');
-    fireEvent.click(screen.getByText('Xóa tất cả'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Xoá tất cả', exact: true }));
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Chọn Student 1' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Xóa đã chọn \(1\)/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá đã chọn', exact: true }));
 
     await waitFor(() => {
       expect(academicRecordApi.bulkForceDeleteAcademicRecords).toHaveBeenCalledWith(['record-1']);

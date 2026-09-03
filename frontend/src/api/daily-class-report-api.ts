@@ -28,6 +28,11 @@ type RawDailyClassReport = Omit<DailyClassReport, 'class_note'> & {
   class_notes?: string;
 };
 
+export interface PaginatedDailyClassReports {
+  data: DailyClassReport[];
+  meta: { total: number; page: number; limit: number; totalPages: number; has_more: boolean };
+}
+
 export function normalizeDailyClassReport(report: RawDailyClassReport): DailyClassReport {
   const note = typeof report.class_notes === 'string' ? report.class_notes : report.class_note || '';
   return {
@@ -147,9 +152,10 @@ export const dailyClassReportApi = {
     }>(res);
   },
 
-  async getDeletedDailyClassReports(): Promise<DailyClassReport[]> {
-    const res = await httpClient(`${API_BASE}/daily-class-reports/deleted/all`);
-    return normalizeReportResponse(await handleResponse<RawDailyClassReport[]>(res)) as DailyClassReport[];
+  async getDeletedDailyClassReports(query?: { page?: number; limit?: number }): Promise<DailyClassReport[] | PaginatedDailyClassReports> {
+    const params = query ? `?page=${encodeURIComponent(query.page ?? 1)}&limit=${encodeURIComponent(query.limit ?? 50)}` : '';
+    const res = await httpClient(`${API_BASE}/daily-class-reports/deleted/all${params}`);
+    return normalizeReportResponse(await handleResponse<RawDailyClassReport[] | PaginatedDailyClassReports>(res)) as DailyClassReport[] | PaginatedDailyClassReports;
   },
 
   async restoreDailyClassReport(id: string): Promise<DailyClassReport> {

@@ -2439,7 +2439,10 @@ export class AcademicRecordService {
     };
   }
 
-  async findDeleted(requester?: any): Promise<AcademicRecord[]> {
+  async findDeleted(
+    requester?: any,
+    query?: { page?: number; limit?: number },
+  ): Promise<any> {
     const filter: any = { $or: [{ status: 'inactive' }, { is_deleted: true }] };
 
     if (requester) {
@@ -2469,14 +2472,23 @@ export class AcademicRecordService {
       }
     }
 
-    return this.academicRecordModel
+    const isPaginated = query?.page !== undefined || query?.limit !== undefined;
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = query?.limit === undefined ? 50 : Math.min(100, Math.max(1, Number(query.limit) || 1));
+    const baseQuery = this.academicRecordModel
       .find(filter)
       .populate('criterion_id')
       .populate('student_id')
       .populate('semester_id')
       .populate('daily_report_id')
       .populate({ path: 'recorded_by', populate: { path: 'role' } })
-      .exec();
+      .sort({ updatedAt: -1, _id: -1 });
+    if (!isPaginated) return baseQuery.exec();
+    const [data, total] = await Promise.all([
+      baseQuery.skip((page - 1) * limit).limit(limit).exec(),
+      this.academicRecordModel.countDocuments(filter).exec(),
+    ]);
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit), has_more: page * limit < total } };
   }
 
   async findOne(id: string, requester?: any): Promise<AcademicRecord> {

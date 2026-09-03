@@ -268,13 +268,26 @@ export class DailyClassReportService {
     }
   }
 
-  async findDeleted(requester?: any): Promise<DailyClassReport[]> {
+  async findDeleted(
+    requester?: any,
+    query?: { page?: number; limit?: number },
+  ): Promise<any> {
     const scopeFilter = await this.getScopeFilter(requester);
-    return this.dailyClassReportModel
+    const isPaginated = query?.page !== undefined || query?.limit !== undefined;
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = query?.limit === undefined ? 50 : Math.min(100, Math.max(1, Number(query.limit) || 1));
+    const baseQuery = this.dailyClassReportModel
       .find({ is_delete: true, ...scopeFilter })
       .populate('class_id')
       .populate('reported_by', 'user_name email')
-      .exec();
+      .sort({ updatedAt: -1, _id: -1 });
+    if (!isPaginated) return baseQuery.exec();
+    const filter = { is_delete: true, ...scopeFilter };
+    const [data, total] = await Promise.all([
+      baseQuery.skip((page - 1) * limit).limit(limit).exec(),
+      this.dailyClassReportModel.countDocuments(filter).exec(),
+    ]);
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit), has_more: page * limit < total } };
   }
 
   async findOne(id: string, requester?: any): Promise<DailyClassReport> {

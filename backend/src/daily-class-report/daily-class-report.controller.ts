@@ -92,9 +92,12 @@ export class DailyClassReportController {
   @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted daily class reports' })
-  findDeleted(@Request() req: any) {
+  findDeleted(@Request() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
     const requester = req.user;
-    return this.dailyClassReportService.findDeleted(requester);
+    return this.dailyClassReportService.findDeleted(requester, {
+      ...(page !== undefined ? { page: Number(page) } : {}),
+      ...(limit !== undefined ? { limit: Number(limit) } : {}),
+    });
   }
 
   @Get(':id')

@@ -313,14 +313,15 @@ export const academicRecordApi = {
     return handleResponse<AcademicRecordDeletePreviewResult>(res);
   },
 
-  async getDeletedAcademicRecords(): Promise<AcademicRecord[]> {
+  async getDeletedAcademicRecords(query?: { page?: number; limit?: number }): Promise<AcademicRecord[] | PaginatedAcademicRecords> {
     const token = tokenStorage.getAccessToken() || '';
-    const res = await fetch(`${API_BASE}/academic-records/deleted/all`, {
+    const params = query ? `?page=${encodeURIComponent(query.page ?? 1)}&limit=${encodeURIComponent(query.limit ?? 50)}` : '';
+    const res = await fetch(`${API_BASE}/academic-records/deleted/all${params}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
     });
-    return handleResponse<AcademicRecord[]>(res);
+    return handleResponse<AcademicRecord[] | PaginatedAcademicRecords>(res);
   },
 
   async restoreAcademicRecord(id: string): Promise<AcademicRecord> {

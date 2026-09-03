@@ -1,56 +1,58 @@
 slot_id: "taskscope-00"
-generation: 19
-task_id: "20260903-102113-stabilize-system-trash-operations"
+generation: 20
+task_id: "20260903-105242-trash-pagination-and-selection"
 scope_file: "docs/task/taskscope.md"
 status: completed
 scope_revision: 1
-created_at: "2026-09-03T10:21:13+07:00"
-updated_at: "2026-09-03T10:42:00+07:00"
-base_commit: "31d2493d5bc1251a742a8227090848358f18d8f9"
-task: "Stabilize system trash loading and destructive operations"
+created_at: "2026-09-03T10:52:42+07:00"
+updated_at: "2026-09-03T11:01:00+07:00"
+base_commit: "bdd602cfb078884e57638a8f19a185a01e0e2d3e"
+task: "Add paginated loading and selected deletion to system trash"
 pipeline: feature_development
 profile: Full
-objective: "System trash loads each data source independently, performs report-record mutations atomically, rejects unsafe permanent deletion, and presents actionable per-item failures without unbounded request concurrency."
+objective: "Each system-trash tab progressively loads bounded pages and lets authorized users explicitly select loaded rows for permanent deletion without treating unseen data as selected."
 
 coordination:
   depends_on: []
   warnings: []
 
 completion:
-  completed_at: "2026-09-03T10:42:00+07:00"
+  completed_at: "2026-09-03T11:01:00+07:00"
   outcome: success
-  final_commit_or_state: "Working tree on main at 31d2493d5bc1251a742a8227090848358f18d8f9 with scoped changes"
-  changed_paths: ["backend/src/academic-record/academic-record.controller.spec.ts", "backend/src/academic-record/academic-record.controller.ts", "backend/src/academic-record/academic-record.service.spec.ts", "backend/src/academic-record/academic-record.service.ts", "backend/src/daily-class-report/daily-class-report.service.spec.ts", "backend/src/daily-class-report/daily-class-report.service.ts", "frontend/src/app/(dashboard)/students/record/page.test.tsx", "frontend/src/app/(dashboard)/students/record/page.tsx", "docs/task/taskscope.md"]
-  checks_passed: ["V-01 focused backend Jest: 3 suites, 116 passed, 2 todo", "V-02 focused frontend Vitest: 32 passed", "V-03 backend build: passed", "V-04 frontend typecheck: passed", "V-05 git diff --check: passed"]
+  final_commit_or_state: "Working tree contains the scoped implementation changes; no commit created."
+  changed_paths: ["backend/src/academic-record/academic-record.controller.ts", "backend/src/academic-record/academic-record.service.ts", "backend/src/daily-class-report/daily-class-report.controller.ts", "backend/src/daily-class-report/daily-class-report.service.ts", "frontend/src/api/academic-record-api.ts", "frontend/src/api/daily-class-report-api.ts", "frontend/src/app/(dashboard)/students/record/page.tsx", "frontend/src/app/(dashboard)/students/record/page.test.tsx", "docs/task/taskscope.md"]
+  checks_passed: ["backend focused Jest: 3 suites, 118 tests (116 passed, 2 todo)", "frontend API Vitest: 2 suites, 5 tests passed", "frontend trash/page Vitest: 32 tests passed", "npm --prefix frontend run typecheck", "npm --prefix backend run build", "git diff --check"]
   cleanup_pending: []
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:fetchDeletedItems uses Promise.all so one rejected source hides both results; handleForceDeleteAllReports starts one request per report and reports counts only. backend/src/daily-class-report/daily-class-report.service.ts:{remove,restore,forceRemove} mutates linked AcademicRecord rows sequentially without a transaction, suppresses child-delete failures, and forceRemove accepts an active report. backend/src/academic-record/academic-record.controller.ts:{bulkForceRemove,forceRemove} enables bypass paths that weaken trash/link/hierarchy preconditions."
-  expected_behavior: "A source failure is isolated and retryable; destructive report cascades either commit parent and children together or change nothing; public permanent-delete routes accept only trashed eligible objects; bulk outcomes identify failures and use bounded concurrency."
-  root_cause: "Independent reads are coupled in one Promise.all; parent/child writes lack a MongoDB transaction; public force-delete paths reuse an internal bypass flag; frontend report purge has unbounded fan-out and discards rejection details."
+  current_behavior: "frontend/src/app/(dashboard)/students/record/page.tsx:fetchDeletedItems loads both /deleted/all arrays in full; trash rows are rendered with map and expose only per-row permanent delete plus a whole-loaded-array 'Xóa tất cả' action. backend findDeleted methods do not accept page/limit, count, sort, skip, or limit."
+  expected_behavior: "Both tabs load 50 newest deleted rows initially and append the next server page on demand; totals remain authoritative; checkboxes select only eligible loaded rows; permanent bulk deletion targets only explicit IDs and reports mixed outcomes."
+  root_cause: "Trash endpoints expose only unbounded arrays, and the dialog has no pagination metadata or trash-specific selection state."
 
 scope:
-  inspect: ["README.md:MongoDB replica-set runtime contract", "backend/src/semesters/semesters.service.ts:withTransaction convention", "frontend/src/api/{academic-record-api,daily-class-report-api}.ts:error propagation and existing response contracts"]
-  write: ["backend/src/academic-record/academic-record.controller.ts:bulkForceRemove/forceRemove public preconditions", "backend/src/academic-record/academic-record.controller.spec.ts:force-delete routing and guard regressions", "backend/src/academic-record/academic-record.service.ts:remove/restore/forceRemove transaction-aware internal options and trash invariants", "backend/src/academic-record/academic-record.service.spec.ts:trash eligibility/session/sync regressions", "backend/src/daily-class-report/daily-class-report.service.ts:remove/restore/forceRemove atomic cascade and structured failures", "backend/src/daily-class-report/daily-class-report.service.spec.ts:atomicity/idempotent restore/error regressions", "frontend/src/app/(dashboard)/students/record/page.tsx:trash loading, retry, bounded bulk execution, operation result UI", "frontend/src/app/(dashboard)/students/record/page.test.tsx:partial-load and destructive-operation UI regressions"]
-  preserve: ["Existing endpoint URLs and successful response shapes", "READ/UPDATE/DELETE/CONFIG permission requirements and owner/class visibility", "locked grading summary rule: delete remains allowed, restore remains blocked", "normal list filtering, soft-delete fields, score reconciliation, and dialogs", "legacy GET /deleted/all behavior; no schema or stored-data rewrite"]
-  out: ["Database migration or production data repair", "Automatic retention/TTL or scheduled purge", "Trash search/pagination redesign without measured volume evidence", "Audit-log subsystem, new dependency, or unrelated grading refactor", "Deployment or production mutation"]
+  inspect: ["frontend/src/components/ui/pagination.tsx:existing accessible navigation conventions", "backend/src/{academic-record,daily-class-report} service findAll pagination patterns", "completed generation 19 trash error/transaction behavior to preserve"]
+  write: ["backend/src/academic-record/academic-record.controller.ts:findDeleted page/limit query forwarding", "backend/src/academic-record/academic-record.controller.spec.ts:deleted pagination contract coverage", "backend/src/academic-record/academic-record.service.ts:findDeleted optional pagination", "backend/src/academic-record/academic-record.service.spec.ts:deleted pagination/RBAC/sort coverage", "backend/src/daily-class-report/daily-class-report.controller.ts:findDeleted page/limit query forwarding", "backend/src/daily-class-report/daily-class-report.controller.spec.ts:new focused deleted pagination controller coverage", "backend/src/daily-class-report/daily-class-report.service.ts:findDeleted optional pagination", "backend/src/daily-class-report/daily-class-report.service.spec.ts:deleted pagination/ownership/sort coverage", "frontend/src/api/academic-record-api.ts:getDeletedAcademicRecords paginated contract", "frontend/src/api/academic-record-api.test.ts:deleted query/response coverage", "frontend/src/api/daily-class-report-api.ts:getDeletedDailyClassReports paginated contract", "frontend/src/api/daily-class-report-api.test.ts:deleted query/normalization coverage", "frontend/src/app/(dashboard)/students/record/page.tsx:trash paging/selection/bulk-delete UI", "frontend/src/app/(dashboard)/students/record/page.test.tsx:trash lazy-load/selection/mixed-result coverage"]
+  preserve: ["Generation 19 independent per-source load/retry and safe failure summaries", "Transactional report-record delete/restore invariants and strict force-delete eligibility", "Existing endpoint paths, no-query array response, RBAC/ownership scope, and populated fields", "Single-row restore/permanent-delete and confirmation behavior", "Desktop/mobile responsive rendering and keyboard-accessible controls"]
+  out: ["Delete-all-unseen server operation", "Automatic infinite-scroll observer", "Trash search/filtering, retention/TTL, or scheduled purge", "Schema/index migration, dependency, data repair, deployment, or unrelated list pagination"]
 
 acceptance_criteria:
-  - "AC-01: If either deleted-record or deleted-report request fails, the fulfilled tab still renders; the failed tab shows its own non-sensitive error and retry action, and retry requests only that source."
-  - "AC-02: DailyClassReport soft-delete, restore, and permanent-delete commit the report plus all linked AcademicRecord mutations in one MongoDB transaction; an injected child/parent failure aborts the transaction and returns a stable reasonCode, operation phase, and failed object ID without personal data."
-  - "AC-03: Restoring a deleted report treats already-active linked records as an idempotent no-op, restores only deleted children, still rejects locked-summary children, and reconciles affected scores exactly once after a successful transaction."
-  - "AC-04: Public AcademicRecord permanent-delete rejects active records and direct deletion of report-owned records; public DailyClassReport permanent-delete rejects active reports. Internal report cascade may bypass ownership/link checks only after the report-level authorization and trash-state checks pass."
-  - "AC-05: AcademicRecord bulk force-delete retains succeeded/failed semantics; report 'delete all' runs at most five requests concurrently, retains failed rows, and displays succeeded count plus each failed row's safe label/ID and backend message."
-  - "AC-06: Existing successful response shapes, RBAC/ownership visibility, confirmation dialogs, locked-summary behavior, and ordinary soft-delete/restore flows remain compatible; no schema, migration, dependency, or endpoint replacement is introduced."
+  - "AC-01: GET deleted/all without page/limit retains the legacy array; with page and/or limit it returns {data,meta:{total,page,limit,totalPages,has_more}}, clamps page to >=1 and limit to 1..100, preserves requester scope, and orders by updatedAt then _id descending."
+  - "AC-02: Opening either tab requests page 1 with limit 50; 'Tải thêm' requests only that source's next page, appends unique IDs, disables during loading, disappears when has_more=false, and displays loaded/total counts without hiding the other tab's fulfilled state."
+  - "AC-03: Desktop and mobile trash rows expose accessible checkboxes; the header control selects/deselects only currently loaded, deletion-eligible rows in the active tab and shows checked/indeterminate state accurately. Selections are isolated between tabs and removed when rows disappear."
+  - "AC-04: The dialog replaces ambiguous 'Xóa tất cả' behavior with 'Xóa đã chọn (n)'; confirmation states the exact count and active data type, no request is sent for an empty selection, and only selected IDs are submitted."
+  - "AC-05: AcademicRecord deletion reuses the existing 25-ID bulk endpoint; DailyClassReport deletion retains the five-request concurrency ceiling. Successful rows are removed, failed IDs remain selected when still loaded, and the existing safe per-item result summary reports succeeded and failed counts/messages."
+  - "AC-06: After any delete/restore that can shift offsets, the affected tab rebases at page 1 before further loading so no row is skipped or duplicated; switching tabs does not discard the other tab's loaded data or selection."
+  - "AC-07: Existing permissions, owner scope, transaction guarantees, strict force-delete checks, source-specific retry, legacy clients, and single-row actions remain unchanged; no schema, migration, dependency, or delete-all-unseen capability is introduced."
 
 execution:
-  - "E-01 [AC-02,AC-03,AC-04,AC-06] backend/src/academic-record/academic-record.service.ts:{remove,restore,forceRemove} → add an internal transaction context that passes ClientSession through record mutation and defers/deduplicates score reconciliation until commit; keep public defaults strict and backward-compatible."
-  - "E-02 [AC-04,AC-06] backend/src/academic-record/academic-record.controller.ts:{bulkForceRemove,forceRemove} → stop converting query input or bulk routes into an unrestricted bypass; reserve bypass for authenticated report-service calls."
-  - "E-03 [AC-02,AC-03,AC-04] backend/src/daily-class-report/daily-class-report.service.ts:{remove,restore,forceRemove} → follow the repository withTransaction pattern, validate permission/state before mutation, mutate linked records in the same session, abort on every child failure, make active children idempotent during restore, and emit structured safe exceptions."
-  - "E-04 [AC-02,AC-03,AC-04,AC-06] backend/src/academic-record/{academic-record.controller.spec.ts,academic-record.service.spec.ts} and backend/src/daily-class-report/daily-class-report.service.spec.ts → cover strict public force-delete, internal cascade allowance, rollback, locked restore, active-child restore, parent eligibility, and one-time reconciliation."
-  - "E-05 [AC-01] frontend/src/app/(dashboard)/students/record/page.tsx:fetchDeletedItems → replace coupled loading with per-source settled state, safe tab-specific errors, and targeted retries while retaining successful data."
-  - "E-06 [AC-05,AC-06] frontend/src/app/(dashboard)/students/record/page.tsx:{runBulkRecordDelete,handleForceDeleteAllReports,trash dialog} → cap report deletion concurrency at five, keep failed rows after reconciliation, and render an accessible operation summary with per-item messages."
-  - "E-07 [AC-01,AC-05,AC-06] frontend/src/app/(dashboard)/students/record/page.test.tsx → verify partial loading/retry, concurrency ceiling, mixed outcomes, retained failures, error accessibility, and unchanged confirmations."
+  - "E-01 [AC-01,AC-07] backend/src/academic-record/academic-record.controller.ts:findDeleted and backend/src/daily-class-report/daily-class-report.controller.ts:findDeleted → parse optional page/limit and forward a bounded query without changing guards or route paths."
+  - "E-02 [AC-01,AC-07] backend/src/academic-record/academic-record.service.ts:findDeleted and backend/src/daily-class-report/daily-class-report.service.ts:findDeleted → retain array mode when pagination is absent; otherwise apply existing RBAC filter to both find/count, stable sort, skip/limit, and shared metadata shape."
+  - "E-03 [AC-01,AC-07] backend controller/service specs, including new backend/src/daily-class-report/daily-class-report.controller.spec.ts → prove query forwarding, bounds, stable ordering, meta totals, legacy arrays, and unchanged student/advisor/owner/full-view scope."
+  - "E-04 [AC-01,AC-02,AC-07] frontend/src/api/{academic-record-api,daily-class-report-api}.ts → add typed page/limit parameters and paginated return types while keeping no-parameter compatibility and report normalization; update both API tests for encoded queries and shapes."
+  - "E-05 [AC-02,AC-06] frontend/src/app/(dashboard)/students/record/page.tsx:trash load state → track page/meta per source, implement initial/rebase versus append loading with ID deduplication, and add accessible 'Tải thêm' plus loaded/total text."
+  - "E-06 [AC-03,AC-04] frontend/src/app/(dashboard)/students/record/page.tsx:trash dialog → add per-source selected-ID sets, row/mobile checkboxes, tri-state select-loaded control, permission eligibility, selected count, and type-specific confirmation copy; remove the ambiguous loaded-array delete-all entry point."
+  - "E-07 [AC-05,AC-06,AC-07] frontend/src/app/(dashboard)/students/record/page.tsx:bulk handlers → submit only selected IDs through existing APIs/concurrency limits, retain eligible failed selections and summaries, prune successes, then safely rebase the affected source."
+  - "E-08 [AC-02,AC-03,AC-04,AC-05,AC-06,AC-07] frontend/src/app/(dashboard)/students/record/page.test.tsx → cover independent page requests, append/dedup/end state, tab-isolated tri-state selection, permission filtering, exact selected payloads, empty guard, mixed failures, rebase, and mobile accessibility."
 
 temporary_artifacts:
   create: []
@@ -58,11 +60,12 @@ temporary_artifacts:
   retain: ["docs/task/taskscope.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-02,AC-03,AC-04,AC-06] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts src/academic-record/academic-record.controller.spec.ts src/daily-class-report/daily-class-report.service.spec.ts --runInBand → all focused backend tests pass."
-  - "V-02 [AC-01,AC-05,AC-06] npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx → all focused trash UI tests pass."
-  - "V-03 [AC-02,AC-03,AC-04,AC-06] npm --prefix backend run build → Nest/TypeScript build exits 0."
-  - "V-04 [AC-01,AC-05,AC-06] npm --prefix frontend run typecheck → TypeScript exits 0."
-  - "V-05 [AC-01,AC-02,AC-03,AC-04,AC-05,AC-06] git diff --check → no whitespace errors; final diff contains only declared write paths plus this retained taskscope lifecycle update."
+  - "V-01 [AC-01,AC-07] npm --prefix backend test -- src/academic-record/academic-record.service.spec.ts src/academic-record/academic-record.controller.spec.ts src/daily-class-report/daily-class-report.service.spec.ts src/daily-class-report/daily-class-report.controller.spec.ts --runInBand → all focused backend tests pass."
+  - "V-02 [AC-01,AC-02,AC-07] npm --prefix frontend test -- src/api/academic-record-api.test.ts src/api/daily-class-report-api.test.ts → both API suites pass."
+  - "V-03 [AC-02,AC-03,AC-04,AC-05,AC-06,AC-07] npm --prefix frontend test -- src/app/(dashboard)/students/record/page.test.tsx → focused trash UI suite passes."
+  - "V-04 [AC-01,AC-07] npm --prefix backend run build → exits 0."
+  - "V-05 [AC-01,AC-02,AC-03,AC-04,AC-05,AC-06,AC-07] npm --prefix frontend run typecheck → exits 0."
+  - "V-06 [AC-01,AC-02,AC-03,AC-04,AC-05,AC-06,AC-07] git diff --check → no whitespace errors and final diff contains only declared paths plus this retained taskscope lifecycle update."
 
-risks: ["MongoDB transaction availability is required; repository README documents replica-set rs0 as a runtime prerequisite.", "Score reconciliation occurs across multiple linked records and must be deduplicated by student/semester/criterion after commit.", "Structured errors must not expose populated student/user personal data."]
-stop_conditions: ["Stop if the target runtime cannot provide the documented MongoDB replica set; do not add a non-atomic fallback.", "Stop for a required schema/index migration, public response replacement, permission change, new dependency, production data repair, or deployment approval.", "Stop on a new active taskscope or dirty-worktree overlap with any declared write path."]
+risks: ["Offset pagination can skip rows after mutation; AC-06 requires page-one rebase before any next-page request.", "Dual legacy/paginated response modes require explicit type narrowing in frontend clients.", "Selection must never imply unseen rows or bypass per-row deletion eligibility."]
+stop_conditions: ["Stop if product intent requires selecting or deleting unseen/all matching rows; that needs an explicit server-side bulk contract and confirmation design.", "Stop for a schema/index migration, public legacy response removal, permission change, new dependency, production mutation, or overlap with another active taskscope/dirty path."]

@@ -232,9 +232,12 @@ export class AcademicRecordController {
   @UseGuards(checkPermission('READ_STUDENT_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted academic records' })
-  findDeleted(@Request() req: any) {
+  findDeleted(@Request() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
     const requester = req.user;
-    return this.academicRecordService.findDeleted(requester);
+    return this.academicRecordService.findDeleted(requester, {
+      ...(page !== undefined ? { page: Number(page) } : {}),
+      ...(limit !== undefined ? { limit: Number(limit) } : {}),
+    });
   }
 
   @Post('purge/preview')

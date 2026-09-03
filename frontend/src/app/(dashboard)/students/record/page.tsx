@@ -126,6 +126,9 @@ type TrashSource = "records" | "reports";
 type TrashSourceState = {
   loading: boolean;
   error: string | null;
+  page: number;
+  total: number;
+  hasMore: boolean;
 };
 
 const academicRecordTypeLabels: Record<AcademicRecordType, string> = {
@@ -330,10 +333,16 @@ const MemoizedAcademicRecordTableCells = React.memo(function AcademicRecordTable
 
 const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicRecordRow({
   record,
+  selected,
+  canDelete,
+  onToggle,
   onRestore,
   onForceDelete,
 }: {
   record: AcademicRecord;
+  selected: boolean;
+  canDelete: boolean;
+  onToggle: (id: string) => void;
   onRestore: (id: string) => void;
   onForceDelete: (id: string) => void;
 }) {
@@ -344,6 +353,9 @@ const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicReco
 
   return (
     <tr className="hover:bg-white/60 transition-colors">
+      <td className="p-3">
+        <input type="checkbox" checked={selected} disabled={!canDelete} onChange={() => onToggle(record._id)} aria-label={`Chọn ${stdName}`} />
+      </td>
       <td className="p-3">
         <div className="font-bold text-[#1E293B]">{stdName}</div>
         <div className="text-[10px] text-[#64748B] font-medium mt-0.5">{stdCode}</div>
@@ -371,6 +383,7 @@ const MemoizedDeletedAcademicRecordRow = React.memo(function DeletedAcademicReco
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
           <button
+            disabled={!canDelete}
             type="button"
             onClick={() => onForceDelete(record._id)}
             aria-label={`Xóa vĩnh viễn ${stdName}`}
@@ -541,9 +554,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
   const [deletedRecords, setDeletedRecords] = useState<AcademicRecord[]>([]);
   const [deletedReports, setDeletedReports] = useState<DailyClassReport[]>([]);
   const [trashLoadState, setTrashLoadState] = useState<Record<TrashSource, TrashSourceState>>({
-    records: { loading: false, error: null },
-    reports: { loading: false, error: null },
+    records: { loading: false, error: null, page: 0, total: 0, hasMore: false },
+    reports: { loading: false, error: null, page: 0, total: 0, hasMore: false },
   });
+  const [selectedTrashRecords, setSelectedTrashRecords] = useState<Set<string>>(new Set());
+  const [selectedTrashReports, setSelectedTrashReports] = useState<Set<string>>(new Set());
   const [isDeleteAllRecordsConfirmOpen, setIsDeleteAllRecordsConfirmOpen] = useState(false);
   const [isDeleteAllReportsConfirmOpen, setIsDeleteAllReportsConfirmOpen] = useState(false);
   const [isDeletingReports, setIsDeletingReports] = useState(false);
@@ -1371,7 +1386,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       const failedIds = new Set(failed.map(item => item.id));
       if (permanent) {
         setDeletedRecords(prev => prev.filter(record => !succeededIds.has(record._id)));
-        await fetchDeletedItems();
+        setSelectedTrashRecords(previous => new Set(Array.from(previous).filter(id => !succeededIds.has(id))));
+        await fetchDeletedItems("records");
       } else {
         if (groupPlan) {
           setSelectedIds((prev) =>
@@ -1527,18 +1543,24 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     }
   };
 
-  const fetchDeletedItems = async (source?: TrashSource) => {
+  const fetchDeletedItems = async (source?: TrashSource, append = false) => {
     const sources: TrashSource[] = source ? [source] : ["records", "reports"];
     const loadSource = async (currentSource: TrashSource) => {
       setTrashLoadState((previous) => ({
         ...previous,
-        [currentSource]: { loading: true, error: null },
+        [currentSource]: { ...previous[currentSource], loading: true, error: null },
       }));
       try {
         if (currentSource === "records") {
-          setDeletedRecords(await academicRecordApi.getDeletedAcademicRecords());
+          const response = await academicRecordApi.getDeletedAcademicRecords({ page: append ? trashLoadState.records.page + 1 : 1, limit: 50 });
+          const data = Array.isArray(response) ? response : response.data;
+          setDeletedRecords(previous => append ? Array.from(new Map([...previous, ...data].map(item => [item._id, item])).values()) : data);
+          if (!Array.isArray(response)) setTrashLoadState(previous => ({ ...previous, records: { ...previous.records, page: response.meta.page, total: response.meta.total, hasMore: response.meta.has_more } }));
         } else {
-          setDeletedReports(await dailyClassReportApi.getDeletedDailyClassReports());
+          const response = await dailyClassReportApi.getDeletedDailyClassReports({ page: append ? trashLoadState.reports.page + 1 : 1, limit: 50 });
+          const data = Array.isArray(response) ? response : response.data;
+          setDeletedReports(previous => append ? Array.from(new Map([...previous, ...data].map(item => [item._id, item])).values()) : data);
+          if (!Array.isArray(response)) setTrashLoadState(previous => ({ ...previous, reports: { ...previous.reports, page: response.meta.page, total: response.meta.total, hasMore: response.meta.has_more } }));
         }
       } catch (error) {
         const message = getTrashErrorMessage(
@@ -1550,13 +1572,13 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         console.error(`Lỗi khi tải dữ liệu thùng rác (${currentSource}):`, error);
         setTrashLoadState((previous) => ({
           ...previous,
-          [currentSource]: { loading: false, error: message },
+          [currentSource]: { ...previous[currentSource], loading: false, error: message },
         }));
         return;
       }
       setTrashLoadState((previous) => ({
         ...previous,
-        [currentSource]: { loading: false, error: null },
+        [currentSource]: { ...previous[currentSource], loading: false, error: null },
       }));
     };
 
@@ -1567,7 +1589,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     try {
       await academicRecordApi.restoreAcademicRecord(id);
       toast.success("Khôi phục ghi nhận vi phạm thành công!");
-      fetchDeletedItems();
+      fetchDeletedItems("records");
       refreshAcademicRecords();
     } catch (err: any) {
       console.error("Lỗi khi khôi phục ghi nhận:", err);
@@ -1579,7 +1601,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     try {
       await dailyClassReportApi.restoreDailyClassReport(id);
       toast.success("Khôi phục báo cáo ngày thành công!");
-      fetchDeletedItems();
+      fetchDeletedItems("reports");
       fetchClassReports();
       refreshAcademicRecords();
     } catch (err: any) {
@@ -1593,7 +1615,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       await academicRecordApi.forceDeleteAcademicRecord(id);
       toast.success("Đã xóa vĩnh viễn ghi nhận vi phạm.");
       setRecordToForceDelete(null);
-      fetchDeletedItems();
+      fetchDeletedItems("records");
     } catch (err: any) {
       console.error("Lỗi khi xóa vĩnh viễn ghi nhận:", err);
       toast.error(err.message || "Không thể xóa vĩnh viễn ghi nhận.");
@@ -1612,7 +1634,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       await dailyClassReportApi.forceDeleteDailyClassReport(id);
       toast.success("Đã xóa vĩnh viễn báo cáo lớp học.");
       setReportToForceDelete(null);
-      fetchDeletedItems();
+      fetchDeletedItems("reports");
     } catch (err: any) {
       console.error("Lỗi khi xóa vĩnh viễn báo cáo:", err);
       toast.error(err.message || "Không thể xóa vĩnh viễn báo cáo.");
@@ -1621,17 +1643,19 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
 
   const handleForceDeleteAllRecords = async () => {
     setIsDeleteAllRecordsConfirmOpen(false);
-    if (deletedRecords.length === 0) return;
-    await runBulkRecordDelete(deletedRecords.map(rec => rec._id), true);
+    const ids = Array.from(selectedTrashRecords);
+    if (ids.length === 0) return;
+    await runBulkRecordDelete(ids, true);
   };
 
   const handleForceDeleteAllReports = async () => {
     setIsDeleteAllReportsConfirmOpen(false);
-    if (isDeletingReports || deletedReports.length === 0) return;
+    const selectedIds = Array.from(selectedTrashReports);
+    if (isDeletingReports || selectedIds.length === 0) return;
     setIsDeletingReports(true);
     setReportBulkResult(null);
     const toastId = toast.loading("Đang xóa vĩnh viễn tất cả báo cáo lớp học...");
-    const reports = [...deletedReports];
+    const reports = deletedReports.filter(report => selectedTrashReports.has(report._id));
     const failed: Array<{ id: string; label: string; message: string }> = [];
     const succeededIds = new Set<string>();
     let nextIndex = 0;
@@ -1668,6 +1692,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
     } else {
       toast.success("Đã xóa vĩnh viễn tất cả báo cáo lớp học thành công!", { id: toastId });
     }
+    setSelectedTrashReports(previous => new Set(Array.from(previous).filter(id => !succeededIds.has(id))));
     await fetchDeletedItems("reports");
     setIsDeletingReports(false);
   };
@@ -1983,6 +2008,31 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
       : "Hoàn tất";
   const trashSource: TrashSource = trashTab === "student" ? "records" : "reports";
   const activeTrashSourceState = trashLoadState[trashSource];
+  const activeTrashItems = trashTab === "student" ? deletedRecords : deletedReports;
+  const activeSelection = trashTab === "student" ? selectedTrashRecords : selectedTrashReports;
+  const activeDeletableIds = trashTab === "student"
+    ? deletedRecords.filter(() => ghiNhanAccess.deleteStudentRecord).map(item => item._id)
+    : deletedReports.filter(canDeleteClassReport).map(item => item._id);
+  const selectedDeletableIds = activeDeletableIds.filter(id => activeSelection.has(id));
+  const allActiveSelected = activeDeletableIds.length > 0 && selectedDeletableIds.length === activeDeletableIds.length;
+  const toggleTrashSelection = (id: string) => {
+    if (!activeDeletableIds.includes(id)) return;
+    const setter = trashTab === "student" ? setSelectedTrashRecords : setSelectedTrashReports;
+    setter(previous => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAllTrashSelection = () => {
+    const setter = trashTab === "student" ? setSelectedTrashRecords : setSelectedTrashReports;
+    setter(previous => {
+      const next = new Set(previous);
+      if (allActiveSelected) activeDeletableIds.forEach(id => next.delete(id));
+      else activeDeletableIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
 
   if (currentView === "add" && canCreateRecords) {
     return (
@@ -4770,9 +4820,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               </button>
             </div>
 
-            {/* Nút Xóa tất cả */}
-            {((trashTab === "student" && deletedRecords.length > 0) ||
-              (trashTab === "class" && deletedReports.length > 0)) && (
+            {selectedDeletableIds.length > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -4786,7 +4834,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                 className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-500/20 flex items-center gap-1.5 transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer"
               >
                 <Trash2 size={13} />
-                <span>Xóa tất cả</span>
+                <span>Xóa đã chọn ({selectedDeletableIds.length})</span>
               </button>
             )}
           </div>
@@ -4814,6 +4862,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   <table className="hidden md:table w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
+                        <th className="p-3 border-b border-white/80"><input type="checkbox" checked={allActiveSelected} aria-checked={selectedDeletableIds.length > 0 && !allActiveSelected ? "mixed" : allActiveSelected} onChange={toggleAllTrashSelection} aria-label="Chọn các ghi nhận đủ điều kiện đang tải" />
+                        </th>
                         <th className="p-3 border-b border-white/80">
                           Sinh viên
                         </th>
@@ -4833,6 +4883,9 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                         <MemoizedDeletedAcademicRecordRow
                           key={rec._id}
                           record={rec}
+                          selected={selectedTrashRecords.has(rec._id)}
+                          canDelete={ghiNhanAccess.deleteStudentRecord}
+                          onToggle={toggleTrashSelection}
                           onRestore={handleRestoreRecordStable}
                           onForceDelete={setRecordToForceDelete}
                         />
@@ -4851,7 +4904,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       return (
                         <article key={rec._id} className="rounded-xl border border-white/75 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className="min-w-0"><input type="checkbox" checked={selectedTrashRecords.has(rec._id)} disabled={!ghiNhanAccess.deleteStudentRecord} onChange={() => toggleTrashSelection(rec._id)} aria-label={`Chọn ${student?.full_name || "ghi nhận"}`} />
                               <p className="break-words font-bold text-[#1E293B]">{student?.full_name || "N/A"}</p>
                               <p className="text-[10px] text-[#64748B]">{student?.student_code || ""}</p>
                             </div>
@@ -4876,6 +4929,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   <table className="hidden md:table w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-white/90 backdrop-blur-md text-[#334155] font-semibold border-b border-white/80">
+                        <th className="p-3 border-b border-white/80"><input type="checkbox" checked={allActiveSelected} aria-checked={selectedDeletableIds.length > 0 && !allActiveSelected ? "mixed" : allActiveSelected} onChange={toggleAllTrashSelection} aria-label="Chọn các báo cáo đủ điều kiện đang tải" />
+                        </th>
                         <th className="p-3 border-b border-white/80">
                           Lớp học
                         </th>
@@ -4904,6 +4959,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                             key={rep._id}
                             className="hover:bg-white/60 transition-colors"
                           >
+                            <td className="p-3"><input type="checkbox" checked={selectedTrashReports.has(rep._id)} disabled={!canDeleteClassReport(rep)} onChange={() => toggleTrashSelection(rep._id)} aria-label={`Chọn ${className}`} /></td>
                             <td className="p-3 font-bold text-[#1E293B]">
                               {className}
                             </td>
@@ -4959,7 +5015,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                       const className = getDisplayClassName(classObj?.class_name);
                       return (
                         <article key={rep._id} className="rounded-xl border border-white/75 bg-white/40 backdrop-blur-md p-4 shadow-sm shadow-slate-300/30">
-                          <div className="grid gap-2 text-xs">
+                            <div className="grid gap-2 text-xs"><input type="checkbox" checked={selectedTrashReports.has(rep._id)} disabled={!canDeleteClassReport(rep)} onChange={() => toggleTrashSelection(rep._id)} aria-label={`Chọn ${className}`} />
                             <div><span className="text-[#64748B]">Lớp học</span><p className="break-words font-bold text-[#1E293B]">{className}</p></div>
                             <div><span className="text-[#64748B]">Ngày báo cáo</span><p className="font-medium text-[#1E293B]">{rep.report_date ? format(new Date(rep.report_date), "dd/MM/yyyy") : "N/A"}</p></div>
                             <div><span className="text-[#64748B]">Giảng viên ghi nhận</span><p className="break-words font-semibold text-[#1E293B]">{getClassReportCreatorName(rep)}</p></div>
@@ -4976,6 +5032,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               </>
             )}
           </div>
+
+          {activeTrashItems.length > 0 && <div className="mt-3 flex items-center justify-between text-xs text-slate-600"><span>Đã tải {activeTrashItems.length}/{activeTrashSourceState.total}</span>{activeTrashSourceState.hasMore && <button type="button" disabled={activeTrashSourceState.loading} onClick={() => void fetchDeletedItems(trashSource, true)} className="rounded-xl border border-slate-300 bg-white/70 px-3 py-1.5 font-semibold">{activeTrashSourceState.loading ? "Đang tải..." : "Tải thêm"}</button>}</div>}
 
           {reportBulkResult && (
             <div
@@ -5061,8 +5119,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             onClose={() => setIsDeleteAllRecordsConfirmOpen(false)}
             onConfirm={handleForceDeleteAllRecords}
             title="Xác nhận xoá vĩnh viễn tất cả"
-            message="Bạn có chắc chắn muốn xoá vĩnh viễn TẤT CẢ ghi nhận vi phạm hiện có trong thùng rác? Hành động này sẽ xoá sạch dữ liệu và không thể hoàn tác."
-            confirmLabel="Xoá tất cả"
+            message={`Bạn có chắc chắn muốn xoá vĩnh viễn ${selectedTrashRecords.size} ghi nhận vi phạm đã chọn? Hành động này không thể hoàn tác.`}
+            confirmLabel="Xoá đã chọn"
             cancelLabel="Huỷ"
             variant="danger"
           />
@@ -5073,8 +5131,8 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             onClose={() => setIsDeleteAllReportsConfirmOpen(false)}
             onConfirm={handleForceDeleteAllReports}
             title="Xác nhận xoá vĩnh viễn tất cả"
-            message="Bạn có chắc chắn muốn xoá vĩnh viễn TẤT CẢ báo cáo lớp học trong thùng rác? Hành động này sẽ xoá sạch tất cả báo cáo và các ghi nhận liên quan vĩnh viễn khỏi database."
-            confirmLabel="Xoá tất cả"
+            message={`Bạn có chắc chắn muốn xoá vĩnh viễn ${selectedTrashReports.size} báo cáo lớp học đã chọn? Hành động này không thể hoàn tác.`}
+            confirmLabel="Xoá đã chọn"
             cancelLabel="Huỷ"
             variant="danger"
           />
