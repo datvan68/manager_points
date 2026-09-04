@@ -1,51 +1,76 @@
 slot_id: "taskscope-01"
-generation: 4
-task_id: "20260904-135852-dormitory-roster-mobile-ui"
+generation: 5
+task_id: "20260904-144138-student-spotlight-infinite-lists"
 scope_file: "docs/task/taskscope-01.md"
-status: completed
+status: ready
 scope_revision: 1
-created_at: "2026-09-04T13:58:52+07:00"
-updated_at: "2026-09-04T14:06:10+07:00"
-base_commit: "2628ff029da6c0a237b2175e5c1df57418722860"
-task: "Refine dormitory roster mobile presentation"
+created_at: "2026-09-04T14:41:38+07:00"
+updated_at: "2026-09-04T14:41:38+07:00"
+base_commit: "e1050534417199f7927fb55122e6d842f06cd2ab"
+task: "Paginate and virtualize student recognition lists"
 pipeline: feature_development
 profile: Full
-objective: "At a viewport below the `lg` breakpoint, the dormitory roster has no redundant list wrapper, preserves bulk selection without native checkboxes, and keeps the edit dialog inset from viewport edges."
+environment: development
+risk_level: high
+objective: "All eligible students are reachable in the three recognition lists: rewards/bonus require at least one category record; discipline requires at least three. Load pages on scroll and virtualize desktop/mobile rows."
 
 coordination:
   depends_on: []
   warnings: []
+  evidence: "Slot 00 (20260904-142909-dormitory-mobile-scroll-popovers) is in_progress and reserves dormitory pages/components/tests only; its inspect paths are also disjoint. Slots 01/02 are completed; reuse lowest completed slot 01. Existing dirty paths belong to slot 00 and are disjoint. Branch main."
+  rules: ["safety 3.3.0", "global 3.3.6", "orchestrator 3.3.7", "pipeline 3.3.5", "taskscope 3.3.7", "implement_feature 3.0.0"]
 
 completion:
-  completed_at: "2026-09-04T14:06:10+07:00"
-  outcome: "success"
-  final_commit_or_state: "Working tree contains the scoped frontend implementation and tests; no commit was requested."
-  changed_paths: ["frontend/src/app/(dashboard)/dormitory/roster/page.tsx", "frontend/src/components/ui/ResponsiveDataView.tsx", "frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx", "frontend/src/components/ui/ResponsiveDataView.test.tsx", "frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx"]
-  checks_passed: ["npm --prefix frontend test -- src/components/ui/ResponsiveDataView.test.tsx src/components/dormitory/DormitoryRegistrationEditModal.test.tsx", "npm --prefix frontend test -- src/app/(dashboard)/dormitory/roster/page.test.tsx", "npm --prefix frontend run typecheck", "git diff --check", "Manual mobile screenshot/AX verification of unwrapped cards and labelled toggle; modal inset verified by render test (direct Chrome click unavailable in CDP)."]
+  completed_at: null
+  outcome: null
+  final_commit_or_state: null
+  changed_paths: []
+  checks_passed: []
   cleanup_pending: []
 
 evidence:
-  current_behavior: "frontend/src/app/(dashboard)/dormitory/roster/page.tsx:470 renders a bordered translucent list wrapper around mobile item cards; frontend/src/components/ui/ResponsiveDataView.tsx:128 renders a native checkbox whenever selection is supplied; frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx:154 inherits DialogContent w-full at mobile."
-  expected_behavior: "Mobile roster cards sit directly in the page layout, retain an accessible non-checkbox selection control for the current bulk delete/PDF flow, and the edit dialog has a 0.5rem viewport inset with safe vertical scrolling."
-  root_cause: "The roster passes generic selection to ResponsiveDataView without a mobile presentation override, while its outer desktop table container and edit dialog have no mobile-specific layout variants."
+  current_behavior: "system.service.ts:getDashboardMetrics limits each category aggregation to 10 after grouping; discipline has no minimum count. StudentSpotlightPanel.tsx:renderList additionally slices to 10 and labels use array length. Desktop has three scrolling columns; mobile opens category popovers. DashboardPage loads server metrics through systemApi."
+  expected_behavior: "AC-01..05"
+  root_cause: "Two fixed preview caps and no paginated category data source; contentVisibility does not remove offscreen rows from the DOM."
 
 scope:
-  inspect: ["frontend/src/app/(dashboard)/dormitory/roster/page.tsx:ResponsiveDataView composition and FloatingActionBar", "frontend/src/components/ui/ResponsiveDataView.tsx:renderDefaultCard selection control", "frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx:DialogContent", "frontend/src/components/ui/ResponsiveDataView.test.tsx and frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx:nearest coverage"]
-  write: ["frontend/src/app/(dashboard)/dormitory/roster/page.tsx:mobile list wrapper and ResponsiveDataView selection configuration", "frontend/src/components/ui/ResponsiveDataView.tsx:optional accessible mobile selection-control variant", "frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx:mobile DialogContent sizing", "frontend/src/components/ui/ResponsiveDataView.test.tsx:mobile selection-control regression coverage", "frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx:mobile dialog sizing regression coverage"]
-  preserve: ["Desktop table wrapper and header checkbox", "selected row state and bulk delete/PDF actions", "existing authorization checks and infinite scrolling", "edit-form fields, validation, and save behavior"]
-  out: ["Redesigning other ResponsiveDataView consumers", "Changing deletion/PDF APIs or bulk-action semantics", "Changing create, import, QR, or confirmation dialogs"]
+  inspect:
+    - "backend/src/system/system.service.ts:getDashboardMetrics role resolution, semester selection, getHighlightBaseStages, category aggregates"
+    - "backend/src/system/system.controller.ts:getDashboardMetrics guards"
+    - "backend/src/system/dto/system.dto.ts:query validation conventions"
+    - "frontend/src/components/dashboard/dashboard-helpers.ts:StudentHighlightItem (type only; local aggregate helper is not the page data source)"
+    - "frontend/src/components/ui/ResponsiveDataView.tsx:useVirtualizer pattern"
+    - "frontend/src/app/(dashboard)/page.test.tsx:dashboard loading regression"
+    - "frontend/package.json and backend/package.json:test/typecheck/build scripts; installed @tanstack/react-virtual"
+  write:
+    - "backend/src/system/system.service.ts"
+    - "backend/src/system/system.controller.ts"
+    - "backend/src/system/dto/system.dto.ts"
+    - "backend/src/system/system.service.spec.ts"
+    - "backend/src/system/student-highlights.controller.spec.ts"
+    - "frontend/src/api/system-api.ts"
+    - "frontend/src/api/system-api.test.ts"
+    - "frontend/src/app/(dashboard)/page.tsx"
+    - "frontend/src/components/dashboard/StudentSpotlightPanel.tsx"
+    - "frontend/src/components/dashboard/StudentSpotlightPanel.test.tsx"
+    - "frontend/src/components/dashboard/dashboard-responsive.test.tsx"
+  preserve: ["Existing role resolution and teacher assigned-class/student-self restrictions", "Active, non-deleted records in selected semester", "Category-specific ranking, card fields and student-profile navigation", "Student personal spotlight", "Other dashboard KPIs and metrics response compatibility", "Desktop columns and mobile accessible popovers"]
+  out: ["Dormitory work", "Changing record creation, scores, KPI attention thresholds or category semantics", "Database/schema/index migrations", "New dependencies", "Production/runtime data access", "Local dashboard aggregate helper rewrite"]
 
 acceptance_criteria:
-  - "AC-01: Below `lg`, the roster has no visible border/background/shadow list wrapper around its item cards; at `lg` and above, the existing table container remains styled and clipped."
-  - "AC-02: Below `lg`, each roster card exposes an accessible touch target to select or deselect that row without an input[type=checkbox]; it updates the existing selected state, and selected rows retain bulk delete/PDF actions."
-  - "AC-03: Other ResponsiveDataView consumers retain their current mobile checkbox presentation unless they explicitly opt into the new variant."
-  - "AC-04: The edit roster dialog is at most calc(100vw - 1rem) wide, at most calc(100dvh - 1rem) high, scrolls its content, and uses the existing desktop dimensions/padding from `sm` upward."
+  - "AC-01: For a fixed semester and authorized scope, every distinct student with rewards count >=1, bonus count >=1 (including zero net points), or discipline count >=3 is reachable; counts 0/1/2 are excluded from discipline. Headers show full eligible totals, not loaded lengths."
+  - "AC-02: GET /system/student-highlights accepts category=discipline|rewards|bonus, optional semesterId, page>=1 and limit=20 by default (1..100); returns {items,total,page,limit,hasMore,semesterId}. Invalid supplied inputs return 400. Empty/no-semester results have zero total and hasMore=false. Apply eligibility before pagination/counting; keep one row per existing student. Stable category ranking ends with student ID as tie-breaker."
+  - "AC-03: Each category fetches bounded pages independently near its scroll end, reaches beyond 10 and beyond one page, deduplicates by studentId, prevents concurrent duplicate loads and stops at hasMore=false. Loading, empty, recoverable error/retry and terminal states are distinct; retries retain loaded rows."
+  - "AC-04: Desktop lists and opened mobile popovers use @tanstack/react-virtual with the actual bounded scroll root, measured variable-height rows, stable keys and overscan. Mounted student rows remain bounded by visible range plus overscan as loaded data grows; hidden layouts do not trigger extra page loads. Keyboard/touch scrolling and profile buttons remain usable."
+  - "AC-05: Semester changes, dashboard refresh and role/user changes reset category data, pagination and scroll; obsolete responses cannot append into new scope. Server guards and filtering prevent cross-class/student leakage, including users with no assigned classes. Personal student spotlight and existing metrics consumers retain behavior."
 
 execution:
-  - "E-01 [AC-02, AC-03] frontend/src/components/ui/ResponsiveDataView.tsx → add an opt-in mobile selection-control variant with per-row accessible naming; preserve the current checkbox as the default for all callers."
-  - "E-02 [AC-01, AC-02] frontend/src/app/(dashboard)/dormitory/roster/page.tsx → restrict the list wrapper visual treatment to desktop and opt the roster into the labelled mobile selection control while retaining the selected-state callbacks and FloatingActionBar."
-  - "E-03 [AC-04] frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx → align mobile DialogContent width, dynamic viewport height, overflow containment, and compact padding with the roster create dialog; retain the `sm` desktop variants."
-  - "E-04 [AC-02, AC-03, AC-04] frontend/src/components/ui/ResponsiveDataView.test.tsx and frontend/src/components/dormitory/DormitoryRegistrationEditModal.test.tsx → cover the opt-in mobile control/default checkbox and edit-dialog mobile layout classes."
+  - "E-01 [AC-01,02,05] system.service.ts: add getStudentHighlights using the existing role/semester resolution and highlight filters through narrowly shared helpers; do not call the entire metrics computation per page. Group by student/category, apply minimum count, preserve projections and ranking, add ID tie-breaker, and return bounded items plus matching total. Existing metrics preview arrays may remain capped for compatibility; new lists must not consume them as complete data."
+  - "E-02 [AC-02,05] system.dto.ts and system.controller.ts: add validated GetStudentHighlightsQueryDto and guarded endpoint matching dashboard authentication/permissions; pass authenticated requester, never accept client-supplied ownership scope."
+  - "E-03 [AC-02,03,05] system-api.ts: add typed request/response using existing httpClient/handleResponse and StudentHighlightItem. page.tsx: supply semester and refresh identity tied to the displayed successful metrics load, so refresh also invalidates categories."
+  - "E-04 [AC-01,03,04,05] StudentSpotlightPanel.tsx: isolate operator hooks from the early student return; replace slice/map list flow with per-category paged state and a reusable internal virtualized list component. Share category data between layouts, use server totals and reset/invalidate stale requests; retain existing cards and popover interactions."
+  - "E-05 [AC-01,02,05] system.service.spec.ts and new student-highlights.controller.spec.ts: cover thresholds, >20 students, ties, totals, last/empty pages, zero-point bonus, semester/status/deletion filters, teacher/student isolation and DTO/guard wiring with mocks; no runtime database."
+  - "E-06 [AC-01..05] system-api.test.ts and new StudentSpotlightPanel.test.tsx: cover URL/response, sequential load/dedup/end/retry, totals, stale response rejection, refresh/semester reset and virtual range behavior. Update only affected assertions in dashboard-responsive.test.tsx while preserving accessibility requirements."
 
 temporary_artifacts:
   create: []
@@ -53,10 +78,11 @@ temporary_artifacts:
   retain: ["docs/task/taskscope-01.md: user-requested reusable taskscope slot"]
 
 verification:
-  - "V-01 [AC-02, AC-03] npm --prefix frontend test -- src/components/ui/ResponsiveDataView.test.tsx → mobile control and default checkbox tests pass."
-  - "V-02 [AC-04] npm --prefix frontend test -- src/components/dormitory/DormitoryRegistrationEditModal.test.tsx → edit dialog tests pass."
-  - "V-03 [AC-01, AC-02, AC-04] npm --prefix frontend test -- src/app/(dashboard)/dormitory/roster/page.test.tsx → roster behavior tests pass."
-  - "V-04 [AC-01, AC-02, AC-04] manual localhost /dormitory/roster at 360px viewport → no outer list card, no native checkbox, labelled selection toggle works, and edit dialog has 8px inset."
+  - "V-01 [AC-01,02,05] npm --prefix backend test -- system.service.spec.ts student-highlights.controller.spec.ts --runInBand -> pass."
+  - "V-02 [AC-01..05] npm --prefix frontend test -- src/api/system-api.test.ts src/components/dashboard/StudentSpotlightPanel.test.tsx src/components/dashboard/dashboard-responsive.test.tsx 'src/app/(dashboard)/page.test.tsx' -> pass."
+  - "V-03 [AC-02..05] npm --prefix frontend run typecheck; npm --prefix backend run build -> both pass."
+  - "V-04 [AC-03,04,05] Browser with synthetic/mocked >100-student category pages at 1280px and 390px: scroll each category to last student, confirm bounded network pages and DOM row count, no duplicates/hidden-layout fetches, mobile popover scroll and keyboard profile navigation; switch semester while request pending and verify no stale rows."
+  - "V-05 [AC-01..05] Independent focused review of endpoint isolation, backward compatibility and request-race handling; git diff --check -> pass. Record actual checks and final paths before marking completed."
 
-risks: ["ResponsiveDataView is shared; the new mobile selection presentation must be opt-in so existing list workflows do not change.", "Removing native checkboxes must not make mobile bulk actions undiscoverable or inaccessible."]
-stop_conditions: ["The requested mobile selection presentation requires changing bulk-action behavior or permission rules.", "A newly active taskscope or dirty change reserves any listed implementation path before execution starts."]
+risks: ["Cross-package paginated API must preserve existing personal-data visibility; requires Full review.", "Offset pages are deterministic for unchanged data; concurrent record changes can move ranks. Deduplicate appended IDs and refresh from page one; snapshot consistency is outside scope.", "Desktop/mobile roots coexist in markup; hidden roots and portal measurements can accidentally trigger extra loads."]
+stop_conditions: ["Active reservations or dirty changes overlap listed writes at execution start", "Additional write paths, authorization changes, dependency or persistence changes are required", "Required mocked browser verification cannot run: record blocker rather than claim completion"]

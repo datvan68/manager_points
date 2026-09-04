@@ -1,8 +1,18 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, formFromRegistration, mapActiveSemester } from './DormitoryRegistrationEditModal';
+import DormitoryChoicePopover from './DormitoryChoicePopover';
 
 describe('canonical roster edit behavior', () => {
+  it('commits one mobile choice and closes the popover', () => {
+    const onValueChange = vi.fn();
+    render(<DormitoryChoicePopover ariaLabel="Loại phòng" value="Thường" options={[{ value: 'Thường', label: 'Thường' }, { value: 'Máy lạnh', label: 'Máy lạnh' }]} onValueChange={onValueChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Loại phòng' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Máy lạnh' }));
+    expect(onValueChange).toHaveBeenCalledWith('Máy lạnh');
+    expect(screen.queryByRole('option', { name: 'Máy lạnh' })).not.toBeInTheDocument();
+  });
+
   it('builds only canonical roster fields', () => {
     const payload = buildEditRegistrationPayload({ full_name: ' Nguyễn A ', student_code: '', semester: 'HK1', academic_year: '2026-2027', date_of_birth: '2003-01-01', gender: 'Other', phone_number: '0912345678', room_type: 'Thường', notes: ' note ', applicant_profile: {} });
     expect(payload).toEqual(expect.objectContaining({ full_name: 'Nguyễn A', phone_number: '0912345678', notes: 'note' }));

@@ -23,6 +23,7 @@ import { emptyApplicantProfile } from '@/components/dormitory/PublicDormitoryReg
 import DormitoryRegistrationEditModal, { dateInputValue, mapActiveSemester } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import DormitoryRosterImportModal from '@/components/dormitory/DormitoryRosterImportModal';
 import type { ActiveSemesterValues } from '@/components/dormitory/DormitoryRegistrationEditModal';
+import DormitoryChoicePopover from '@/components/dormitory/DormitoryChoicePopover';
 export { buildEditRegistrationPayload, mapActiveSemester } from '@/components/dormitory/DormitoryRegistrationEditModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
@@ -449,7 +450,7 @@ export default function DormitoryRosterPage() {
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
     { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && <button aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>}{canDelete && <button aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}</div> },
   ];
-  return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar sm:p-6">
+  return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden sm:p-6">
     {mobileSearchOpen ? (
       <div className="flex w-full items-center gap-1 py-0.5 lg:hidden">
         <Research ref={searchRef} aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="flex-1 w-full max-w-none" />
@@ -495,7 +496,7 @@ export default function DormitoryRosterPage() {
     />
     <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={removeSelected} title="Xóa mục Danh sách KTX đã chọn" message={`Bạn có chắc muốn xóa ${selected.length} mục Danh sách KTX đã chọn?`} confirmLabel="Xóa mục" cancelLabel="Hủy" variant="danger" />
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-h-[90vh] sm:p-6 sm:max-w-4xl">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl shadow-slate-300/40 backdrop-blur-md max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden sm:max-h-[90vh] sm:p-6 sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">
           <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-sm font-black uppercase leading-snug tracking-wider text-[#1E293B]">
             <span className="min-w-0">Thêm sinh viên đăng ký KTX</span>
@@ -534,12 +535,12 @@ export default function DormitoryRosterPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select disabled={Boolean(student)} value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><div className="hidden lg:block"><Select disabled={Boolean(student)} value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div><div className="lg:hidden"><DormitoryChoicePopover ariaLabel="Giới tính" disabled={Boolean(student)} value={createForm.gender} options={[{ value: 'Male', label: 'Nam' }, { value: 'Female', label: 'Nữ' }, { value: 'Other', label: 'Khác' }]} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))} placeholder="Chọn giới tính" /></div></div>
               </div>
               <Input label="Số điện thoại" required type="tel" value={createForm.phone_number} onChange={e => setCreateForm(f => ({ ...f, phone_number: e.target.value }))} placeholder="Nhập số điện thoại" />
             </section>
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
-              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.room_type} disabled={createForm.gender !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><div className="hidden lg:block"><Select value={createForm.room_type} disabled={createForm.gender !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div><div className="lg:hidden"><DormitoryChoicePopover ariaLabel="Loại phòng" disabled={createForm.gender !== 'Female'} value={createForm.room_type} options={[{ value: 'Thường', label: 'Thường' }, { value: 'Máy lạnh', label: 'Máy lạnh (Ưu tiên cho nữ)' }]} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))} /></div></div>
               <Input label="Ghi chú" multiline rows={3} value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </section>
           </div>
