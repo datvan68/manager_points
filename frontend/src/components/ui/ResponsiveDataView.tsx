@@ -53,6 +53,7 @@ interface ResponsiveDataViewProps<T> {
   mobileScrollRef?: React.Ref<HTMLDivElement>;
   mobileVirtualization?: boolean;
   mobileClassName?: string;
+  hideMobileSelection?: boolean;
   
   // Desktop infinite scroll support
   desktopFooter?: React.ReactNode;
@@ -78,6 +79,7 @@ export default function ResponsiveDataView<T>({
   mobileScrollRef,
   mobileVirtualization = false,
   mobileClassName = '',
+  hideMobileSelection = false,
   desktopFooter,
   desktopScrollRef
 }: ResponsiveDataViewProps<T>) {
@@ -130,7 +132,7 @@ export default function ResponsiveDataView<T>({
         {/* Card Header: Title (Primary), Badge/Checkbox & Actions */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            {selection && (
+            {selection && !hideMobileSelection && (
               selection.mobileControl === 'toggle' ? (
                 <button
                   type="button"
@@ -209,7 +211,7 @@ export default function ResponsiveDataView<T>({
               <div key={i} className="bg-white/40 border border-white/60 rounded-2xl p-4 flex flex-col gap-3 animate-pulse">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2.5 w-full">
-                    {selection && <Skeleton className="w-4 h-4 rounded" />}
+                    {selection && !hideMobileSelection && <Skeleton className="w-4 h-4 rounded" />}
                     <div className="w-1/2 space-y-2">
                       <Skeleton className="h-4 w-3/4 rounded" />
                       <Skeleton className="h-3 w-1/2 rounded" />
