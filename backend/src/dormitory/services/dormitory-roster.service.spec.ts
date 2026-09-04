@@ -26,7 +26,7 @@ describe('DormitoryRosterService', () => {
     const semesterModel: any = { find: jest.fn(() => query([semester])) };
     const contractModel: any = { findOne: jest.fn(() => query(null)), find: jest.fn(() => query([])) };
     const invoiceModel: any = { countDocuments: jest.fn(() => query(0)) };
-    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}), validateImportCapacity: jest.fn().mockResolvedValue(undefined), deleteRosterEntry: jest.fn().mockResolvedValue(undefined) };
+    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}), deleteRosterEntry: jest.fn().mockResolvedValue(undefined) };
     return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel, undefined, roomAssignmentService), saved, rosterModel, studentModel, roomAssignmentService };
   }
 
@@ -92,30 +92,35 @@ describe('DormitoryRosterService', () => {
     expect(roomAssignmentService.assignFirstAvailableBed).toHaveBeenCalledWith('roster-1', 'P101', {});
   });
 
-  it('removes a newly created roster entry when the imported room cannot accept an assignment', async () => {
+  it('keeps a newly created roster entry unassigned when the imported room is full', async () => {
     const { service, rosterModel } = setup();
     const roomAssignmentService = (service as any).roomAssignmentService;
     roomAssignmentService.assignFirstAvailableBed.mockRejectedValue(new BadRequestException('Phòng P101 không còn giường trống'));
 
     const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678', room_code: 'P101' }] } as any);
 
-    expect(result).toMatchObject({ created: 0, failed: 1 });
-    expect(result.results[0].reason).toContain('không còn giường trống');
-    expect(rosterModel.findByIdAndDelete).toHaveBeenCalledWith('roster-1');
+    expect(result).toMatchObject({ created: 1, failed: 0 });
+    expect(result.results[0].reason).toContain('Chưa xếp phòng/giường');
+    expect(rosterModel.findByIdAndDelete).not.toHaveBeenCalled();
   });
 
-  it('does not assign any imported student to a room when the group exceeds its free beds', async () => {
+  it('imports every student and leaves only the overflow student unassigned when a room fills up', async () => {
     const { service, saved } = setup();
     const roomAssignmentService = (service as any).roomAssignmentService;
-    roomAssignmentService.validateImportCapacity.mockRejectedValue(new BadRequestException('Phòng P101 chỉ còn 4 giường trống, không thể xếp 5 sinh viên'));
+    roomAssignmentService.assignFirstAvailableBed
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new BadRequestException('Phòng P101 không còn giường trống'));
     const rows = Array.from({ length: 5 }, (_, index) => ({ full_name: `Nguyễn Văn ${index}`, date_of_birth: '02/01/2004', gender: 'Nam', phone_number: `09123456${index}8`, room_code: 'P101' }));
 
     const result = await service.importRows({ rows } as any);
 
-    expect(result).toMatchObject({ created: 0, failed: 5 });
-    expect(roomAssignmentService.validateImportCapacity).toHaveBeenCalledWith('P101', 5);
-    expect(roomAssignmentService.assignFirstAvailableBed).not.toHaveBeenCalled();
-    expect(saved).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ created: 5, failed: 0 });
+    expect(roomAssignmentService.assignFirstAvailableBed).toHaveBeenCalledTimes(5);
+    expect(result.results[4].reason).toContain('Chưa xếp phòng/giường');
+    expect(saved).toHaveBeenCalledTimes(5);
   });
 
   it('deletes an entry through bed release even when a contract references it', async () => {

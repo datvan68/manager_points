@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatDormitoryRosterRowRanges,
+  groupDormitoryRosterImportResults,
   normalizeDormitoryRosterDate,
   normalizeDormitoryRosterGender,
   parseDormitoryRosterRows,
@@ -39,5 +41,18 @@ describe('DormitoryRosterImportModal parsing', () => {
     expect(validateDormitoryRosterFile({ name: 'roster.csv', size: 1 })).toMatch(/Excel/);
     expect(validateDormitoryRosterFile({ name: 'roster.xlsx', size: 10 * 1024 * 1024 + 1 })).toMatch(/10 MB/);
     expect(validateDormitoryRosterFile({ name: 'roster.xls', size: 1 })).toBeNull();
+  });
+
+  it('groups identical import outcomes and renders compact row ranges', () => {
+    const groups = groupDormitoryRosterImportResults([
+      { row: 2, status: 'failed', reason: 'Phòng KTX01 chỉ còn 4 giường trống.' },
+      { row: 3, status: 'failed', reason: 'Phòng KTX01 chỉ còn 4 giường trống.' },
+      { row: 5, status: 'failed', reason: 'Phòng KTX01 chỉ còn 4 giường trống.' },
+      { row: 8, status: 'created' },
+    ]);
+
+    expect(groups).toHaveLength(2);
+    expect(formatDormitoryRosterRowRanges(groups[0].rows)).toBe('2–3, 5');
+    expect(groups[0]).toMatchObject({ status: 'failed', reason: 'Phòng KTX01 chỉ còn 4 giường trống.' });
   });
 });

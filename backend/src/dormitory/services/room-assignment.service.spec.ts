@@ -133,11 +133,4 @@ describe('RoomAssignmentService canonical roster flow', () => {
     );
   });
 
-  it('rejects an imported room group when free beds cannot cover every student', async () => {
-    const roomModel: any = { findOne: jest.fn(() => ({ exec: jest.fn().mockResolvedValue({ _id: 'room-1', status: 'Trống' }) })) };
-    const bedModel: any = { countDocuments: jest.fn(() => ({ exec: jest.fn().mockResolvedValue(4) })) };
-    const service = new RoomAssignmentService(roomModel, bedModel, {} as any, {} as any, {} as any);
-
-    await expect(service.validateImportCapacity('P101', 5)).rejects.toThrow('chỉ còn 4 giường trống');
-  });
 });

@@ -220,23 +220,6 @@ export class RoomAssignmentService {
     throw new BadRequestException(`Phòng ${normalizedCode} không còn giường trống`);
   }
 
-  async validateImportCapacity(roomCode: string, requestedCount: number) {
-    const normalizedCode = String(roomCode || '').trim().normalize('NFKC').toUpperCase();
-    if (!normalizedCode || !Number.isInteger(requestedCount) || requestedCount < 1) {
-      throw new BadRequestException('Dữ liệu mã phòng import không hợp lệ');
-    }
-    const escapedCode = normalizedCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const room = await this.roomModel.findOne({ room_code: { $regex: `^${escapedCode}$`, $options: 'i' } }).exec();
-    if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${normalizedCode}`);
-    if ([DORMITORY_ENUMS.roomStatus[2], DORMITORY_ENUMS.roomStatus[3]].includes(room.status as any)) {
-      throw new BadRequestException(`Phòng ${normalizedCode} hiện không thể phân giường`);
-    }
-    const availableBeds = await this.bedModel.countDocuments({ room_id: room._id, status: DORMITORY_ENUMS.bedStatus[0] }).exec();
-    if (availableBeds < requestedCount) {
-      throw new BadRequestException(`Phòng ${normalizedCode} chỉ còn ${availableBeds} giường trống, không thể xếp ${requestedCount} sinh viên`);
-    }
-  }
-
   async unassignRoom(rosterEntryId: string, user: any) {
     void user;
     const rosterEntry: any = await this.rosterModel.findById(rosterEntryId);

@@ -207,6 +207,10 @@ export class DormitoryRosterService {
     return Array.isArray(response?.message) ? response.message.join('; ') : String(response?.message || (error as any)?.message || 'Dữ liệu không hợp lệ.');
   }
 
+  private isNoBedAvailableError(error: unknown) {
+    return this.exceptionMessage(error).toLocaleLowerCase('vi-VN').includes('không còn giường trống');
+  }
+
   async importRows(dto: ImportRosterDto) {
     const roomAssignmentService = this.roomAssignmentService;
     const semester = await this.resolveActiveSemester();
@@ -263,38 +267,24 @@ export class DormitoryRosterService {
       }
     }
 
-    const roomGroups = new Map<string, Array<{ row: number; payload: any }>>();
     for (const item of validRows) {
-      const roomCode = this.normalizeCode(item.payload.room_code);
-      if (roomCode) roomGroups.set(roomCode, [...(roomGroups.get(roomCode) || []), item]);
-    }
-    const blockedRows = new Set<number>();
-    for (const [roomCode, items] of roomGroups) {
-      try {
-        if (!roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
-        await roomAssignmentService.validateImportCapacity(roomCode, items.length);
-      } catch (error) {
-        for (const item of items) {
-          blockedRows.add(item.row);
-          results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });
-        }
-      }
-    }
-
-    for (const item of validRows.filter((item) => !blockedRows.has(item.row))) {
       try {
         const { room_code: roomCode, ...payload } = item.payload;
         if (roomCode && !roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
         const saved = await new (this.rosterModel as any)(payload).save();
+        let assignmentReason: string | undefined;
         if (roomCode) {
           try {
             await roomAssignmentService!.assignFirstAvailableBed(String(saved._id), roomCode, {});
           } catch (error) {
-            await (this.rosterModel as any).findByIdAndDelete(saved._id).exec();
-            throw error;
+            if (this.isNoBedAvailableError(error)) assignmentReason = `Chưa xếp phòng/giường: ${this.exceptionMessage(error)}`;
+            else {
+              await (this.rosterModel as any).findByIdAndDelete(saved._id).exec();
+              throw error;
+            }
           }
         }
-        results.push({ row: item.row, status: 'created', roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
+        results.push({ row: item.row, status: 'created', reason: assignmentReason, roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
       } catch (error) {
         results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });
       }

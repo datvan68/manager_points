@@ -23,6 +23,29 @@ export interface ParsedDormitoryRosterRow extends DormitoryRosterImportRowInput 
   rowNumber: number;
 }
 
+export function formatDormitoryRosterRowRanges(rows: number[]): string {
+  const sortedRows = [...new Set(rows)].filter(Number.isFinite).sort((left, right) => left - right);
+  const ranges: string[] = [];
+  for (let index = 0; index < sortedRows.length; index += 1) {
+    const start = sortedRows[index];
+    let end = start;
+    while (sortedRows[index + 1] === end + 1) end = sortedRows[++index];
+    ranges.push(start === end ? String(start) : `${start}–${end}`);
+  }
+  return ranges.join(', ');
+}
+
+export function groupDormitoryRosterImportResults(results: DormitoryRosterImportResponse['results']) {
+  const groups = new Map<string, { status: DormitoryRosterImportResponse['results'][number]['status']; reason?: string; rows: number[] }>();
+  for (const item of results) {
+    const key = `${item.status}\u0000${item.reason || ''}`;
+    const group = groups.get(key) || { status: item.status, reason: item.reason, rows: [] };
+    group.rows.push(item.row);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 export function validateDormitoryRosterFile(file: Pick<File, 'name' | 'size'>): string | null {
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (extension !== 'xlsx' && extension !== 'xls') return 'Chỉ chấp nhận tệp Excel (.xlsx, .xls).';
@@ -128,6 +151,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
     (groups[error.row] ||= []).push(error);
     return groups;
   }, {}));
+  const importResultGroups = result ? groupDormitoryRosterImportResults(result.results) : [];
 
   const reset = () => {
     dragDepth.current = 0;
@@ -216,7 +240,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
         {errors.length > 0 && <section aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 p-4"><div className="flex items-start gap-3"><span className="rounded-lg bg-red-100 p-2 text-red-600"><AlertCircle size={18} /></span><div><h4 className="text-sm font-bold text-red-800">Phát hiện {errors.length} lỗi trong tệp</h4><p className="mt-0.5 text-xs leading-5 text-red-700">Các lỗi được gom theo dòng. Bạn vẫn có thể import các dòng hợp lệ; các dòng lỗi sẽ được bỏ qua.</p></div></div><div className="mt-3 max-h-60 overflow-y-auto rounded-lg border border-red-100 bg-white/80">{errorGroups.map(rowErrors => <div key={rowErrors[0].row} className="grid grid-cols-[auto_1fr] gap-3 border-b border-red-100 px-3 py-2.5 last:border-b-0"><span className="mt-0.5 whitespace-nowrap rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Dòng {rowErrors[0].row}</span><div className="min-w-0 space-y-1">{rowErrors.map((error, index) => <p key={`${error.field}-${index}`} className="text-xs leading-5 text-red-800">{error.field && <span className="font-semibold">{error.field}: </span>}{error.reason}</p>)}</div></div>)}</div></section>}
         {previewRows.length > 0 && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"><div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-bold">{previewRows.length} dòng hợp lệ đã sẵn sàng</h4><p className="mt-0.5 text-xs leading-5 text-emerald-800">{errors.length ? 'Bạn có thể import ngay các dòng hợp lệ; các dòng lỗi sẽ được bỏ qua.' : 'Xem trước 20 dòng đầu tiên trước khi import.'}</p></div><span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Hợp lệ</span></div>{!errors.length && <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-emerald-100 bg-white/70">{previewRows.slice(0, 20).map(row => <div key={row.rowNumber} className="grid grid-cols-[auto_1fr] gap-3 border-b border-emerald-100 px-3 py-2 text-xs last:border-b-0"><span className="font-semibold text-emerald-800">{row.rowNumber}</span><span className="truncate">{row.full_name} · {row.date_of_birth} · {row.gender} · {row.phone_number}{row.room_code ? ` · ${row.room_code}` : ''}</span></div>)}</div>}</section>}
       </>}
-      {result && <div className="space-y-4">{skippedRows > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Đã bỏ qua {skippedRows} dòng lỗi từ bước kiểm tra tệp.</div>}<div className="grid grid-cols-3 gap-3 text-center"><div className="rounded-xl bg-emerald-50 p-3"><CheckCircle2 className="mx-auto mb-1 text-emerald-600" size={20} /><strong className="block text-lg text-emerald-700">{result.created}</strong><span className="text-[11px] text-emerald-800">Đã tạo</span></div><div className="rounded-xl bg-amber-50 p-3"><AlertCircle className="mx-auto mb-1 text-amber-600" size={20} /><strong className="block text-lg text-amber-700">{result.duplicated}</strong><span className="text-[11px] text-amber-800">Trùng</span></div><div className="rounded-xl bg-red-50 p-3"><XCircle className="mx-auto mb-1 text-red-600" size={20} /><strong className="block text-lg text-red-700">{result.failed}</strong><span className="text-[11px] text-red-800">Lỗi</span></div></div><div className="max-h-64 overflow-auto rounded-xl border border-slate-200 p-3">{result.results.map(item => <p key={item.row} className="text-xs text-slate-700">Dòng {item.row}: <span className="font-semibold">{item.status === 'created' ? 'Đã tạo' : item.status === 'duplicated' ? 'Trùng' : 'Lỗi'}</span>{item.reason ? ` · ${item.reason}` : ''}</p>)}</div></div>}
+      {result && <div className="space-y-4">{skippedRows > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Đã bỏ qua {skippedRows} dòng lỗi từ bước kiểm tra tệp.</div>}<div className="grid grid-cols-3 gap-3 text-center"><div className="rounded-xl bg-emerald-50 p-3"><CheckCircle2 className="mx-auto mb-1 text-emerald-600" size={20} /><strong className="block text-lg text-emerald-700">{result.created}</strong><span className="text-[11px] text-emerald-800">Đã tạo</span></div><div className="rounded-xl bg-amber-50 p-3"><AlertCircle className="mx-auto mb-1 text-amber-600" size={20} /><strong className="block text-lg text-amber-700">{result.duplicated}</strong><span className="text-[11px] text-amber-800">Trùng</span></div><div className="rounded-xl bg-red-50 p-3"><XCircle className="mx-auto mb-1 text-red-600" size={20} /><strong className="block text-lg text-red-700">{result.failed}</strong><span className="text-[11px] text-red-800">Lỗi</span></div></div><section className="overflow-hidden rounded-xl border border-slate-200"><div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Chi tiết theo nhóm</div><div className="max-h-64 overflow-auto">{importResultGroups.map(group => <div key={`${group.status}-${group.reason || ''}`} className="grid grid-cols-[auto_1fr] gap-3 border-b border-slate-100 px-3 py-2.5 last:border-b-0"><span className="mt-0.5 whitespace-nowrap rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Dòng {formatDormitoryRosterRowRanges(group.rows)}</span><p className="text-xs leading-5 text-slate-700"><span className="font-semibold">{group.status === 'created' ? 'Đã tạo' : group.status === 'duplicated' ? 'Trùng' : 'Lỗi'}</span>{group.rows.length > 1 ? ` · ${group.rows.length} dòng` : ''}{group.reason ? ` · ${group.reason}` : ''}</p></div>)}</div></section></div>}
       </div>
     </div>
     {!result && <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 bg-white/90 px-6 py-4 backdrop-blur"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">Hủy</button><button type="button" onClick={previewRows.length ? () => { setSkippedRows(errorGroups.length); setImportConfirmationOpen(true); } : previewFile} disabled={!file || busy} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />}{previewRows.length ? `Import ${previewRows.length} dòng hợp lệ` : 'Kiểm tra tệp'}</button></div>}
