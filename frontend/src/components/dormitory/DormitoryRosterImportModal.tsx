@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import Popup from '@/components/popups/Popup';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 import { dormitoryApi, DormitoryRosterImportResponse, DormitoryRosterImportRowInput } from '@/api/dormitory-api';
 
 export const DORMITORY_ROSTER_HEADERS = ['Họ và tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại'] as const;
@@ -107,18 +108,23 @@ interface DormitoryRosterImportModalProps {
 
 export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess }: DormitoryRosterImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<ParsedDormitoryRosterRow[]>([]);
   const [errors, setErrors] = useState<DormitoryRosterImportValidationError[]>([]);
   const [result, setResult] = useState<DormitoryRosterImportResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [importConfirmationOpen, setImportConfirmationOpen] = useState(false);
+  const [skippedRows, setSkippedRows] = useState(0);
   const errorGroups = Object.values(errors.reduce<Record<number, DormitoryRosterImportValidationError[]>>((groups, error) => {
     (groups[error.row] ||= []).push(error);
     return groups;
   }, {}));
 
   const reset = () => {
-    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false);
+    dragDepth.current = 0;
+    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false); setIsDraggingFile(false); setImportConfirmationOpen(false); setSkippedRows(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
   const close = () => { if (busy) return; reset(); onClose(); };
@@ -139,7 +145,29 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
   const selectFile = (selected: File) => {
     const validation = validateDormitoryRosterFile(selected);
     if (validation) { toast.error(validation); return; }
-    setFile(selected); setPreviewRows([]); setErrors([]); setResult(null);
+    setFile(selected); setPreviewRows([]); setErrors([]); setResult(null); setImportConfirmationOpen(false); setSkippedRows(0);
+  };
+
+  const handleFileDragEnter = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    if (busy || !event.dataTransfer.types.includes('Files')) return;
+    dragDepth.current += 1;
+    setIsDraggingFile(true);
+  };
+
+  const handleFileDragLeave = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (!dragDepth.current) setIsDraggingFile(false);
+  };
+
+  const handleFileDrop = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    dragDepth.current = 0;
+    setIsDraggingFile(false);
+    if (busy) return;
+    const selected = event.dataTransfer.files?.[0];
+    if (selected) selectFile(selected);
   };
 
   const previewFile = async () => {
@@ -158,13 +186,15 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
   };
 
   const importRows = async () => {
-    if (!previewRows.length || errors.length) return;
+    if (!previewRows.length) return;
     setBusy(true);
     try {
       const response = await dormitoryApi.roster.importRows(previewRows.map(({ rowNumber: _rowNumber, ...row }) => row));
       setResult(response); setFile(null); setPreviewRows([]); setErrors([]);
       if (response.created > 0) { onSuccess?.(); toast.success(`Đã nhập ${response.created} dòng vào Danh sách KTX.`); }
-      else toast.warning('Không có dòng mới được tạo.');
+      if (response.duplicated > 0) toast.warning(`Đã bỏ qua ${response.duplicated} dòng trùng trong Danh sách KTX.`);
+      if (response.failed > 0) toast.error(`${response.failed} dòng không thể import. Xem chi tiết bên dưới.`);
+      if (!response.created && !response.duplicated && !response.failed) toast.warning('Không có dòng mới được tạo.');
     } catch (error: any) { toast.error(error?.message || 'Không thể nhập Danh sách KTX.'); }
     finally { setBusy(false); }
   };
@@ -174,12 +204,13 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
       <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800"><FileSpreadsheet size={18} className="mt-0.5 shrink-0" /><span>Chỉ nhập bốn cột: Họ và tên, Ngày sinh, Giới tính, Số điện thoại. Dữ liệu được kiểm tra trong cửa sổ này trước khi gửi.</span></div>
       {!result && <>
         <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-800">1. Tải tệp mẫu</h3><p className="text-xs text-slate-500">Tối đa 10 MB và 5.000 dòng không rỗng.</p></div><button type="button" onClick={downloadTemplate} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Download size={15} />Tải tệp mẫu</button></div>
-        <div><h3 className="mb-2 text-sm font-bold text-slate-800">2. Chọn tệp</h3><label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-7 text-center hover:border-blue-400"><Upload size={22} className="text-blue-600" /><span className="text-xs font-semibold text-slate-700">Nhấn để chọn .xlsx hoặc .xls</span><span className="text-[11px] text-slate-500">{file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'Chưa chọn tệp'}</span><input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={event => { const selected = event.target.files?.[0]; if (selected) selectFile(selected); }} disabled={busy} /></label></div>
-        {errors.length > 0 && <section aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 p-4"><div className="flex items-start gap-3"><span className="rounded-lg bg-red-100 p-2 text-red-600"><AlertCircle size={18} /></span><div><h4 className="text-sm font-bold text-red-800">Cần sửa {errors.length} lỗi trước khi import</h4><p className="mt-0.5 text-xs leading-5 text-red-700">Các lỗi được gom theo dòng. Sửa tệp Excel, sau đó chọn lại tệp để kiểm tra.</p></div></div><div className="mt-3 max-h-60 overflow-y-auto rounded-lg border border-red-100 bg-white/80">{errorGroups.map(rowErrors => <div key={rowErrors[0].row} className="grid grid-cols-[auto_1fr] gap-3 border-b border-red-100 px-3 py-2.5 last:border-b-0"><span className="mt-0.5 whitespace-nowrap rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Dòng {rowErrors[0].row}</span><div className="min-w-0 space-y-1">{rowErrors.map((error, index) => <p key={`${error.field}-${index}`} className="text-xs leading-5 text-red-800">{error.field && <span className="font-semibold">{error.field}: </span>}{error.reason}</p>)}</div></div>)}</div></section>}
-        {previewRows.length > 0 && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"><div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-bold">{previewRows.length} dòng hợp lệ đã sẵn sàng</h4><p className="mt-0.5 text-xs leading-5 text-emerald-800">{errors.length ? 'Danh sách hợp lệ được giữ lại; hãy sửa các lỗi phía trên rồi kiểm tra lại tệp.' : 'Xem trước 20 dòng đầu tiên trước khi import.'}</p></div><span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Hợp lệ</span></div>{!errors.length && <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-emerald-100 bg-white/70">{previewRows.slice(0, 20).map(row => <div key={row.rowNumber} className="grid grid-cols-[auto_1fr] gap-3 border-b border-emerald-100 px-3 py-2 text-xs last:border-b-0"><span className="font-semibold text-emerald-800">{row.rowNumber}</span><span className="truncate">{row.full_name} · {row.date_of_birth} · {row.gender} · {row.phone_number}</span></div>)}</div>}</section>}
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">Hủy</button><button type="button" onClick={previewRows.length && !errors.length ? importRows : previewFile} disabled={!file || busy} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />}{previewRows.length && !errors.length ? 'Import dữ liệu' : 'Kiểm tra tệp'}</button></div>
+        <div><h3 className="mb-2 text-sm font-bold text-slate-800">2. Chọn tệp</h3><label onDragEnter={handleFileDragEnter} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (!busy) setIsDraggingFile(true); }} onDragLeave={handleFileDragLeave} onDrop={handleFileDrop} className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-7 text-center transition-colors ${isDraggingFile ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-300 bg-slate-50 hover:border-blue-400'}`}><Upload size={22} className="text-blue-600" /><span className="text-xs font-semibold text-slate-700">{isDraggingFile ? 'Thả tệp Excel vào đây' : 'Kéo thả hoặc nhấn để chọn .xlsx, .xls'}</span><span className="text-[11px] text-slate-500">{file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'Tối đa 10 MB'}</span><input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={event => { const selected = event.target.files?.[0]; if (selected) selectFile(selected); }} disabled={busy} /></label></div>
+        {errors.length > 0 && <section aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 p-4"><div className="flex items-start gap-3"><span className="rounded-lg bg-red-100 p-2 text-red-600"><AlertCircle size={18} /></span><div><h4 className="text-sm font-bold text-red-800">Phát hiện {errors.length} lỗi trong tệp</h4><p className="mt-0.5 text-xs leading-5 text-red-700">Các lỗi được gom theo dòng. Bạn vẫn có thể import các dòng hợp lệ; các dòng lỗi sẽ được bỏ qua.</p></div></div><div className="mt-3 max-h-60 overflow-y-auto rounded-lg border border-red-100 bg-white/80">{errorGroups.map(rowErrors => <div key={rowErrors[0].row} className="grid grid-cols-[auto_1fr] gap-3 border-b border-red-100 px-3 py-2.5 last:border-b-0"><span className="mt-0.5 whitespace-nowrap rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Dòng {rowErrors[0].row}</span><div className="min-w-0 space-y-1">{rowErrors.map((error, index) => <p key={`${error.field}-${index}`} className="text-xs leading-5 text-red-800">{error.field && <span className="font-semibold">{error.field}: </span>}{error.reason}</p>)}</div></div>)}</div></section>}
+        {previewRows.length > 0 && <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"><div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-bold">{previewRows.length} dòng hợp lệ đã sẵn sàng</h4><p className="mt-0.5 text-xs leading-5 text-emerald-800">{errors.length ? 'Bạn có thể import ngay các dòng hợp lệ; các dòng lỗi sẽ được bỏ qua.' : 'Xem trước 20 dòng đầu tiên trước khi import.'}</p></div><span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Hợp lệ</span></div>{!errors.length && <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-emerald-100 bg-white/70">{previewRows.slice(0, 20).map(row => <div key={row.rowNumber} className="grid grid-cols-[auto_1fr] gap-3 border-b border-emerald-100 px-3 py-2 text-xs last:border-b-0"><span className="font-semibold text-emerald-800">{row.rowNumber}</span><span className="truncate">{row.full_name} · {row.date_of_birth} · {row.gender} · {row.phone_number}</span></div>)}</div>}</section>}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">Hủy</button><button type="button" onClick={previewRows.length ? () => { setSkippedRows(errorGroups.length); setImportConfirmationOpen(true); } : previewFile} disabled={!file || busy} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />}{previewRows.length ? `Import ${previewRows.length} dòng hợp lệ` : 'Kiểm tra tệp'}</button></div>
       </>}
-      {result && <div className="space-y-4"><div className="grid grid-cols-3 gap-3 text-center"><div className="rounded-xl bg-emerald-50 p-3"><CheckCircle2 className="mx-auto mb-1 text-emerald-600" size={20} /><strong className="block text-lg text-emerald-700">{result.created}</strong><span className="text-[11px] text-emerald-800">Đã tạo</span></div><div className="rounded-xl bg-amber-50 p-3"><AlertCircle className="mx-auto mb-1 text-amber-600" size={20} /><strong className="block text-lg text-amber-700">{result.duplicated}</strong><span className="text-[11px] text-amber-800">Trùng</span></div><div className="rounded-xl bg-red-50 p-3"><XCircle className="mx-auto mb-1 text-red-600" size={20} /><strong className="block text-lg text-red-700">{result.failed}</strong><span className="text-[11px] text-red-800">Lỗi</span></div></div><div className="max-h-64 overflow-auto rounded-xl border border-slate-200 p-3">{result.results.map(item => <p key={item.row} className="text-xs text-slate-700">Dòng {item.row}: <span className="font-semibold">{item.status === 'created' ? 'Đã tạo' : item.status === 'duplicated' ? 'Trùng' : 'Lỗi'}</span>{item.reason ? ` · ${item.reason}` : ''}</p>)}</div><div className="flex justify-end border-t border-slate-100 pt-4"><button type="button" onClick={close} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white">Đóng</button></div></div>}
+      {result && <div className="space-y-4">{skippedRows > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Đã bỏ qua {skippedRows} dòng lỗi từ bước kiểm tra tệp.</div>}<div className="grid grid-cols-3 gap-3 text-center"><div className="rounded-xl bg-emerald-50 p-3"><CheckCircle2 className="mx-auto mb-1 text-emerald-600" size={20} /><strong className="block text-lg text-emerald-700">{result.created}</strong><span className="text-[11px] text-emerald-800">Đã tạo</span></div><div className="rounded-xl bg-amber-50 p-3"><AlertCircle className="mx-auto mb-1 text-amber-600" size={20} /><strong className="block text-lg text-amber-700">{result.duplicated}</strong><span className="text-[11px] text-amber-800">Trùng</span></div><div className="rounded-xl bg-red-50 p-3"><XCircle className="mx-auto mb-1 text-red-600" size={20} /><strong className="block text-lg text-red-700">{result.failed}</strong><span className="text-[11px] text-red-800">Lỗi</span></div></div><div className="max-h-64 overflow-auto rounded-xl border border-slate-200 p-3">{result.results.map(item => <p key={item.row} className="text-xs text-slate-700">Dòng {item.row}: <span className="font-semibold">{item.status === 'created' ? 'Đã tạo' : item.status === 'duplicated' ? 'Trùng' : 'Lỗi'}</span>{item.reason ? ` · ${item.reason}` : ''}</p>)}</div><div className="flex justify-end border-t border-slate-100 pt-4"><button type="button" onClick={close} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white">Đóng</button></div></div>}
     </div>
+    <ConfirmModal isOpen={importConfirmationOpen} onClose={() => setImportConfirmationOpen(false)} onConfirm={importRows} title="Xác nhận import Danh sách KTX" message={<><p>Sẽ import {previewRows.length} dòng hợp lệ.</p>{skippedRows > 0 && <p className="mt-1">{skippedRows} dòng lỗi sẽ được bỏ qua.</p>}<p className="mt-1">Các dòng trùng sẽ không được tạo và sẽ được thông báo sau khi import.</p></>} confirmLabel="Import dữ liệu" cancelLabel="Quay lại" variant="info" />
   </Popup>;
 }
