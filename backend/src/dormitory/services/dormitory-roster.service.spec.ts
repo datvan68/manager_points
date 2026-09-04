@@ -83,6 +83,30 @@ describe('DormitoryRosterService', () => {
     expect(saved).not.toHaveBeenCalled();
   });
 
+  it('links an imported roster entry to exactly one student with the same normalized name and date of birth', async () => {
+    const { service, rosterModel, studentModel } = setup();
+    studentModel.find.mockReturnValue(query([student]));
+
+    const result = await service.importRows({ rows: [{ full_name: '  nguyễn   văn a ', date_of_birth: '02/01/2004', gender: 'Female', phone_number: '0912345678' }] } as any);
+
+    expect(result).toMatchObject({ created: 1, failed: 0 });
+    expect(rosterModel).toHaveBeenCalledWith(expect.objectContaining({
+      student_id: student._id,
+      student_code: student.student_code,
+      identity_state: 'LINKED',
+    }));
+  });
+
+  it('marks an imported roster entry as conflicted when multiple students share its name and date of birth', async () => {
+    const { service, rosterModel, studentModel } = setup();
+    studentModel.find.mockReturnValue(query([student, { ...student, _id: '507f1f77bcf86cd799439013' }]));
+
+    const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Male', phone_number: '0912345678' }] } as any);
+
+    expect(result.results[0]).toMatchObject({ status: 'created', reason: expect.stringContaining('nhiều sinh viên') });
+    expect(rosterModel).toHaveBeenCalledWith(expect.objectContaining({ student_id: undefined, identity_state: 'CONFLICT' }));
+  });
+
   it('assigns a first available bed from the optional imported room code', async () => {
     const { service, roomAssignmentService } = setup();
 

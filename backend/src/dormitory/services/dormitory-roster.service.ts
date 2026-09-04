@@ -83,6 +83,43 @@ export class DormitoryRosterService {
     return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '';
   }
 
+  private identityKey(fullName: unknown, dateOfBirth: unknown) {
+    return `${this.normalizeName(fullName)}|${this.dateKey(dateOfBirth)}`;
+  }
+
+  private normalizedNamePattern(value: unknown) {
+    return `^${this.normalizeName(value).split(' ').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')}$`;
+  }
+
+  private dateRange(value: Date) {
+    const start = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return { start, end };
+  }
+
+  private async importStudentMatches(candidates: Array<{ name: string; date: Date }>) {
+    const identities = new Map<string, { name: string; date: Date }>();
+    for (const candidate of candidates) identities.set(this.identityKey(candidate.name, candidate.date), candidate);
+    if (!identities.size) return new Map<string, StudentDocument[]>();
+
+    const students = await this.studentModel.find({
+      $or: Array.from(identities.values()).map(({ name, date }) => {
+        const range = this.dateRange(date);
+        return { full_name: { $regex: this.normalizedNamePattern(name), $options: 'i' }, date_bir: { $gte: range.start, $lt: range.end } };
+      }),
+    }).exec();
+    const matches = new Map<string, StudentDocument[]>();
+    for (const student of students) {
+      const key = this.identityKey(student.full_name, student.date_bir);
+      if (!identities.has(key)) continue;
+      const entries = matches.get(key) || [];
+      entries.push(student);
+      matches.set(key, entries);
+    }
+    return matches;
+  }
+
   private parseSemester(semester: SemesterDocument) {
     const parts = String(semester.semester_name || '').split(/\s*-\s*/);
     return { semester: parts[0] || '', academic_year: parts.slice(1).join('-').replace(/\s/g, '') };
@@ -215,7 +252,7 @@ export class DormitoryRosterService {
     const roomAssignmentService = this.roomAssignmentService;
     const semester = await this.resolveActiveSemester();
     const existingKeys = new Set<string>();
-    const validRows: Array<{ row: number; payload: any }> = [];
+    const validRows: Array<{ row: number; payload: any; reason?: string }> = [];
     const results: Array<{ row: number; status: 'created' | 'duplicated' | 'failed'; reason?: string; roster_entry_code?: string }> = [];
     const seenKeys = new Set<string>();
     const candidates = (dto.rows || []).map((row) => {
@@ -233,6 +270,7 @@ export class DormitoryRosterService {
       }).lean().exec();
       for (const entry of existing || []) existingKeys.add(`${this.normalizeName(entry.full_name_normalized || entry.full_name)}|${this.dateKey(entry.date_of_birth)}`);
     }
+    const studentMatches = await this.importStudentMatches(candidates);
 
     for (let index = 0; index < dto.rows.length; index += 1) {
       const rowNumber = index + 2;
@@ -240,26 +278,32 @@ export class DormitoryRosterService {
       try {
         const identity = this.validateManualIdentity(row);
         const common = this.validateCommon({ phone_number: row.phone_number, room_type: 'Thường' });
-        const key = `${this.normalizeName(identity.full_name)}|${this.dateKey(identity.date_of_birth)}`;
+        const key = this.identityKey(identity.full_name, identity.date_of_birth);
         if (seenKeys.has(key) || existingKeys.has(key)) {
           results.push({ row: rowNumber, status: 'duplicated', reason: seenKeys.has(key) ? 'Trùng dữ liệu trong tệp.' : 'Đã có trong học kỳ active.' });
           continue;
         }
         seenKeys.add(key);
+        const matchedStudents = studentMatches.get(key) || [];
+        const matchedStudent = matchedStudents.length === 1 ? matchedStudents[0] : null;
         validRows.push({
           row: rowNumber,
+          reason: matchedStudents.length > 1 ? 'Có nhiều sinh viên trùng họ tên và ngày sinh; chưa tự động liên kết.' : undefined,
           payload: {
             roster_entry_code: `DK-${randomUUID().substring(0, 8).toUpperCase()}`,
+            student_id: matchedStudent?._id,
             full_name: identity.full_name,
             full_name_normalized: this.normalizeName(identity.full_name),
             date_of_birth: identity.date_of_birth,
             gender: identity.gender,
             phone_number: common.phone_number,
+            student_code: matchedStudent?.student_code || undefined,
+            student_code_normalized: matchedStudent?.student_code ? this.normalizeCode(matchedStudent.student_code) : undefined,
             room_code: String(row.room_code || '').trim() || undefined,
             semester_id: semester._id,
             ...this.parseSemester(semester),
             room_type: 'Thường',
-            identity_state: 'UNLINKED',
+            identity_state: matchedStudent ? 'LINKED' : matchedStudents.length > 1 ? 'CONFLICT' : 'UNLINKED',
           },
         });
       } catch (error) {
@@ -284,7 +328,8 @@ export class DormitoryRosterService {
             }
           }
         }
-        results.push({ row: item.row, status: 'created', reason: assignmentReason, roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
+        const reason = [item.reason, assignmentReason].filter(Boolean).join(' ') || undefined;
+        results.push({ row: item.row, status: 'created', reason, roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
       } catch (error) {
         results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });
       }
