@@ -495,19 +495,19 @@ export default function DormitoryRosterPage() {
     />
     <ConfirmModal isOpen={bulkDeleteOpen} onClose={() => !bulkDeleting && setBulkDeleteOpen(false)} onConfirm={removeSelected} title="Xóa mục Danh sách KTX đã chọn" message={`Bạn có chắc muốn xóa ${selected.length} mục Danh sách KTX đã chọn?`} confirmLabel="Xóa mục" cancelLabel="Hủy" variant="danger" />
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-w-4xl">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl shadow-slate-300/40 backdrop-blur-md sm:max-h-[90vh] sm:p-6 sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">
-          <DialogTitle className="flex flex-wrap items-center gap-2 text-sm font-black uppercase tracking-wider text-[#1E293B]">
-            <span>Thêm sinh viên đăng ký KTX</span>
-            {activeSemesterName && <span className="text-[11px] font-semibold normal-case text-[#64748B]">{activeSemesterName}</span>}
-            {semesterLoading && <span className="text-[11px] font-semibold normal-case text-[#64748B]">Đang tải học kỳ...</span>}
+          <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-sm font-black uppercase leading-snug tracking-wider text-[#1E293B]">
+            <span className="min-w-0">Thêm sinh viên đăng ký KTX</span>
+            {activeSemesterName && <span className="break-words text-[11px] font-semibold normal-case text-[#64748B]">{activeSemesterName}</span>}
+            {semesterLoading && <span className="text-[11px] font-semibold normal-case text-[#64748B]">Đang tải học kỳ…</span>}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={submitCreate} className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
               <div className="relative">
-                <div className="flex items-end gap-2"><Input label={student ? 'Sinh viên' : 'Họ và tên'} required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => clearStudentSelection(e.target.value)} placeholder="Tìm sinh viên hoặc nhập họ tên" autoComplete="off" readOnly={Boolean(student)} containerClassName="flex-1" />{student && <Button type="button" variant="outline" onClick={() => clearStudentSelection('')} className="mb-0 h-10 shrink-0">Chuyển nhập tay</Button>}</div>
+                <div className="flex items-end gap-2"><Input label={student ? 'Sinh viên' : 'Họ và tên'} required id="registration-student" value={student ? `${student.student_code} — ${student.full_name}` : studentSearch} onChange={e => clearStudentSelection(e.target.value)} placeholder="Tìm sinh viên hoặc nhập họ tên…" autoComplete="off" readOnly={Boolean(student)} containerClassName="min-w-0 flex-1" />{student && <Button type="button" variant="outline" onClick={() => clearStudentSelection('')} className="mb-0 h-10 shrink-0 whitespace-nowrap px-2 text-xs sm:px-3 sm:text-sm">Chuyển nhập tay</Button>}</div>
                 {!student && studentSearch.trim() && <p className="mt-1 px-1 text-xs text-slate-500">Không chọn kết quả: hồ sơ chưa liên kết.</p>}
                 {studentOptions.length > 0 && <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-white/80 bg-white shadow-xl">{studentOptions.map(item => <Button variant="ghost" type="button" key={item._id} onClick={() => selectStudent(item)} className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm"><span className="font-semibold">{item.student_code} — {item.full_name}</span><span className="ml-2 text-xs text-slate-500">{typeof item.class_id === 'object' ? item.class_id?.class_name : ''}</span></Button>)}</div>}
               </div>
@@ -516,7 +516,7 @@ export default function DormitoryRosterPage() {
                   <label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Ngày sinh <span className="text-red-500">*</span></label>
                   <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                     <PopoverTrigger asChild>
-                       <Button type="button" variant="outline" disabled={Boolean(student)} className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.date_of_birth)}</span><Calendar size={15} className="shrink-0 text-[#64748B]" /></Button>
+                        <Button type="button" variant="outline" aria-label="Ngày sinh" disabled={Boolean(student)} className="h-10 w-full justify-between rounded-xl border border-white/70 bg-white/50 px-3 text-sm font-normal text-[#1E293B] hover:bg-white/70"><span className="truncate">{dateLabel(createForm.date_of_birth)}</span><Calendar size={15} aria-hidden="true" className="shrink-0 text-[#64748B]" /></Button>
                     </PopoverTrigger>
                     <PopoverContent className="z-[100] w-auto overflow-hidden border-none bg-transparent p-0 shadow-none" align="start">
                       <CustomCalendar
@@ -534,17 +534,17 @@ export default function DormitoryRosterPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select disabled={Boolean(student)} value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Giới tính <span className="text-red-500">*</span></label><Select disabled={Boolean(student)} value={createForm.gender} onValueChange={value => setCreateForm(f => ({ ...f, gender: value as CreateForm['gender'], room_type: value === 'Female' ? f.room_type : 'Thường' }))}><SelectTrigger aria-label="Giới tính" className="w-full"><SelectValue placeholder="Chọn giới tính" /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Male">Nam</SelectItem><SelectItem value="Female">Nữ</SelectItem><SelectItem value="Other">Khác</SelectItem></SelectContent></Select></div>
               </div>
               <Input label="Số điện thoại" required type="tel" value={createForm.phone_number} onChange={e => setCreateForm(f => ({ ...f, phone_number: e.target.value }))} placeholder="Nhập số điện thoại" />
             </section>
             <section className="space-y-4 rounded-2xl border border-white/80 bg-white/60 p-4 shadow-sm">
-              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.room_type} disabled={createForm.gender !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><label className="flex items-center gap-1 px-1 text-[13px] font-bold text-[#1E293B]">Loại phòng</label><Select value={createForm.room_type} disabled={createForm.gender !== 'Female'} onValueChange={value => setCreateForm(f => ({ ...f, room_type: value as CreateForm['room_type'] }))}><SelectTrigger aria-label="Loại phòng" className="w-full"><SelectValue /></SelectTrigger><SelectContent className="w-[calc(100vw-2rem)] max-w-[280px]"><SelectItem value="Thường">Thường</SelectItem><SelectItem value="Máy lạnh">Máy lạnh (Ưu tiên cho nữ)</SelectItem></SelectContent></Select></div>
               <Input label="Ghi chú" multiline rows={3} value={createForm.notes} onChange={e => setCreateForm(f => ({ ...f, notes: e.target.value }))} />
             </section>
           </div>
-          {(createError || semesterError) && <p role="alert" className="text-sm text-red-600">{createError || semesterError}</p>}
-          <DialogFooter className="mt-2 border-t border-white/50 pt-4"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving}>Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.semester}>{createSaving ? 'Đang lưu...' : 'Tạo đăng ký'}</Button></DialogFooter>
+          {(createError || semesterError) && <p role="alert" aria-live="polite" className="text-sm text-red-600">{createError || semesterError}</p>}
+          <DialogFooter className="mt-2 gap-2 border-t border-white/50 pt-4 sm:gap-0"><Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={createSaving} className="w-full sm:w-auto">Hủy</Button><Button type="submit" disabled={createSaving || semesterLoading || Boolean(semesterError) || !createForm.semester} className="w-full sm:w-auto">{createSaving ? 'Đang lưu…' : 'Tạo đăng ký'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
