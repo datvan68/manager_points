@@ -45,6 +45,7 @@ import {
   RestoreBackupImportDto,
   UpdateMailSettingsDto,
   UpdateModuleMaintenanceDto,
+  GetStudentHighlightsQueryDto,
 } from './dto/system.dto';
 import {
   getRequesterRoleName,
@@ -3599,6 +3600,62 @@ export class SystemService {
         mySpotlight: mySpotlight || undefined,
       },
     };
+  }
+
+  async getStudentHighlights(requester: any, query: GetStudentHighlightsQueryDto) {
+    const studentModel = this.connection.model('Student');
+    const classModel = this.connection.model('Class');
+    const semesterModel = this.connection.model('Semester');
+    const criterionModel = this.connection.model('Criterion');
+    const summaryPointModel = this.connection.model('SummaryPoint');
+    const academicRecordModel = this.connection.model('AcademicRecord');
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const semesters = (await semesterModel.find().lean().exec()) as any[];
+    const active = semesters.find((s) => s.status === 'active') || semesters.find((s) => s.status === 'upcoming');
+    const semesterId = query.semesterId ? new Types.ObjectId(query.semesterId) : active?._id;
+    if (!semesterId) return { items: [], total: 0, page, limit, hasMore: false, semesterId: null };
+
+    const roleScope = isTeacher(requester) ? 'teacher' : isStudent(requester) ? 'student' : 'operator';
+    let scopeStages: any[] = [];
+    if (roleScope === 'teacher') {
+      const classes = await classModel.find({ advisor_id: new Types.ObjectId(requester.userId) }).select('_id').lean().exec();
+      scopeStages = [
+        { $lookup: { from: 'students', localField: 'student_id', foreignField: '_id', as: 'student_doc' } },
+        { $unwind: '$student_doc' },
+        { $match: { 'student_doc.class_id': { $in: classes.map((c: any) => c._id) } } },
+      ];
+    } else if (roleScope === 'student') {
+      const own = await studentModel.findOne({ user_id: new Types.ObjectId(requester.userId) }).select('_id').lean().exec() as any;
+      scopeStages = [{ $match: { student_id: own?._id || null } }];
+    }
+    const criterionType = query.category === 'discipline' ? 'ky_luat' : query.category === 'rewards' ? 'khen_thuong' : 'cong_diem';
+    const eligibility = query.category === 'discipline' ? { $gte: ['$recordCount', 3] } : { $gte: ['$recordCount', 1] };
+    const pipeline: any[] = [
+      { $match: { semester_id: semesterId, status: 'active', is_deleted: { $ne: true } } },
+      ...scopeStages,
+      { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
+      { $unwind: '$criterion' },
+      { $match: { 'criterion.criterion_type': criterionType } },
+      { $sort: { recorded_at: -1, createdAt: -1, _id: -1 } },
+      { $group: { _id: '$student_id', recordCount: { $sum: 1 }, impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } }, latestRecord: { $first: '$$ROOT' }, groupedRecords: { $push: '$criterion.criterion_name' } } },
+      { $match: { $expr: eligibility } },
+      { $sort: query.category === 'bonus' ? { impactScore: -1, recordCount: -1, _id: 1 } : query.category === 'discipline' ? { recordCount: -1, impactScore: 1, _id: 1 } : { recordCount: -1, impactScore: -1, _id: 1 } },
+      { $facet: {
+        items: [
+          { $skip: (page - 1) * limit }, { $limit: limit },
+          { $lookup: { from: studentModel.collection.name, localField: '_id', foreignField: '_id', as: 'student' } }, { $unwind: '$student' },
+          { $lookup: { from: classModel.collection.name, localField: 'student.class_id', foreignField: '_id', as: 'class' } }, { $unwind: { path: '$class', preserveNullAndEmptyArrays: true } },
+          { $lookup: { from: summaryPointModel.collection.name, let: { sid: '$_id' }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ['$student_id', '$$sid'] }, { $eq: ['$semester_id', semesterId] }, { $eq: ['$period_id', null] }] } } }], as: 'summary' } }, { $unwind: { path: '$summary', preserveNullAndEmptyArrays: true } },
+          { $project: { _id: 0, studentId: '$_id', classId: '$student.class_id', studentName: '$student.full_name', studentCode: '$student.student_code', className: { $ifNull: ['$class.class_name', ''] }, currentScore: { $ifNull: ['$summary.total_score', null] }, grading: { $ifNull: ['$summary.grading', null] }, recordCount: 1, impactScore: 1, latestRecordTitle: { $ifNull: ['$latestRecord.selected_option_label', { $ifNull: ['$latestRecord.record_title', '$latestRecord.criterion.criterion_name'] }] }, latestRecordAt: { $ifNull: ['$latestRecord.recorded_at', '$latestRecord.createdAt'] }, dominantCriterionName: '$latestRecord.criterion.criterion_name', groupedRecords: { $map: { input: { $setUnion: ['$groupedRecords', []] }, as: 'label', in: { label: '$$label', count: { $size: { $filter: { input: '$groupedRecords', as: 'item', cond: { $eq: ['$$item', '$$label'] } } } } } } }, type: { $literal: criterionType } } },
+        ],
+        count: [{ $count: 'total' }],
+      } },
+    ];
+    const [result] = await academicRecordModel.aggregate(pipeline).exec();
+    const items = result?.items || [];
+    const total = result?.count?.[0]?.total || 0;
+    return { items, total, page, limit, hasMore: page * limit < total, semesterId: semesterId.toString() };
   }
   // ─── MAIL SETTINGS ─────────────────────────────────────────────────────────
 

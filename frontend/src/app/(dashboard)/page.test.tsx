@@ -38,12 +38,13 @@ describe('Dashboard loading contract', () => {
     expect(deferredSource).toContain("metrics.roleScope === 'system'");
   });
 
-  it('limits every leaderboard tab to ten rows and exposes a five-row scroll viewport', () => {
+  it('uses paged virtualized leaderboards with a bounded scroll viewport', () => {
     const spotlightSource = readFileSync(resolve(__dirname, '../../components/dashboard/StudentSpotlightPanel.tsx'), 'utf8');
-    expect(spotlightSource).toContain('list.slice(0, 10)');
+    expect(spotlightSource).toContain('@tanstack/react-virtual');
+    expect(spotlightSource).toContain('useVirtualizer');
     expect(spotlightSource).toContain('max-h-[360px]');
-    expect(spotlightSource).toContain("contentVisibility: 'auto'");
-    expect(spotlightSource).not.toContain('list.slice(0, 5)');
+    expect(spotlightSource).toContain('hasMore');
+    expect(spotlightSource).not.toContain('list.slice(0, 10)');
     expect(spotlightSource).not.toContain('max-h-[620px] sm:max-h-[760px]');
   });
 

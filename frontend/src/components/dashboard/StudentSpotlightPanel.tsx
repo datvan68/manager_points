@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { systemApi } from '@/api/system-api';
 import { 
   Award, 
   PlusCircle, 
@@ -18,9 +20,48 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 interface StudentSpotlightPanelProps {
   metrics: DashboardMetrics;
+  refreshKey?: string;
 }
 
-export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanelProps) {
+type CategoryId = 'discipline' | 'rewards' | 'bonus';
+type CategoryState = { items: StudentHighlightItem[]; total: number; page: number; hasMore: boolean; loading: boolean; error: boolean };
+
+const emptyCategory = (): CategoryState => ({ items: [], total: 0, page: 0, hasMore: true, loading: false, error: false });
+
+function VirtualHighlightList({ category, compact, onLoadMore, onRetry }: { category: CategoryState; compact?: boolean; onLoadMore: () => void; onRetry: () => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({ count: category.items.length, getScrollElement: () => scrollRef.current, estimateSize: () => compact ? 66 : 78, overscan: 6, measureElement: (element) => element.getBoundingClientRect().height });
+  useEffect(() => {
+    const last = virtualizer.getVirtualItems().at(-1);
+    if (last && last.index >= category.items.length - 4 && category.hasMore && !category.loading) onLoadMore();
+  }, [virtualizer.getVirtualItems(), category.items.length, category.hasMore, category.loading, onLoadMore]);
+  if (category.error && category.items.length === 0) return <div className="py-8 text-center text-xs text-rose-600"><p>Không thể tải dữ liệu.</p><button type="button" onClick={onRetry} className="mt-2 font-bold underline">Thử lại</button></div>;
+  if (!category.loading && category.items.length === 0) return <div className="text-center py-8 border border-dashed border-slate-300/40 rounded-xl bg-white/20"><Activity className="mx-auto text-slate-400 w-8 h-8 mb-2" /><p className="text-xs text-[#64748B] font-bold">Chưa có dữ liệu học sinh trong học kỳ này</p></div>;
+  return <div ref={scrollRef} className={`overflow-y-auto pr-1 scrollbar-hover ${compact ? 'max-h-[calc(70vh-5rem)]' : 'max-h-[360px]'}`}>
+    <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+      {virtualizer.getVirtualItems().map(row => {
+        const item = category.items[row.index];
+        return <div key={item.studentId} ref={virtualizer.measureElement} data-index={row.index} className="absolute left-0 top-0 w-full pb-2" style={{ transform: `translateY(${row.start}px)` }}><HighlightRow item={item} compact={compact} /></div>;
+      })}
+    </div>
+    {category.loading && <p className="py-2 text-center text-[10px] text-slate-500">Đang tải thêm...</p>}
+    {category.error && category.items.length > 0 && <button type="button" onClick={onRetry} className="block mx-auto py-2 text-[10px] text-rose-600 font-bold underline">Thử lại</button>}
+  </div>;
+}
+
+function HighlightRow({ item, compact }: { item: StudentHighlightItem; compact?: boolean }) {
+  const router = useRouter();
+  const type = item.type === 'ky_luat' ? 'discipline' : item.type === 'cong_diem' ? 'bonus' : 'rewards';
+  const hash = item.studentName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palettes = { rewards: ['from-amber-400 to-amber-600', 'from-yellow-400 to-amber-500'], bonus: ['from-emerald-400 to-teal-600', 'from-green-400 to-emerald-500'], discipline: ['from-rose-400 to-red-600', 'from-pink-400 to-rose-500'] };
+  const initials = item.studentName.trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase() || 'SV';
+  return <div className={`group min-w-0 ${compact ? 'bg-slate-50/90 border-slate-200/80 hover:bg-slate-100/90' : 'bg-white/50 border-white/70 hover:bg-white/85'} border rounded-xl flex items-center justify-between transition-all duration-150 ease-out shadow-xs shadow-slate-200/20 ${compact ? 'p-2.5 gap-2' : 'p-3.5 gap-4'}`}>
+    <div className="flex items-center gap-3 min-w-0 flex-1"><div className={`rounded-xl bg-gradient-to-tr ${palettes[type][hash % 2]} text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-white/20 ${compact ? 'w-9 h-9' : 'w-10 h-10'}`}>{initials}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><h4 className={`font-extrabold text-[#1E293B] text-xs truncate ${compact ? 'max-w-[125px]' : 'max-w-[150px]'}`}>{item.studentName}</h4><span className="text-[10px] text-[#64748B] truncate max-w-[110px]">MSSV: {item.studentCode}</span><span className="text-[10px] text-[#64748B] truncate max-w-[90px]">{item.className}</span></div><p className="text-[10.5px] text-[#64748B] mt-1 truncate font-medium">Số lượt: <strong className={type === 'discipline' ? 'text-rose-700' : type === 'bonus' ? 'text-emerald-700' : 'text-amber-700'}>{item.recordCount} lần</strong> • {type === 'bonus' ? <>Tổng điểm cộng: <strong className="text-emerald-700">+{item.impactScore}</strong></> : type === 'discipline' ? <>Điểm bị trừ: <strong className="text-rose-700">{item.impactScore}</strong></> : 'Khen thưởng'}</p></div></div>
+    <div className="flex items-center gap-3 shrink-0"><span className="hidden sm:inline text-[9px] text-[#64748B]">{item.latestRecordAt ? new Date(item.latestRecordAt).toLocaleDateString('vi-VN') : ''}</span>{item.classId && <button type="button" onClick={() => router.push(`/students/${item.classId}/${item.studentId}`)} aria-label={`Xem hồ sơ ${item.studentName}`} className="min-h-11 min-w-11 shrink-0 rounded-lg bg-white/50 text-[#1A73E8] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]" title="Xem hồ sơ rèn luyện chi tiết"><ArrowUpRight size={14} /></button>}</div>
+  </div>;
+}
+
+export default function StudentSpotlightPanel({ metrics, refreshKey = '' }: StudentSpotlightPanelProps) {
   const { roleScope, studentHighlights } = metrics;
   const router = useRouter();
 
@@ -47,6 +88,40 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
     return (parts[parts.length - 2][0] + parts[parts.length - 1][0]).toUpperCase();
   };
+
+  const semesterId = metrics.activeSemester?._id || undefined;
+  const scopeKey = `${roleScope}:${semesterId || 'none'}:${refreshKey}`;
+  const [categories, setCategories] = useState<Record<CategoryId, CategoryState>>({ discipline: emptyCategory(), rewards: emptyCategory(), bonus: emptyCategory() });
+  const requestsRef = useRef(new Map<CategoryId, Promise<void>>());
+  const loadCategory = useCallback(async (id: CategoryId, reset = false) => {
+    const current = categories[id];
+    if (!semesterId || roleScope === 'student' || (!reset && (!current.hasMore || current.loading))) return;
+    const existing = requestsRef.current.get(id);
+    if (existing) return existing;
+    const page = reset ? 1 : current.page + 1;
+    setCategories(prev => ({ ...prev, [id]: { ...prev[id], loading: true, error: false, ...(reset ? { items: [], page: 0, total: 0 } : {}) } }));
+    const request = systemApi.getStudentHighlights({ category: id, semesterId, page, limit: 20 }).then(result => {
+      setCategories(prev => {
+        const prior = reset ? [] : prev[id].items;
+        const seen = new Set(prior.map(item => item.studentId));
+        return { ...prev, [id]: { items: [...prior, ...result.items.filter(item => !seen.has(item.studentId))], total: result.total, page: result.page, hasMore: result.hasMore, loading: false, error: false } };
+      });
+    }).catch(() => setCategories(prev => ({ ...prev, [id]: { ...prev[id], loading: false, error: true } })));
+    requestsRef.current.set(id, request);
+    try { await request; } finally { requestsRef.current.delete(id); }
+  }, [categories, roleScope, semesterId]);
+
+  useEffect(() => {
+    if (roleScope === 'student') return;
+    setCategories({ discipline: emptyCategory(), rewards: emptyCategory(), bonus: emptyCategory() });
+    requestsRef.current.clear();
+  }, [scopeKey, roleScope]);
+
+  useEffect(() => {
+    if (roleScope !== 'student' && semesterId) (['discipline', 'rewards', 'bonus'] as CategoryId[]).forEach(id => void loadCategory(id, true));
+  // Metrics identity represents refresh and semester changes; reset all three lists together.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
 
   // Render Student Personal Spotlight
   if (roleScope === 'student') {
@@ -215,15 +290,14 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
   }
 
   // Render Admin / Teacher Spotlight (Leaderboard & Highlights)
-  type CategoryId = 'discipline' | 'rewards' | 'bonus';
   const categoryConfigs: Array<{ id: CategoryId; label: string; icon: typeof AlertTriangle; color: string; list: StudentHighlightItem[] }> = [
-    { id: 'discipline', label: 'Kỷ luật & Chú ý', icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', list: studentHighlights.topDiscipline || [] },
-    { id: 'rewards', label: 'Khen thưởng', icon: Award, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', list: studentHighlights.topRewards || [] },
-    { id: 'bonus', label: 'Điểm cộng', icon: PlusCircle, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', list: studentHighlights.topBonus || [] },
+    { id: 'discipline', label: 'Kỷ luật & Chú ý', icon: AlertTriangle, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20', list: categories.discipline.items },
+    { id: 'rewards', label: 'Khen thưởng', icon: Award, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', list: categories.rewards.items },
+    { id: 'bonus', label: 'Điểm cộng', icon: PlusCircle, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', list: categories.bonus.items },
   ];
 
   const renderList = (category: typeof categoryConfigs[number], compact = false) => {
-    const list = category.list.slice(0, 10);
+    const list = category.list;
     return list.length === 0 ? (
       <div className="text-center py-8 border border-dashed border-slate-300/40 rounded-xl bg-white/20">
         <Activity className="mx-auto text-slate-400 w-8 h-8 mb-2" />
@@ -283,7 +357,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
       </div>
 
       <div className="hidden md:grid md:grid-cols-3 gap-4">
-        {categoryConfigs.map(category => <section key={category.id} aria-labelledby={`${category.id}-heading`} className="min-w-0"><div className={`flex items-center gap-2 mb-3 text-xs font-bold ${category.color.split(' ')[0]}`}><category.icon size={15} /><h3 id={`${category.id}-heading`}>{category.label} ({category.list.length})</h3></div>{renderList(category)}</section>)}
+        {categoryConfigs.map(category => <section key={category.id} aria-labelledby={`${category.id}-heading`} className="min-w-0"><div className={`flex items-center gap-2 mb-3 text-xs font-bold ${category.color.split(' ')[0]}`}><category.icon size={15} /><h3 id={`${category.id}-heading`}>{category.label} ({categories[category.id].total})</h3></div><VirtualHighlightList category={categories[category.id]} onLoadMore={() => void loadCategory(category.id)} onRetry={() => void loadCategory(category.id, categories[category.id].items.length === 0)} /></section>)}
       </div>
 
       <div className="grid md:hidden grid-cols-3 gap-2">
@@ -298,7 +372,7 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
                 >
                   <Icon size={14} />
                   <span className="sr-only">{category.label}</span>
-                  <span aria-hidden="true">{category.list.length}</span>
+                  <span aria-hidden="true">{categories[category.id].total}</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent
@@ -310,9 +384,9 @@ export default function StudentSpotlightPanel({ metrics }: StudentSpotlightPanel
               >
                 <div className={`flex items-center gap-2 mb-3 text-xs font-bold pr-7 ${category.color.split(' ')[0]}`}>
                   <Icon size={15} />
-                  <h3 className="font-bold text-sm text-[#1E293B] truncate">{category.label} ({category.list.length})</h3>
+                  <h3 className="font-bold text-sm text-[#1E293B] truncate">{category.label} ({categories[category.id].total})</h3>
                 </div>
-                {renderList(category, true)}
+                <VirtualHighlightList category={categories[category.id]} compact onLoadMore={() => void loadCategory(category.id)} onRetry={() => void loadCategory(category.id, categories[category.id].items.length === 0)} />
               </PopoverContent>
             </Popover>
           );

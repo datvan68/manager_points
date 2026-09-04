@@ -2,10 +2,10 @@ slot_id: "taskscope-01"
 generation: 5
 task_id: "20260904-144138-student-spotlight-infinite-lists"
 scope_file: "docs/task/taskscope-01.md"
-status: ready
+status: blocked
 scope_revision: 1
 created_at: "2026-09-04T14:41:38+07:00"
-updated_at: "2026-09-04T14:41:38+07:00"
+updated_at: "2026-09-04T15:05:00+07:00"
 base_commit: "e1050534417199f7927fb55122e6d842f06cd2ab"
 task: "Paginate and virtualize student recognition lists"
 pipeline: feature_development
@@ -16,7 +16,7 @@ objective: "All eligible students are reachable in the three recognition lists: 
 
 coordination:
   depends_on: []
-  warnings: []
+  warnings: ["V-04 chưa chạy: workspace không có browser fixture/mock API >100 sinh viên và không có môi trường dữ liệu dashboard khả dụng; không thể xác nhận DOM/network behavior thủ công."]
   evidence: "Slot 00 (20260904-142909-dormitory-mobile-scroll-popovers) is in_progress and reserves dormitory pages/components/tests only; its inspect paths are also disjoint. Slots 01/02 are completed; reuse lowest completed slot 01. Existing dirty paths belong to slot 00 and are disjoint. Branch main."
   rules: ["safety 3.3.0", "global 3.3.6", "orchestrator 3.3.7", "pipeline 3.3.5", "taskscope 3.3.7", "implement_feature 3.0.0"]
 
@@ -25,8 +25,8 @@ completion:
   outcome: null
   final_commit_or_state: null
   changed_paths: []
-  checks_passed: []
-  cleanup_pending: []
+  checks_passed: ["V-01 backend system.service.spec.ts + student-highlights.controller.spec.ts: 60 passed", "V-02 frontend focused tests: 27 passed", "V-03 frontend typecheck và backend build: passed", "V-05 git diff --check: passed"]
+  cleanup_pending: ["V-04 browser synthetic/mock verification"]
 
 evidence:
   current_behavior: "system.service.ts:getDashboardMetrics limits each category aggregation to 10 after grouping; discipline has no minimum count. StudentSpotlightPanel.tsx:renderList additionally slices to 10 and labels use array length. Desktop has three scrolling columns; mobile opens category popovers. DashboardPage loads server metrics through systemApi."
@@ -50,6 +50,7 @@ scope:
     - "backend/src/system/student-highlights.controller.spec.ts"
     - "frontend/src/api/system-api.ts"
     - "frontend/src/api/system-api.test.ts"
+    - "frontend/src/app/(dashboard)/page.test.tsx"
     - "frontend/src/app/(dashboard)/page.tsx"
     - "frontend/src/components/dashboard/StudentSpotlightPanel.tsx"
     - "frontend/src/components/dashboard/StudentSpotlightPanel.test.tsx"

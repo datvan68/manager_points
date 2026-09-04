@@ -399,6 +399,28 @@ export class UpdateMailSettingsDto {
   from: string;
 }
 
+export class GetStudentHighlightsQueryDto {
+  @IsEnum(['discipline', 'rewards', 'bonus'])
+  category: 'discipline' | 'rewards' | 'bonus';
+
+  @IsOptional()
+  @IsMongoId({ message: 'semesterId phải là MongoId hợp lệ' })
+  semesterId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100, { message: 'Limit tối đa là 100' })
+  limit?: number = 20;
+}
+
 export class UpdateAppBrandingDto {
   @IsString()
   @IsNotEmpty()

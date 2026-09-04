@@ -38,6 +38,7 @@ import {
   UpdateMailSettingsDto,
   SendTestMailDto,
   UpdateModuleMaintenanceDto,
+  GetStudentHighlightsQueryDto,
 } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
@@ -60,6 +61,15 @@ export class SystemController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.systemService.getDashboardMetrics(req.user, semesterId);
+  }
+
+  @Get('student-highlights')
+  @Permissions()
+  getStudentHighlights(
+    @Query() query: GetStudentHighlightsQueryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.systemService.getStudentHighlights(req.user, query);
   }
 
   // ─── LOGIN LOGS ─────────────────────────────────────────────────────────────

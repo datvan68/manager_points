@@ -12,6 +12,19 @@ describe('systemApi', () => {
     vi.clearAllMocks();
   });
 
+  it('requests a typed paged student highlight category', async () => {
+    const mockResponse = { ok: true, json: vi.fn() };
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+    (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0, page: 2, limit: 20, hasMore: false, semesterId: 'sem-1' });
+    await systemApi.getStudentHighlights({ category: 'bonus', semesterId: 'sem-1', page: 2, limit: 20 });
+    const [url] = vi.mocked(httpClient).mock.calls[0];
+    expect(url).toContain('/api/system/student-highlights');
+    expect(url).toContain('category=bonus');
+    expect(url).toContain('semesterId=sem-1');
+    expect(url).toContain('page=2');
+    expect(url).toContain('limit=20');
+  });
+
   describe('getDashboardMetrics', () => {
     it('should correctly call httpClient with exact url without duplicated /api/api/', async () => {
       const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };

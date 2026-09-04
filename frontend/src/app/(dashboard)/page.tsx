@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [metricsRefreshKey, setMetricsRefreshKey] = useState(0);
   
   // Extra system state
   const [systemRequests, setSystemRequests] = useState<any[]>([]);
@@ -108,6 +109,7 @@ export default function DashboardPage() {
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DASHBOARD_TIMEOUT')), 12000)),
       ]);
       setMetrics(dashboardMetrics);
+      setMetricsRefreshKey((value) => value + 1);
 
       // 3. Update semesters list from metrics if available and not yet loaded
       if (semestersRef.current.length === 0 && dashboardMetrics.semesters) {
@@ -265,7 +267,7 @@ export default function DashboardPage() {
         />
 
         {/* Student Spotlight & Leaderboards */}
-        <StudentSpotlightPanel metrics={metrics} />
+        <StudentSpotlightPanel metrics={metrics} refreshKey={String(metricsRefreshKey)} />
 
         {/* Attention Alerts / Warnings */}
         {attentionItems.length > 0 && (
