@@ -1,5 +1,6 @@
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { buildEditRegistrationPayload, formFromRegistration, mapActiveSemester } from './DormitoryRegistrationEditModal';
+import DormitoryRegistrationEditModal, { buildEditRegistrationPayload, formFromRegistration, mapActiveSemester } from './DormitoryRegistrationEditModal';
 
 describe('canonical roster edit behavior', () => {
   it('builds only canonical roster fields', () => {
@@ -20,5 +21,13 @@ describe('canonical roster edit behavior', () => {
     expect(payload).not.toHaveProperty('full_name');
     expect(payload).not.toHaveProperty('date_of_birth');
     expect(payload).not.toHaveProperty('gender');
+  });
+
+  it('insets the edit dialog on mobile while keeping dynamic viewport scrolling', () => {
+    render(<DormitoryRegistrationEditModal open registration={{ _id: 'entry-1', full_name: 'Nguyễn A', phone_number: '0912345678', room_type: 'Thường', notes: '' } as any} onOpenChange={() => undefined} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('w-[calc(100%-1rem)]');
+    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem)]');
+    expect(dialog.className).toContain('overscroll-contain');
   });
 });

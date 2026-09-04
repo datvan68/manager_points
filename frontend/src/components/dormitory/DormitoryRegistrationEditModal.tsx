@@ -151,7 +151,7 @@ export default function DormitoryRegistrationEditModal({ open, registration, can
   const setField = <K extends keyof EditForm>(key: K, value: EditForm[K]) => setForm(current => ({ ...current, [key]: value }));
 
   return <Dialog open={open} onOpenChange={close}>
-    <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+    <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl sm:max-h-[90vh] sm:p-6">
       <DialogHeader className="border-b border-white/50 pb-3">
       <DialogTitle>Sửa mục Danh sách KTX</DialogTitle>
       </DialogHeader>

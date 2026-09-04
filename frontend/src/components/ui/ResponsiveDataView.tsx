@@ -3,6 +3,7 @@
 import React from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Check } from 'lucide-react';
 
 export interface ResponsiveColumn<T = any> {
   key: string;
@@ -31,6 +32,8 @@ interface ResponsiveDataViewProps<T> {
     onSelectRow: (key: string, checked: boolean) => void;
     onSelectAll?: (checked: boolean) => void;
     allSelected?: boolean;
+    mobileControl?: 'checkbox' | 'toggle';
+    getMobileSelectionLabel?: (row: T, checked: boolean) => string;
   };
   
   // Pagination node to display at the bottom
@@ -126,13 +129,26 @@ export default function ResponsiveDataView<T>({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {selection && (
-              <input
-                type="checkbox"
-                checked={isChecked}
-                onChange={(e) => selection.onSelectRow(key, e.target.checked)}
-                onClick={(e) => e.stopPropagation()}
-                className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
-              />
+              selection.mobileControl === 'toggle' ? (
+                <button
+                  type="button"
+                  aria-label={selection.getMobileSelectionLabel?.(row, isChecked) || `${isChecked ? 'Bỏ chọn' : 'Chọn'} mục`}
+                  aria-pressed={isChecked}
+                  onClick={(e) => { e.stopPropagation(); selection.onSelectRow(key, !isChecked); }}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isChecked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/70 text-transparent hover:border-blue-400'}`}
+                >
+                  <Check size={15} aria-hidden="true" />
+                </button>
+              ) : (
+                <input
+                  type="checkbox"
+                  aria-label={selection.getMobileSelectionLabel?.(row, isChecked)}
+                  checked={isChecked}
+                  onChange={(e) => selection.onSelectRow(key, e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
+                />
+              )
             )}
             <div className="min-w-0">
               {primaryCol ? (
