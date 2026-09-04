@@ -1,5 +1,5 @@
 import { Type, Transform } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, IsMongoId, MaxLength, ValidateNested } from 'class-validator';
 
 const asString = ({ value }: { value: unknown }) => value == null ? value : String(value);
 
@@ -36,6 +36,10 @@ export class ImportRosterRowDto {
 }
 
 export class ImportRosterDto {
+  @IsOptional()
+  @IsMongoId()
+  semester_id?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5000)

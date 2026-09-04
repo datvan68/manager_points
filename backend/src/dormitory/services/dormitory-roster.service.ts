@@ -28,6 +28,7 @@ import { PdfTemplateService as SharedPdfTemplateService } from '../../pdf-templa
 import { createDefaultDormitoryLayout, resolveDormitoryRosterPdfValues, DORMITORY_ROSTER_APPLICATION } from '../pdf-template-adapter';
 import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 import { RoomAssignmentService } from './room-assignment.service';
+import { DormitoryRosterIdentityService } from './dormitory-roster-identity.service';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -43,6 +44,7 @@ export class DormitoryRosterService {
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     @Optional() private readonly sharedPdfTemplateService?: SharedPdfTemplateService,
     @Optional() private readonly roomAssignmentService?: RoomAssignmentService,
+    @Optional() private readonly rosterIdentityService?: DormitoryRosterIdentityService,
   ) {}
 
   private id(value: unknown) {
@@ -195,7 +197,7 @@ export class DormitoryRosterService {
     const common = this.validateCommon(dto);
     let student: any = null;
     let identity: { full_name: string; date_of_birth: Date; gender: 'Male' | 'Female' | 'Other' };
-    let identityState: 'LINKED' | 'UNLINKED' = 'UNLINKED';
+    let identityState: 'LINKED' | 'UNLINKED' | 'CONFLICT' = 'UNLINKED';
     let normalizedCode = this.normalizeCode(dto.student_code);
 
     if (dto.student_id) {
@@ -214,6 +216,18 @@ export class DormitoryRosterService {
         identityState = 'LINKED';
       } else {
         identity = this.validateManualIdentity(dto);
+      }
+    }
+
+    if (!student && !publicSubmission && this.rosterIdentityService) {
+      const match = (await this.rosterIdentityService.resolveBatch([{ full_name: identity.full_name, date_of_birth: identity.date_of_birth, semester_id: semester._id }]))[0];
+      if (match.state === 'LINKED' && match.student) {
+        student = match.student;
+        identity = this.validateManualIdentity({ full_name: student.full_name, date_of_birth: student.date_bir, gender: student.sex });
+        normalizedCode = this.normalizeCode(student.student_code);
+        identityState = 'LINKED';
+      } else if (match.state === 'CONFLICT') {
+        identityState = 'CONFLICT';
       }
     }
 
@@ -251,9 +265,10 @@ export class DormitoryRosterService {
   async importRows(dto: ImportRosterDto) {
     const roomAssignmentService = this.roomAssignmentService;
     const semester = await this.resolveActiveSemester();
+    if (dto.semester_id && String(dto.semester_id) !== String(semester._id)) throw new BadRequestException('Học kỳ đã chọn không còn là học kỳ active duy nhất.');
     const existingKeys = new Set<string>();
     const validRows: Array<{ row: number; payload: any; reason?: string }> = [];
-    const results: Array<{ row: number; status: 'created' | 'duplicated' | 'failed'; reason?: string; roster_entry_code?: string }> = [];
+    const results: Array<{ row: number; status: 'created' | 'duplicated' | 'failed'; reason?: string; roster_entry_code?: string; identity_state?: 'LINKED' | 'UNLINKED' | 'CONFLICT' }> = [];
     const seenKeys = new Set<string>();
     const candidates = (dto.rows || []).map((row) => {
       try {
@@ -329,7 +344,7 @@ export class DormitoryRosterService {
           }
         }
         const reason = [item.reason, assignmentReason].filter(Boolean).join(' ') || undefined;
-        results.push({ row: item.row, status: 'created', reason, roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
+        results.push({ row: item.row, status: 'created', reason, roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code, identity_state: item.payload.identity_state });
       } catch (error) {
         results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });
       }
@@ -342,6 +357,9 @@ export class DormitoryRosterService {
       created,
       duplicated: results.filter((item) => item.status === 'duplicated').length,
       failed: results.filter((item) => item.status === 'failed').length,
+      linked: results.filter((item) => item.status === 'created' && item.identity_state === 'LINKED').length,
+      unlinked: results.filter((item) => item.status === 'created' && item.identity_state === 'UNLINKED').length,
+      conflicts: results.filter((item) => item.status === 'created' && item.identity_state === 'CONFLICT').length,
       results,
     };
   }
@@ -390,6 +408,16 @@ export class DormitoryRosterService {
       return this.toResponse({ ...row, active_contract_id: contract?._id || null, room_id: contract?.room_id || row.room_id, bed_id: contract?.bed_id || row.bed_id });
     });
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async reconcile(dto: { semester_id: string; after_id?: string; limit?: number }) {
+    if (!Types.ObjectId.isValid(dto.semester_id)) throw new BadRequestException('semester_id không hợp lệ.');
+    const semester: any = await this.semesterModel.findById(dto.semester_id).exec();
+    if (!semester) throw new NotFoundException('Không tìm thấy học kỳ.');
+    const active: any[] = await this.semesterModel.find({ status: 'active' }).exec();
+    if (active.length !== 1 || String(active[0]._id) !== String(semester._id)) throw new BadRequestException('Chỉ được đối chiếu học kỳ active duy nhất.');
+    if (!this.rosterIdentityService) throw new ServiceUnavailableException('Chức năng đối chiếu định danh chưa sẵn sàng.');
+    return this.rosterIdentityService.reconcileSemester(dto.semester_id, dto.after_id, dto.limit || 100);
   }
 
   async findOne(id: string) {
@@ -457,12 +485,16 @@ export class DormitoryRosterService {
     const blocked: any[] = [];
     const deleted: string[] = [];
     for (const id of existingIds) {
-      if (this.roomAssignmentService) await this.roomAssignmentService.deleteRosterEntry(id);
-      else {
-        const result = await this.rosterModel.findByIdAndDelete(id).exec();
-        if (!result) continue;
+      try {
+        if (this.roomAssignmentService) await this.roomAssignmentService.deleteRosterEntry(id);
+        else {
+          const result = await this.rosterModel.findByIdAndDelete(id).exec();
+          if (!result) { not_found.push(id); continue; }
+        }
+        deleted.push(id);
+      } catch (error) {
+        blocked.push({ id, reason: this.exceptionMessage(error) });
       }
-      deleted.push(id);
     }
     if (deleted.length) emitDormitoryOverviewInvalidated('roster');
     return { requested: uniqueIds.length, deleted, blocked, not_found, invalid };

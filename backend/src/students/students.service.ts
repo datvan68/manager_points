@@ -92,6 +92,14 @@ export class StudentsService implements OnModuleInit {
     @Optional() private readonly rosterIdentityService?: DormitoryRosterIdentityService,
   ) {}
 
+  private async reconcileStudentsBestEffort(students: any[], operation: string, report?: (reason: string) => void) {
+    if (!this.rosterIdentityService) return;
+    for (const student of students) {
+      try { await this.rosterIdentityService.reconcileStudent(String(student._id)); }
+      catch { report?.(`Đã lưu sinh viên nhưng chưa hoàn tất đối chiếu KTX (${operation}).`); }
+    }
+  }
+
   async onModuleInit() {
     try {
       const collection = this.studentModel.collection;
@@ -719,6 +727,7 @@ export class StudentsService implements OnModuleInit {
       }
 
       const ids = createdStudents.map((student) => student._id);
+      await this.reconcileStudentsBestEffort(createdStudents, 'import hàng loạt');
       return this.studentModel
         .find({ _id: { $in: ids } })
         .populate({
@@ -2048,6 +2057,7 @@ export class StudentsService implements OnModuleInit {
     const { validItems, classId } = session;
     const batchSize = 50;
 
+    const insertedStudents: any[] = [];
     try {
       let semesters = await this.semesterModel
         .find({ status: 'active' })
@@ -2122,6 +2132,7 @@ export class StudentsService implements OnModuleInit {
             }
 
             session.insertedCount++;
+            insertedStudents.push(studentDoc);
           } catch (err: any) {
             session.duplicatedCount++;
             session.failedCount++;
@@ -2143,6 +2154,8 @@ export class StudentsService implements OnModuleInit {
 
         await Promise.all(promises);
       }
+
+      await this.reconcileStudentsBestEffort(insertedStudents, 'import theo phiên', (reason) => session.commitErrors.push({ reason }));
 
       session.status = 'completed';
       session.progress = 100;

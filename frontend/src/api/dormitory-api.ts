@@ -112,12 +112,22 @@ export interface DormitoryRosterImportResponse {
   created: number;
   duplicated: number;
   failed: number;
+  linked?: number;
+  unlinked?: number;
+  conflicts?: number;
   results: Array<{
     row: number;
     status: 'created' | 'duplicated' | 'failed';
     reason?: string;
     roster_entry_code?: string;
+    identity_state?: 'LINKED' | 'UNLINKED' | 'CONFLICT';
   }>;
+}
+
+export interface DormitoryRosterReconcileResponse {
+  scanned: number; linked: number; unlinked: number; conflicts: number; failed: number;
+  results: Array<{ id: string; outcome: string; reason?: string }>;
+  next_cursor?: string; has_more: boolean;
 }
 
 export interface PublicDormitorySemester {
@@ -781,8 +791,12 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/roster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
       return handleResponse(res);
     },
-    async importRows(rows: DormitoryRosterImportRowInput[]): Promise<DormitoryRosterImportResponse> {
-      const res = await httpClient(`${API_BASE}/dormitory/roster/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows }) });
+    async importRows(rows: DormitoryRosterImportRowInput[], semester_id?: string): Promise<DormitoryRosterImportResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, ...(semester_id ? { semester_id } : {}) }) });
+      return handleResponse(res);
+    },
+    async reconcile(payload: { semester_id: string; after_id?: string; limit?: number }): Promise<DormitoryRosterReconcileResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/reconcile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       return handleResponse(res);
     },
     async update(id: string, dto: UpdateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {

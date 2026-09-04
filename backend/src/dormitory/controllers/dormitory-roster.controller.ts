@@ -12,6 +12,7 @@ import { BulkRosterPdfDto } from '../dto/bulk-roster-pdf.dto';
 import { BulkDeleteRosterDto } from '../dto/bulk-delete-roster.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { ReconcileRosterDto } from '../dto/reconcile-roster.dto';
 
 @ApiTags('Dormitory - Roster')
 @ApiBearerAuth()
@@ -35,6 +36,10 @@ export class DormitoryRosterController {
   findAll(@Query('semester') semester?: string, @Query('academic_year') academic_year?: string, @Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     return this.rosterService.findAll({ semester, academic_year, search, page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined });
   }
+
+  @Post('reconcile')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  reconcile(@Body() dto: ReconcileRosterDto) { return this.rosterService.reconcile(dto); }
 
   @Get('student/:studentId')
   @UseGuards(JwtAuthGuard)

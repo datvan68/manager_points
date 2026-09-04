@@ -24,6 +24,7 @@ import DormitoryRegistrationEditModal, { dateInputValue, mapActiveSemester } fro
 import DormitoryRosterImportModal from '@/components/dormitory/DormitoryRosterImportModal';
 import type { ActiveSemesterValues } from '@/components/dormitory/DormitoryRegistrationEditModal';
 import DormitoryChoicePopover from '@/components/dormitory/DormitoryChoicePopover';
+import { runRosterBatches } from '@/components/dormitory/roster-batch';
 export { buildEditRegistrationPayload, mapActiveSemester } from '@/components/dormitory/DormitoryRegistrationEditModal';
 
 const pageSizeOptions = [20, 40, 50, 100];
@@ -417,7 +418,11 @@ export default function DormitoryRosterPage() {
     if (bulkDeleting || !selected.length) return;
     setBulkDeleting(true);
     try {
-      const result = await dormitoryApi.roster.bulkDelete([...selected]);
+      const frozen = [...new Set(selected)].slice(0, 100);
+      const run = await runRosterBatches(frozen, 10, batch => dormitoryApi.roster.bulkDelete(batch));
+      if (run.status !== 'completed') { toast.error('Xóa bị gián đoạn; các mục chưa xác nhận vẫn được giữ lại.'); return; }
+      const results = run.acknowledged;
+      const result = { deleted: results.flatMap(item => item.deleted), blocked: results.flatMap(item => item.blocked), not_found: results.flatMap(item => item.not_found), invalid: results.flatMap(item => item.invalid) };
       const blockedIds = result.blocked.map(item => item.id);
       const failedCount = result.blocked.length + result.not_found.length + result.invalid.length;
       setSelected(blockedIds); setBulkDeleteOpen(false);
