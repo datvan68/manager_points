@@ -13,6 +13,7 @@ import { CreateRoomDto } from '../dto/create-room.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
+import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 
@@ -28,6 +29,7 @@ export class RoomsService {
     @InjectModel(Bed.name) private bedModel: Model<BedDocument>,
     @InjectModel(Building.name) private buildingModel: Model<BuildingDocument>,
     @InjectModel(Contract.name) private contractModel: Model<ContractDocument>,
+    @InjectModel(DormitoryRosterEntry.name) private rosterModel?: Model<DormitoryRosterEntryDocument>,
   ) {}
 
   /** Runtime capacity is always projected from persisted bed records. */
@@ -439,14 +441,38 @@ export class RoomsService {
   }
 
   async remove(id: string, user: any): Promise<Room> {
-    const bedsInUse = await this.bedModel.countDocuments({ room_id: id, status: DORMITORY_ENUMS.bedStatus[1] });
     const historicalBeds = await this.bedModel.countDocuments({ room_id: id, has_history: true });
-    if (bedsInUse > 0 || historicalBeds > 0) throw new ConflictException('Phòng còn occupancy hoặc lịch sử giường được bảo vệ, không thể xóa');
-    const room = await this.roomModel.findByIdAndDelete(id).exec();
-    if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
-    await this.bedModel.deleteMany({ room_id: id });
-    emitDormitoryOverviewInvalidated('rooms');
-    return room;
+    if (historicalBeds > 0) throw new ConflictException('Phòng còn lịch sử giường được bảo vệ, không thể xóa');
+
+    const assignments = this.rosterModel
+      ? await this.resolveQuery<any[]>(this.rosterModel.find({ room_id: id }))
+      : [];
+    if (assignments.length) {
+      await this.resolveQuery(this.rosterModel!.updateMany(
+        { room_id: id },
+        { $unset: { room_id: '', bed_id: '' } },
+      ));
+    }
+
+    let roomDeleted = false;
+    try {
+      const room = await this.roomModel.findByIdAndDelete(id).exec();
+      if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${id}`);
+      roomDeleted = true;
+      await this.resolveQuery(this.bedModel.deleteMany({ room_id: id }));
+      emitDormitoryOverviewInvalidated('rooms');
+      return room;
+    } catch (error) {
+      if (assignments.length && !roomDeleted) {
+        for (const assignment of assignments) {
+          await this.resolveQuery(this.rosterModel!.updateOne(
+            { _id: assignment._id, room_id: { $exists: false }, bed_id: { $exists: false } },
+            { $set: { room_id: assignment.room_id, bed_id: assignment.bed_id } },
+          ));
+        }
+      }
+      throw error;
+    }
   }
 
   /** Recalculate the cached value; callers still use persisted-bed projections for display. */

@@ -172,6 +172,63 @@ describe('RoomsService', () => {
     await expect(service.ensureRoomBeds('room-1', 1.5)).rejects.toThrow();
   });
 
+  it('clears room and bed assignments before deleting a room with occupied beds', async () => {
+    const room = { _id: 'room-1', room_code: 'A101' };
+    const roomModel: any = { findByIdAndDelete: jest.fn().mockReturnValue(resolvedQuery(room)) };
+    const bedModel: any = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      deleteMany: jest.fn().mockReturnValue(resolvedQuery({ deletedCount: 2 })),
+    };
+    const assignments = [{ _id: 'roster-1', room_id: 'room-1', bed_id: 'bed-1' }];
+    const rosterModel: any = {
+      find: jest.fn().mockReturnValue(resolvedQuery(assignments)),
+      updateMany: jest.fn().mockReturnValue(resolvedQuery({ modifiedCount: 1 })),
+      updateOne: jest.fn(),
+    };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any, rosterModel);
+
+    await expect(service.remove('room-1', {})).resolves.toBe(room);
+
+    expect(rosterModel.updateMany).toHaveBeenCalledWith(
+      { room_id: 'room-1' },
+      { $unset: { room_id: '', bed_id: '' } },
+    );
+    expect(roomModel.findByIdAndDelete).toHaveBeenCalledWith('room-1');
+    expect(bedModel.deleteMany).toHaveBeenCalledWith({ room_id: 'room-1' });
+  });
+
+  it('keeps members assigned when room deletion is rejected for protected bed history', async () => {
+    const roomModel: any = { findByIdAndDelete: jest.fn() };
+    const bedModel: any = { countDocuments: jest.fn().mockResolvedValue(1), deleteMany: jest.fn() };
+    const rosterModel: any = { find: jest.fn(), updateMany: jest.fn() };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any, rosterModel);
+
+    await expect(service.remove('room-1', {})).rejects.toThrow('lịch sử giường');
+
+    expect(rosterModel.find).not.toHaveBeenCalled();
+    expect(rosterModel.updateMany).not.toHaveBeenCalled();
+    expect(roomModel.findByIdAndDelete).not.toHaveBeenCalled();
+    expect(bedModel.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('does not restore room assignments after the room itself has been deleted', async () => {
+    const roomModel: any = { findByIdAndDelete: jest.fn().mockReturnValue(resolvedQuery({ _id: 'room-1' })) };
+    const bedModel: any = {
+      countDocuments: jest.fn().mockResolvedValue(0),
+      deleteMany: jest.fn().mockReturnValue(resolvedQuery(Promise.reject(new Error('bed delete failed')))),
+    };
+    const rosterModel: any = {
+      find: jest.fn().mockReturnValue(resolvedQuery([{ _id: 'roster-1', room_id: 'room-1', bed_id: 'bed-1' }])),
+      updateMany: jest.fn().mockReturnValue(resolvedQuery({ modifiedCount: 1 })),
+      updateOne: jest.fn(),
+    };
+    const service = new RoomsService(roomModel, bedModel, {} as any, {} as any, rosterModel);
+
+    await expect(service.remove('room-1', {})).rejects.toThrow('bed delete failed');
+
+    expect(rosterModel.updateOne).not.toHaveBeenCalled();
+  });
+
   it('maps a duplicate-key race during room creation to a conflict', async () => {
     const roomModel: any = jest.fn().mockImplementation(() => ({
       save: jest.fn().mockRejectedValue({ code: 11000 }),
