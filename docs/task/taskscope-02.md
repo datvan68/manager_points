@@ -2,10 +2,10 @@ slot_id: "taskscope-02"
 generation: 1
 task_id: "20260904-140405-dormitory-rooms-mobile-ui"
 scope_file: "docs/task/taskscope-02.md"
-status: blocked
+status: completed
 scope_revision: 1
 created_at: "2026-09-04T14:04:05+07:00"
-updated_at: "2026-09-04T14:04:05+07:00"
+updated_at: "2026-09-04T14:24:00+07:00"
 base_commit: "2628ff029da6c0a237b2175e5c1df57418722860"
 task: "Fix Rooms mobile presentation"
 pipeline: bug_fix
@@ -14,16 +14,14 @@ objective: "Below lg, show single-row full-width search, inset room dialogs, che
 
 coordination:
   depends_on: ["20260904-135852-dormitory-roster-mobile-ui"]
-  warnings:
-    - "TASKSCOPE_WARNING: dependency owns dirty frontend/src/components/ui/ResponsiveDataView.tsx; await terminal status and verified toggle API."
-    - "TASKSCOPE_CONFLICT: docs/task/taskscope.md is empty legacy reserved input; ownership/boundaries require explicit classification before execution. Numbered slot 01 is in_progress; retained untouched."
+  warnings: ["TASKSCOPE_WARNING: docs/task/taskscope.md is empty legacy input with no declared write boundary; candidate writes are disjoint."]
 
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-09-04T14:24:00+07:00"
+  outcome: "success"
+  final_commit_or_state: "Committed on current branch."
+  changed_paths: ["frontend/src/app/(dashboard)/dormitory/buildings/page.tsx"]
+  checks_passed: ["npm --prefix frontend test -- src/app/(dashboard)/dormitory/buildings/page.test.tsx (8 passed)", "npm --prefix frontend run typecheck", "git diff --check"]
   cleanup_pending: []
 
 evidence:
