@@ -52,6 +52,7 @@ interface ResponsiveDataViewProps<T> {
   mobileFooter?: React.ReactNode;
   mobileScrollRef?: React.Ref<HTMLDivElement>;
   mobileVirtualization?: boolean;
+  mobileClassName?: string;
   
   // Desktop infinite scroll support
   desktopFooter?: React.ReactNode;
@@ -76,6 +77,7 @@ export default function ResponsiveDataView<T>({
   mobileFooter,
   mobileScrollRef,
   mobileVirtualization = false,
+  mobileClassName = '',
   desktopFooter,
   desktopScrollRef
 }: ResponsiveDataViewProps<T>) {
@@ -199,7 +201,7 @@ export default function ResponsiveDataView<T>({
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
       {/* 1. Cards View (Mobile/Tablet) */}
-      <div ref={setMobileScrollElement} className={`${bpClasses.cards} flex-1 overflow-y-auto p-4`}>
+      <div ref={setMobileScrollElement} className={`${bpClasses.cards} flex-1 overflow-y-auto ${mobileClassName || 'p-4'}`}>
         {isLoading ? (
           // Skeleton Cards
           <div className="flex flex-col gap-3">
