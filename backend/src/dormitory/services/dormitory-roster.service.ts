@@ -208,6 +208,7 @@ export class DormitoryRosterService {
   }
 
   async importRows(dto: ImportRosterDto) {
+    const roomAssignmentService = this.roomAssignmentService;
     const semester = await this.resolveActiveSemester();
     const existingKeys = new Set<string>();
     const validRows: Array<{ row: number; payload: any }> = [];
@@ -270,8 +271,8 @@ export class DormitoryRosterService {
     const blockedRows = new Set<number>();
     for (const [roomCode, items] of roomGroups) {
       try {
-        if (!this.roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
-        await this.roomAssignmentService.validateImportCapacity(roomCode, items.length);
+        if (!roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
+        await roomAssignmentService.validateImportCapacity(roomCode, items.length);
       } catch (error) {
         for (const item of items) {
           blockedRows.add(item.row);
@@ -283,11 +284,11 @@ export class DormitoryRosterService {
     for (const item of validRows.filter((item) => !blockedRows.has(item.row))) {
       try {
         const { room_code: roomCode, ...payload } = item.payload;
-        if (roomCode && !this.roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
+        if (roomCode && !roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
         const saved = await new (this.rosterModel as any)(payload).save();
         if (roomCode) {
           try {
-            await this.roomAssignmentService.assignFirstAvailableBed(String(saved._id), roomCode, {});
+            await roomAssignmentService!.assignFirstAvailableBed(String(saved._id), roomCode, {});
           } catch (error) {
             await (this.rosterModel as any).findByIdAndDelete(saved._id).exec();
             throw error;
