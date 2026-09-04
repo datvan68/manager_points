@@ -176,6 +176,35 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.queryByText('Công nợ theo phòng')).not.toBeInTheDocument();
   });
 
+  it('progressively reveals mobile rooms in batches with a keyboard-operable fallback', async () => {
+    compactViewport = true;
+    const manyRooms = Array.from({ length: 25 }, (_, index) => ({
+      ...mockStats.room_rows[0],
+      room_id: `r-${index}`,
+      room_code: `A${String(100 + index)}`,
+      room_name: `Phòng A${String(100 + index)}`,
+    }));
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValueOnce({
+      ...mockStats,
+      room_rows: manyRooms,
+    } as any);
+
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+
+    expect(screen.getByText('A100', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('A119', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('A120', { exact: true })).not.toBeInTheDocument();
+
+    const loadMore = screen.getByRole('button', { name: 'Xem thêm phòng (5 còn lại)' });
+    loadMore.focus();
+    expect(loadMore).toHaveFocus();
+    fireEvent.click(loadMore);
+
+    expect(screen.getByText('A124', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Xem thêm phòng/ })).not.toBeInTheDocument();
+  });
+
   it('searches room names and puts empty rooms first', async () => {
     render(<DormitoryOverviewPage />);
     await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());

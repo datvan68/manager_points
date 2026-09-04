@@ -127,6 +127,8 @@ const stateConfig: Record<
   },
 };
 
+const MOBILE_ROOM_BATCH_SIZE = 20;
+
 export default function DormitoryOverviewPage() {
   const [data, setData] = useState<DormDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,6 +137,8 @@ export default function DormitoryOverviewPage() {
   const [search, setSearch] = useState('');
   const [selectedRoom, setSelectedRoom] = useState<DormitoryRoomRow | null>(null);
   const [isCompact, setIsCompact] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_ROOM_BATCH_SIZE);
+  const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const inFlightRef = useRef(false);
   const queuedRefreshRef = useRef(false);
   const latestRequestIdRef = useRef(0);
@@ -229,6 +233,31 @@ export default function DormitoryOverviewPage() {
         return leftEmpty - rightEmpty || left.room_code.localeCompare(right.room_code, 'vi');
       });
   }, [roomRows, search]);
+
+  const loadMoreMobileRooms = useCallback(() => {
+    setMobileVisibleCount((current) => Math.min(current + MOBILE_ROOM_BATCH_SIZE, filteredRooms.length));
+  }, [filteredRooms.length]);
+
+  useEffect(() => {
+    setMobileVisibleCount(MOBILE_ROOM_BATCH_SIZE);
+  }, [search]);
+
+  const mobileVisibleRooms = useMemo(
+    () => filteredRooms.slice(0, mobileVisibleCount),
+    [filteredRooms, mobileVisibleCount],
+  );
+  const hasMoreMobileRooms = isCompact && mobileVisibleCount < filteredRooms.length;
+
+  useEffect(() => {
+    if (!hasMoreMobileRooms || typeof IntersectionObserver === 'undefined') return;
+    const target = mobileLoadMoreRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMoreMobileRooms();
+    }, { rootMargin: '160px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMoreMobileRooms, loadMoreMobileRooms]);
 
   if (loading && !data) {
     return (
@@ -367,7 +396,7 @@ export default function DormitoryOverviewPage() {
 
         {isCompact ? (
           <div className="mt-2.5 space-y-3 lg:hidden">
-            {filteredRooms.map((room: DormitoryRoomRow) => {
+            {mobileVisibleRooms.map((room: DormitoryRoomRow) => {
               const occupancy = room.total_beds > 0 ? Math.round((room.occupied_beds / room.total_beds) * 100) : 0;
               const isFull = room.total_beds > 0 && room.occupied_beds >= room.total_beds;
               const config = stateConfig[room.state] || stateConfig['Chưa cấu hình'];
@@ -386,6 +415,18 @@ export default function DormitoryOverviewPage() {
               );
             })}
             {!filteredRooms.length && <p className="rounded-xl border border-dashed border-white/80 px-4 py-8 text-center text-sm text-slate-500">Không có phòng phù hợp với tìm kiếm.</p>}
+            {hasMoreMobileRooms && (
+              <>
+                <div ref={mobileLoadMoreRef} aria-hidden="true" className="h-px" />
+                <button
+                  type="button"
+                  onClick={loadMoreMobileRooms}
+                  className="w-full rounded-xl border border-white/80 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-white hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                >
+                  Xem thêm phòng ({filteredRooms.length - mobileVisibleRooms.length} còn lại)
+                </button>
+              </>
+            )}
           </div>
         ) : <div className="mt-2.5 max-h-[min(45vh,32rem)] overflow-auto rounded-xl border border-white/75 bg-white/50 backdrop-blur-md shadow-2xs">
           <table className="min-w-[760px] w-full text-left text-sm">
