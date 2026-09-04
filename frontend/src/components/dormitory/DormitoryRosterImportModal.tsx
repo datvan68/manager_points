@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import Popup from '@/components/popups/Popup';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import { dormitoryApi, DormitoryRosterImportResponse, DormitoryRosterImportRowInput } from '@/api/dormitory-api';
+import { semesterApi } from '@/api/semester-api';
 import { runRosterBatches } from './roster-batch';
 
 export const DORMITORY_ROSTER_HEADERS = ['Họ và tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Mã phòng'] as const;
@@ -149,6 +150,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
   const [importConfirmationOpen, setImportConfirmationOpen] = useState(false);
   const [skippedRows, setSkippedRows] = useState(0);
   const [progress, setProgress] = useState<{ processed: number; total: number; status: string } | null>(null);
+  const [semesterWarning, setSemesterWarning] = useState('');
   const errorGroups = Object.values(errors.reduce<Record<number, DormitoryRosterImportValidationError[]>>((groups, error) => {
     (groups[error.row] ||= []).push(error);
     return groups;
@@ -157,7 +159,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
 
   const reset = () => {
     dragDepth.current = 0;
-    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false); setIsDraggingFile(false); setImportConfirmationOpen(false); setSkippedRows(0); setProgress(null);
+    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false); setIsDraggingFile(false); setImportConfirmationOpen(false); setSkippedRows(0); setProgress(null); setSemesterWarning('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
   const close = () => { if (busy) return; reset(); onClose(); };
@@ -222,9 +224,13 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
     if (!previewRows.length) return;
     setBusy(true);
     try {
+      const semesters = await semesterApi.getSemesters();
+      const active = semesters.filter(item => item.status === 'active');
+      if (active.length !== 1) { setSemesterWarning(active.length ? 'Có nhiều học kỳ active; hãy cấu hình chỉ một học kỳ trước khi import.' : 'Chưa có học kỳ active.'); return; }
+      const pinnedSemesterId = active[0]._id;
       const snapshot = previewRows.slice();
       const batchRun = await runRosterBatches(snapshot, 50, async batch => {
-        const response = await dormitoryApi.roster.importRows(batch.map(({ rowNumber: _rowNumber, ...row }) => row));
+        const response = await dormitoryApi.roster.importRows(batch.map(({ rowNumber: _rowNumber, ...row }) => row), pinnedSemesterId);
         return { ...response, results: response.results.map(item => ({ ...item, row: batch[item.row - 2]?.rowNumber || item.row })) };
       }, state => setProgress({ processed: state.processed, total: state.total, status: state.status }));
       if (batchRun.status !== 'completed') { toast.error('Import bị gián đoạn; các dòng chưa xác nhận vẫn được giữ lại để xem xét.'); return; }
@@ -240,7 +246,8 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
 
   return <Popup isOpen={isOpen} onClose={close} title="Nhập Danh sách KTX từ Excel" className="max-w-3xl" contentClassName="flex min-h-0 flex-1 flex-col p-0">
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      {progress && busy && <section aria-live="polite" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="flex justify-between text-xs font-semibold text-blue-900"><span>Đang xử lý import</span><span>{progress.processed}/{progress.total} · {progress.total ? Math.floor(progress.processed / progress.total * 100) : 0}%</span></div><div role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed} className="mt-2 h-2 rounded-full bg-blue-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${progress.total ? progress.processed / progress.total * 100 : 0}%` }} /></div></section>}
+      {semesterWarning && <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{semesterWarning}</p>}
+      {progress && <section aria-live="polite" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="flex justify-between text-xs font-semibold text-blue-900"><span>{progress.status === 'completed' ? 'Import hoàn tất' : progress.status === 'interrupted' ? 'Import bị gián đoạn' : 'Đang xử lý import'}</span><span>{progress.processed}/{progress.total} · {progress.total ? Math.floor(progress.processed / progress.total * 100) : 0}%</span></div><div role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed} className="mt-2 h-2 rounded-full bg-blue-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${progress.total ? progress.processed / progress.total * 100 : 0}%` }} /></div></section>}
       <div className="space-y-5">
       <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800"><FileSpreadsheet size={18} className="mt-0.5 shrink-0" /><span>Bốn cột bắt buộc: Họ và tên, Ngày sinh, Giới tính, Số điện thoại. Có thể thêm Mã phòng để tự xếp vào giường trống đầu tiên của phòng đó.</span></div>
       {!result && <>

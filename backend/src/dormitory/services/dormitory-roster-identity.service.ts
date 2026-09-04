@@ -33,9 +33,21 @@ export class DormitoryRosterIdentityService {
     return `${this.normalizeName(name)}|${Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)}`;
   }
 
+  private namePattern(value: unknown) {
+    return `^${this.normalizeName(value).split(' ').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')}$`;
+  }
+
+  private dateRange(value: unknown) {
+    const date = new Date(String(value));
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    return { start, end };
+  }
+
   async resolveBatch(entries: Array<{ full_name: string; date_of_birth: unknown; student_id?: unknown; semester_id: unknown }>): Promise<RosterIdentityMatch[]> {
     const keys = Array.from(new Set(entries.map((entry) => this.identityKey(entry.full_name, entry.date_of_birth))));
-    const students: any[] = keys.length ? await (this.studentModel as any).find({ $or: entries.map((entry) => ({ full_name: { $regex: this.normalizeName(entry.full_name).split(' ').join('\\s+'), $options: 'i' }, date_bir: entry.date_of_birth })) }).exec() : [];
+    const students: any[] = keys.length ? await (this.studentModel as any).find({ $or: entries.map((entry) => ({ full_name: { $regex: this.namePattern(entry.full_name), $options: 'i' }, date_bir: (() => { const range = this.dateRange(entry.date_of_birth); return { $gte: range.start, $lt: range.end }; })() })) }).exec() : [];
     const byKey = new Map<string, any[]>();
     for (const student of students) {
       const key = this.identityKey(student.full_name, student.date_bir);
