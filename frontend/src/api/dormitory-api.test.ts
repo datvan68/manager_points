@@ -272,6 +272,20 @@ describe('dormitoryApi.roster import', () => {
   });
 });
 
+describe('dormitoryApi.roster bulk delete', () => {
+  it('posts selected roster IDs to the protected bulk-delete endpoint', async () => {
+    const ids = ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'];
+    const response = { requested: 2, deleted: [ids[0]], blocked: [{ id: ids[1], reason: 'Đang được hợp đồng KTX tham chiếu' }], not_found: [], invalid: [] };
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => response } as any);
+
+    await expect(dormitoryApi.roster.bulkDelete(ids)).resolves.toEqual(response);
+    expect(httpClient).toHaveBeenCalledWith(
+      expect.stringContaining('/dormitory/roster/bulk-delete'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ ids }) }),
+    );
+  });
+});
+
 describe('dormitoryApi.invoices', () => {
   beforeEach(() => {
     vi.clearAllMocks();

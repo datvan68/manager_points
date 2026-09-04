@@ -495,6 +495,14 @@ export interface BulkDeleteRoomFeeInvoicesResponse {
   rejected: Array<{ id: string; invoice_code?: string; reason: string }>;
 }
 
+export interface BulkDeleteRosterResponse {
+  requested: number;
+  deleted: string[];
+  blocked: Array<{ id: string; reason: string }>;
+  not_found: string[];
+  invalid: string[];
+}
+
 export interface DormViolation {
   _id: string;
   violation_code: string;
@@ -783,6 +791,14 @@ export const dormitoryApi = {
     },
     async delete(id: string): Promise<{ success: boolean; id: string }> {
       const res = await httpClient(`${API_BASE}/dormitory/roster/${id}`, { method: 'DELETE' });
+      return handleResponse(res);
+    },
+    async bulkDelete(ids: string[]): Promise<BulkDeleteRosterResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
       return handleResponse(res);
     },
     async assignRoom(dto: { roster_entry_id: string; room_id: string; bed_id: string }): Promise<{ roster_entry?: DormitoryRosterEntry; room?: Room; bed?: Bed; active_contract_id?: string; message?: string }> {

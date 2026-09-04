@@ -9,6 +9,7 @@ import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
 import { AssignRoomDto } from '../dto/assign-room.dto';
 import { UnassignRoomDto } from '../dto/unassign-room.dto';
 import { BulkRosterPdfDto } from '../dto/bulk-roster-pdf.dto';
+import { BulkDeleteRosterDto } from '../dto/bulk-delete-roster.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
@@ -81,6 +82,10 @@ export class DormitoryRosterController {
   @Delete(':id')
   @UseGuards(checkPermission('DORM_REG_DELETE'))
   remove(@Param('id') id: string) { return this.rosterService.remove(id); }
+
+  @Post('bulk-delete')
+  @UseGuards(checkPermission('DORM_REG_DELETE'))
+  bulkDelete(@Body() dto: BulkDeleteRosterDto) { return this.rosterService.bulkRemove(dto.ids); }
 
   @Post('assign-room')
   @UseGuards(checkPermission('DORM_REG_UPDATE'))

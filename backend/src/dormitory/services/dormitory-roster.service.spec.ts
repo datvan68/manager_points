@@ -20,12 +20,13 @@ describe('DormitoryRosterService', () => {
     rosterModel.findOne = jest.fn(() => query(null));
     rosterModel.findById = jest.fn(() => query(null));
     rosterModel.findByIdAndDelete = jest.fn(() => query({ _id: 'roster-1' }));
+    rosterModel.deleteMany = jest.fn(() => query({ deletedCount: 0 }));
     rosterModel.countDocuments = jest.fn(() => query(0));
     const studentModel: any = { findById: jest.fn(() => query(student)), find: jest.fn(() => query([])) };
     const semesterModel: any = { find: jest.fn(() => query([semester])) };
     const contractModel: any = { findOne: jest.fn(() => query(null)), find: jest.fn(() => query([])) };
     const invoiceModel: any = { countDocuments: jest.fn(() => query(0)) };
-    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}) };
+    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}), validateImportCapacity: jest.fn().mockResolvedValue(undefined) };
     return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel, undefined, roomAssignmentService), saved, rosterModel, studentModel, roomAssignmentService };
   }
 
@@ -103,6 +104,20 @@ describe('DormitoryRosterService', () => {
     expect(rosterModel.findByIdAndDelete).toHaveBeenCalledWith('roster-1');
   });
 
+  it('does not assign any imported student to a room when the group exceeds its free beds', async () => {
+    const { service, saved } = setup();
+    const roomAssignmentService = (service as any).roomAssignmentService;
+    roomAssignmentService.validateImportCapacity.mockRejectedValue(new BadRequestException('Phòng P101 chỉ còn 4 giường trống, không thể xếp 5 sinh viên'));
+    const rows = Array.from({ length: 5 }, (_, index) => ({ full_name: `Nguyễn Văn ${index}`, date_of_birth: '02/01/2004', gender: 'Nam', phone_number: `09123456${index}8`, room_code: 'P101' }));
+
+    const result = await service.importRows({ rows } as any);
+
+    expect(result).toMatchObject({ created: 0, failed: 5 });
+    expect(roomAssignmentService.validateImportCapacity).toHaveBeenCalledWith('P101', 5);
+    expect(roomAssignmentService.assignFirstAvailableBed).not.toHaveBeenCalled();
+    expect(saved).not.toHaveBeenCalled();
+  });
+
   it('refuses deletion while a contract references the roster entry', async () => {
     const { service, rosterModel } = setup();
     const contractModel = (service as any).contractModel;
@@ -110,6 +125,32 @@ describe('DormitoryRosterService', () => {
 
     await expect(service.remove('507f1f77bcf86cd799439011')).rejects.toBeInstanceOf(ConflictException);
     expect(rosterModel.findByIdAndDelete).not.toHaveBeenCalled();
+  });
+
+  it('bulk removes only unreferenced entries and reports categorized outcomes', async () => {
+    const { service, rosterModel } = setup();
+    const deletableId = '507f1f77bcf86cd799439011';
+    const blockedId = '507f1f77bcf86cd799439013';
+    const missingId = '507f1f77bcf86cd799439014';
+    rosterModel.find.mockReturnValue(query([{ _id: deletableId }, { _id: blockedId }]));
+    const contractModel = (service as any).contractModel;
+    contractModel.find.mockReturnValue(query([{ _id: 'contract-1', roster_entry_id: blockedId }]));
+    const events: unknown[] = [];
+    const listener = (event: unknown) => events.push(event);
+    dormitoryOverviewEventEmitter.on('dormitory_overview_event', listener);
+
+    const result = await service.bulkRemove([deletableId, blockedId, missingId, 'bad-id']);
+
+    dormitoryOverviewEventEmitter.off('dormitory_overview_event', listener);
+    expect(result).toEqual({
+      requested: 4,
+      deleted: [deletableId],
+      blocked: [{ id: blockedId, reason: 'Đang được hợp đồng KTX tham chiếu' }],
+      not_found: [missingId],
+      invalid: ['bad-id'],
+    });
+    expect(rosterModel.deleteMany).toHaveBeenCalledWith({ _id: { $in: [expect.anything()] } });
+    expect(events).toHaveLength(1);
   });
 
   it('maps linked student and applicant data into a one-page A4 PDF without placeholders', async () => {

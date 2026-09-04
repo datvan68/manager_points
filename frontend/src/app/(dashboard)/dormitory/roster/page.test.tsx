@@ -65,6 +65,28 @@ describe('Danh sách KTX canonical page capabilities', () => {
     expect(screen.queryByRole('button', { name: 'Nhập danh sách KTX từ Excel' })).not.toBeInTheDocument();
   });
 
+  it('uses one bulk-delete request and keeps contract-blocked rows selected', async () => {
+    const getAll = vi.spyOn(dormitoryApi.roster, 'getAll').mockResolvedValue({ data: [entry1, entry2], meta: { total: 2, page: 1, limit: 40, totalPages: 1 } } as any);
+    const bulkDelete = vi.spyOn(dormitoryApi.roster, 'bulkDelete').mockResolvedValue({
+      requested: 2,
+      deleted: ['entry-1'],
+      blocked: [{ id: 'entry-2', reason: 'Đang được hợp đồng KTX tham chiếu' }],
+      not_found: [],
+      invalid: [],
+    });
+    const { default: DormitoryRosterPage } = await import('./page');
+    render(<DormitoryRosterPage />);
+    await waitFor(() => expect(getAll).toHaveBeenCalled());
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    fireEvent.click(rowCheckboxes[0]);
+    fireEvent.click(rowCheckboxes[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa đơn đã chọn' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xóa mục' }));
+
+    await waitFor(() => expect(bulkDelete).toHaveBeenCalledWith(['entry-1', 'entry-2']));
+    expect(document.querySelectorAll('tbody input[type="checkbox"]')[1]).toBeChecked();
+  });
+
   it('filters selected PDF roster entries in deterministic table order', () => {
     const rows = [entry1, entry2, entry3];
     expect(selectedPdfRosterEntries(rows, [])).toEqual([]);

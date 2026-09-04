@@ -415,16 +415,21 @@ export default function DormitoryRosterPage() {
   const removeSelected = async () => {
     if (bulkDeleting || !selected.length) return;
     setBulkDeleting(true);
-    const selectedIds = [...selected];
-    const results = await Promise.allSettled(selectedIds.map(id => registrations.some(item => item._id === id) ? dormitoryApi.roster.delete(id) : Promise.reject(new Error('Không tìm thấy mục Danh sách KTX'))));
-    const deletedIds = selectedIds.filter((_, index) => results[index].status === 'fulfilled');
-    const failedIds = selectedIds.filter((_, index) => results[index].status === 'rejected');
-    setSelected(failedIds); setBulkDeleteOpen(false);
-    if (deletedIds.length) await load(true);
-    if (!failedIds.length) toast.success(`Đã xóa ${deletedIds.length} mục Danh sách KTX`);
-    else if (deletedIds.length) toast.warning(`Đã xóa ${deletedIds.length} đơn, ${failedIds.length} đơn không thể xóa`);
-    else toast.error('Không thể xóa các mục Danh sách KTX đã chọn.');
-    setBulkDeleting(false);
+    try {
+      const result = await dormitoryApi.roster.bulkDelete([...selected]);
+      const blockedIds = result.blocked.map(item => item.id);
+      const failedCount = result.blocked.length + result.not_found.length + result.invalid.length;
+      setSelected(blockedIds); setBulkDeleteOpen(false);
+      if (result.deleted.length) await load(true);
+      if (!failedCount) toast.success(`Đã xóa ${result.deleted.length} mục Danh sách KTX`);
+      else if (result.deleted.length) toast.warning(`Đã xóa ${result.deleted.length} mục, ${failedCount} mục không thể xóa`);
+      else toast.error('Không thể xóa các mục Danh sách KTX đã chọn.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể xóa các mục Danh sách KTX đã chọn.');
+      throw err;
+    } finally {
+      setBulkDeleting(false);
+    }
   };
   const openSelectedPdfPreview = () => {
     const targets = selectedPdfRosterEntries(registrations, selected);
