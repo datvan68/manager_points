@@ -12,6 +12,7 @@ describe('DormitoryRosterImportModal parsing', () => {
     expect(normalizeDormitoryRosterGender('other')).toBe('Other');
     expect(normalizeDormitoryRosterDate('02/01/2004')).toBe('2004-01-02');
     expect(normalizeDormitoryRosterDate('2004-01-02')).toBe('2004-01-02');
+    expect(normalizeDormitoryRosterDate(40022)).toBe('2009-07-28');
   });
 
   it('maps reordered headers and returns row-numbered validation errors', () => {

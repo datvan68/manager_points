@@ -144,9 +144,9 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
     try {
       const data = await file.arrayBuffer();
       const XLSX = await import('xlsx');
-      const workbook = XLSX.read(new Uint8Array(data), { type: 'array', cellDates: true });
+      const workbook = XLSX.read(new Uint8Array(data), { type: 'array', cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as unknown[][];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true }) as unknown[][];
       const parsed = parseDormitoryRosterRows(rawRows);
       setPreviewRows(parsed.rows); setErrors(parsed.errors);
     } catch { setPreviewRows([]); setErrors([{ row: 1, reason: 'Không thể đọc tệp Excel.' }]); }
