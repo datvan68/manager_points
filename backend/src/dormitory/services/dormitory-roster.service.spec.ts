@@ -26,7 +26,7 @@ describe('DormitoryRosterService', () => {
     const semesterModel: any = { find: jest.fn(() => query([semester])) };
     const contractModel: any = { findOne: jest.fn(() => query(null)), find: jest.fn(() => query([])) };
     const invoiceModel: any = { countDocuments: jest.fn(() => query(0)) };
-    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}), validateImportCapacity: jest.fn().mockResolvedValue(undefined) };
+    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}), validateImportCapacity: jest.fn().mockResolvedValue(undefined), deleteRosterEntry: jest.fn().mockResolvedValue(undefined) };
     return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel, undefined, roomAssignmentService), saved, rosterModel, studentModel, roomAssignmentService };
   }
 
@@ -118,38 +118,41 @@ describe('DormitoryRosterService', () => {
     expect(saved).not.toHaveBeenCalled();
   });
 
-  it('refuses deletion while a contract references the roster entry', async () => {
-    const { service, rosterModel } = setup();
+  it('deletes an entry through bed release even when a contract references it', async () => {
+    const { service, rosterModel, roomAssignmentService } = setup();
     const contractModel = (service as any).contractModel;
     contractModel.findOne.mockReturnValue(query({ _id: 'contract-1' }));
 
-    await expect(service.remove('507f1f77bcf86cd799439011')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove('507f1f77bcf86cd799439011')).resolves.toEqual({ success: true, id: '507f1f77bcf86cd799439011' });
+    expect(contractModel.findOne).not.toHaveBeenCalled();
+    expect(roomAssignmentService.deleteRosterEntry).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
     expect(rosterModel.findByIdAndDelete).not.toHaveBeenCalled();
   });
 
-  it('bulk removes only unreferenced entries and reports categorized outcomes', async () => {
-    const { service, rosterModel } = setup();
+  it('bulk removes every existing entry and retains categorized invalid and missing outcomes', async () => {
+    const { service, rosterModel, roomAssignmentService } = setup();
     const deletableId = '507f1f77bcf86cd799439011';
-    const blockedId = '507f1f77bcf86cd799439013';
+    const referencedId = '507f1f77bcf86cd799439013';
     const missingId = '507f1f77bcf86cd799439014';
-    rosterModel.find.mockReturnValue(query([{ _id: deletableId }, { _id: blockedId }]));
+    rosterModel.find.mockReturnValue(query([{ _id: deletableId }, { _id: referencedId }]));
     const contractModel = (service as any).contractModel;
-    contractModel.find.mockReturnValue(query([{ _id: 'contract-1', roster_entry_id: blockedId }]));
     const events: unknown[] = [];
     const listener = (event: unknown) => events.push(event);
     dormitoryOverviewEventEmitter.on('dormitory_overview_event', listener);
 
-    const result = await service.bulkRemove([deletableId, blockedId, missingId, 'bad-id']);
+    const result = await service.bulkRemove([deletableId, referencedId, missingId, 'bad-id']);
 
     dormitoryOverviewEventEmitter.off('dormitory_overview_event', listener);
     expect(result).toEqual({
       requested: 4,
-      deleted: [deletableId],
-      blocked: [{ id: blockedId, reason: 'Đang được hợp đồng KTX tham chiếu' }],
+      deleted: [deletableId, referencedId],
+      blocked: [],
       not_found: [missingId],
       invalid: ['bad-id'],
     });
-    expect(rosterModel.deleteMany).toHaveBeenCalledWith({ _id: { $in: [expect.anything()] } });
+    expect(contractModel.find).not.toHaveBeenCalled();
+    expect(roomAssignmentService.deleteRosterEntry).toHaveBeenCalledWith(deletableId);
+    expect(roomAssignmentService.deleteRosterEntry).toHaveBeenCalledWith(referencedId);
     expect(events).toHaveLength(1);
   });
 

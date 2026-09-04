@@ -394,10 +394,11 @@ export class DormitoryRosterService {
   }
 
   async remove(id: string) {
-    const protectedReference = await this.contractModel.findOne({ roster_entry_id: id }).exec();
-    if (protectedReference) throw new ConflictException('Không thể xóa mục Danh sách KTX đang được hợp đồng tham chiếu.');
-    const result = await this.rosterModel.findByIdAndDelete(id).exec();
-    if (!result) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    if (this.roomAssignmentService) await this.roomAssignmentService.deleteRosterEntry(id);
+    else {
+      const result = await this.rosterModel.findByIdAndDelete(id).exec();
+      if (!result) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    }
     emitDormitoryOverviewInvalidated('roster');
     return { success: true, id };
   }
@@ -418,17 +419,18 @@ export class DormitoryRosterService {
     const existing = new Map(entries.map((entry) => [this.id(entry), entry]));
     const not_found = validIds.filter((id) => !existing.has(id));
     const existingIds = validIds.filter((id) => existing.has(id));
-    const contracts: any[] = existingIds.length
-      ? await this.contractModel.find({ roster_entry_id: { $in: existingIds.map((id) => new Types.ObjectId(id)) } }).exec()
-      : [];
-    const blockedById = new Map<string, any>();
-    for (const contract of contracts || []) blockedById.set(this.id(contract.roster_entry_id), contract);
-    const blocked = existingIds.filter((id) => blockedById.has(id)).map((id) => ({ id, reason: 'Đang được hợp đồng KTX tham chiếu' }));
-    const blockedIds = new Set(blocked.map((item) => item.id));
-    const deletableIds = existingIds.filter((id) => !blockedIds.has(id));
-    if (deletableIds.length) await this.rosterModel.deleteMany({ _id: { $in: deletableIds.map((id) => new Types.ObjectId(id)) } }).exec();
-    if (deletableIds.length) emitDormitoryOverviewInvalidated('roster');
-    return { requested: uniqueIds.length, deleted: deletableIds, blocked, not_found, invalid };
+    const blocked: any[] = [];
+    const deleted: string[] = [];
+    for (const id of existingIds) {
+      if (this.roomAssignmentService) await this.roomAssignmentService.deleteRosterEntry(id);
+      else {
+        const result = await this.rosterModel.findByIdAndDelete(id).exec();
+        if (!result) continue;
+      }
+      deleted.push(id);
+    }
+    if (deleted.length) emitDormitoryOverviewInvalidated('roster');
+    return { requested: uniqueIds.length, deleted, blocked, not_found, invalid };
   }
 
   async findByStudentId(studentId: string, requester?: RosterUser) {

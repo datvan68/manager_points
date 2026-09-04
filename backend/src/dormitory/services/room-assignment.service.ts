@@ -64,6 +64,52 @@ export class RoomAssignmentService {
     if (newId && newId !== oldId) await this.roomsService.syncRoomAvailability(newId);
   }
 
+  async deleteRosterEntry(rosterEntryId: string): Promise<void> {
+    const rosterEntry: any = await this.rosterModel.findById(rosterEntryId);
+    if (!rosterEntry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX');
+
+    const currentRoomId = rosterEntry.room_id;
+    const currentBedId = rosterEntry.bed_id;
+    if (!currentBedId) {
+      const deleted = await (this.rosterModel as any).findByIdAndDelete(rosterEntryId).exec();
+      if (!deleted) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
+      return;
+    }
+
+    const cleared = await this.rosterModel.findOneAndUpdate(
+      { _id: rosterEntryId, bed_id: currentBedId },
+      { $unset: { room_id: '', bed_id: '' } },
+      { new: true },
+    );
+    if (!cleared) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
+
+    let released = false;
+    try {
+      const releasedBed = await this.bedModel.findOneAndUpdate(
+        { _id: currentBedId, status: DORMITORY_ENUMS.bedStatus[1] },
+        { $set: { status: DORMITORY_ENUMS.bedStatus[0] } },
+      );
+      released = Boolean(releasedBed);
+      const deleted = await (this.rosterModel as any).findOneAndDelete({ _id: rosterEntryId, bed_id: { $exists: false } }).exec();
+      if (!deleted) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
+      await this.syncRooms(currentRoomId, null);
+    } catch (error) {
+      if (released) {
+        await this.bedModel.findOneAndUpdate(
+          { _id: currentBedId, status: DORMITORY_ENUMS.bedStatus[0] },
+          { $set: { status: DORMITORY_ENUMS.bedStatus[1] } },
+        );
+      }
+      await this.rosterModel.findOneAndUpdate(
+        { _id: rosterEntryId, bed_id: { $exists: false } },
+        { $set: { room_id: currentRoomId, bed_id: currentBedId } },
+        { new: true },
+      );
+      try { await this.syncRooms(currentRoomId, null); } catch { /* preserve the assignment rollback */ }
+      throw error;
+    }
+  }
+
   /**
    * Assign or reassign the effective bed. Conditional bed and registration
    * updates make concurrent requests fail without releasing the old bed first.
