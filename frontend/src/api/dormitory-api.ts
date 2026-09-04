@@ -104,6 +104,7 @@ export interface DormitoryRosterImportRowInput {
   date_of_birth: string;
   gender: 'Male' | 'Female' | 'Other';
   phone_number: string;
+  room_code?: string;
 }
 
 export interface DormitoryRosterImportResponse {

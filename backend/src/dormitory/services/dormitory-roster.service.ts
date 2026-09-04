@@ -27,6 +27,7 @@ import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
 import { PdfTemplateService as SharedPdfTemplateService } from '../../pdf-template/pdf-template.service';
 import { createDefaultDormitoryLayout, resolveDormitoryRosterPdfValues, DORMITORY_ROSTER_APPLICATION } from '../pdf-template-adapter';
 import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
+import { RoomAssignmentService } from './room-assignment.service';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -41,6 +42,7 @@ export class DormitoryRosterService {
     @InjectModel(Contract.name) private readonly contractModel: Model<ContractDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     @Optional() private readonly sharedPdfTemplateService?: SharedPdfTemplateService,
+    @Optional() private readonly roomAssignmentService?: RoomAssignmentService,
   ) {}
 
   private id(value: unknown) {
@@ -248,6 +250,7 @@ export class DormitoryRosterService {
             date_of_birth: identity.date_of_birth,
             gender: identity.gender,
             phone_number: common.phone_number,
+            room_code: String(row.room_code || '').trim() || undefined,
             semester_id: semester._id,
             ...this.parseSemester(semester),
             room_type: 'Thường',
@@ -261,7 +264,17 @@ export class DormitoryRosterService {
 
     for (const item of validRows) {
       try {
-        const saved = await new (this.rosterModel as any)(item.payload).save();
+        const { room_code: roomCode, ...payload } = item.payload;
+        if (roomCode && !this.roomAssignmentService) throw new ServiceUnavailableException('Không thể phân phòng trong lúc import.');
+        const saved = await new (this.rosterModel as any)(payload).save();
+        if (roomCode) {
+          try {
+            await this.roomAssignmentService.assignFirstAvailableBed(String(saved._id), roomCode, {});
+          } catch (error) {
+            await (this.rosterModel as any).findByIdAndDelete(saved._id).exec();
+            throw error;
+          }
+        }
         results.push({ row: item.row, status: 'created', roster_entry_code: saved?.roster_entry_code || item.payload.roster_entry_code });
       } catch (error) {
         results.push({ row: item.row, status: 'failed', reason: this.exceptionMessage(error) });

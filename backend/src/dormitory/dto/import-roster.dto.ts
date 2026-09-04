@@ -27,6 +27,12 @@ export class ImportRosterRowDto {
   @IsString()
   @MaxLength(50)
   phone_number?: string;
+
+  @IsOptional()
+  @Transform(asString)
+  @IsString()
+  @MaxLength(50)
+  room_code?: string;
 }
 
 export class ImportRosterDto {

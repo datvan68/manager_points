@@ -152,6 +152,28 @@ export class RoomAssignmentService {
     };
   }
 
+  async assignFirstAvailableBed(rosterEntryId: string, roomCode: string, user: any) {
+    const normalizedCode = String(roomCode || '').trim().normalize('NFKC').toUpperCase();
+    if (!normalizedCode) throw new BadRequestException('Mã phòng không hợp lệ');
+    const escapedCode = normalizedCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const room = await this.roomModel.findOne({ room_code: { $regex: `^${escapedCode}$`, $options: 'i' } }).exec();
+    if (!room) throw new NotFoundException(`Không tìm thấy phòng: ${normalizedCode}`);
+    if ([DORMITORY_ENUMS.roomStatus[2], DORMITORY_ENUMS.roomStatus[3]].includes(room.status as any)) {
+      throw new BadRequestException(`Phòng ${normalizedCode} hiện không thể phân giường`);
+    }
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const bed = await this.bedModel.findOne({ room_id: room._id, status: DORMITORY_ENUMS.bedStatus[0] }).sort({ bed_code: 1 }).exec();
+      if (!bed) break;
+      try {
+        return await this.assignRoom({ roster_entry_id: rosterEntryId, room_id: String(room._id), bed_id: String(bed._id) }, user);
+      } catch (error) {
+        if (!(error instanceof BadRequestException) || !String(error.message).includes('Giường')) throw error;
+      }
+    }
+    throw new BadRequestException(`Phòng ${normalizedCode} không còn giường trống`);
+  }
+
   async unassignRoom(rosterEntryId: string, user: any) {
     void user;
     const rosterEntry: any = await this.rosterModel.findById(rosterEntryId);

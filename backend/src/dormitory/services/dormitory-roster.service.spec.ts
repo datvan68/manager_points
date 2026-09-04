@@ -25,7 +25,8 @@ describe('DormitoryRosterService', () => {
     const semesterModel: any = { find: jest.fn(() => query([semester])) };
     const contractModel: any = { findOne: jest.fn(() => query(null)), find: jest.fn(() => query([])) };
     const invoiceModel: any = { countDocuments: jest.fn(() => query(0)) };
-    return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel), saved, rosterModel, studentModel };
+    const roomAssignmentService: any = { assignFirstAvailableBed: jest.fn().mockResolvedValue({}) };
+    return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel, undefined, roomAssignmentService), saved, rosterModel, studentModel, roomAssignmentService };
   }
 
   it('links by stable student_id and ignores client identity values', async () => {
@@ -79,6 +80,27 @@ describe('DormitoryRosterService', () => {
     const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678' }] } as any);
     expect(result).toMatchObject({ created: 0, duplicated: 1, failed: 0 });
     expect(saved).not.toHaveBeenCalled();
+  });
+
+  it('assigns a first available bed from the optional imported room code', async () => {
+    const { service, roomAssignmentService } = setup();
+
+    const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678', room_code: 'P101' }] } as any);
+
+    expect(result).toMatchObject({ created: 1, failed: 0 });
+    expect(roomAssignmentService.assignFirstAvailableBed).toHaveBeenCalledWith('roster-1', 'P101', {});
+  });
+
+  it('removes a newly created roster entry when the imported room cannot accept an assignment', async () => {
+    const { service, rosterModel } = setup();
+    const roomAssignmentService = (service as any).roomAssignmentService;
+    roomAssignmentService.assignFirstAvailableBed.mockRejectedValue(new BadRequestException('Phòng P101 không còn giường trống'));
+
+    const result = await service.importRows({ rows: [{ full_name: 'Nguyễn Văn A', date_of_birth: '02/01/2004', gender: 'Nam', phone_number: '0912345678', room_code: 'P101' }] } as any);
+
+    expect(result).toMatchObject({ created: 0, failed: 1 });
+    expect(result.results[0].reason).toContain('không còn giường trống');
+    expect(rosterModel.findByIdAndDelete).toHaveBeenCalledWith('roster-1');
   });
 
   it('refuses deletion while a contract references the roster entry', async () => {

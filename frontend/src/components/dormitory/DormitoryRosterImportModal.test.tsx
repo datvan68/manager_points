@@ -25,6 +25,15 @@ describe('DormitoryRosterImportModal parsing', () => {
     expect(parsed.errors.map(error => error.row)).toEqual([3, 3, 3, 3]);
   });
 
+  it('accepts an optional room code while preserving four-column imports', () => {
+    const parsed = parseDormitoryRosterRows([
+      ['Họ và tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Mã phòng'],
+      ['Nguyễn Văn A', '02/01/2004', 'Nam', '0912345678', 'p101'],
+    ]);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0]).toMatchObject({ room_code: 'p101' });
+  });
+
   it('rejects missing headers and enforces file bounds before API use', () => {
     expect(parseDormitoryRosterRows([['Họ và tên'], ['Nguyễn A']]).errors[0].row).toBe(1);
     expect(validateDormitoryRosterFile({ name: 'roster.csv', size: 1 })).toMatch(/Excel/);
