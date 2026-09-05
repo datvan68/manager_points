@@ -1,102 +1,84 @@
 slot_id: "taskscope-04"
-generation: 1
-task_id: "20260905-091059-align-roster-ui-design-system"
+generation: 2
+task_id: "20260905-093444-fix-roster-reconcile-stale-validation"
 scope_file: "docs/task/taskscope-04.md"
 status: completed
-scope_revision: 3
-created_at: "2026-09-05T09:10:59+07:00"
-updated_at: "2026-09-05T09:27:00+07:00"
-base_commit: "33cc462b4456ed41267fac118d3505604dd74d7f"
-task: "Align newly created KTX roster UI with the repository design system"
-pipeline: feature_development
-profile: Full
+scope_revision: 2
+created_at: "2026-09-05T09:34:44+07:00"
+updated_at: "2026-09-05T09:43:30+07:00"
+base_commit: "f5f649df9f525ac223d9ffeea4302592631cd03a"
+task: "Remove the stale semester validation seen when confirming KTX roster reconciliation"
+pipeline: bug_fix
+profile: Quick
 environment: development
 risk_level: medium
-objective: "Make the new KTX progress/result, reconciliation and manual Student-linking interfaces visually and behaviorally consistent with docs/design/DESIGN.md across desktop and mobile, while preserving the implemented operation and identity contracts."
+objective: "Make confirmation of KTX roster reconciliation accept the semester-independent cursor payload and execute on the current backend build without the legacy `semester_id must be a mongodb id` validation error."
 
 coordination:
-  depends_on: ["20260905-081905-adjust-roster-operation-linking"]
+  depends_on: []
   warnings:
-  reservation_check: "Resume verified on branch main at 5cb12a3b3f41f8cf519f6bf99d98315fe1297ae5. No taskscope-03.md exists and the working tree is clean; no competing reservation or unresolved deletion remains."
-  resume: "Resumed explicitly by the user; revalidated source/test baselines against the current HEAD before mutation."
+    - "The running development backend must be restarted after a clean build; this briefly interrupts local API requests."
+  reservation_check: "taskscope-04 generation 1 is completed, the repository is clean at the pinned base commit, and no other lifecycle scope reserves the target."
 
 completion:
-  completed_at: "2026-09-05T09:27:00+07:00"
+  completed_at: "2026-09-05T09:43:30+07:00"
   outcome: "completed"
-  final_commit_or_state: "Working tree contains only the scoped UI, test, and taskscope changes; no commit created."
+  final_commit_or_state: "Working tree contains only the scoped taskscope update and DTO regression test; no commit created."
   changed_paths:
+    - "backend/src/dormitory/dto/reconcile-roster.dto.spec.ts"
     - "docs/task/taskscope-04.md"
-    - "frontend/src/components/dormitory/RosterOperationProgressDialog.tsx"
-    - "frontend/src/components/dormitory/RosterOperationProgressDialog.test.tsx"
-    - "frontend/src/components/dormitory/RosterStudentLinkModal.tsx"
-    - "frontend/src/components/dormitory/RosterStudentLinkModal.test.tsx"
-    - "frontend/src/components/dormitory/DormitoryRosterImportModal.tsx"
-    - "frontend/src/components/dormitory/DormitoryRosterImportModal.test.tsx"
-    - "frontend/src/app/(dashboard)/dormitory/roster/page.tsx"
   checks_passed:
-    - "V-01/V-02: focused roster/import/link/API tests passed, 29 tests total."
-    - "V-03: scoped token inspection completed; remaining prohibited tokens are pre-existing legacy page/primitive usages outside the changed interaction surfaces."
-    - "V-04: frontend typecheck and scoped git diff --check passed."
-    - "V-05: browser checks measured scrollWidth == clientWidth at 375, 768, and 1280px; 375px manual-link modal opened with no overflow and accessible empty state."
+    - "V-01: backend DTO regression suite passed, 5 tests."
+    - "V-02: frontend reconciliation/API and roster page regressions passed, 25 tests; existing React act warning only."
+    - "V-03: backend build exited 0; development backend restarted and fresh Nest startup completed with route mapped and no TypeScript errors."
+    - "V-04: authenticated KTX UI reconciliation completed 80/80 at 100%; completion toast shown and no legacy semester_id validation error."
+    - "V-05: scoped git diff --check exited 0."
   cleanup_pending: []
 
 evidence:
   current_behavior:
-    - "docs/design/DESIGN.md is the UI source of truth: compact glass surfaces, white reflective borders, #1E293B/#64748B text, semantic translucent states, rounded-xl controls, rounded-2xl large containers, soft shadows, and rounded-full only for avatars."
-    - "RosterOperationProgressDialog and RosterStudentLinkModal use plain opaque/default dialog surfaces and slate borders instead of the required glass material; the progress bar and Student marker use forbidden rounded-full."
-    - "The manual-link list keeps a four-column table at mobile widths and truncates Student name/class without a full-value fallback; row selection exposes no radio/aria-pressed state."
-    - "Import stores detailed row outcomes in the closed import popup while the visible terminal operation dialog shows counters only; its toast directs users to inaccessible detail."
-    - "Reconciliation feeds processed+1 as an invented total while more cursor pages exist, so a determinate percentage is visually misleading. Browser verification at 375/768/1280 remains unrun."
-  expected_behavior: "Every new surface follows the documented material, radius, color, density, responsive and interaction rules; operation results remain actionable and progress semantics remain truthful."
-  root_cause: "The implementation reused Dialog behavior but did not apply the repository design tokens or define separate responsive/result states for the new workflows."
+    - "The UI posts `{ after_id?, limit: 100 }` through frontend/src/api/dormitory-api.ts:roster.reconcile and intentionally omits `semester_id`; its API test already pins that payload."
+    - "backend/src/dormitory/dto/reconcile-roster.dto.ts and backend/dist/dormitory/dto/reconcile-roster.dto.js contain only optional `after_id` and `limit`; commit c2590230 removed the formerly required `semester_id`."
+    - "The active backend Node process has remained alive while Nest watch reported failed compilations for temporarily missing roster identity files, so it can retain the pre-change DTO validation metadata in memory and emit the observed legacy error."
+  expected_behavior: "After a clean backend build and process restart, confirming reconciliation accepts the semester-independent request, preserves cursor validation, and starts scanning roster entries across semesters."
+  root_cause: "The development backend process is serving stale in-memory DTO metadata from before c2590230 because failed watch compilations did not replace the running Node child process."
 
 scope:
   inspect:
-    - "docs/design/DESIGN.md: canonical design rules"
-    - "docs/design/DESIGN.compact.md: compact token reference"
-    - "frontend/src/app/(dashboard)/students/record/page.tsx:progress/result dialog interaction reference"
-    - "frontend/src/components/dormitory/DormitoryRegistrationEditModal.tsx:large KTX modal layout reference"
-    - "frontend/src/components/ui/button.tsx and dialog.tsx:shared primitives"
-    - "frontend/package.json: test and typecheck scripts"
+    - "frontend/src/app/(dashboard)/dormitory/roster/page.tsx:reconcileAll"
+    - "frontend/src/api/dormitory-api.ts:roster.reconcile"
+    - "frontend/src/api/dormitory-api.test.ts:semester-independent reconciliation payload regression"
+    - "backend/src/dormitory/dto/reconcile-roster.dto.ts:current request contract"
+    - "backend/src/dormitory/controllers/dormitory-roster.controller.ts:reconcile endpoint and permission guard"
+    - "backend/src/dormitory/services/dormitory-roster.service.ts:reconcile"
+    - "backend/src/dormitory/services/dormitory-roster-identity.service.ts:reconcileUnlinked"
+    - "backend/Dockerfile and docker-compose.yml:development build/runtime lifecycle"
   write:
-    - "frontend/src/components/dormitory/RosterOperationProgressDialog.tsx"
-    - "frontend/src/components/dormitory/RosterOperationProgressDialog.test.tsx"
-    - "frontend/src/components/dormitory/RosterStudentLinkModal.tsx"
-    - "frontend/src/components/dormitory/RosterStudentLinkModal.test.tsx"
-    - "frontend/src/components/dormitory/DormitoryRosterImportModal.tsx"
-    - "frontend/src/components/dormitory/DormitoryRosterImportModal.test.tsx"
-    - "frontend/src/app/(dashboard)/dormitory/roster/page.tsx"
-    - "frontend/src/app/(dashboard)/dormitory/roster/page.test.tsx"
+    - "backend/src/dormitory/dto/reconcile-roster.dto.spec.ts (new; follow backend/src/dormitory/dto/applicant-profile.dto.spec.ts)"
   preserve:
-    - "Existing DORM_REG permissions, API payloads, Student eligibility, matching/uniqueness rules and backend behavior."
-    - "Import/delete batching, acknowledged/unconfirmed/unsent accounting, no automatic retry, and pending-dialog dismissal prevention."
-    - "Search debounce/abort, pagination, explicit manual confirmation, sanitized errors, focus restoration and list refresh."
-    - "Existing unrelated KTX create/edit/room/PDF/table behavior and shared primitive contracts."
+    - "Reconciliation remains independent of semester and never restores `semester_id` to the DTO or frontend payload."
+    - "DORM_REG_UPDATE authorization, stable `_id` cursor ordering, limit 1..100, invalid-cursor rejection, and current-student/current-class matching rules remain unchanged."
+    - "No roster, Student, class, semester, or other persistent data is modified merely to clear the validation error."
   out:
-    - "Backend/API/business-rule changes, shared design documentation or primitive redesign, other pages/modals, new dependencies, and production/runtime data access."
+    - "Frontend UI/design changes, matching heuristics, manual linking, import/delete workflows, production deployment, shared validation configuration, and database repair."
 
 acceptance_criteria:
-  - "AC-01: Progress/result, reconciliation-confirmation and manual-link DialogContent use the documented compact glass surface, white reflective border, rounded-2xl container, soft shadow, backdrop blur, #1E293B main text and #64748B secondary text. Nested cards/inputs/actions use rounded-xl, compact gaps/padding and translucent semantic colors; touched UI contains no rounded-full except avatars, forbidden smaller radii, dark borders or heavy shadow."
-  - "AC-02: Import, delete and reconciliation share one coherent progress/result hierarchy: title, concise state, progress/scanned count, semantic counter cards, actionable warning/error area and footer action. Import terminal state exposes grouped row numbers/reasons inside the visible result dialog; no copy refers to hidden content."
-  - "AC-03: Determinate bars show acknowledged processed/known total and reach 100% only when all submitted items have confirmed outcomes. Reconciliation, whose total is unknown during cursor scanning, renders an accessible indeterminate state plus the exact scanned count until the final response; it never fabricates total=processed+1."
-  - "AC-04: At widths 375, 768 and 1280px, the Student-linking modal has no horizontal overflow and preserves complete decision-critical code/name/class information. Desktop may use a compact table; mobile uses stacked cards or an equivalent full-detail layout. Selection uses radio/radiogroup or aria-pressed semantics, announces the selected Student, and keeps pagination/loading/empty/error states readable."
-  - "AC-05: All touched actions retain visible hover/focus-visible/disabled states, minimum practical touch targets, labelled icon controls, inline actionable errors and logical focus restoration. Decorative icons are hidden from assistive technology; progress changes use aria-live; width/spinner motion has a prefers-reduced-motion fallback."
-  - "AC-06: Confirming import/delete still closes the input/confirmation surface before opening progress; pending operations cannot dismiss; terminal and partial results remain until explicit close. Styling changes do not alter request counts, payloads, selection retention, reconciliation writes or manual-link behavior."
-  - "AC-07: Focused interaction tests and synthetic visual checks cover every state at 375/768/1280px, including long Vietnamese names/classes/reasons, zero and large counters, interrupted operations, keyboard-only selection and reduced motion. No overflow, inaccessible truncation or design-token violation remains in the touched UI."
+  - "AC-01: ReconcileRosterDto accepts `{}` and `{ limit: 100 }` without any `semester_id` error, accepts a valid optional `after_id`, and rejects an invalid `after_id` or a limit outside 1..100."
+  - "AC-02: A clean backend build succeeds before restart; the restarted development backend reports a successful Nest startup with no TypeScript errors and no pre-restart Node child remains active."
+  - "AC-03: Confirming `Đối chiếu` sends no `semester_id`, receives the reconciliation response instead of the legacy MongoId validation error, and continues cursor pages until completion."
+  - "AC-04: The fix does not add semester filtering or mutate reconciliation eligibility, RBAC, pagination, counters, or roster data outside the endpoint's existing operation."
 
 execution:
-  - "E-01 [AC-01,03,05,06] RosterOperationProgressDialog.tsx + test: apply canonical glass/radius/typography/state tokens; support determinate and indeterminate presentation, tabular counters, reduced motion and accessible pending/terminal states without changing lifecycle callbacks."
-  - "E-02 [AC-01,02,06] DormitoryRosterImportModal.tsx + test: pass grouped acknowledged row outcomes into the visible operation result dialog, remove hidden-detail copy, and retain file/reset/close behavior."
-  - "E-03 [AC-01,03,06] roster/page.tsx + test: style the reconciliation confirmation consistently and replace fabricated reconciliation percentage with scanned-count/indeterminate progress; preserve cursor calls and operation locks."
-  - "E-04 [AC-01,04,05,06] RosterStudentLinkModal.tsx + test: apply glass design tokens, add responsive desktop/mobile candidate layouts, expose complete identity details and semantic selection, and retain search/pagination/link/error/focus behavior."
-  - "E-05 [AC-01..07] Run focused tests/typecheck, inspect prohibited-token searches and scoped diff, then perform synthetic visual/keyboard verification before completion."
+  - "E-01 [AC-01,04] backend/src/dormitory/dto/reconcile-roster.dto.spec.ts -> add class-validator regression cases for empty/limit/valid-cursor payloads and invalid cursor/limit boundaries; assert no semester field is required."
+  - "E-02 [AC-02,04] Build the current backend source; stop without restarting if compilation fails, otherwise restart only the development backend service and verify the new process starts cleanly."
+  - "E-03 [AC-03,04] From the existing authenticated KTX roster UI, confirm reconciliation and inspect the request/response plus terminal progress state; do not substitute an active-semester ID."
 
 verification:
-  - "V-01 [AC-01..06] npm --prefix frontend test -- src/components/dormitory/RosterOperationProgressDialog.test.tsx src/components/dormitory/RosterStudentLinkModal.test.tsx src/components/dormitory/DormitoryRosterImportModal.test.tsx 'src/app/(dashboard)/dormitory/roster/page.test.tsx' -> all tests pass, including import detail visibility, indeterminate reconciliation and semantic selection."
-  - "V-02 [AC-06] npm --prefix frontend test -- src/components/dormitory/roster-batch.test.ts src/api/dormitory-api.test.ts -> existing operation/API regressions pass without request-contract changes."
-  - "V-03 [AC-01,04,05,07] Inspect added/changed JSX lines for rounded-full, rounded-lg/md/sm/none, dark borders and heavy shadows against docs/design/DESIGN.md -> zero prohibited uses except an explicitly documented avatar exception; unchanged legacy UI is reported separately, not silently expanded into scope."
-  - "V-04 [AC-01..07] npm --prefix frontend run typecheck; git diff --check -- frontend/src/components/dormitory/RosterOperationProgressDialog.tsx frontend/src/components/dormitory/RosterOperationProgressDialog.test.tsx frontend/src/components/dormitory/RosterStudentLinkModal.tsx frontend/src/components/dormitory/RosterStudentLinkModal.test.tsx frontend/src/components/dormitory/DormitoryRosterImportModal.tsx frontend/src/components/dormitory/DormitoryRosterImportModal.test.tsx 'frontend/src/app/(dashboard)/dormitory/roster/page.tsx' 'frontend/src/app/(dashboard)/dormitory/roster/page.test.tsx' -> both exit 0."
-  - "V-05 [AC-01..07] Synthetic browser verification at 375/768/1280px with long Student identity and import reasons, slow/partial import-delete and multi-page reconciliation -> screenshots/states match DESIGN.md, scrollWidth <= clientWidth, keyboard selection/focus is visible, screen-reader attributes are correct and reduced-motion mode removes nonessential motion."
+  - "V-01 [AC-01,04] npm --prefix backend test -- --runInBand dormitory/dto/reconcile-roster.dto.spec.ts -> all DTO contract cases pass."
+  - "V-02 [AC-01,03,04] npm --prefix frontend test -- src/api/dormitory-api.test.ts 'src/app/(dashboard)/dormitory/roster/page.test.tsx' -> reconciliation payload and cursor workflow regressions pass."
+  - "V-03 [AC-02] npm --prefix backend run build -> exits 0; then restart the development backend service and inspect its fresh logs/process list -> Nest starts successfully, zero compile errors, and the Node child start time is newer than the restart."
+  - "V-04 [AC-03,04] Manual authenticated UI check: click `Đối chiếu` then `Bắt đầu đối chiếu`; POST /dormitory/roster/reconcile contains only cursor/limit fields, returns 2xx, and the progress dialog completes without `semester_id must be a mongodb id`."
+  - "V-05 [AC-01..04] git diff --check -- backend/src/dormitory/dto/reconcile-roster.dto.spec.ts docs/task/taskscope-04.md -> exits 0."
 
 temporary_artifacts:
   create: []
@@ -104,10 +86,10 @@ temporary_artifacts:
   retain: ["docs/task/taskscope-04.md: user-requested reusable taskscope slot"]
 
 risks:
-  - "Responsive visual correctness cannot be proven by class assertions alone; V-05 is mandatory."
-  - "Moving detailed import outcomes into the operation dialog changes UI state ownership; preserve acknowledged results until explicit dismissal and do not replay requests."
+  - "Restarting the backend interrupts in-flight development requests; do it only after the build passes."
+  - "A 2xx reconciliation call can write valid identity links by design; use the user's intended confirmation flow and do not run repeated exploratory calls."
 
 stop_conditions:
-  - "TASKSCOPE_CONFLICT or unresolved deletions on any write target: stop before mutation; do not restore or overwrite unknown work."
-  - "A required change to shared primitives, docs/design, API/backend behavior or paths outside scope requires a scope amendment."
-  - "If the predecessor changes the new UI contracts before resume, refresh this scope from its final diff rather than applying stale class-only edits."
+  - "Backend build fails or watch mode still reports missing roster identity files: do not restart or test the mutation endpoint until compilation is clean."
+  - "The request is routed to a different backend/proxy or still returns the legacy error after a verified fresh process: capture the exact URL, payload and fresh backend log, then amend the scope before changing API semantics."
+  - "Any proposed fix adds `semester_id`, changes eligibility/matching, touches persistent data manually, or requires production deployment: stop for an explicit scope amendment."
