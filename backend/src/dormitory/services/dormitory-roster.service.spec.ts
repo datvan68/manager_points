@@ -55,6 +55,21 @@ describe('DormitoryRosterService', () => {
     await expect(service.setRoomLeader({ roster_entry_id: 'entry-2', is_room_leader: false } as any)).resolves.toMatchObject({ is_room_leader: false });
   });
 
+  it('rejects leader assignment for an unassigned entry and maps duplicate-key races to conflict', async () => {
+    const unassignedModel: any = { findById: jest.fn(() => query({ _id: 'entry-3' })) };
+    const unassignedService = new DormitoryRosterService(unassignedModel, {} as any, {} as any, {} as any, {} as any);
+    await expect(unassignedService.setRoomLeader({ roster_entry_id: 'entry-3', is_room_leader: true } as any)).rejects.toBeInstanceOf(BadRequestException);
+
+    const duplicateModel: any = {
+      findById: jest.fn(() => query({ _id: 'entry-4', room_id: 'room-1', bed_id: 'bed-4' })),
+      findOne: jest.fn(() => query(null)),
+      updateMany: jest.fn(() => query({ modifiedCount: 1 })),
+      findOneAndUpdate: jest.fn(() => ({ exec: jest.fn().mockRejectedValue({ code: 11000 }) })),
+    };
+    const duplicateService = new DormitoryRosterService(duplicateModel, {} as any, {} as any, {} as any, {} as any);
+    await expect(duplicateService.setRoomLeader({ roster_entry_id: 'entry-4', is_room_leader: true } as any)).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('links by stable student_id and ignores client identity values', async () => {
     const { service, saved } = setup();
     const result = await service.create({ student_id: '507f1f77bcf86cd799439012', full_name: 'Giả mạo', date_of_birth: '2000-01-01', gender: 'Female', phone_number: '0912345678', room_type: 'Thường' } as any);
