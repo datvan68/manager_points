@@ -303,6 +303,13 @@ export const authApi = {
     return handleResponse<any[]>(res);
   },
 
+  async getPermissionPolicies(accessToken: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/auth/permission-policies`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    return handleResponse<any[]>(res);
+  },
+
   async updateRole(roleId: string, data: any, accessToken: string): Promise<any> {
     const res = await fetch(`${API_BASE}/auth/roles/${roleId}`, {
       method: 'PATCH',

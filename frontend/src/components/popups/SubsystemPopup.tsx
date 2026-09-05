@@ -329,8 +329,8 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     // The record module is directly owned by READ_STUDENT_RECORD. Keep this
     // explicit permission effective even when a legacy dynamic mapping still
     // lists the old STUDENT_PAGE requirement.
-    if (mod.id === 'attendance' && hasPermission('READ_STUDENT_RECORD')) {
-      return true;
+    if (mod.id === 'attendance') {
+      return isStudent || hasPermission('READ_STUDENT_RECORD');
     }
 
     // 2. Try dynamic database mapping
@@ -380,7 +380,7 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     }
 
     if (mod.id === 'attendance') {
-      return isStudent || isTeacher || hasPermission('STUDENT_PAGE') || hasPermission('READ_STUDENT_RECORD');
+      return isStudent || hasPermission('READ_STUDENT_RECORD');
     }
 
     if (mod.id === 'events') {

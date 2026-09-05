@@ -2,11 +2,11 @@ slot_id: "taskscope-02"
 generation: 1
 task_id: "20260905-210242-system-wide-permission-policy-alignment"
 scope_file: "docs/task/taskscope-02.md"
-status: ready
-scope_revision: 1
+status: in_progress
+scope_revision: 3
 created_at: "2026-09-05T21:02:42+07:00"
-updated_at: "2026-09-05T21:02:42+07:00"
-base_commit: "b05fc0e530fc2244eee0cad78cad18eeb2e52d2c"
+updated_at: "2026-09-05T22:25:00+07:00"
+base_commit: "b2e9c4383c5f575385f591f56638e8eb299bb038"
 task: "Align permission catalog, dependencies, visible features, and backend enforcement system-wide"
 pipeline: bug_fix
 profile: Full
@@ -17,18 +17,49 @@ coordination:
     - "docs/task/taskscope-01.md generation 1: consume its completed KTX visible-permission matrix and do not reopen its room/roster implementation."
   warnings:
     - "docs/task/taskscope.md is an empty pre-existing user file, so slot 00 is reserved and untouched."
-    - "taskscope-01 is in_progress and reserves KTX roster/layout permission files. This scope has no overlapping writes and must verify taskscope-01 completion before the final cross-system permission audit."
+    - "taskscope-01 planning artifact was removed by commit b2e9c438; its KTX implementation commits are preserved. The user explicitly authorized continuing this scope; do not edit KTX files or reopen that implementation."
     - "Authorization behavior changes require independent review. Applying permission grants/revocations or modifying production role documents is outside this scope and requires the Human Gate."
   reservation_check: "No active scope reserves the exact write paths below; taskscope-01 owns separate dormitory files. Recheck its identity/status, active reservations, Git status, and candidate writes before execution and before each mutation batch."
-  execution_policy: "Planning deliverable only in this turn. Implementation requires the user to pin this exact file. Execute serially in the current worktree; do not mutate runtime/production role or permission data."
+  execution_policy: "The user pinned this exact file for execution after taskscope-01 was removed. Execute serially in the current worktree; do not mutate runtime/production role or permission data."
 
 completion:
   completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
-  cleanup_pending: []
+  outcome: "partial: in-scope implementation and focused verification passed, but completion is blocked by an unlisted runtime authorization gap and mandatory independent review."
+  final_commit_or_state: "working tree contains only taskscope-02 paths plus two new in-scope tests; no commit or runtime data mutation performed."
+  changed_paths:
+    - "backend/src/auth/permissions.registry.ts"
+    - "backend/src/auth/controllers/auth.controller.ts"
+    - "backend/src/auth/services/auth.service.ts"
+    - "backend/src/auth/services/rbac.service.ts"
+    - "backend/src/auth/test/permission-policy.spec.ts"
+    - "backend/src/academic-record/academic-record.controller.ts"
+    - "backend/src/daily-class-report/daily-class-report.controller.ts"
+    - "backend/src/daily-class-report/daily-class-report.controller.spec.ts"
+    - "frontend/src/api/auth-api.ts"
+    - "frontend/src/app/(dashboard)/permissions/page.tsx"
+    - "frontend/src/app/(dashboard)/permissions/preview-permissions.ts"
+    - "frontend/src/components/modals/RoleModal.tsx"
+    - "frontend/src/components/activities/activity-view-policy.ts"
+    - "frontend/src/app/(dashboard)/activities/page.tsx"
+    - "frontend/src/app/(dashboard)/activities/[activityId]/page.tsx"
+    - "frontend/src/app/(dashboard)/activities/schedule/page.tsx"
+    - "frontend/src/components/layout/Sidebar.tsx"
+    - "frontend/src/components/popups/SubsystemPopup.tsx"
+    - "frontend/src/app/(dashboard)/students/page.tsx"
+    - "frontend/src/app/(dashboard)/students/record/page.tsx"
+    - "frontend/src/app/(dashboard)/students/tasks/page.tsx"
+  checks_passed:
+    - "Backend focused tests: 6 suites, 50 tests passed."
+    - "Frontend HSSV/permission focused tests: 7 files, 77 tests passed."
+    - "Frontend activity focused tests: 5 files, 76 tests passed."
+    - "Frontend permission smoke tests after final UI guard patch: 3 files, 21 tests passed."
+    - "frontend npm run typecheck passed."
+    - "backend npm run build passed."
+    - "git diff --check produced no whitespace errors; only line-ending warnings were reported."
+  cleanup_pending:
+    - "Request a scope amendment to include backend/src/activities/activities.controller.ts, backend/src/attendance-sessions/attendance-sessions.controller.ts, and frontend/src/components/activities/ActivityListWorkspace.tsx before claiming AC-07/AC-09 complete."
+    - "Obtain the mandatory independent authorization review covering registry coverage, guard negatives, ADMIN bypass, self-service/ownership, and parent-child validation."
+    - "Run V-06 synthetic desktop/mobile verification after the authorization gap is amended and independently reviewed."
 
 evidence:
   current_behavior:

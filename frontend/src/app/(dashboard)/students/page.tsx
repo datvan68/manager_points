@@ -42,7 +42,7 @@ function StudentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const deptIdFromUrl = searchParams.get("deptId");
-  const { user } = useAuth();
+  const { user, hasPermission = () => false } = useAuth();
   
   const userRole = String(user?.role || "").toLowerCase();
   const isStudent = userRole.includes("student") || userRole.includes("học sinh") || userRole.includes("sinh viên");
@@ -386,7 +386,7 @@ function StudentsPageContent() {
                   { id: "Ghi nhận", label: "Ghi nhận" },
                   { id: "Danh sách", label: "Danh sách" },
                   { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ]
+                ].filter((tab) => tab.id === "Danh sách" || (tab.id === "Ghi nhận" ? hasPermission('READ_STUDENT_RECORD') : hasPermission('READ_STUDENT_TASK')))
           }
           activeTab="Danh sách"
           onTabChange={(id) => {

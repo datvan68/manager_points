@@ -288,9 +288,11 @@ export class AcademicRecordController {
   }
 
   @Get('daily-report/:dailyReportId')
+  @UseGuards(checkAcademicRecordReadAccess())
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic records by Daily Class Report ID' })
-  findByDailyReportId(@Param('dailyReportId') dailyReportId: string) {
-    return this.academicRecordService.findByDailyReportId(dailyReportId);
+  findByDailyReportId(@Param('dailyReportId') dailyReportId: string, @Request() req: any) {
+    return this.academicRecordService.findByDailyReportId(dailyReportId, false, req.user);
   }
 
   @Patch(':id')

@@ -30,6 +30,59 @@ export const activityStatusColors: Record<string, string> = {
   'cancelled': 'bg-red-100 text-red-600 border-red-200',
 };
 
+export interface ActivityViewPolicyInput {
+  permissions?: string[];
+  isAdmin?: boolean;
+  isStudent?: boolean;
+  isOwner?: boolean;
+  isPresident?: boolean;
+  isDelegatedAttendance?: boolean;
+}
+
+export interface ActivityViewPolicy {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canManageMembers: boolean;
+  canReadSchedule: boolean;
+  canManageSchedule: boolean;
+  canRegisterSchedule: boolean;
+  canReadAttendance: boolean;
+  canManageAttendance: boolean;
+  canReadConfig: boolean;
+  canManageConfig: boolean;
+  canReadReport: boolean;
+  canExport: boolean;
+}
+
+export function getActivityViewPolicy(input: ActivityViewPolicyInput = {}): ActivityViewPolicy {
+  const permissions = new Set(input.permissions || []);
+  const isAdmin = input.isAdmin === true || permissions.has('ADMIN_FULL');
+  const has = (code: string) => isAdmin || permissions.has(code);
+  const canManageActivity = has('ACTIVITY_UPDATE') || Boolean(input.isOwner);
+  const canManageAttendance = has('ACTIVITY_ATTENDANCE_CREATE') || has('ACTIVITY_ATTENDANCE_UPDATE') || has('ACTIVITY_ATTENDANCE_APPROVE') || Boolean(input.isPresident) || Boolean(input.isDelegatedAttendance);
+
+  return {
+    canRead: has('ACTIVITY_READ') || Boolean(input.isStudent),
+    canCreate: has('ACTIVITY_CREATE'),
+    canUpdate: canManageActivity,
+    canDelete: has('ACTIVITY_DELETE'),
+    canManageMembers: has('ACTIVITY_MEMBER_MANAGE') || Boolean(input.isPresident),
+    canReadSchedule: has('ACTIVITY_SCHEDULE_READ') || Boolean(input.isStudent),
+    canManageSchedule: has('ACTIVITY_SCHEDULE_MANAGE'),
+    canRegisterSchedule: has('ACTIVITY_SCHEDULE_REGISTER') || Boolean(input.isStudent),
+    canReadAttendance: has('ACTIVITY_ATTENDANCE_READ'),
+    canManageAttendance,
+    canReadConfig: has('ACTIVITY_CONFIG_READ'),
+    canManageConfig: has('ACTIVITY_CONFIG_MANAGE'),
+    canReadReport: has('ACTIVITY_REPORT_READ'),
+    canExport: has('ACTIVITY_EXPORT'),
+  };
+}
+
+export const buildActivityViewPolicy = getActivityViewPolicy;
+
 export const activityRoleLabels: Record<string, string> = {
   'president': 'Chủ nhiệm',
   'vice_president': 'Phó chủ nhiệm',

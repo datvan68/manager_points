@@ -4,7 +4,7 @@ import React from 'react';
 import { useSearchParams } from 'next/navigation';
 import ActivityScheduleWorkspace from '@/components/activities/ActivityScheduleWorkspace';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
-import { isTeacherRole } from '@/utils/role.util';
+import { getActivityViewPolicy } from '@/components/activities/activity-view-policy';
 
 
 export default function ActivitiesSchedulePage() {
@@ -12,7 +12,10 @@ export default function ActivitiesSchedulePage() {
   const activityId = searchParams.get('activityId') || '';
   const { user } = useAuth();
   
-  const isAdminOrAdvisor = isAdminUser(user) || isTeacherRole(user);
+  const isAdminOrAdvisor = getActivityViewPolicy({
+    permissions: user?.permissions || [],
+    isAdmin: isAdminUser(user),
+  }).canManageSchedule;
 
   return (
     <div className="p-4 sm:p-5 space-y-3 overflow-y-auto h-full custom-scrollbar">

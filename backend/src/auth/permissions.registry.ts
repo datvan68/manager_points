@@ -5,6 +5,23 @@ export interface PermissionSeed {
   description?: string;
 }
 
+export type PermissionPolicyKind =
+  | 'page/module access'
+  | 'read'
+  | 'action'
+  | 'scope modifier'
+  | 'self-service'
+  | 'backend-only';
+
+export interface PermissionPolicy {
+  code: string;
+  kind: PermissionPolicyKind;
+  requires: string[];
+  owners: string[];
+  routePath?: string;
+  proposed?: boolean;
+}
+
 export const UNGROUPED_PERMISSION_GROUP = {
   code: 'G_UNGROUPED',
   name: 'Chưa phân nhóm',
@@ -858,3 +875,147 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Đề xuất: Xóa mapping route permission',
   },
 ];
+
+const ADMIN_PAGE_CODES = new Set([
+  'admin',
+  'view_users',
+  'reset_pwd',
+  'ADMIN_FULL',
+  'USER_CREATE',
+  'USER_UPDATE',
+  'USER_DELETE',
+  'ROLE_CREATE',
+  'ROLE_UPDATE',
+  'ROLE_DELETE',
+  'PERMISSION_CREATE',
+  'PERMISSION_UPDATE',
+  'PERMISSION_DELETE',
+  'PERMISSION_GROUP_CREATE',
+  'PERMISSION_GROUP_UPDATE',
+  'PERMISSION_GROUP_DELETE',
+  'ROUTE_PERMISSION_CREATE',
+  'ROUTE_PERMISSION_UPDATE',
+  'ROUTE_PERMISSION_DELETE',
+]);
+
+const POLICY_OVERRIDES: Record<
+  string,
+  Partial<Pick<PermissionPolicy, 'kind' | 'requires' | 'owners' | 'routePath' | 'proposed'>>
+> = {
+  admin: { kind: 'page/module access', owners: ['/permissions'], routePath: '/permissions' },
+  ADMIN_FULL: { kind: 'scope modifier', owners: ['/permissions'], routePath: '/permissions' },
+  view_users: { kind: 'read', requires: ['admin'], owners: ['/permissions'], routePath: '/permissions' },
+  reset_pwd: { kind: 'action', requires: ['admin', 'view_users'], owners: ['/permissions'], routePath: '/permissions' },
+  STUDENT_PAGE: { kind: 'page/module access', owners: ['/students'], routePath: '/students' },
+  STUDENT_READ: { kind: 'read', requires: ['STUDENT_PAGE'], owners: ['/students'], routePath: '/students' },
+  GRADING_PAGE: { kind: 'page/module access', owners: ['/students/record'], routePath: '/students/record' },
+  READ_STUDENT_RECORD: { kind: 'read', requires: ['GRADING_PAGE'], owners: ['/students/record', 'GET /academic-records'], routePath: '/students/record' },
+  CREATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['POST /academic-records'], routePath: '/students/record' },
+  UPDATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['PATCH /academic-records/:id'], routePath: '/students/record' },
+  DELETE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['DELETE /academic-records/:id'], routePath: '/students/record' },
+  READ_CLASS_RECORD: { kind: 'read', requires: ['GRADING_PAGE'], owners: ['/students/record', 'GET /daily-class-reports'], routePath: '/students/record' },
+  READ_ALL_CLASS_RECORD: { kind: 'scope modifier', requires: ['READ_CLASS_RECORD'], owners: ['GET /daily-class-reports'], routePath: '/students/record' },
+  CREATE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['POST /daily-class-reports'], routePath: '/students/record' },
+  UPDATE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['PATCH /daily-class-reports/:id'], routePath: '/students/record' },
+  DELETE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['DELETE /daily-class-reports/:id'], routePath: '/students/record' },
+  READ_STUDENT_TASK: { kind: 'read', requires: ['STUDENT_PAGE'], owners: ['/students/tasks', 'GET /student-tasks'], routePath: '/students/tasks' },
+  ACTIVITY_PAGE: { kind: 'page/module access', owners: ['/activities'], routePath: '/activities' },
+  ACTIVITY_READ: { kind: 'read', requires: ['ACTIVITY_PAGE'], owners: ['/activities', 'GET /activities'], routePath: '/activities' },
+  ACTIVITY_SCHEDULE_READ: { kind: 'read', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['/activities/schedule', 'GET /activity-schedules'], routePath: '/activities/schedule' },
+  ACTIVITY_SCHEDULE_REGISTER: { kind: 'self-service', requires: ['ACTIVITY_SCHEDULE_READ'], owners: ['/activities/schedule', 'POST /activities/:id/join'], routePath: '/activities/schedule' },
+  ACTIVITY_ATTENDANCE_READ: { kind: 'read', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['/activities/attendance', 'GET /activity-attendance'], routePath: '/activities/attendance' },
+  ATTENDANCE_SESSION_READ: { kind: 'read', requires: ['ACTIVITY_PAGE'], owners: ['/activities/:activityId', 'GET /attendance-sessions'], routePath: '/activities/:activityId' },
+  DORM_PAGE: { kind: 'page/module access', owners: ['/dormitory'], routePath: '/dormitory' },
+  DORM_REG_READ: { kind: 'read', requires: ['DORM_PAGE'], owners: ['/dormitory/roster', 'GET /dormitory/roster'], routePath: '/dormitory/roster' },
+  DORM_REG_CREATE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['POST /dormitory/roster'], routePath: '/dormitory/roster' },
+  DORM_REG_UPDATE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['PATCH /dormitory/roster'], routePath: '/dormitory/roster' },
+  DORM_REG_DELETE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['DELETE /dormitory/roster'], routePath: '/dormitory/roster' },
+};
+
+function inferredPolicy(seed: PermissionSeed): PermissionPolicy {
+  const code = seed.code;
+  const override = POLICY_OVERRIDES[code] || {};
+  const proposed = override.proposed ?? false;
+  let kind: PermissionPolicyKind = override.kind || 'backend-only';
+  let routePath = override.routePath;
+  let owners = override.owners || [];
+  let requires = override.requires || [];
+
+  if (ADMIN_PAGE_CODES.has(code) && !override.kind) {
+    kind = code === 'ADMIN_FULL' ? 'scope modifier' : code === 'admin' ? 'page/module access' : code === 'view_users' ? 'read' : 'action';
+    requires = code === 'admin' || code === 'ADMIN_FULL' ? [] : ['admin'];
+    owners = ['/permissions'];
+    routePath = '/permissions';
+  }
+
+  if (code.startsWith('STUDENT_') || code.startsWith('CLASS_') || code.startsWith('DEPT_')) {
+    routePath = routePath || '/students';
+    owners = owners.length ? owners : [routePath];
+    if (code.endsWith('_READ') || code === 'STUDENT_EXPORT') kind = 'read';
+    else if (code !== 'STUDENT_PAGE') kind = 'action';
+    if (code !== 'STUDENT_PAGE' && !requires.length) requires = ['STUDENT_PAGE'];
+  }
+  if (code.includes('TASK')) {
+    routePath = '/students/tasks';
+    owners = ['/students/tasks', `API permission ${code}`];
+    kind = code === 'READ_STUDENT_TASK' ? 'read' : 'action';
+    if (!requires.length) requires = ['READ_STUDENT_TASK'];
+  }
+  if (code.startsWith('SYSTEM_') || code.startsWith('LOGIN_') || code.startsWith('DATABASE_')) {
+    routePath = '/system';
+    owners = ['/system', `API permission ${code}`];
+    kind = code === 'SYSTEM_ADMIN' ? 'page/module access' : 'read';
+    if (code !== 'SYSTEM_ADMIN' && !requires.length) requires = ['SYSTEM_ADMIN'];
+  }
+  if (code.startsWith('REPORTS_')) {
+    routePath = '/reports';
+    owners = ['/reports'];
+    kind = code === 'REPORTS_PAGE' ? 'page/module access' : 'read';
+    if (code === 'REPORTS_READ') requires = ['REPORTS_PAGE'];
+  }
+  if (code.startsWith('ACTIVITY_') || code.startsWith('ATTENDANCE_SESSION_')) {
+    routePath = routePath || '/activities';
+    owners = owners.length ? owners : ['/activities', `API permission ${code}`];
+    if (code === 'ACTIVITY_PAGE') kind = 'page/module access';
+    else if (code.endsWith('_READ')) kind = 'read';
+    else if (code === 'ACTIVITY_SCHEDULE_REGISTER') kind = 'self-service';
+    else kind = 'action';
+    if (!requires.length && code !== 'ACTIVITY_PAGE') requires = ['ACTIVITY_PAGE'];
+  }
+  if (code.startsWith('DORM_') || code.startsWith('PDF_TEMPLATE_')) {
+    routePath = routePath || '/dormitory';
+    owners = owners.length ? owners : ['/dormitory', `backend/src/dormitory/controllers (${code})`];
+    if (code.endsWith('_READ') || code === 'DORM_PAGE') kind = code === 'DORM_PAGE' ? 'page/module access' : 'read';
+    else kind = 'backend-only';
+    if (!requires.length && code !== 'DORM_PAGE') requires = ['DORM_PAGE'];
+  }
+
+  if (!owners.length) owners = [`API permission ${code}`];
+  return { code, kind, requires, owners, routePath, proposed };
+}
+
+export const PERMISSION_POLICIES: PermissionPolicy[] = DECLARED_PERMISSION_SEEDS.map(inferredPolicy);
+export const PERMISSION_POLICY_BY_CODE = new Map(PERMISSION_POLICIES.map((policy) => [policy.code, policy]));
+export const DECLARED_PERMISSION_CODES = DECLARED_PERMISSION_SEEDS.map((seed) => seed.code);
+
+export function getPermissionPolicy(code: string): PermissionPolicy | undefined {
+  return PERMISSION_POLICY_BY_CODE.get(code);
+}
+
+export function validatePermissionPolicyCatalog(): string[] {
+  const errors: string[] = [];
+  const declared = new Set<string>();
+  for (const seed of DECLARED_PERMISSION_SEEDS) {
+    if (declared.has(seed.code)) errors.push(`duplicate declared permission: ${seed.code}`);
+    declared.add(seed.code);
+  }
+  if (PERMISSION_POLICIES.length !== DECLARED_PERMISSION_SEEDS.length) errors.push('policy count does not match declared seed count');
+  for (const policy of PERMISSION_POLICIES) {
+    if (!declared.has(policy.code)) errors.push(`unknown policy code: ${policy.code}`);
+    if (!policy.owners.length) errors.push(`ownerless permission: ${policy.code}`);
+    for (const dependency of policy.requires) {
+      if (!declared.has(dependency)) errors.push(`unknown dependency ${dependency} for ${policy.code}`);
+    }
+  }
+  return errors;
+}

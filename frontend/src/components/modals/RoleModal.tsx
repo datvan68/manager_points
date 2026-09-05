@@ -10,6 +10,7 @@ interface RoleModalProps {
   initialData?: any;
   allPermissions: any[];
   groups: any[];
+  permissionPolicies?: any[];
   onSave: (data: any) => Promise<void>;
 }
 
@@ -20,6 +21,7 @@ export default function RoleModal({
   initialData = null,
   allPermissions = [],
   groups = [],
+  permissionPolicies = [],
   onSave,
 }: RoleModalProps) {
   const [formData, setFormData] = useState({
@@ -76,29 +78,72 @@ export default function RoleModal({
     }
   };
 
+  const permissionById = useMemo(() => new Map(allPermissions.map((permission: any) => [permission._id || permission.id, permission])), [allPermissions]);
+  const permissionByCode = useMemo(() => new Map(allPermissions.map((permission: any) => [permission.code, permission])), [allPermissions]);
+  const policyByCode = useMemo(() => new Map(permissionPolicies.map((policy: any) => [policy.code, policy])), [permissionPolicies]);
+  const requiresFor = (code: string): string[] => {
+    const policy = policyByCode.get(code);
+    if (policy?.requires) return policy.requires;
+    if (code.startsWith('CREATE_') || code.startsWith('UPDATE_') || code.startsWith('DELETE_')) {
+      return code.includes('CLASS') ? ['READ_CLASS_RECORD'] : code.includes('STUDENT_RECORD') ? ['READ_STUDENT_RECORD'] : [];
+    }
+    return [];
+  };
+  const descendantsOf = (code: string): string[] => permissionPolicies
+    .filter((policy: any) => (policy.requires || []).includes(code))
+    .flatMap((policy: any) => [policy.code, ...descendantsOf(policy.code)]);
+  const depthOf = (code: string, seen = new Set<string>()): number => {
+    if (seen.has(code)) return 0;
+    seen.add(code);
+    const requires = requiresFor(code);
+    return requires.length ? 1 + Math.max(...requires.map((item) => depthOf(item, new Set(seen)))) : 0;
+  };
+
   const togglePermission = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(id)
-        ? prev.permissions.filter(p => p !== id)
-        : [...prev.permissions, id]
-    }));
+    const permission = permissionById.get(id);
+    const code = permission?.code || id;
+    setFormData(prev => {
+      if (prev.permissions.includes(id)) {
+        const removedCodes = new Set([code, ...descendantsOf(code)]);
+        const removedIds = new Set([...permissionByCode.values()]
+          .filter((item: any) => removedCodes.has(item.code))
+          .map((item: any) => item._id || item.id));
+        return { ...prev, permissions: prev.permissions.filter((item) => !removedIds.has(item)) };
+      }
+      if (!prev.permissions.some((item) => permissionById.get(item)?.code === 'ADMIN_FULL')) {
+        const selectedCodes = new Set(prev.permissions.map((item) => permissionById.get(item)?.code).filter(Boolean));
+        const missing = requiresFor(code).filter((dependency) => !selectedCodes.has(dependency));
+        if (missing.length) {
+          toast.error(`Hãy chọn quyền phụ thuộc trước: ${missing.join(', ')}`);
+          return prev;
+        }
+      }
+      return { ...prev, permissions: [...prev.permissions, id] };
+    });
   };
 
   const toggleGroupPermissions = (groupPerms: any[], isAll: boolean) => {
     const permIds = groupPerms.map(p => p._id || p.id);
     if (isAll) {
       // Uncheck all
+      const removedCodes = new Set(groupPerms.flatMap((permission: any) => [permission.code, ...descendantsOf(permission.code)]));
       setFormData(prev => ({
         ...prev,
-        permissions: prev.permissions.filter(id => !permIds.includes(id))
+        permissions: prev.permissions.filter(id => !removedCodes.has(permissionById.get(id)?.code))
       }));
     } else {
-      // Check all
-      setFormData(prev => ({
-        ...prev,
-        permissions: Array.from(new Set([...prev.permissions, ...permIds]))
-      }));
+      setFormData(prev => {
+        const next = new Set(prev.permissions);
+        const selectedCodes = new Set([...next].map((id) => permissionById.get(id)?.code).filter(Boolean));
+        [...groupPerms].sort((a, b) => depthOf(a.code) - depthOf(b.code)).forEach((permission: any) => {
+          const dependencies = requiresFor(permission.code);
+          if (selectedCodes.has('ADMIN_FULL') || dependencies.every((dependency) => selectedCodes.has(dependency))) {
+            next.add(permission._id || permission.id);
+            selectedCodes.add(permission.code);
+          }
+        });
+        return { ...prev, permissions: [...next] };
+      });
     }
   };
 
@@ -132,14 +177,18 @@ export default function RoleModal({
 
   // Group permissions for rendering
   const filteredGroups = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const all = groups.flatMap((group: any) => group.permissions || []);
+    const matches = new Set(all.filter((permission: any) => permission.name.toLowerCase().includes(query) || permission.code.toLowerCase().includes(query)).map((permission: any) => permission.code));
+    const visibleCodes = new Set(matches);
+    for (const code of matches) requiresFor(code).forEach((dependency) => visibleCodes.add(dependency));
     return groups.map(group => {
-      const perms = (group.permissions || []).filter((p: any) => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        p.code.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const perms = (group.permissions || [])
+        .filter((p: any) => !query || visibleCodes.has(p.code))
+        .sort((a: any, b: any) => depthOf(a.code) - depthOf(b.code) || a.code.localeCompare(b.code));
       return { ...group, filteredPermissions: perms };
     }).filter(group => group.filteredPermissions.length > 0);
-  }, [groups, searchQuery]);
+  }, [groups, searchQuery, permissionPolicies, allPermissions]);
 
   return (
     <AnimatePresence>
@@ -334,14 +383,19 @@ export default function RoleModal({
                               {group.filteredPermissions.map((perm: any) => {
                                 const isSensitive = ['ADMIN_FULL', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE'].includes(perm.code);
                                 const isChecked = formData.permissions.includes(perm._id || perm.id);
+                                const selectedCodes = new Set(formData.permissions.map((id) => permissionById.get(id)?.code).filter(Boolean));
+                                const missingDependencies = selectedCodes.has('ADMIN_FULL') ? [] : requiresFor(perm.code).filter((code) => !selectedCodes.has(code));
+                                const dependencyBlocked = missingDependencies.length > 0 && !isChecked;
 
                                 return (
                                   <motion.div
                                     key={perm._id || perm.id}
                                     whileHover={{ scale: 1.01 }}
                                     whileTap={{ scale: 0.99 }}
-                                    onClick={() => togglePermission(perm._id || perm.id)}
-                                    className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-150 ease-out ${
+                                    onClick={() => !dependencyBlocked && togglePermission(perm._id || perm.id)}
+                                    aria-disabled={dependencyBlocked}
+                                    title={dependencyBlocked ? `Cần chọn trước: ${missingDependencies.join(', ')}` : undefined}
+                                    className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-150 ease-out ${dependencyBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${
                                       isChecked
                                         ? isSensitive
                                           ? 'bg-rose-500/10 border-rose-500/30 ring-1 ring-rose-500/20 shadow-sm'
@@ -378,6 +432,9 @@ export default function RoleModal({
                                         <span className={`text-[11px] leading-relaxed mt-0.5 ${isSensitive ? 'text-rose-700/90 font-medium' : 'text-[#64748B]'}`}>
                                           {perm.description}
                                         </span>
+                                      )}
+                                      {dependencyBlocked && (
+                                        <span className="text-[10px] font-semibold text-amber-700 mt-0.5">Cần chọn trước: {missingDependencies.join(', ')}</span>
                                       )}
                                     </div>
                                   </motion.div>

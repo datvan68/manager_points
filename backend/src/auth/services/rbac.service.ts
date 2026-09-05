@@ -29,6 +29,7 @@ import {
   CreateRoutePermissionDto,
   UpdateRoutePermissionDto,
 } from '../dto/auth.dto';
+import { getPermissionPolicy } from '../permissions.registry';
 
 @Injectable()
 export class RbacService {
@@ -43,6 +44,51 @@ export class RbacService {
     private routePermissionModel: Model<RoutePermissionDocument>,
     @Inject('TOKEN_REVOCATION') private tokenService: TokenService,
   ) {}
+
+  private async resolvePermissionSelection(permissionIds?: string[]) {
+    if (permissionIds === undefined) return undefined;
+
+    const uniqueIds = [...new Set(permissionIds.map(String))];
+    const invalidId = uniqueIds.find((id) => !Types.ObjectId.isValid(id));
+    if (invalidId) throw new BadRequestException(`ID quyền không hợp lệ: ${invalidId}`);
+
+    const finder = (this.permissionModel as any).find;
+    let permissions: any[] = [];
+    if (typeof finder === 'function') {
+      const query = finder.call(this.permissionModel, { _id: { $in: uniqueIds } });
+      permissions = (query?.exec ? await query.exec() : await query) || [];
+    } else if (typeof (this.permissionModel as any).findById === 'function') {
+      permissions = (await Promise.all(uniqueIds.map((id) => (this.permissionModel as any).findById(id))))
+        .filter(Boolean);
+    }
+
+    const byId = new Map(permissions.map((permission) => [String(permission._id), permission]));
+    const unknownIds = uniqueIds.filter((id) => !byId.has(id));
+    if (unknownIds.length) {
+      throw new BadRequestException(`Quyền không tồn tại: ${unknownIds.join(', ')}`);
+    }
+
+    const codes = uniqueIds.map((id) => String(byId.get(id).code));
+    const codeSet = new Set(codes);
+    if (!codeSet.has('ADMIN_FULL')) {
+      const missing = new Set<string>();
+      for (const code of codes) {
+        const policy = getPermissionPolicy(code);
+        if (!policy || !['action', 'scope modifier'].includes(policy.kind)) continue;
+        for (const dependency of policy.requires) {
+          if (!codeSet.has(dependency)) missing.add(dependency);
+        }
+      }
+      if (missing.size) {
+        throw new BadRequestException({
+          message: 'Thiếu quyền cha hoặc quyền đọc bắt buộc',
+          missingPermissions: [...missing],
+        });
+      }
+    }
+
+    return { ids: uniqueIds, codes, documents: permissions };
+  }
 
   async getRoles() {
     const roles = await this.roleModel.find().populate('permissions').exec();
@@ -272,12 +318,13 @@ export class RbacService {
       throw new ConflictException('Mã vai trò này đã tồn tại');
     }
 
+    const selection = await this.resolvePermissionSelection(dto.permissions);
     return this.roleModel.create({
       name: dto.name,
       role_code: roleCodeUpper,
       description: dto.description,
       permissions:
-        (dto.permissions?.map((id) => new Types.ObjectId(id)) as any) || [],
+        (selection?.ids.map((id) => new Types.ObjectId(id)) as any) || [],
     } as any);
   }
 
@@ -318,17 +365,17 @@ export class RbacService {
           : permission?.code || permission?.toString?.(),
       ),
     );
-    if (dto.permissions !== undefined)
-      role.permissions = dto.permissions.map(
-        (id) => new Types.ObjectId(id),
-      ) as any;
+    const selection = await this.resolvePermissionSelection(dto.permissions);
+    if (selection)
+      role.permissions = selection.ids.map((id) => new Types.ObjectId(id)) as any;
 
     const savedRole = await role.save();
 
     if (dto.permissions !== undefined) {
-      const permissionIds = new Set(dto.permissions.map(String));
+      const permissionIds = new Set(selection?.ids || []);
+      const permissionCodes = new Set(selection?.codes || []);
       const removedPermission = [...previousPermissionCodes].some(
-        (permission) => permission && !permissionIds.has(String(permission)),
+        (permission) => permission && !permissionIds.has(String(permission)) && !permissionCodes.has(String(permission)),
       );
       if (removedPermission) {
         const affectedUsers = await this.userModel.find({

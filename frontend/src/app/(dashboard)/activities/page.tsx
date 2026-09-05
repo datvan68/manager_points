@@ -13,13 +13,19 @@ import ActivityManagementModals from '@/components/activities/ActivityManagement
 import ActivityCardDesignModal from '@/components/activities/ActivityCardDesignModal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useActivitiesRealtime } from '@/hooks/useActivitiesRealtime';
+import { getActivityViewPolicy } from '@/components/activities/activity-view-policy';
 
 export default function ActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activityType = searchParams.get('activityType') || '';
   const { user, hasPermission } = useAuth();
-  const canViewAttendance = isAdminUser(user) || !!hasPermission?.('ACTIVITY_ATTENDANCE_READ');
+  const viewPolicy = getActivityViewPolicy({
+    permissions: user?.permissions || [],
+    isAdmin: isAdminUser(user),
+    isStudent: !!user && !isAdminUser(user) && !isTeacherRole(user),
+  });
+  const canViewAttendance = viewPolicy.canReadAttendance;
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -44,7 +50,11 @@ export default function ActivitiesPage() {
   const [pendingStatusActivityIds, setPendingStatusActivityIds] = useState<Record<string, boolean>>({});
   const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Record<string, boolean>>({});
 
-  const canManage = (act?: Activity) => isAdminUser(user) || isTeacherRole(user);
+  const canManage = (act?: Activity) => getActivityViewPolicy({
+    permissions: user?.permissions || [],
+    isAdmin: isAdminUser(user),
+    isOwner: Boolean(act?.advisor_id && String((act.advisor_id as any)?._id || act.advisor_id) === String(user?.id)),
+  }).canUpdate;
 
   const loadData = async () => {
     setLoading(true);

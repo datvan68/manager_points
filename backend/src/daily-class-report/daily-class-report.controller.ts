@@ -9,12 +9,40 @@ import {
   UseGuards,
   Request,
   Query,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  mixin,
+  Type,
 } from '@nestjs/common';
 import { DailyClassReportService } from './daily-class-report.service';
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
 import { UpdateDailyClassReportDto } from './dto/update-daily-class-report.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { checkRole } from '../auth/guards/check-role.guard';
+import { checkPermission } from '../auth/guards/check-permission.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { isAdminUser, isStudent } from '../auth/utils/role.util';
+
+function checkDailyClassReportReadAccess(): Type<CanActivate> {
+  @Injectable()
+  class DailyClassReportReadGuard extends JwtAuthGuard implements CanActivate {
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+      const authenticated = await super.canActivate(context);
+      if (!authenticated) return false;
+      const user = context.switchToHttp().getRequest().user;
+      if (isAdminUser(user) || isStudent(user) || (user?.permissions || []).includes('READ_CLASS_RECORD')) return true;
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Thiếu quyền READ_CLASS_RECORD',
+        requiredPermissions: ['READ_CLASS_RECORD'],
+        missingPermissions: ['READ_CLASS_RECORD'],
+      });
+    }
+  }
+  return mixin(DailyClassReportReadGuard);
+}
 
 @ApiTags('Daily Class Reports')
 @Controller('daily-class-reports')
@@ -24,7 +52,7 @@ export class DailyClassReportController {
   ) {}
 
   @Post()
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -42,7 +70,7 @@ export class DailyClassReportController {
   }
 
   @Post('import')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('CREATE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -62,7 +90,7 @@ export class DailyClassReportController {
   }
 
   @Get()
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkDailyClassReportReadAccess())
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all daily class reports' })
   findAll(
@@ -89,7 +117,7 @@ export class DailyClassReportController {
   }
 
   @Get('deleted/all')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('READ_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all soft-deleted daily class reports' })
   findDeleted(@Request() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
@@ -101,7 +129,7 @@ export class DailyClassReportController {
   }
 
   @Get(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkDailyClassReportReadAccess())
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get daily class report by ID' })
   findOne(@Param('id') id: string, @Request() req: any) {
@@ -110,7 +138,7 @@ export class DailyClassReportController {
   }
 
   @Get('class/:classId')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+  @UseGuards(checkDailyClassReportReadAccess())
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get daily class reports by Class ID' })
   findByClassId(@Param('classId') classId: string, @Request() req: any) {
@@ -119,7 +147,7 @@ export class DailyClassReportController {
   }
 
   @Patch(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('UPDATE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -139,7 +167,7 @@ export class DailyClassReportController {
   }
 
   @Delete(':id')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('DELETE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -150,7 +178,7 @@ export class DailyClassReportController {
   }
 
   @Patch(':id/restore')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('UPDATE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -162,7 +190,7 @@ export class DailyClassReportController {
   }
 
   @Delete(':id/force')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('DELETE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -173,7 +201,7 @@ export class DailyClassReportController {
   }
 
   @Post('bulk-delete')
-  @UseGuards(checkRole('Admin', 'Teacher', 'Supervisor'))
+  @UseGuards(checkPermission('DELETE_CLASS_RECORD'))
   @ApiBearerAuth()
   @ApiOperation({
     summary:

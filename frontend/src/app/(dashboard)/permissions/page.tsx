@@ -143,6 +143,7 @@ function PermissionsPageContent() {
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [allPermissions, setAllPermissions] = useState<any[]>([]);
+  const [permissionPolicies, setPermissionPolicies] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [permissionsByGroup, setPermissionsByGroup] = useState<Record<string, any[]>>({});
   const [selectedGroup, setSelectedGroup] = useState<string>('');
@@ -462,6 +463,10 @@ function PermissionsPageContent() {
 
   const router = useRouter();
   const { user: authUser, isLoading: isAuthLoading, logout } = useAuth();
+  const canAdminPermission = (code: string) =>
+    hasPersistedAdminRole(authUser)
+    || (authUser?.permissions || []).includes('ADMIN_FULL')
+    || (authUser?.permissions || []).includes(code);
 
   useEffect(() => () => handoffCleanupRef.current?.(), []);
 
@@ -620,19 +625,21 @@ function PermissionsPageContent() {
     }
     
     try {
-      const [u, r, p, g, rp, pps, cls] = await Promise.all([
+      const [u, r, p, g, rp, pps, policies, cls] = await Promise.all([
         authApi.getUsers(token),
         authApi.getRoles(token),
         authApi.getPermissions(token),
         authApi.getPermissionGroups(token),
         authApi.getRoutePermissions(token).catch(() => []),
         authApi.getPagePermissionScopes(token).catch(() => []),
+        authApi.getPermissionPolicies(token).catch(() => []),
         classApi.getClasses().catch(() => [])
       ]);
 
       setUsers(u);
       setRoles(r);
       setAllPermissions(p);
+      setPermissionPolicies(policies);
       setRoutePermissions(rp);
       setPagePermissionScopes(pps);
       setClasses(cls);
@@ -893,16 +900,59 @@ function PermissionsPageContent() {
     }
   }, [selectedRole, roles]);
 
+  const requiresFor = (code: string): string[] => {
+    const policy = permissionPolicies.find((item: any) => item.code === code);
+    if (policy?.requires) return policy.requires;
+    if (code.startsWith('CREATE_') || code.startsWith('UPDATE_') || code.startsWith('DELETE_')) {
+      return code.includes('CLASS') ? ['READ_CLASS_RECORD'] : code.includes('STUDENT_RECORD') ? ['READ_STUDENT_RECORD'] : [];
+    }
+    return [];
+  };
+
+  const descendantsOf = (code: string): string[] => permissionPolicies
+    .filter((item: any) => (item.requires || []).includes(code))
+    .flatMap((item: any) => [item.code, ...descendantsOf(item.code)]);
+
+  const permissionDepth = (code: string, seen = new Set<string>()): number => {
+    if (seen.has(code)) return 0;
+    seen.add(code);
+    const requires = requiresFor(code);
+    return requires.length ? 1 + Math.max(...requires.map((item) => permissionDepth(item, new Set(seen)))) : 0;
+  };
+
   const togglePermission = (code: string) => {
-    setCheckedPerms(prev => prev.includes(code) ? prev.filter(p => p !== code) : [...prev, code]);
+    setCheckedPerms(prev => {
+      if (prev.includes(code)) {
+        const removed = new Set([code, ...descendantsOf(code)]);
+        return prev.filter((permission) => !removed.has(permission));
+      }
+      if (!prev.includes('ADMIN_FULL')) {
+        const missing = requiresFor(code).filter((permission) => !prev.includes(permission));
+        if (missing.length) {
+          toast.error(`Hãy chọn quyền phụ thuộc trước: ${missing.join(', ')}`);
+          return prev;
+        }
+      }
+      return [...prev, code];
+    });
   };
 
   const toggleGroupPermissions = (groupId: string, isChecked: boolean) => {
     const groupPerms = permissionsByGroup[groupId]?.map(p => p.code) || [];
     if (isChecked) {
-      setCheckedPerms(prev => Array.from(new Set([...prev, ...groupPerms])));
+      setCheckedPerms(prev => {
+        const next = new Set(prev);
+        const ordered = [...groupPerms].sort((a, b) => permissionDepth(a) - permissionDepth(b));
+        for (const code of ordered) {
+          if (next.has('ADMIN_FULL') || requiresFor(code).every((dependency) => next.has(dependency))) next.add(code);
+        }
+        return [...next];
+      });
     } else {
-      setCheckedPerms(prev => prev.filter(code => !groupPerms.includes(code)));
+      setCheckedPerms(prev => {
+        const removed = new Set(groupPerms.flatMap((code) => [code, ...descendantsOf(code)]));
+        return prev.filter(code => !removed.has(code));
+      });
     }
   };
 
@@ -1305,6 +1355,9 @@ function PermissionsPageContent() {
             onView={() => router.push(`/permissions/${u._id || u.id}`)}
             onEdit={() => handleOpenEditModal(u)}
             onDelete={() => handleDeleteUser(u)}
+            permissionView="view_users"
+            permissionEdit="USER_UPDATE"
+            permissionDelete="USER_DELETE"
           />
         </div>
       )
@@ -1337,20 +1390,20 @@ function PermissionsPageContent() {
       className: 'text-right w-full md:w-[15%]',
       render: (_, perm) => (
         <div className="flex items-center justify-end gap-1.5 opacity-100 transition-all duration-150 ease-out" onClick={(e) => e.stopPropagation()}>
-          <button
+          {canAdminPermission('PERMISSION_UPDATE') && <button
             onClick={() => handleOpenEditPermissionModal(perm)}
             aria-label={`Chỉnh sửa quyền ${perm.name}`}
             className="p-1.5 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
           >
             <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button
+          </button>}
+          {canAdminPermission('PERMISSION_DELETE') && <button
             onClick={() => handlePermissionDelete(perm)}
             aria-label={`Xóa quyền ${perm.name}`}
             className="p-1.5 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
           >
             <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          </button>}
         </div>
       )
     }
@@ -1484,7 +1537,7 @@ function PermissionsPageContent() {
 
                     {/* Right actions */}
                     <div className="flex items-center justify-end gap-2 shrink-0 ml-auto">
-                      {selectedUserIds.length > 0 && (
+                      {selectedUserIds.length > 0 && canAdminPermission('USER_DELETE') && (
                         <button
                           onClick={handleDeleteUsersBulk}
                           className="flex h-9 items-center gap-1.5 px-3 text-xs font-bold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-xl hover:bg-rose-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shadow-xs animate-fade-in"
@@ -1498,13 +1551,13 @@ function PermissionsPageContent() {
                         <Settings className="w-4 h-4" />
                       </button>
 
-                      <button
+                      {canAdminPermission('USER_CREATE') && <button
                         onClick={handleOpenAddModal}
                         className="flex items-center gap-1.5 px-3.5 sm:px-4 h-9 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] rounded-xl shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out shrink-0"
                       >
                         <Plus className="w-4 h-4" strokeWidth={3} />
                         <span>Thêm người dùng</span>
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 )}
@@ -1621,12 +1674,12 @@ function PermissionsPageContent() {
                 <div className="w-full lg:w-[320px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
                   <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách Nhóm quyền</h2>
-                    <button
+                    {canAdminPermission('PERMISSION_GROUP_CREATE') && <button
                       onClick={handleOpenAddGroupModal}
                       className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
                     >
                       <Plus className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
+                    </button>}
                   </div>
                   <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5">
                     <div className="relative">
@@ -1675,18 +1728,18 @@ function PermissionsPageContent() {
                               <span className="text-[10.5px] font-bold text-[#64748B]">{group.count} Quyền</span>
                             </div>
                             <div className={`flex items-center gap-1.5 ${selectedGroup === group.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                              <button
+                              {canAdminPermission('PERMISSION_GROUP_UPDATE') && <button
                                 onClick={(e) => { e.stopPropagation(); handleOpenEditGroupModal(group); }}
                                 className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
                                 <Pencil className="w-3 h-3" />
-                              </button>
-                              <button
+                              </button>}
+                              {canAdminPermission('PERMISSION_GROUP_DELETE') && <button
                                 onClick={(e) => { e.stopPropagation(); handleGroupDelete(group); }}
                                 className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
                                 <Trash2 className="w-3 h-3" />
-                              </button>
+                              </button>}
                             </div>
                           </div>
                         </div>
@@ -1724,13 +1777,13 @@ function PermissionsPageContent() {
                       <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl transition-all duration-150 ease-out border border-white/80 hover:scale-[1.02] active:scale-[0.98] shadow-sm">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button
+                      {canAdminPermission('PERMISSION_CREATE') && <button
                         onClick={handleOpenAddPermissionModal}
                         className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out"
                       >
                         <Plus className="w-4 h-4" />
                         Thêm quyền
-                      </button>
+                      </button>}
                     </div>
                   </div>
 
@@ -1765,12 +1818,12 @@ function PermissionsPageContent() {
                 <div className="w-full lg:w-[340px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
                   <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách vai trò</h2>
-                    <button
+                    {canAdminPermission('ROLE_CREATE') && <button
                       onClick={handleOpenAddRoleModal}
                       className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
                     >
                       <Plus className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
+                    </button>}
                   </div>
                   <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5">
                     <div className="relative">
@@ -1818,17 +1871,17 @@ function PermissionsPageContent() {
                               {role.permissions ? role.permissions.length : 0} Quyền hạn
                             </span>
                             <div className="flex items-center gap-1.5">
-                              <button
+                              {canAdminPermission('ROLE_UPDATE') && <button
                                 onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }}
                                 className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
+                              </button>}
+                              {canAdminPermission('ROLE_DELETE') && <button
                                 onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }}
                                 className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
                               >
-                              </button>
+                              </button>}
                             </div>
                           </div>
                         </div>
@@ -1864,7 +1917,7 @@ function PermissionsPageContent() {
                       <button className="w-8 h-8 flex items-center justify-center text-[#64748B] bg-white/50 hover:bg-white/80 rounded-xl transition-all duration-150 ease-out border border-white/80 hover:scale-[1.02] active:scale-[0.98] shadow-sm">
                         <Settings className="w-4 h-4" />
                       </button>
-                      <button
+                      {canAdminPermission('ROLE_UPDATE') && <button
                         onClick={handleSaveRole}
                         disabled={isRoleSaving}
                         className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out disabled:opacity-50"
@@ -1875,7 +1928,7 @@ function PermissionsPageContent() {
                           <Save className="w-3.5 h-3.5" />
                         )}
                         Lưu thay đổi
-                      </button>
+                      </button>}
                     </div>
                   </div>
 
@@ -1926,7 +1979,11 @@ function PermissionsPageContent() {
 
                               {/* Permissions Grid */}
                               <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-y-4 gap-x-8">
-                                {permissions.map((perm) => (
+                                {permissions.map((perm) => {
+                                  const required = requiresFor(perm.code);
+                                  const missing = checkedPerms.includes('ADMIN_FULL') ? [] : required.filter((code) => !checkedPerms.includes(code));
+                                  const isDependencyBlocked = missing.length > 0 && !checkedPerms.includes(perm.code);
+                                  return (
                                   <div key={`${groupData.id}-${perm.code}`} className="flex items-start gap-3 flex-1 group">
                                     <div className="mt-0.5 shrink-0">
                                       <input
@@ -1934,7 +1991,9 @@ function PermissionsPageContent() {
                                         id={`perm-${groupData.id}-${perm.code}`}
                                         checked={checkedPerms.includes(perm.code)}
                                         onChange={() => togglePermission(perm.code)}
-                                        className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer transition-colors"
+                                        disabled={isDependencyBlocked}
+                                        title={isDependencyBlocked ? `Cần chọn trước: ${missing.join(', ')}` : undefined}
+                                        className="w-3.5 h-3.5 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                                       />
                                     </div>
                                     <div className="flex flex-col flex-1 min-w-0">
@@ -1949,11 +2008,14 @@ function PermissionsPageContent() {
                                       <p className="text-[11px] text-[#64748B] font-medium leading-relaxed pr-2">
                                         {perm.desc}
                                       </p>
+                                      {isDependencyBlocked && (
+                                        <span className="text-[10px] font-semibold text-amber-700">Cần trước: {missing.join(', ')}</span>
+                                      )}
                                     </div>
 
                                     {/* Permission Actions */}
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                      <button
+                                      {canAdminPermission('PERMISSION_UPDATE') && <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleOpenEditPermissionModal(perm);
@@ -1962,8 +2024,8 @@ function PermissionsPageContent() {
                                         title="Sửa quyền"
                                       >
                                         <Pencil className="w-3 h-3" />
-                                      </button>
-                                      <button
+                                      </button>}
+                                      {canAdminPermission('PERMISSION_DELETE') && <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handlePermissionDelete(perm);
@@ -1972,10 +2034,11 @@ function PermissionsPageContent() {
                                         title="Xóa quyền"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                      </button>}
                                     </div>
                                   </div>
-                                ))}
+                                );
+                                })}
                               </div>
                             </div>
                           );
@@ -2017,13 +2080,15 @@ function PermissionsPageContent() {
                       <p className="text-[10.5px] text-[#64748B] font-bold mt-0.5">{routePermissions.length} cấu hình đang hoạt động</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => { setEditingRoutePerm(null); setIsRoutePermModalOpen(true); }}
-                    className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out"
-                  >
-                    <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                    Thêm cấu hình
-                  </button>
+                  {canAdminPermission('ROUTE_PERMISSION_CREATE') && (
+                    <button
+                      onClick={() => { setEditingRoutePerm(null); setIsRoutePermModalOpen(true); }}
+                      className="flex items-center gap-1.5 px-4 h-8 text-xs font-bold text-white bg-[#1A73E8] rounded-xl hover:bg-[#155cb4] shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all duration-150 ease-out"
+                    >
+                      <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      Thêm cấu hình
+                    </button>
+                  )}
                 </div>
 
                 {/* Table */}
@@ -2114,27 +2179,43 @@ function PermissionsPageContent() {
                                 </td>
                                 <td className="px-6 py-3.5 align-middle text-right w-[15%]">
                                   <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all duration-150">
-                                    <Action
-                                      onEdit={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
-                                      onDelete={() => {
-                                        setDeleteConfig({
-                                          title: 'Xóa cấu hình route',
-                                          message: `Bạn có chắc chắn muốn xóa cấu hình cho route "${rp.route_path}"?`,
-                                          onConfirm: async () => {
-                                            const token = tokenStorage.getAccessToken();
-                                            if (!token) { toast.error('Hết phiên làm việc'); return; }
-                                            await authApi.deleteRoutePermission(rp._id, token);
-                                            invalidateRoutePermissionCache();
-                                            if (typeof window !== 'undefined') {
-                                              window.dispatchEvent(new CustomEvent('route-permissions-updated'));
+                                    {canAdminPermission('ROUTE_PERMISSION_UPDATE') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingRoutePerm(rp); setIsRoutePermModalOpen(true); }}
+                                        className="p-1.5 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                                        aria-label={`Chỉnh sửa cấu hình route ${rp.route_path}`}
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {canAdminPermission('ROUTE_PERMISSION_DELETE') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDeleteConfig({
+                                            title: 'Xóa cấu hình route',
+                                            message: `Bạn có chắc chắn muốn xóa cấu hình cho route "${rp.route_path}"?`,
+                                            onConfirm: async () => {
+                                              const token = tokenStorage.getAccessToken();
+                                              if (!token) { toast.error('Hết phiên làm việc'); return; }
+                                              await authApi.deleteRoutePermission(rp._id, token);
+                                              invalidateRoutePermissionCache();
+                                              if (typeof window !== 'undefined') {
+                                                window.dispatchEvent(new CustomEvent('route-permissions-updated'));
+                                              }
+                                              toast.success('Xóa cấu hình thành công');
+                                              fetchData();
                                             }
-                                            toast.success('Xóa cấu hình thành công');
-                                            fetchData();
-                                          }
-                                        });
-                                        setIsDeleteModalOpen(true);
-                                      }}
-                                    />
+                                          });
+                                          setIsDeleteModalOpen(true);
+                                        }}
+                                        className="p-1.5 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-xl border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                                        aria-label={`Xóa cấu hình route ${rp.route_path}`}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -2883,6 +2964,7 @@ function PermissionsPageContent() {
         initialData={editingRole}
         allPermissions={allPermissions}
         groups={groups}
+        permissionPolicies={permissionPolicies}
         onSave={handleRoleModalSave}
       />
 

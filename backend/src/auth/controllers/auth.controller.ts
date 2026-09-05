@@ -54,6 +54,7 @@ import {
 
 import { isAdminUser } from '../utils/role.util';
 import { StrictAdminGuard } from '../guards/strict-admin.guard';
+import { PERMISSION_POLICIES } from '../permissions.registry';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const SESSION_ID_HEADER = 'x-auth-session-id';
@@ -371,11 +372,20 @@ export class AuthController {
     return this.authService.updateMe(req.user.userId, dto);
   }
 
+  @Get('permission-policies')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get canonical permission dependencies and owners' })
+  getPermissionPolicies() {
+    return PERMISSION_POLICIES;
+  }
+
   // ─── ROLE & PERMISSION MANAGEMENT (ADMIN ONLY) ──────────────
 
   @Get('roles')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all roles (Admin only)' })
   async getRoles() {
@@ -384,7 +394,7 @@ export class AuthController {
 
   @Get('permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all permissions (Admin only)' })
   async getPermissions() {
@@ -393,7 +403,7 @@ export class AuthController {
 
   @Post('permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new permission (Admin only)' })
   async createPermission(@Body() dto: CreatePermissionDto) {
@@ -402,7 +412,7 @@ export class AuthController {
 
   @Patch('permissions/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Permission ID' })
   @ApiOperation({ summary: 'Update a permission (Admin only)' })
@@ -415,7 +425,7 @@ export class AuthController {
 
   @Delete('permissions/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_DELETE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Permission ID' })
   @ApiOperation({ summary: 'Delete a permission (Admin only)' })
@@ -427,7 +437,7 @@ export class AuthController {
 
   @Get('permission-groups')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all permission groups (Admin only)' })
   async getPermissionGroups() {
@@ -436,7 +446,7 @@ export class AuthController {
 
   @Post('permission-groups')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_GROUP_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new permission group (Admin only)' })
   async createPermissionGroup(@Body() dto: CreatePermissionGroupDto) {
@@ -445,7 +455,7 @@ export class AuthController {
 
   @Patch('permission-groups/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_GROUP_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiOperation({ summary: 'Update a permission group (Admin only)' })
@@ -458,7 +468,7 @@ export class AuthController {
 
   @Delete('permission-groups/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'PERMISSION_GROUP_DELETE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Group ID' })
   @ApiOperation({ summary: 'Delete a permission group (Admin only)' })
@@ -468,7 +478,7 @@ export class AuthController {
 
   @Post('roles')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROLE_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new role (Admin only)' })
   async createRole(@Body() dto: CreateRoleDto) {
@@ -477,7 +487,7 @@ export class AuthController {
 
   @Patch('roles/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROLE_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Role ID' })
   @ApiOperation({ summary: 'Update a role (Admin only)' })
@@ -487,7 +497,7 @@ export class AuthController {
 
   @Delete('roles/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROLE_DELETE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Role ID' })
   @ApiOperation({ summary: 'Delete a role (Admin only)' })
@@ -497,7 +507,7 @@ export class AuthController {
 
   @Patch('users/:id/role')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiOperation({ summary: 'Assign a role to a user (Admin only)' })
@@ -507,7 +517,7 @@ export class AuthController {
 
   @Get('users')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'view_users')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all users (Admin only)' })
   async getUsers() {
@@ -516,7 +526,7 @@ export class AuthController {
 
   @Post('users')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a single user (Admin only)' })
   async createUser(@Body() dto: CreateUserDto, @Req() req: any) {
@@ -526,7 +536,7 @@ export class AuthController {
 
   @Post('users/bulk-create')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create multiple users (Admin only)' })
   async createUsersBulk(@Body() dto: BulkCreateUsersDto, @Req() req: any) {
@@ -536,7 +546,7 @@ export class AuthController {
 
   @Patch('users/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiOperation({ summary: 'Update a user (Admin only)' })
@@ -551,7 +561,7 @@ export class AuthController {
 
   @Delete('users/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_DELETE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiOperation({ summary: 'Delete a user (Admin only)' })
@@ -561,7 +571,7 @@ export class AuthController {
 
   @Post('users/bulk-delete')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'USER_DELETE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete multiple users (Admin only)' })
   async deleteUsersBulk(@Body('userIds') userIds: string[]) {
@@ -600,7 +610,7 @@ export class AuthController {
 
   @Get('route-permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all route-permission mappings (Admin only)' })
   async getRoutePermissions() {
@@ -642,7 +652,7 @@ export class AuthController {
 
   @Post('route-permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROUTE_PERMISSION_CREATE')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a route-permission mapping (Admin only)' })
   async createRoutePermission(@Body() dto: CreateRoutePermissionDto) {
@@ -651,7 +661,7 @@ export class AuthController {
 
   @Patch('route-permissions/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROUTE_PERMISSION_UPDATE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Route Permission ID' })
   @ApiOperation({ summary: 'Update a route-permission mapping (Admin only)' })
@@ -664,7 +674,7 @@ export class AuthController {
 
   @Delete('route-permissions/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('ADMIN_FULL')
+  @Permissions('admin', 'ROUTE_PERMISSION_DELETE')
   @ApiBearerAuth()
   @ApiParam({ name: 'id', description: 'Route Permission ID' })
   @ApiOperation({ summary: 'Delete a route-permission mapping (Admin only)' })

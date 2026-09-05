@@ -231,10 +231,58 @@ function getFallbackScope(routePath: string, previewPermissions: string[], isPre
       { code: 'DEPT_CREATE', name: 'Tạo khoa', desc: 'Tạo khoa quản lý chuyên môn', isRoute: false }
     ],
     '/grading': [
-      { code: 'READ_STUDENT_RECORD', name: 'Xem kết quả rèn luyện học sinh', desc: 'Xem lịch sử ghi nhận điểm rèn luyện của học sinh', isRoute: false },
-      { code: 'CREATE_STUDENT_RECORD', name: 'Đánh giá điểm rèn luyện', desc: 'Ghi nhận điểm cộng/trừ rèn luyện', isRoute: false },
       { code: 'CONFIG_RECORD', name: 'Cấu hình tiêu chí', desc: 'Thay đổi thang điểm và khung tiêu chuẩn đánh giá', isRoute: false },
-      { code: 'CREATE_STUDENT_TASK', name: 'Giao nhiệm vụ rèn luyện', desc: 'Giao bài tập/hoạt động nâng cao rèn luyện', isRoute: false }
+    ],
+    '/students/record': [
+      { code: 'READ_STUDENT_RECORD', name: 'Xem ghi nhận sinh viên', desc: 'Xem lịch sử ghi nhận rèn luyện của sinh viên', isRoute: true },
+      { code: 'CREATE_STUDENT_RECORD', name: 'Thêm ghi nhận sinh viên', desc: 'Tạo ghi nhận rèn luyện', isRoute: false },
+      { code: 'UPDATE_STUDENT_RECORD', name: 'Cập nhật ghi nhận sinh viên', desc: 'Sửa ghi nhận rèn luyện', isRoute: false },
+      { code: 'DELETE_STUDENT_RECORD', name: 'Xóa ghi nhận sinh viên', desc: 'Xóa ghi nhận rèn luyện', isRoute: false },
+      { code: 'READ_CLASS_RECORD', name: 'Xem ghi nhận lớp', desc: 'Xem tổng hợp ghi nhận của lớp', isRoute: false },
+      { code: 'READ_ALL_CLASS_RECORD', name: 'Xem toàn bộ ghi nhận lớp', desc: 'Xem ghi nhận lớp do người khác tạo', isRoute: false },
+      { code: 'CREATE_CLASS_RECORD', name: 'Thêm ghi nhận lớp', desc: 'Tạo ghi nhận rèn luyện cho lớp', isRoute: false },
+      { code: 'UPDATE_CLASS_RECORD', name: 'Cập nhật ghi nhận lớp', desc: 'Sửa ghi nhận rèn luyện của lớp', isRoute: false },
+      { code: 'DELETE_CLASS_RECORD', name: 'Xóa ghi nhận lớp', desc: 'Xóa ghi nhận rèn luyện của lớp', isRoute: false },
+    ],
+    '/students/tasks': [
+      { code: 'READ_STUDENT_TASK', name: 'Xem nhiệm vụ HSSV', desc: 'Xem nhiệm vụ và tiến độ', isRoute: true },
+      { code: 'CREATE_STUDENT_TASK', name: 'Tạo nhiệm vụ HSSV', desc: 'Tạo và phân công nhiệm vụ', isRoute: false },
+      { code: 'UPDATE_STUDENT_TASK', name: 'Cập nhật nhiệm vụ HSSV', desc: 'Cập nhật nhiệm vụ', isRoute: false },
+      { code: 'DELETE_STUDENT_TASK', name: 'Xóa nhiệm vụ HSSV', desc: 'Xóa nhiệm vụ', isRoute: false },
+    ],
+    '/activities': [
+      { code: 'ACTIVITY_PAGE', name: 'Truy cập hoạt động', desc: 'Mở module hoạt động', isRoute: true },
+      { code: 'ACTIVITY_READ', name: 'Xem hoạt động', desc: 'Xem danh sách và chi tiết hoạt động', isRoute: false },
+      { code: 'ACTIVITY_CREATE', name: 'Tạo hoạt động', desc: 'Tạo hoạt động mới', isRoute: false },
+      { code: 'ACTIVITY_UPDATE', name: 'Cập nhật hoạt động', desc: 'Cập nhật hoạt động', isRoute: false },
+      { code: 'ACTIVITY_DELETE', name: 'Xóa hoạt động', desc: 'Vô hiệu hóa hoạt động', isRoute: false },
+      { code: 'ACTIVITY_MEMBER_MANAGE', name: 'Quản lý thành viên', desc: 'Quản lý thành viên hoạt động', isRoute: false },
+      { code: 'ACTIVITY_REPORT_READ', name: 'Xem báo cáo hoạt động', desc: 'Xem báo cáo hoạt động', isRoute: false },
+      { code: 'ACTIVITY_EXPORT', name: 'Xuất hoạt động', desc: 'Xuất dữ liệu hoạt động', isRoute: false },
+    ],
+    '/activities/schedule': [
+      { code: 'ACTIVITY_SCHEDULE_READ', name: 'Xem lịch hoạt động', desc: 'Xem lịch sinh hoạt', isRoute: true },
+      { code: 'ACTIVITY_SCHEDULE_MANAGE', name: 'Quản lý lịch hoạt động', desc: 'Tạo, sửa, xóa lịch', isRoute: false },
+      { code: 'ACTIVITY_SCHEDULE_REGISTER', name: 'Đăng ký buổi sinh hoạt', desc: 'Đăng ký buổi sinh hoạt', isRoute: false },
+    ],
+    '/activities/attendance': [
+      { code: 'ACTIVITY_ATTENDANCE_READ', name: 'Xem điểm danh', desc: 'Xem dữ liệu điểm danh', isRoute: true },
+      { code: 'ACTIVITY_ATTENDANCE_CREATE', name: 'Ghi nhận điểm danh', desc: 'Ghi nhận điểm danh', isRoute: false },
+      { code: 'ACTIVITY_ATTENDANCE_UPDATE', name: 'Cập nhật điểm danh', desc: 'Cập nhật điểm danh', isRoute: false },
+      { code: 'ACTIVITY_ATTENDANCE_APPROVE', name: 'Duyệt điểm danh', desc: 'Duyệt điểm danh', isRoute: false },
+      { code: 'ACTIVITY_ATTENDANCE_DELETE', name: 'Xóa điểm danh', desc: 'Xóa điểm danh', isRoute: false },
+      { code: 'ATTENDANCE_SESSION_CREATE', name: 'Mở phiên điểm danh', desc: 'Mở phiên điểm danh', isRoute: false },
+      { code: 'ATTENDANCE_SESSION_READ', name: 'Xem phiên điểm danh', desc: 'Xem phiên điểm danh', isRoute: false },
+      { code: 'ATTENDANCE_SESSION_CLOSE', name: 'Đóng phiên điểm danh', desc: 'Đóng phiên điểm danh', isRoute: false },
+    ],
+    '/activities/:activityId': [
+      { code: 'ACTIVITY_READ', name: 'Xem chi tiết hoạt động', desc: 'Xem trang chi tiết hoạt động', isRoute: true },
+      { code: 'ACTIVITY_UPDATE', name: 'Cập nhật hoạt động', desc: 'Cập nhật hoạt động', isRoute: false },
+      { code: 'ACTIVITY_MEMBER_MANAGE', name: 'Quản lý thành viên', desc: 'Quản lý thành viên', isRoute: false },
+      { code: 'ACTIVITY_SCHEDULE_READ', name: 'Xem lịch hoạt động', desc: 'Xem timeline hoạt động', isRoute: false },
+      { code: 'ACTIVITY_ATTENDANCE_READ', name: 'Xem điểm danh', desc: 'Xem điểm danh hoạt động', isRoute: false },
+      { code: 'ACTIVITY_CONFIG_READ', name: 'Xem cấu hình hoạt động', desc: 'Xem cấu hình hoạt động', isRoute: false },
+      { code: 'ACTIVITY_CONFIG_MANAGE', name: 'Quản lý cấu hình hoạt động', desc: 'Quản lý cấu hình hoạt động', isRoute: false },
     ],
     '/reports': [
       { code: 'REPORTS_READ', name: 'Xem báo cáo thống kê', desc: 'Truy cập vào các biểu đồ và báo cáo dữ liệu học sinh, điểm số', isRoute: false }

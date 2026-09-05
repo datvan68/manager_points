@@ -194,7 +194,7 @@ const Sidebar = () => {
           }
 
           // Luôn hiển thị mục "Học sinh sinh viên" cho vai trò học sinh/sinh viên hoặc giáo viên
-          if (item.href === "/students/record" && (isStudentUser || isTeacherUser || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK"))) {
+          if (item.href === "/students/record" && (isStudentUser || hasPermission("READ_STUDENT_RECORD"))) {
             return true;
           }
 
@@ -249,7 +249,7 @@ const Sidebar = () => {
           if (isAdminUser(user)) return true;
 
           if (item.href === "/students/record") {
-            return isStudentUser || isTeacherUser || hasPermission("STUDENT_PAGE") || hasPermission("STUDENT_READ") || hasPermission("READ_STUDENT_TASK");
+            return isStudentUser || hasPermission("READ_STUDENT_RECORD");
           }
           if (item.href === "/grading") {
             return isTeacherUser || hasPermission("GRADING_PAGE") || hasPermission("GRADING_READ");

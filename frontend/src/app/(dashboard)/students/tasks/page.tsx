@@ -13,7 +13,7 @@ import { BarChart3 } from 'lucide-react';
 
 function StudentTasksPageContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasPermission = () => false } = useAuth();
   const [internalTab, setInternalTab] = useState<'tasks' | 'progress'>('tasks');
   const [hasOpenedProgressTab, setHasOpenedProgressTab] = useState(false);
   const [showTaskStats, setShowTaskStats] = useState(false);
@@ -48,7 +48,7 @@ function StudentTasksPageContent() {
                   { id: 'Ghi nhận', label: 'Ghi nhận' },
                   { id: 'Danh sách', label: 'Danh sách' },
                   { id: 'Nhiệm vụ', label: 'Nhiệm vụ' },
-                ]
+                ].filter((tab) => tab.id === 'Nhiệm vụ' || (tab.id === 'Ghi nhận' ? hasPermission('READ_STUDENT_RECORD') : hasPermission('STUDENT_PAGE')))
           }
           activeTab="Nhiệm vụ"
           onTabChange={(id) => {

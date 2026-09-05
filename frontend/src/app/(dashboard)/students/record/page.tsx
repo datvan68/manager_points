@@ -426,7 +426,7 @@ const getClassReportCreatorName = (report: DailyClassReport) => {
 };
 
 function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
-  const { user } = useAuth();
+  const { user, hasPermission = () => false } = useAuth();
   const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
   const userRole = String(user?.role || '').toLowerCase();
@@ -5558,7 +5558,7 @@ function ClassReportDetailDialog({
 
 function StudentRecordPageContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasPermission = () => false } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<"class" | "student">("student");
   const userRole = String(user?.role || '').toLowerCase();
   const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
@@ -5567,6 +5567,8 @@ function StudentRecordPageContent() {
     viewClassRecord: "READ_CLASS_RECORD",
   });
   const canAccessClassTab = !isStudent && ghiNhanAccess.viewClassRecord;
+  const canAccessStudentList = !isStudent && !!hasPermission('STUDENT_PAGE');
+  const canAccessTasks = isStudent || !!hasPermission('READ_STUDENT_TASK');
 
   return (
     <>
@@ -5582,7 +5584,7 @@ function StudentRecordPageContent() {
                   { id: "Ghi nhận", label: "Ghi nhận" },
                   { id: "Danh sách", label: "Danh sách" },
                   { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ]
+                ].filter((tab) => tab.id === "Ghi nhận" || (tab.id === "Danh sách" ? canAccessStudentList : canAccessTasks))
           }
           activeTab="Ghi nhận"
           onTabChange={(id) => {

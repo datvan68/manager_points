@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getImageUrl } from '@/components/activities/activity-view-policy';
+import { getActivityViewPolicy, getImageUrl } from '@/components/activities/activity-view-policy';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 import ActivityMemberTable from '@/components/activities/ActivityMemberTable';
@@ -141,9 +141,15 @@ export default function ActivityDetailPage() {
   const isAdmin = isAdminUser(user);
   const isAssignedTeacher = isTeacherRole(user) && Boolean(activity?.advisor_id) && normalizeEntityId(activity.advisor_id) === normalizeEntityId(user?.id);
   const isAdminOrAdvisor = isAdmin || isAssignedTeacher;
-  const canViewStaffTabs = isAdmin || isAssignedTeacher;
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
+  const activityPolicy = getActivityViewPolicy({
+    permissions: user?.permissions || [],
+    isAdmin,
+    isStudent,
+    isOwner: isAssignedTeacher,
+  });
+  const canViewStaffTabs = activityPolicy.canManageMembers || isAssignedTeacher;
   const todayScheduleId = getTodaySchedule(schedules)?._id;
 
   const attendance = useAttendanceSession({
@@ -371,7 +377,14 @@ export default function ActivityDetailPage() {
   const memberStatus = studentMembership?.status || 'none';
   const isPresident = memberStatus === 'active' && studentMembership?.role === 'president';
   const delegatedMethods = attendance.capabilities?.effective_methods || [];
-  const canManageAttendance = isAdmin || isAssignedTeacher || isPresident || delegatedMethods.length > 0;
+  const canManageAttendance = getActivityViewPolicy({
+    permissions: user?.permissions || [],
+    isAdmin,
+    isStudent,
+    isOwner: isAssignedTeacher,
+    isPresident,
+    isDelegatedAttendance: delegatedMethods.length > 0,
+  }).canManageAttendance;
   const canAdministerAttendanceGrants = attendance.capabilities?.can_administer_grants === true;
   const canCheckInAttendance = memberStatus === 'active' || (isStudent && activity?.settings?.require_registration_for_attendance === false);
   const canAccessAttendance = canManageAttendance || canCheckInAttendance;
