@@ -287,6 +287,13 @@ describe('dormitoryApi.roster reconciliation and link candidates', () => {
     await expect(dormitoryApi.roster.getLinkCandidates({ search: 'CNTT', page: 1, limit: 20 })).resolves.toEqual(response);
     expect(httpClient).toHaveBeenCalledWith(expect.stringMatching(/\/dormitory\/roster\/link-candidates\?search=CNTT&page=1&limit=20/), expect.objectContaining({ signal: undefined }));
   });
+
+  it('sends the opened roster entry id for ranked suggestions', async () => {
+    const response = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => response } as any);
+    await dormitoryApi.roster.getLinkCandidates({ roster_entry_id: '507f1f77bcf86cd799439011', page: 1, limit: 20 });
+    expect(httpClient).toHaveBeenCalledWith(expect.stringMatching(/link-candidates\?roster_entry_id=507f1f77bcf86cd799439011&page=1&limit=20/), expect.anything());
+  });
 });
 
 describe('dormitoryApi.roster bulk delete', () => {

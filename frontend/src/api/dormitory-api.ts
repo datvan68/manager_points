@@ -136,6 +136,10 @@ export interface DormitoryRosterLinkCandidate {
   full_name: string;
   status: 'Studying';
   class_id: { _id: string; class_name: string } | string;
+  date_bir?: string | null;
+  match_score?: number;
+  recommended?: boolean;
+  match_reasons?: Array<'NAME_EXACT' | 'NAME_SIMILAR' | 'DOB_EXACT' | 'DOB_NEAR'>;
 }
 
 export interface DormitoryRosterLinkCandidatesResponse {
@@ -812,7 +816,7 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/roster/reconcile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       return handleResponse(res);
     },
-    async getLinkCandidates(params?: { search?: string; page?: number; limit?: number; signal?: AbortSignal }): Promise<DormitoryRosterLinkCandidatesResponse> {
+    async getLinkCandidates(params?: { roster_entry_id?: string; search?: string; page?: number; limit?: number; signal?: AbortSignal }): Promise<DormitoryRosterLinkCandidatesResponse> {
       const { signal, ...query } = params || {};
       const res = await httpClient(`${API_BASE}/dormitory/roster/link-candidates${buildQuery(query)}`, { signal });
       return handleResponse(res);

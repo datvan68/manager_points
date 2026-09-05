@@ -29,6 +29,7 @@ import { createDefaultDormitoryLayout, resolveDormitoryRosterPdfValues, DORMITOR
 import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
 import { RoomAssignmentService } from './room-assignment.service';
 import { DormitoryRosterIdentityService } from './dormitory-roster-identity.service';
+import { rankLinkCandidates } from './dormitory-roster-link-ranking';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -430,12 +431,49 @@ export class DormitoryRosterService {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  async findLinkCandidates(query: { search?: string; page?: number; limit?: number } = {}) {
+  async findLinkCandidates(query: { roster_entry_id?: string; search?: string; page?: number; limit?: number } = {}) {
     const page = Math.max(1, Math.floor(query.page || 1));
     const limit = Math.min(100, Math.max(1, Math.floor(query.limit || 25)));
     const search = String(query.search || '').trim().slice(0, 100);
     const escaped = search ? this.escapeRegex(search) : '';
     const baseMatch: any = { status: 'Studying', class_id: { $exists: true, $ne: null } };
+    if (query.roster_entry_id) {
+      if (!Types.ObjectId.isValid(query.roster_entry_id)) throw new BadRequestException('Mã mục Danh sách KTX không hợp lệ.');
+      const source: any = await (this.rosterModel as any).findById(query.roster_entry_id).lean().exec();
+      if (!source) throw new NotFoundException(`Không tìm thấy mục Danh sách KTX: ${query.roster_entry_id}`);
+      const linkedRows: any[] = await (this.rosterModel as any).find({ semester_id: source.semester_id, student_id: { $exists: true, $ne: null }, _id: { $ne: source._id } }).select('student_id').lean().exec();
+      const linkedIds = new Set(linkedRows.map((row) => this.id(row.student_id)));
+      const shortlistLimit = 5000;
+      const aggregateContext = (this.studentModel as any).aggregate;
+      let students: any[];
+      if (typeof aggregateContext === 'function') {
+        const pipeline: any[] = [
+          { $match: baseMatch },
+          { $lookup: { from: 'classes', localField: 'class_id', foreignField: '_id', as: 'class' } },
+          { $unwind: '$class' },
+          ...(search ? [{ $match: { $or: [{ full_name: { $regex: escaped, $options: 'i' } }, { student_code: { $regex: escaped, $options: 'i' } }, { 'class.class_name': { $regex: escaped, $options: 'i' } }] } }] : []),
+          { $sort: { _id: 1 } },
+          { $limit: shortlistLimit },
+          { $project: { _id: 1, student_code: 1, full_name: 1, date_bir: 1, status: 1, class_id: { _id: '$class._id', class_name: '$class.class_name' } } },
+        ];
+        students = await aggregateContext.call(this.studentModel, pipeline).exec();
+      } else {
+        let studentQuery: any = (this.studentModel as any).find(baseMatch);
+        if (typeof studentQuery.select === 'function') studentQuery = studentQuery.select('_id student_code full_name date_bir status class_id');
+        if (typeof studentQuery.populate === 'function') studentQuery = studentQuery.populate({ path: 'class_id', select: '_id class_name' });
+        if (typeof studentQuery.sort === 'function') studentQuery = studentQuery.sort({ _id: 1 });
+        if (typeof studentQuery.limit === 'function') studentQuery = studentQuery.limit(shortlistLimit);
+        students = await studentQuery.exec();
+        if (search) students = students.filter((student) => {
+          const className = typeof student.class_id === 'object' ? student.class_id.class_name : '';
+          return [student.full_name, student.student_code, className].some((value) => String(value || '').toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN')));
+        });
+      }
+      const eligible = students.filter((student) => !linkedIds.has(this.id(student._id)) && student?.class_id);
+      const ranked = rankLinkCandidates(source, eligible);
+      const total = ranked.length;
+      return { data: ranked.slice((page - 1) * limit, page * limit), meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    }
     const aggregate = (this.studentModel as any).aggregate;
     if (typeof aggregate === 'function') {
       const match = search ? { ...baseMatch, $or: [

@@ -121,6 +121,27 @@ describe('DormitoryRosterService', () => {
     expect(studentModel.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'Studying', class_id: { $exists: true, $ne: null } }));
   });
 
+  it('ranks contextual candidates, excludes same-semester links, and validates the source first', async () => {
+    const source = { _id: '507f1f77bcf86cd799439011', semester_id: 'semester-1', full_name: 'Nguyễn Văn A', date_of_birth: new Date('2004-01-02') };
+    const linkedQuery: any = query([{ student_id: 'student-linked' }]);
+    linkedQuery.select = jest.fn(() => linkedQuery);
+    const rosterModel: any = { findById: jest.fn(() => query(source)), find: jest.fn(() => linkedQuery) };
+    const studentModel: any = {
+      aggregate: jest.fn(() => ({ exec: jest.fn().mockResolvedValue([{ _id: 'student-linked', student_code: 'SV000', full_name: 'Nguyễn Văn A', date_bir: '2004-01-02', status: 'Studying', class_id: { _id: 'class-1', class_name: 'CNTT' } }, { _id: 'student-1', student_code: 'SV001', full_name: 'Nguyen Van A', date_bir: '2004-01-03', status: 'Studying', class_id: { _id: 'class-1', class_name: 'CNTT' } }]) })),
+    };
+    const service = new DormitoryRosterService(rosterModel, studentModel, {} as any, {} as any, {} as any);
+
+    await expect(service.findLinkCandidates({ roster_entry_id: source._id, page: 1, limit: 20 })).resolves.toMatchObject({ data: [{ _id: 'student-1', recommended: true, match_score: 94, date_bir: '2004-01-03' }], meta: { total: 1 } });
+    expect(rosterModel.findById).toHaveBeenCalledWith(source._id);
+  });
+
+  it('rejects an invalid contextual source id before reading candidates', async () => {
+    const studentModel: any = { aggregate: jest.fn() };
+    const service = new DormitoryRosterService({} as any, studentModel, {} as any, {} as any, {} as any);
+    await expect(service.findLinkCandidates({ roster_entry_id: 'bad-id' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(studentModel.aggregate).not.toHaveBeenCalled();
+  });
+
   it('rejects a stale manual link instead of overwriting the roster entry', async () => {
     const entry: any = { _id: 'entry-1', semester_id: 'semester-1', full_name: 'Nguyễn A', date_of_birth: new Date('2004-01-02'), gender: 'Male', phone_number: '0912345678', room_type: 'Thường', identity_state: 'UNLINKED' };
     const rosterModel: any = { findById: jest.fn(() => query(entry)), findOne: jest.fn(() => query(null)) };
