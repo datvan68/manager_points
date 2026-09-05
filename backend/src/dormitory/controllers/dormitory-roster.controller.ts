@@ -107,11 +107,11 @@ export class DormitoryRosterController {
   bulkDelete(@Body() dto: BulkDeleteRosterDto) { return this.rosterService.bulkRemove(dto.ids); }
 
   @Post('assign-room')
-  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE', 'DORM_ROOM_READ'))
   assignRoom(@Body() dto: AssignRoomDto, @Request() req: any) { return this.roomAssignmentService.assignRoom(dto, req.user); }
 
   @Post('unassign-room')
-  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  @UseGuards(checkPermission('DORM_REG_UPDATE', 'DORM_ROOM_READ'))
   unassignRoom(@Body() dto: UnassignRoomDto, @Request() req: any) {
     return this.roomAssignmentService.unassignRoom(dto.roster_entry_id, req.user);
   }

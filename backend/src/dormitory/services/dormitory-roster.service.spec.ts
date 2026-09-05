@@ -44,6 +44,7 @@ describe('DormitoryRosterService', () => {
     const entry = { _id: 'entry-2', room_id: 'room-1', bed_id: 'bed-2', is_room_leader: false };
     const rosterModel: any = {
       findById: jest.fn(() => query(entry)),
+      findOne: jest.fn(() => query(null)),
       updateMany: jest.fn(() => query({ modifiedCount: 1 })),
       findOneAndUpdate: jest.fn(() => query({ ...entry, is_room_leader: true })),
     };

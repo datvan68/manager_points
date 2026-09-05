@@ -441,22 +441,46 @@ export class DormitoryRosterService {
       ).exec();
       return this.toResponse(updated || entry);
     }
-    await this.rosterModel.updateMany(
-      { room_id: entry.room_id, is_room_leader: true, _id: { $ne: entry._id } },
-      { $set: { is_room_leader: false } },
-    ).exec();
+    const priorLeader: any = await this.rosterModel.findOne({ room_id: entry.room_id, is_room_leader: true, _id: { $ne: entry._id } }).lean().exec();
+    const db = (this.rosterModel as any).db;
+    const session = db?.startSession ? await db.startSession() : null;
+    let updated: any;
     try {
-      const updated = await this.rosterModel.findOneAndUpdate(
-        { _id: entry._id, room_id: entry.room_id, bed_id: { $exists: true, $ne: null } },
-        { $set: { is_room_leader: true } },
-        { new: true },
-      ).exec();
-      if (!updated) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại.');
-      return this.toResponse(updated);
+      const replace = async (options: any = {}) => {
+        const clearQuery = options.session
+          ? this.rosterModel.updateMany(
+              { room_id: entry.room_id, is_room_leader: true, _id: { $ne: entry._id } },
+              { $set: { is_room_leader: false } },
+              options,
+            )
+          : this.rosterModel.updateMany(
+              { room_id: entry.room_id, is_room_leader: true, _id: { $ne: entry._id } },
+              { $set: { is_room_leader: false } },
+            );
+        await clearQuery.exec();
+        updated = await this.rosterModel.findOneAndUpdate(
+          { _id: entry._id, room_id: entry.room_id, bed_id: { $exists: true, $ne: null } },
+          { $set: { is_room_leader: true } },
+          options.session ? { new: true, ...options } : { new: true },
+        ).exec();
+        if (!updated) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại.');
+      };
+      if (session) await session.withTransaction(() => replace({ session }));
+      else await replace();
     } catch (error: any) {
+      if (!session && priorLeader && error?.code !== 11000) {
+        await this.rosterModel.findOneAndUpdate(
+          { _id: priorLeader._id, room_id: entry.room_id, is_room_leader: { $ne: true } },
+          { $set: { is_room_leader: true } },
+          { new: true },
+        ).exec();
+      }
       if (error?.code === 11000) throw new ConflictException('Phòng đã có trưởng phòng khác.');
       throw error;
+    } finally {
+      await session?.endSession();
     }
+    return this.toResponse(updated);
   }
 
   async reconcile(dto: { after_id?: string; limit?: number }) {

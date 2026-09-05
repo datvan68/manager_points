@@ -120,4 +120,23 @@ describe('Danh sách KTX canonical page capabilities', () => {
     expect(screen.getAllByText('Trần B').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Nhập danh sách KTX từ Excel' })).toBeInTheDocument();
   });
+
+  it('keeps the selected room through responsive reloads and displays the leader badge', async () => {
+    compactViewport = true;
+    const room = { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101' };
+    const leader = { ...entry1, room_id: room._id, bed_id: 'bed-1', is_room_leader: true };
+    const getRoomOptions = vi.spyOn(dormitoryApi.roster, 'getRoomOptions').mockResolvedValue([room]);
+    const getAll = vi.spyOn(dormitoryApi.roster, 'getAll').mockImplementation(async (query: any) => ({
+      data: query.room_id ? [leader] : [],
+      meta: { total: query.room_id ? 1 : 0, page: query.page, limit: query.limit, totalPages: 1 },
+    } as any));
+
+    const { default: DormitoryRosterPage } = await import('./page');
+    render(<DormitoryRosterPage />);
+    await waitFor(() => expect(getRoomOptions).toHaveBeenCalled());
+    const filter = await screen.findByRole('combobox', { name: 'Lọc theo phòng' });
+    fireEvent.change(filter, { target: { value: room._id } });
+    await waitFor(() => expect(getAll).toHaveBeenCalledWith(expect.objectContaining({ room_id: room._id, page: 1 })));
+    expect(await screen.findByLabelText('Trưởng phòng')).toBeInTheDocument();
+  });
 });

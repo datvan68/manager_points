@@ -3,9 +3,9 @@ generation: 1
 task_id: "20260905-105810-dormitory-room-filter-leader-permissions"
 scope_file: "docs/task/taskscope-01.md"
 status: in_progress
-scope_revision: 2
+scope_revision: 4
 created_at: "2026-09-05T10:58:10+07:00"
-updated_at: "2026-09-05T11:24:00+07:00"
+updated_at: "2026-09-05T11:49:00+07:00"
 base_commit: "f9b267999e8a3ee5e132be9e34edfe58b1c719cb"
 task: "Filter the KTX roster by room, manage room leaders, and align visible permissions"
 pipeline: feature_development
@@ -17,7 +17,7 @@ coordination:
   warnings:
     - "docs/task/taskscope.md is an empty untracked user file, so slot 00 is reserved and untouched."
     - "The tracked empty docs/task/taskscope-05.md is deleted in the worktree; preserve that unrelated user change."
-    - "Implementation and focused verification completed, but V-04 manual UI evidence and the required independent authorization/index/concurrency review are still outstanding; scope remains in_progress."
+    - "Independent review completed and identified P1 permission/atomicity defects; fixes and regression checks pass. Synthetic responsive UI regression now passes (37 frontend tests), but V-04 manual desktop/mobile evidence remains outstanding because the available logged-in tab may expose real student records."
   reservation_check: "No readable active lifecycle scope reserves the source paths below. taskscope-01.md did not exist immediately before publication. Recheck scope identities, Git status and candidate writes before execution."
   execution_policy: "Planning deliverable only in this turn. Implementation requires the user to pin this exact file. Authorization and persistent-index changes require independent review; any runtime/production index or permission grant requires the Human Gate."
 
@@ -29,7 +29,6 @@ completion:
   checks_passed: []
   cleanup_pending:
     - "V-04 manual desktop/mobile UI check with synthetic rooms"
-    - "Independent review of RBAC, partial unique index, concurrency and rollback behavior"
 
 evidence:
   current_behavior:
