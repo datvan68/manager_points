@@ -34,6 +34,16 @@ describe('DormitoryRosterIdentityService', () => {
     expect(studentModel.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'Studying', class_id: { $exists: true, $ne: null } }));
   });
 
+  it('reconciles legacy Vietnam-local midnight with canonical UTC midnight', async () => {
+    const entry: any = { _id: 'entry-1', semester_id: 'semester-1', full_name: 'Nguyễn Văn A', date_of_birth: new Date('2004-03-12T00:00:00.000Z') };
+    const student: any = { _id: 'student-1', full_name: 'Nguyễn Văn A', date_bir: new Date('2004-03-11T17:00:00.000Z'), status: 'Studying', class_id: { _id: 'class-1' } };
+    const rosterModel: any = { find: jest.fn(() => query([])) };
+    const studentModel: any = { find: jest.fn(() => query([student])) };
+    const service = new DormitoryRosterIdentityService(rosterModel, studentModel);
+    await expect(service.resolveBatch([entry])).resolves.toEqual([{ student, state: 'LINKED' }]);
+    expect(studentModel.find.mock.calls[0][0].$or[0].date_bir).toEqual({ $gte: new Date('2004-03-11T17:00:00.000Z'), $lt: new Date('2004-03-12T17:00:00.000Z') });
+  });
+
   it('returns conflict for multiple current-class candidates and rejects non-current manual links', async () => {
     const candidate = { _id: 'student-1', full_name: 'Nguyễn Văn A', date_bir: new Date('2004-01-02'), status: 'Studying', class_id: { _id: 'class-1' } };
     const rosterModel: any = { find: jest.fn(() => query([])) };

@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { DormitoryRosterEntry, DormitoryRosterEntryDocument } from '../schemas/dormitory-roster-entry.schema';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
 import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-emitter';
+import { calendarDateFrom, calendarDateRange } from './dormitory-calendar-date';
 
 export type RosterIdentityOutcome = 'LINKED' | 'UNLINKED' | 'CONFLICT';
 export type RosterIdentityMatch = { student?: any; state: RosterIdentityOutcome; reason?: string };
@@ -24,8 +25,7 @@ export class DormitoryRosterIdentityService {
   }
 
   private dateKey(value: unknown) {
-    const date = value instanceof Date ? value : new Date(String(value || ''));
-    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+    return calendarDateFrom(value) || '';
   }
 
   sameDate(left: unknown, right: unknown) {
@@ -41,12 +41,7 @@ export class DormitoryRosterIdentityService {
   }
 
   private dateRange(value: unknown) {
-    const date = new Date(String(value || ''));
-    if (Number.isNaN(date.getTime())) return null;
-    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 1);
-    return { start, end };
+    return calendarDateRange(value);
   }
 
   private populateClass(query: any) {

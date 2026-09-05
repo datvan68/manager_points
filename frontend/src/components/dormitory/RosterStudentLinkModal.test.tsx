@@ -19,4 +19,10 @@ describe('RosterStudentLinkModal', () => {
     candidate.click();
     await waitFor(() => expect(candidate).toHaveAttribute('aria-checked', 'true'));
   });
+
+  it('renders a date-only candidate without browser timezone conversion', async () => {
+    vi.spyOn(dormitoryApi.roster, 'getLinkCandidates').mockResolvedValue({ data: [{ _id: 'student-2', student_code: 'SV-0002', full_name: 'Nguyễn Văn B', date_bir: '2004-03-12', class_id: { _id: 'class-2', class_name: 'CNTT' } }], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } } as any);
+    render(<RosterStudentLinkModal open registration={{ _id: 'entry-2', roster_entry_code: 'DK-2', full_name: 'Hồ sơ KTX', date_of_birth: '2004-03-12' } as any} onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText(/12\/03\/2004/).length).toBeGreaterThan(0));
+  });
 });

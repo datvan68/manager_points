@@ -1542,6 +1542,7 @@ describe('StudentsService', () => {
         expect(session.validItems[0].sex).toBe('Male');
         expect(session.validItems[1].student_code).toBe('SV002');
         expect(session.validItems[1].sex).toBe('Female');
+        expect(session.validItems[1].date_bir.toISOString()).toBe('2003-05-15T00:00:00.000Z');
       });
 
       it('should validate formats (student code normalize, valid email, sex mapping like Nam -> Male, valid date of birth)', async () => {

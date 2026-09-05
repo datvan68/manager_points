@@ -30,6 +30,7 @@ import { emitDormitoryOverviewInvalidated } from '../dormitory-overview-event-em
 import { RoomAssignmentService } from './room-assignment.service';
 import { DormitoryRosterIdentityService } from './dormitory-roster-identity.service';
 import { rankLinkCandidates } from './dormitory-roster-link-ranking';
+import { calendarDateFrom, calendarDateRange, canonicalDate, parseVietnameseDate } from './dormitory-calendar-date';
 
 type RosterUser = { userId?: string; _id?: string; roleCode?: string; permissions?: string[] };
 const ACTIVE_CONTRACT_STATUS = 'Hiệu lực';
@@ -70,20 +71,12 @@ export class DormitoryRosterService {
   }
 
   private parseDateOfBirth(value: unknown): Date | null {
-    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
-    const raw = String(value || '').trim();
-    const vietnamese = raw.match(/^(\d{1,2})[\\/-](\d{1,2})[\\/-](\d{4})$/);
-    if (vietnamese) {
-      const date = new Date(Date.UTC(Number(vietnamese[3]), Number(vietnamese[2]) - 1, Number(vietnamese[1])));
-      return date.getUTCFullYear() === Number(vietnamese[3]) && date.getUTCMonth() === Number(vietnamese[2]) - 1 && date.getUTCDate() === Number(vietnamese[1]) ? date : null;
-    }
-    const date = raw ? new Date(raw) : null;
-    return date && !Number.isNaN(date.getTime()) ? date : null;
+    return canonicalDate(value);
   }
 
   private dateKey(value: unknown) {
     const date = value instanceof Date ? value : this.parseDateOfBirth(value);
-    return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : '';
+    return calendarDateFrom(date) || '';
   }
 
   private identityKey(fullName: unknown, dateOfBirth: unknown) {
@@ -95,10 +88,7 @@ export class DormitoryRosterService {
   }
 
   private dateRange(value: Date) {
-    const start = new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 1);
-    return { start, end };
+    return calendarDateRange(value)!;
   }
 
   private async importStudentMatches(candidates: Array<{ name: string; date: Date }>, semesterId: unknown) {

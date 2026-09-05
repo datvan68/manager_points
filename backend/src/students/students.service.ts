@@ -28,6 +28,7 @@ import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { DormitoryRosterEntry } from '../dormitory/schemas/dormitory-roster-entry.schema';
 import { DormitoryRosterIdentityService } from '../dormitory/services/dormitory-roster-identity.service';
 import { StudentCascadeDeletionService } from './student-cascade-deletion.service';
+import { canonicalDate } from '../dormitory/services/dormitory-calendar-date';
 import {
   getRequesterRoleName,
   isStudent,
@@ -1906,20 +1907,7 @@ export class StudentsService implements OnModuleInit {
       if (!extracted.date_bir) {
         rowErrors.push('Ngày sinh không được để trống');
       } else {
-        if (extracted.date_bir instanceof Date) {
-          parsedDate = extracted.date_bir;
-        } else {
-          const dateStr = String(extracted.date_bir).trim();
-          const parts = dateStr.split('/');
-          if (parts.length === 3) {
-            const d = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) - 1;
-            const y = parseInt(parts[2], 10);
-            parsedDate = new Date(y, m, d);
-          } else {
-            parsedDate = new Date(dateStr);
-          }
-        }
+        parsedDate = canonicalDate(extracted.date_bir);
 
         if (!parsedDate || isNaN(parsedDate.getTime())) {
           rowErrors.push('Ngày sinh không hợp lệ');

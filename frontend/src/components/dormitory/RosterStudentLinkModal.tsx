@@ -17,7 +17,13 @@ interface RosterStudentLinkModalProps {
 
 const errorMessage = (error: any) => error?.message || 'Không thể tải danh sách sinh viên hiện tại.';
 const reasonLabels: Record<string, string> = { NAME_EXACT: 'Trùng họ tên', NAME_SIMILAR: 'Tên gần giống', DOB_EXACT: 'Trùng ngày sinh', DOB_NEAR: 'Ngày sinh gần' };
-const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('vi-VN').format(new Date(`${value.slice(0, 10)}T00:00:00Z`)) : 'Chưa cập nhật';
+const formatDate = (value?: string | null) => {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return 'Chưa cập nhật';
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  return probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === day ? `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}` : 'Chưa cập nhật';
+};
 
 export default function RosterStudentLinkModal({ open, registration, onOpenChange, onSuccess, restoreFocus }: RosterStudentLinkModalProps) {
   const [search, setSearch] = useState('');

@@ -1,4 +1,5 @@
 export type LinkReasonCode = 'NAME_EXACT' | 'NAME_SIMILAR' | 'DOB_EXACT' | 'DOB_NEAR';
+import { calendarDateDistance, calendarDateFrom } from './dormitory-calendar-date';
 
 export interface LinkRankingInput {
   _id: unknown;
@@ -65,23 +66,11 @@ export function nameSimilarity(source: unknown, candidate: unknown): number {
   return Math.min(1, Math.max(0, Math.max(levenshteinSimilarity(left, right), diceSimilarity(tokenLeft, tokenRight))));
 }
 
-function calendarDate(value: unknown): string | null {
-  if (typeof value === 'string') {
-    const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-      return date.getUTCFullYear() === Number(match[1]) && date.getUTCMonth() === Number(match[2]) - 1 && date.getUTCDate() === Number(match[3]) ? `${match[1]}-${match[2]}-${match[3]}` : null;
-    }
-  }
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-  return null;
-}
-
 export function birthDateSimilarity(source: unknown, candidate: unknown): { score: number; distance: number | null; date: string | null } {
-  const left = calendarDate(source);
-  const right = calendarDate(candidate);
+  const left = calendarDateFrom(source);
+  const right = calendarDateFrom(candidate);
   if (!left || !right) return { score: 0, distance: null, date: right };
-  const distance = Math.round(Math.abs(Date.parse(`${left}T00:00:00Z`) - Date.parse(`${right}T00:00:00Z`)) / 86400000);
+  const distance = calendarDateDistance(left, right)!;
   if (distance === 0) return { score: 1, distance, date: right };
   if (distance === 1) return { score: 0.8, distance, date: right };
   if (distance <= 31) return { score: 0.7 - ((distance - 2) * 0.5) / 29, distance, date: right };

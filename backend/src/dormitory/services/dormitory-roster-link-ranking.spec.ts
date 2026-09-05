@@ -12,6 +12,7 @@ describe('dormitory roster link ranking', () => {
     expect(birthDateSimilarity('2004-01-02', '2004-01-03').score).toBe(0.8);
     expect(birthDateSimilarity('2004-01-02', '2004-02-02').score).toBeCloseTo(0.2);
     expect(birthDateSimilarity('invalid', '2004-01-02').score).toBe(0);
+    expect(birthDateSimilarity(new Date('2004-03-11T17:00:00.000Z'), new Date('2004-03-12T00:00:00.000Z'))).toMatchObject({ score: 1, distance: 0, date: '2004-03-12' });
   });
 
   it('sorts recommendations and tie-breaks deterministically with reason codes', () => {
@@ -23,5 +24,11 @@ describe('dormitory roster link ranking', () => {
     expect(ranked.map((item) => item._id)).toEqual(['1', '2', '3']);
     expect(ranked[0]).toMatchObject({ match_score: 100, recommended: true, match_reasons: ['NAME_EXACT', 'DOB_EXACT'] });
     expect(Number.isNaN(ranked[2].match_score)).toBe(false);
+  });
+
+  it('returns an exact score for equivalent historical and canonical instants', () => {
+    expect(rankLinkCandidates({ full_name: 'Nguyễn Văn A', date_of_birth: new Date('2004-03-11T17:00:00.000Z') }, [
+      { _id: 'student-1', full_name: 'Nguyen Van A', date_bir: new Date('2004-03-12T00:00:00.000Z') },
+    ])[0]).toMatchObject({ date_bir: '2004-03-12', match_score: 100, match_reasons: ['NAME_EXACT', 'DOB_EXACT'] });
   });
 });
