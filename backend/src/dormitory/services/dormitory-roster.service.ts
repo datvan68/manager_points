@@ -100,10 +100,17 @@ export class DormitoryRosterService {
     return { start, end };
   }
 
-  private async importStudentMatches(candidates: Array<{ name: string; date: Date }>) {
+  private async importStudentMatches(candidates: Array<{ name: string; date: Date }>, semesterId: unknown) {
     const identities = new Map<string, { name: string; date: Date }>();
     for (const candidate of candidates) identities.set(this.identityKey(candidate.name, candidate.date), candidate);
-    if (!identities.size) return new Map<string, StudentDocument[]>();
+    if (!identities.size) return new Map<string, any>();
+
+    if (this.rosterIdentityService) {
+      const resolved = await this.rosterIdentityService.resolveBatch(
+        [...identities.values()].map(({ name, date }) => ({ full_name: name, date_of_birth: date, semester_id: semesterId })),
+      );
+      return new Map([...identities.keys()].map((key, index) => [key, resolved[index]]));
+    }
 
     const students = await this.studentModel.find({
       $or: Array.from(identities.values()).map(({ name, date }) => {
@@ -119,7 +126,10 @@ export class DormitoryRosterService {
       entries.push(student);
       matches.set(key, entries);
     }
-    return matches;
+    return new Map([...identities.keys()].map(key => {
+      const studentsForKey = matches.get(key) || [];
+      return [key, { state: studentsForKey.length === 1 ? 'LINKED' : studentsForKey.length ? 'CONFLICT' : 'UNLINKED', student: studentsForKey[0], reason: studentsForKey.length > 1 ? 'Có nhiều sinh viên trùng họ tên và ngày sinh; chưa tự động liên kết.' : undefined }];
+    }));
   }
 
   private parseSemester(semester: SemesterDocument) {
@@ -154,8 +164,9 @@ export class DormitoryRosterService {
     return { phone_number: phone, notes: input.notes == null ? undefined : String(input.notes).trim() };
   }
 
-  private async authoritativeIdentity(studentId: string) {
+  private async authoritativeIdentity(studentId: string, requireCurrent = false) {
     if (!Types.ObjectId.isValid(studentId)) throw new BadRequestException('student_id không hợp lệ.');
+    if (requireCurrent && this.rosterIdentityService) await this.rosterIdentityService.assertCurrentStudent(studentId);
     const student: any = await this.studentModel.findById(studentId).exec();
     if (!student) throw new NotFoundException('Không tìm thấy sinh viên.');
     if (!student.full_name || !student.date_bir || !student.sex) throw new BadRequestException('Hồ sơ sinh viên chưa đủ dữ liệu định danh.');
@@ -285,7 +296,7 @@ export class DormitoryRosterService {
       }).lean().exec();
       for (const entry of existing || []) existingKeys.add(`${this.normalizeName(entry.full_name_normalized || entry.full_name)}|${this.dateKey(entry.date_of_birth)}`);
     }
-    const studentMatches = await this.importStudentMatches(candidates);
+    const studentMatches = await this.importStudentMatches(candidates, semester._id);
 
     for (let index = 0; index < dto.rows.length; index += 1) {
       const rowNumber = index + 2;
@@ -299,11 +310,11 @@ export class DormitoryRosterService {
           continue;
         }
         seenKeys.add(key);
-        const matchedStudents = studentMatches.get(key) || [];
-        const matchedStudent = matchedStudents.length === 1 ? matchedStudents[0] : null;
+        const studentMatch = studentMatches.get(key) as any;
+        const matchedStudent = studentMatch?.state === 'LINKED' ? studentMatch.student : null;
         validRows.push({
           row: rowNumber,
-          reason: matchedStudents.length > 1 ? 'Có nhiều sinh viên trùng họ tên và ngày sinh; chưa tự động liên kết.' : undefined,
+          reason: studentMatch?.reason,
           payload: {
             roster_entry_code: `DK-${randomUUID().substring(0, 8).toUpperCase()}`,
             student_id: matchedStudent?._id,
@@ -318,7 +329,7 @@ export class DormitoryRosterService {
             semester_id: semester._id,
             ...this.parseSemester(semester),
             room_type: 'Thường',
-            identity_state: matchedStudent ? 'LINKED' : matchedStudents.length > 1 ? 'CONFLICT' : 'UNLINKED',
+            identity_state: studentMatch?.state || 'UNLINKED',
           },
         });
       } catch (error) {
@@ -410,14 +421,60 @@ export class DormitoryRosterService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async reconcile(dto: { semester_id: string; after_id?: string; limit?: number }) {
-    if (!Types.ObjectId.isValid(dto.semester_id)) throw new BadRequestException('semester_id không hợp lệ.');
-    const semester: any = await this.semesterModel.findById(dto.semester_id).exec();
-    if (!semester) throw new NotFoundException('Không tìm thấy học kỳ.');
-    const active: any[] = await this.semesterModel.find({ status: 'active' }).exec();
-    if (active.length !== 1 || String(active[0]._id) !== String(semester._id)) throw new BadRequestException('Chỉ được đối chiếu học kỳ active duy nhất.');
+  async reconcile(dto: { after_id?: string; limit?: number }) {
     if (!this.rosterIdentityService) throw new ServiceUnavailableException('Chức năng đối chiếu định danh chưa sẵn sàng.');
-    return this.rosterIdentityService.reconcileSemester(dto.semester_id, dto.after_id, dto.limit || 100);
+    return this.rosterIdentityService.reconcileUnlinked(dto.after_id, dto.limit || 100);
+  }
+
+  private escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  async findLinkCandidates(query: { search?: string; page?: number; limit?: number } = {}) {
+    const page = Math.max(1, Math.floor(query.page || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(query.limit || 25)));
+    const search = String(query.search || '').trim().slice(0, 100);
+    const escaped = search ? this.escapeRegex(search) : '';
+    const baseMatch: any = { status: 'Studying', class_id: { $exists: true, $ne: null } };
+    const aggregate = (this.studentModel as any).aggregate;
+    if (typeof aggregate === 'function') {
+      const match = search ? { ...baseMatch, $or: [
+        { full_name: { $regex: escaped, $options: 'i' } },
+        { student_code: { $regex: escaped, $options: 'i' } },
+        { 'class.class_name': { $regex: escaped, $options: 'i' } },
+      ] } : baseMatch;
+      const [result] = await aggregate.call(this.studentModel, [
+        { $match: baseMatch },
+        { $lookup: { from: 'classes', localField: 'class_id', foreignField: '_id', as: 'class' } },
+        { $unwind: '$class' },
+        { $match: search ? { $or: match.$or } : {} },
+        { $sort: { full_name: 1, _id: 1 } },
+        { $facet: {
+          data: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            { $project: { _id: 1, student_code: 1, full_name: 1, status: 1, class_id: { _id: '$class._id', class_name: '$class.class_name' } } },
+          ],
+          meta: [{ $count: 'total' }],
+        } },
+      ]).exec();
+      const total = result?.meta?.[0]?.total || 0;
+      return { data: result?.data || [], meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    }
+
+    let studentQuery: any = (this.studentModel as any).find(baseMatch);
+    if (typeof studentQuery.select === 'function') studentQuery = studentQuery.select('_id student_code full_name status class_id');
+    if (typeof studentQuery.populate === 'function') studentQuery = studentQuery.populate({ path: 'class_id', select: '_id class_name' });
+    if (typeof studentQuery.sort === 'function') studentQuery = studentQuery.sort({ full_name: 1, _id: 1 });
+    const students: any[] = await studentQuery.exec();
+    const filtered = students.filter(student => {
+      if (!student?.class_id || (typeof student.class_id === 'object' && !student.class_id._id)) return false;
+      if (!search) return true;
+      const className = typeof student.class_id === 'object' ? student.class_id.class_name : '';
+      return [student.full_name, student.student_code, className].some(value => String(value || '').toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN')));
+    });
+    const data = filtered.slice((page - 1) * limit, page * limit).map(student => ({ _id: String(student._id), student_code: student.student_code, full_name: student.full_name, status: 'Studying', class_id: student.class_id }));
+    return { data, meta: { total: filtered.length, page, limit, totalPages: Math.ceil(filtered.length / limit) } };
   }
 
   async findOne(id: string) {
@@ -430,9 +487,10 @@ export class DormitoryRosterService {
   async update(id: string, dto: UpdateRosterEntryDto) {
     const entry: any = await this.rosterModel.findById(id).exec();
     if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    const linkingUnresolved = !entry.student_id && Boolean(dto.student_id);
     const merged: any = { ...this.plain(entry), ...dto, student_id: dto.student_id ?? entry.student_id };
     if (merged.student_id) {
-      const resolved = await this.authoritativeIdentity(String(merged.student_id));
+      const resolved = await this.authoritativeIdentity(String(merged.student_id), linkingUnresolved);
       merged.full_name = resolved.identity.full_name;
       merged.full_name_normalized = this.normalizeName(resolved.identity.full_name);
       merged.date_of_birth = resolved.identity.date_of_birth;
@@ -450,6 +508,13 @@ export class DormitoryRosterService {
     }
     const common = this.validateCommon(merged);
     await this.ensureNoDuplicate(merged.student_id, entry.semester_id, id);
+    if (linkingUnresolved && this.rosterIdentityService) {
+      const { _id, __v, createdAt, updatedAt, student_id: _studentId, ...linkFields } = { ...merged, ...common };
+      const linked = await this.rosterIdentityService.linkIfUnchanged(id, String(merged.student_id), linkFields);
+      if (!linked) throw new ConflictException('Mục Danh sách KTX đã được thay đổi hoặc liên kết bởi người khác.');
+      const updated: any = await this.rosterModel.findById(id).exec();
+      return this.toResponse(updated);
+    }
     Object.assign(entry, { ...merged, ...common });
     const saved = await entry.save();
     emitDormitoryOverviewInvalidated('roster');

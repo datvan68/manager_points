@@ -107,6 +107,32 @@ describe('DormitoryRosterService', () => {
     expect(rosterModel).toHaveBeenCalledWith(expect.objectContaining({ student_id: undefined, identity_state: 'CONFLICT' }));
   });
 
+  it('returns paginated link candidates with only current-class display data', async () => {
+    const rosterModel: any = { find: jest.fn(() => query([])) };
+    const studentModel: any = {
+      find: jest.fn(() => query([{ _id: '507f1f77bcf86cd799439012', student_code: 'SV001', full_name: 'Nguyễn Văn A', status: 'Studying', class_id: { _id: 'class-1', class_name: 'CNTT K20' } }])),
+    };
+    const service = new DormitoryRosterService(rosterModel, studentModel, {} as any, {} as any, {} as any);
+
+    await expect(service.findLinkCandidates({ search: 'CNTT', page: 1, limit: 20 })).resolves.toEqual({
+      data: [{ _id: '507f1f77bcf86cd799439012', student_code: 'SV001', full_name: 'Nguyễn Văn A', status: 'Studying', class_id: { _id: 'class-1', class_name: 'CNTT K20' } }],
+      meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+    });
+    expect(studentModel.find).toHaveBeenCalledWith(expect.objectContaining({ status: 'Studying', class_id: { $exists: true, $ne: null } }));
+  });
+
+  it('rejects a stale manual link instead of overwriting the roster entry', async () => {
+    const entry: any = { _id: 'entry-1', semester_id: 'semester-1', full_name: 'Nguyễn A', date_of_birth: new Date('2004-01-02'), gender: 'Male', phone_number: '0912345678', room_type: 'Thường', identity_state: 'UNLINKED' };
+    const rosterModel: any = { findById: jest.fn(() => query(entry)), findOne: jest.fn(() => query(null)) };
+    const studentModel: any = { findById: jest.fn(() => query(student)) };
+    const rosterIdentityService: any = { assertCurrentStudent: jest.fn().mockResolvedValue(student), linkIfUnchanged: jest.fn().mockResolvedValue(false) };
+    const service = new DormitoryRosterService(rosterModel, studentModel, {} as any, {} as any, {} as any, undefined, undefined, rosterIdentityService);
+
+    await expect(service.update('entry-1', { student_id: student._id } as any)).rejects.toBeInstanceOf(ConflictException);
+    expect(rosterIdentityService.linkIfUnchanged).toHaveBeenCalledWith('entry-1', student._id, expect.any(Object));
+    expect(entry.identity_state).toBe('UNLINKED');
+  });
+
   it('assigns a first available bed from the optional imported room code', async () => {
     const { service, roomAssignmentService } = setup();
 

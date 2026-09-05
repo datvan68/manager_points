@@ -130,6 +130,19 @@ export interface DormitoryRosterReconcileResponse {
   next_cursor?: string; has_more: boolean;
 }
 
+export interface DormitoryRosterLinkCandidate {
+  _id: string;
+  student_code: string;
+  full_name: string;
+  status: 'Studying';
+  class_id: { _id: string; class_name: string } | string;
+}
+
+export interface DormitoryRosterLinkCandidatesResponse {
+  data: DormitoryRosterLinkCandidate[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
 export interface PublicDormitorySemester {
   semester_name: string;
   semester: string;
@@ -795,8 +808,13 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/roster/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, ...(semester_id ? { semester_id } : {}) }) });
       return handleResponse(res);
     },
-    async reconcile(payload: { semester_id: string; after_id?: string; limit?: number }): Promise<DormitoryRosterReconcileResponse> {
+    async reconcile(payload: { after_id?: string; limit?: number } = {}): Promise<DormitoryRosterReconcileResponse> {
       const res = await httpClient(`${API_BASE}/dormitory/roster/reconcile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      return handleResponse(res);
+    },
+    async getLinkCandidates(params?: { search?: string; page?: number; limit?: number; signal?: AbortSignal }): Promise<DormitoryRosterLinkCandidatesResponse> {
+      const { signal, ...query } = params || {};
+      const res = await httpClient(`${API_BASE}/dormitory/roster/link-candidates${buildQuery(query)}`, { signal });
       return handleResponse(res);
     },
     async update(id: string, dto: UpdateDormitoryRosterEntryInput): Promise<DormitoryRosterEntry> {

@@ -8,6 +8,7 @@ import ConfirmModal from '@/components/modals/ConfirmModal';
 import { dormitoryApi, DormitoryRosterImportResponse, DormitoryRosterImportRowInput } from '@/api/dormitory-api';
 import { semesterApi } from '@/api/semester-api';
 import { runRosterBatches } from './roster-batch';
+import RosterOperationProgressDialog, { RosterOperationProgress } from './RosterOperationProgressDialog';
 
 export const DORMITORY_ROSTER_HEADERS = ['Họ và tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Mã phòng'] as const;
 const REQUIRED_DORMITORY_ROSTER_HEADERS = DORMITORY_ROSTER_HEADERS.slice(0, 4);
@@ -37,7 +38,7 @@ export function formatDormitoryRosterRowRanges(rows: number[]): string {
   return ranges.join(', ');
 }
 
-export function groupDormitoryRosterImportResults(results: DormitoryRosterImportResponse['results']) {
+export function groupDormitoryRosterImportResults(results: ReadonlyArray<DormitoryRosterImportResponse['results'][number]>) {
   const groups = new Map<string, { status: DormitoryRosterImportResponse['results'][number]['status']; reason?: string; rows: number[] }>();
   for (const item of results) {
     const key = `${item.status}\u0000${item.reason || ''}`;
@@ -136,9 +137,10 @@ interface DormitoryRosterImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  onOperationStateChange?: (pending: boolean) => void;
 }
 
-export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess }: DormitoryRosterImportModalProps) {
+export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess, onOperationStateChange }: DormitoryRosterImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [file, setFile] = useState<File | null>(null);
@@ -149,7 +151,8 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [importConfirmationOpen, setImportConfirmationOpen] = useState(false);
   const [skippedRows, setSkippedRows] = useState(0);
-  const [progress, setProgress] = useState<{ processed: number; total: number; status: string } | null>(null);
+  const [operationProgress, setOperationProgress] = useState<RosterOperationProgress | null>(null);
+  const [operationPending, setOperationPending] = useState(false);
   const [semesterWarning, setSemesterWarning] = useState('');
   const errorGroups = Object.values(errors.reduce<Record<number, DormitoryRosterImportValidationError[]>>((groups, error) => {
     (groups[error.row] ||= []).push(error);
@@ -159,7 +162,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
 
   const reset = () => {
     dragDepth.current = 0;
-    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false); setIsDraggingFile(false); setImportConfirmationOpen(false); setSkippedRows(0); setProgress(null); setSemesterWarning('');
+    setFile(null); setPreviewRows([]); setErrors([]); setResult(null); setBusy(false); setIsDraggingFile(false); setImportConfirmationOpen(false); setSkippedRows(0); setOperationProgress(null); setOperationPending(false); setSemesterWarning('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
   const close = () => { if (busy) return; reset(); onClose(); };
@@ -222,32 +225,50 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
 
   const importRows = async () => {
     if (!previewRows.length) return;
+    const snapshot = Object.freeze(previewRows.slice());
     setBusy(true);
+    setImportConfirmationOpen(false);
+    setOperationProgress({ phase: 'preparing', processed: 0, total: snapshot.length, counters: { created: 0, duplicated: 0, failed: 0, linked: 0, unlinked: 0, conflicts: 0 }, unconfirmed: 0, unsent: 0 });
+    setOperationPending(true);
+    onOperationStateChange?.(true);
+    onClose();
     try {
       const semesters = await semesterApi.getSemesters();
       const active = semesters.filter(item => item.status === 'active');
-      if (active.length !== 1) { setSemesterWarning(active.length ? 'Có nhiều học kỳ active; hãy cấu hình chỉ một học kỳ trước khi import.' : 'Chưa có học kỳ active.'); return; }
+      if (active.length !== 1) {
+        setOperationProgress(current => current ? { ...current, phase: 'interrupted', unsent: snapshot.length, message: active.length ? 'Có nhiều học kỳ active; import đã dừng trước khi gửi batch.' : 'Chưa có học kỳ active; import đã dừng trước khi gửi batch.' } : current);
+        return;
+      }
       const pinnedSemesterId = active[0]._id;
-      const snapshot = previewRows.slice();
-      const batchRun = await runRosterBatches(snapshot, 50, async batch => {
+      setOperationProgress(current => current ? { ...current, phase: 'processing' } : current);
+      const batchRun = await runRosterBatches<ParsedDormitoryRosterRow, DormitoryRosterImportResponse>(snapshot, 50, async batch => {
         const response = await dormitoryApi.roster.importRows(batch.map(({ rowNumber: _rowNumber, ...row }) => row), pinnedSemesterId);
         return { ...response, results: response.results.map(item => ({ ...item, row: batch[item.row - 2]?.rowNumber || item.row })) };
-      }, state => setProgress({ processed: state.processed, total: state.total, status: state.status }));
-      if (batchRun.status !== 'completed') { toast.error('Import bị gián đoạn; các dòng chưa xác nhận vẫn được giữ lại để xem xét.'); return; }
+      }, state => {
+        const parts = state.acknowledged;
+        const totals = parts.reduce((total, part) => ({ created: total.created + part.created, duplicated: total.duplicated + part.duplicated, failed: total.failed + part.failed, linked: total.linked + (part.linked || 0), unlinked: total.unlinked + (part.unlinked || 0), conflicts: total.conflicts + (part.conflicts || 0) }), { created: 0, duplicated: 0, failed: 0, linked: 0, unlinked: 0, conflicts: 0 });
+        setOperationProgress({ phase: state.status === 'interrupted' ? 'interrupted' : state.status === 'partial' ? 'partial' : state.status === 'completed' ? 'completed' : 'processing', processed: state.processed, total: state.total, counters: totals, unconfirmed: state.unconfirmed.length, unsent: state.unsent.length });
+      }, response => response.failed > 0);
+      if (batchRun.status === 'interrupted') toast.error('Import bị gián đoạn; các dòng chưa xác nhận vẫn được giữ lại để xem xét.');
       const response = batchRun.acknowledged.reduce((total, part) => ({ requested: total.requested + part.requested, created: total.created + part.created, duplicated: total.duplicated + part.duplicated, failed: total.failed + part.failed, linked: (total.linked || 0) + (part.linked || 0), unlinked: (total.unlinked || 0) + (part.unlinked || 0), conflicts: (total.conflicts || 0) + (part.conflicts || 0), results: [...total.results, ...part.results] }), { requested: 0, created: 0, duplicated: 0, failed: 0, results: [] } as DormitoryRosterImportResponse);
-      setResult(response); setFile(null); setPreviewRows([]); setErrors([]);
+      if (batchRun.status !== 'interrupted') setResult(response);
+      setFile(null); setPreviewRows([]); setErrors([]);
       if (response.created > 0) { onSuccess?.(); toast.success(`Đã nhập ${response.created} dòng vào Danh sách KTX.`); }
       if (response.duplicated > 0) toast.warning(`Đã bỏ qua ${response.duplicated} dòng trùng trong Danh sách KTX.`);
       if (response.failed > 0) toast.error(`${response.failed} dòng không thể import. Xem chi tiết bên dưới.`);
       if (!response.created && !response.duplicated && !response.failed) toast.warning('Không có dòng mới được tạo.');
-    } catch (error: any) { toast.error(error?.message || 'Không thể nhập Danh sách KTX.'); }
-    finally { setBusy(false); }
+    } catch (error: any) {
+      setOperationProgress(current => current ? { ...current, phase: 'interrupted', unconfirmed: 0, unsent: snapshot.length, message: error?.message || 'Không thể nhập Danh sách KTX.' } : current);
+      toast.error(error?.message || 'Không thể nhập Danh sách KTX.');
+    } finally { setBusy(false); setOperationPending(false); onOperationStateChange?.(false); }
   };
 
-  return <Popup isOpen={isOpen} onClose={close} title="Nhập Danh sách KTX từ Excel" className="max-w-3xl" contentClassName="flex min-h-0 flex-1 flex-col p-0">
+  const closeOperation = (open: boolean) => { if (!operationPending && !open) { reset(); onClose(); } };
+
+  return <>
+  <Popup isOpen={isOpen && !operationProgress} onClose={close} title="Nhập Danh sách KTX từ Excel" className="max-w-3xl" contentClassName="flex min-h-0 flex-1 flex-col p-0">
     <div className="min-h-0 flex-1 overflow-y-auto p-6">
       {semesterWarning && <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">{semesterWarning}</p>}
-      {progress && <section aria-live="polite" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="flex justify-between text-xs font-semibold text-blue-900"><span>{progress.status === 'completed' ? 'Import hoàn tất' : progress.status === 'interrupted' ? 'Import bị gián đoạn' : 'Đang xử lý import'}</span><span>{progress.processed}/{progress.total} · {progress.total ? Math.floor(progress.processed / progress.total * 100) : 0}%</span></div><div role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed} className="mt-2 h-2 rounded-full bg-blue-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${progress.total ? progress.processed / progress.total * 100 : 0}%` }} /></div></section>}
       <div className="space-y-5">
       <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800"><FileSpreadsheet size={18} className="mt-0.5 shrink-0" /><span>Bốn cột bắt buộc: Họ và tên, Ngày sinh, Giới tính, Số điện thoại. Có thể thêm Mã phòng để tự xếp vào giường trống đầu tiên của phòng đó.</span></div>
       {!result && <>
@@ -262,5 +283,7 @@ export default function DormitoryRosterImportModal({ isOpen, onClose, onSuccess 
     {!result && <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 bg-white/90 px-6 py-4 backdrop-blur"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600">Hủy</button><button type="button" onClick={previewRows.length ? () => { setSkippedRows(errorGroups.length); setImportConfirmationOpen(true); } : previewFile} disabled={!file || busy} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy && <Loader2 size={14} className="animate-spin" />}{previewRows.length ? `Import ${previewRows.length} dòng hợp lệ` : 'Kiểm tra tệp'}</button></div>}
     {result && <div className="flex shrink-0 justify-end border-t border-slate-200 bg-white/90 px-6 py-4 backdrop-blur"><button type="button" onClick={close} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white">Đóng</button></div>}
     <ConfirmModal isOpen={importConfirmationOpen} onClose={() => setImportConfirmationOpen(false)} onConfirm={importRows} title="Xác nhận import Danh sách KTX" message={<><p>Sẽ import {previewRows.length} dòng hợp lệ.</p>{skippedRows > 0 && <p className="mt-1">{skippedRows} dòng lỗi sẽ được bỏ qua.</p>}<p className="mt-1">Các dòng trùng sẽ không được tạo và sẽ được thông báo sau khi import.</p></>} confirmLabel="Import dữ liệu" cancelLabel="Quay lại" variant="info" />
-  </Popup>;
+  </Popup>
+  {operationProgress && <RosterOperationProgressDialog open operation="import" progress={operationProgress} pending={operationPending} onOpenChange={closeOperation} />}
+  </>;
 }

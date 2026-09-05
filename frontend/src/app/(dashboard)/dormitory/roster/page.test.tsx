@@ -81,7 +81,7 @@ describe('Danh sách KTX canonical page capabilities', () => {
     fireEvent.click(rowCheckboxes[0]);
     fireEvent.click(rowCheckboxes[1]);
     fireEvent.click(screen.getByRole('button', { name: 'Xóa đơn đã chọn' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Xóa mục' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xóa mục' }));
 
     await waitFor(() => expect(bulkDelete).toHaveBeenCalledWith(['entry-1', 'entry-2']));
     expect(document.querySelectorAll('tbody input[type="checkbox"]')[1]).toBeChecked();

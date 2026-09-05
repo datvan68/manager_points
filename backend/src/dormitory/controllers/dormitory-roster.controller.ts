@@ -13,6 +13,7 @@ import { BulkDeleteRosterDto } from '../dto/bulk-delete-roster.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ReconcileRosterDto } from '../dto/reconcile-roster.dto';
+import { QueryRosterLinkCandidatesDto } from '../dto/query-roster-link-candidates.dto';
 
 @ApiTags('Dormitory - Roster')
 @ApiBearerAuth()
@@ -40,6 +41,10 @@ export class DormitoryRosterController {
   @Post('reconcile')
   @UseGuards(checkPermission('DORM_REG_UPDATE'))
   reconcile(@Body() dto: ReconcileRosterDto) { return this.rosterService.reconcile(dto); }
+
+  @Get('link-candidates')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  linkCandidates(@Query() query: QueryRosterLinkCandidatesDto) { return this.rosterService.findLinkCandidates(query); }
 
   @Get('student/:studentId')
   @UseGuards(JwtAuthGuard)

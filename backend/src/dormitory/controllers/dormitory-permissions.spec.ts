@@ -31,6 +31,7 @@ describe('Dormitory permission boundaries', () => {
     [DormitoryRosterController, 'findAll'],
     [DormitoryRosterController, 'findOne'],
     [DormitoryRosterController, 'suggestRooms'],
+    [DormitoryRosterController, 'linkCandidates'],
     [MaintenanceController, 'findAll'],
     [MaintenanceController, 'findOne'],
     [ViolationsController, 'findAll'],

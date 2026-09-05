@@ -272,6 +272,23 @@ describe('dormitoryApi.roster import', () => {
   });
 });
 
+describe('dormitoryApi.roster reconciliation and link candidates', () => {
+  it('posts cursor reconciliation without a semester selector', async () => {
+    const response = { scanned: 2, linked: 1, unlinked: 0, conflicts: 1, failed: 0, results: [], next_cursor: 'cursor-2', has_more: true };
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => response } as any);
+    await expect(dormitoryApi.roster.reconcile({ after_id: 'cursor-1', limit: 2 })).resolves.toEqual(response);
+    expect(httpClient).toHaveBeenCalledWith(expect.stringContaining('/dormitory/roster/reconcile'), expect.objectContaining({ body: JSON.stringify({ after_id: 'cursor-1', limit: 2 }) }));
+    expect((httpClient as any).mock.calls.at(-1)[1].body).not.toContain('semester_id');
+  });
+
+  it('queries the protected paginated current-student candidate endpoint', async () => {
+    const response = { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } };
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => response } as any);
+    await expect(dormitoryApi.roster.getLinkCandidates({ search: 'CNTT', page: 1, limit: 20 })).resolves.toEqual(response);
+    expect(httpClient).toHaveBeenCalledWith(expect.stringMatching(/\/dormitory\/roster\/link-candidates\?search=CNTT&page=1&limit=20/), expect.objectContaining({ signal: undefined }));
+  });
+});
+
 describe('dormitoryApi.roster bulk delete', () => {
   it('posts selected roster IDs to the protected bulk-delete endpoint', async () => {
     const ids = ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'];

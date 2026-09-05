@@ -25,4 +25,13 @@ describe('runRosterBatches', () => {
     expect(result.unsent).toEqual([]);
     expect(send).toHaveBeenCalledTimes(2);
   });
+
+  it('marks an acknowledged partial response without treating it as a transport failure', async () => {
+    const progress: string[] = [];
+    const result = await runRosterBatches([1, 2, 3], 2, async batch => ({ blocked: batch.length === 2 ? [2] : [] }), state => progress.push(state.status), response => response.blocked.length > 0);
+    expect(result.status).toBe('partial');
+    expect(result.processed).toBe(3);
+    expect(result.unconfirmed).toEqual([]);
+    expect(progress.at(-1)).toBe('partial');
+  });
 });
