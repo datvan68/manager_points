@@ -30,6 +30,30 @@ describe('DormitoryRosterService', () => {
     return { service: new DormitoryRosterService(rosterModel, studentModel, semesterModel, contractModel, invoiceModel, undefined, roomAssignmentService), saved, rosterModel, studentModel, roomAssignmentService };
   }
 
+  it('validates room filters and returns empty metadata for a valid empty room', async () => {
+    const { service, rosterModel } = setup();
+    const roomModel: any = { findById: jest.fn(() => ({ select: jest.fn(() => ({ lean: jest.fn(() => query({ _id: '507f1f77bcf86cd799439011' })) })) })) };
+    (service as any).roomModel = roomModel;
+    rosterModel.find.mockReturnValue(query([]));
+    await expect(service.findAll({ room_id: '507f1f77bcf86cd799439011', page: 1, limit: 20 })).resolves.toMatchObject({ data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } });
+    expect(rosterModel.find).toHaveBeenCalledWith(expect.objectContaining({ room_id: expect.anything() }));
+    await expect(service.findAll({ room_id: 'bad-id' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('replaces a room leader and is idempotent when removing it', async () => {
+    const entry = { _id: 'entry-2', room_id: 'room-1', bed_id: 'bed-2', is_room_leader: false };
+    const rosterModel: any = {
+      findById: jest.fn(() => query(entry)),
+      updateMany: jest.fn(() => query({ modifiedCount: 1 })),
+      findOneAndUpdate: jest.fn(() => query({ ...entry, is_room_leader: true })),
+    };
+    const service = new DormitoryRosterService(rosterModel, {} as any, {} as any, {} as any, {} as any);
+    await expect(service.setRoomLeader({ roster_entry_id: 'entry-2', is_room_leader: true } as any)).resolves.toMatchObject({ is_room_leader: true });
+    expect(rosterModel.updateMany).toHaveBeenCalledWith({ room_id: 'room-1', is_room_leader: true, _id: { $ne: 'entry-2' } }, { $set: { is_room_leader: false } });
+    rosterModel.findOneAndUpdate.mockReturnValue(query({ ...entry, is_room_leader: false }));
+    await expect(service.setRoomLeader({ roster_entry_id: 'entry-2', is_room_leader: false } as any)).resolves.toMatchObject({ is_room_leader: false });
+  });
+
   it('links by stable student_id and ignores client identity values', async () => {
     const { service, saved } = setup();
     const result = await service.create({ student_id: '507f1f77bcf86cd799439012', full_name: 'Giả mạo', date_of_birth: '2000-01-01', gender: 'Female', phone_number: '0912345678', room_type: 'Thường' } as any);

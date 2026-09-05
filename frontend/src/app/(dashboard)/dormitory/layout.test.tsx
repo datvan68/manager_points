@@ -44,7 +44,7 @@ describe('DormitoryLayout', () => {
   });
 
   it('selects the registrations tab for nested registration routes and navigates by tab id', () => {
-    mockHasPermission = vi.fn((perm: string) => ['DORM_REG_READ', 'DORM_BUILDING_READ', 'DORM_INVOICE_READ'].includes(perm));
+    mockHasPermission = vi.fn((perm: string) => ['DORM_REG_READ', 'DORM_BUILDING_READ', 'DORM_ROOM_READ', 'DORM_INVOICE_READ'].includes(perm));
     render(<DormitoryLayout><div>content</div></DormitoryLayout>);
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-active', 'registrations');
     expect(screen.getByTestId('tabs')).toHaveAttribute('data-responsive-scrollable', 'true');
@@ -144,5 +144,11 @@ describe('DormitoryLayout', () => {
     expect(screen.getByRole('button', { name: 'Danh sách' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Phòng' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hóa đơn' })).not.toBeInTheDocument();
+  });
+
+  it('requires room read permission for the combined Phòng tab', () => {
+    mockHasPermission = vi.fn((permission: string) => permission === 'DORM_BUILDING_READ');
+    render(<DormitoryLayout><div>content</div></DormitoryLayout>);
+    expect(screen.queryByRole('button', { name: 'Phòng' })).not.toBeInTheDocument();
   });
 });

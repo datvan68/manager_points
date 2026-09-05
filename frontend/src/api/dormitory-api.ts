@@ -55,6 +55,7 @@ export interface DormitoryRosterEntry {
   student_code?: string;
   room_id?: Room | string | null;
   bed_id?: Bed | string | null;
+  is_room_leader?: boolean;
   semester: string;
   academic_year: string;
   semester_id?: string;
@@ -71,6 +72,12 @@ export interface DormitoryRosterEntry {
   active_contract?: DormContract | null;
   editable_fields?: string[];
   full_name_normalized?: string;
+}
+
+export interface DormitoryRosterRoomOption {
+  _id: string;
+  room_code: string;
+  room_name?: string;
 }
 
 export interface ParentApplicantProfile {
@@ -800,6 +807,10 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/roster${buildQuery(params)}`);
       return handleResponse(res);
     },
+    async getRoomOptions(): Promise<DormitoryRosterRoomOption[]> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/room-options`);
+      return handleResponse(res);
+    },
     async getOne(id: string): Promise<DormitoryRosterEntry> {
       const res = await httpClient(`${API_BASE}/dormitory/roster/${id}`);
       return handleResponse(res);
@@ -843,6 +854,10 @@ export const dormitoryApi = {
     },
     async unassignRoom(roster_entry_id: string): Promise<{ roster_entry?: DormitoryRosterEntry; room?: Room | null; bed?: Bed; message?: string }> {
       const res = await httpClient(`${API_BASE}/dormitory/roster/unassign-room`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roster_entry_id }) });
+      return handleResponse(res);
+    },
+    async setRoomLeader(roster_entry_id: string, is_room_leader: boolean): Promise<DormitoryRosterEntry> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/room-leader`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roster_entry_id, is_room_leader }) });
       return handleResponse(res);
     },
     async suggestRooms(id: string): Promise<Room[]> {

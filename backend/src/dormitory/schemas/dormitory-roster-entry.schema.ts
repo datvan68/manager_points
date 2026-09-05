@@ -62,6 +62,9 @@ export class DormitoryRosterEntry {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Bed', index: true })
   bed_id?: Types.ObjectId;
 
+  @Prop({ type: Boolean, default: false })
+  is_room_leader?: boolean;
+
   @Prop({ required: true, type: String, enum: ROSTER_IDENTITY_STATES, index: true })
   identity_state: DormitoryRosterIdentityState;
 }
@@ -78,3 +81,11 @@ DormitoryRosterEntrySchema.index(
 );
 DormitoryRosterEntrySchema.index({ full_name_normalized: 1, date_of_birth: 1 }, { name: 'roster_identity_lookup' });
 DormitoryRosterEntrySchema.index({ student_code_normalized: 1 }, { name: 'roster_student_code_lookup', sparse: true });
+DormitoryRosterEntrySchema.index(
+  { room_id: 1, is_room_leader: 1 },
+  {
+    unique: true,
+    name: 'roster_room_leader_unique',
+    partialFilterExpression: { room_id: { $exists: true, $ne: null }, is_room_leader: true },
+  },
+);

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Calendar, DoorOpen, Link2, Loader2, Pencil, Plus, QrCode, RefreshCw, Search as SearchIcon, Trash2, Upload, X } from 'lucide-react';
 import QRCodeLib from 'qrcode';
-import { ApplicantProfile, Bed, CreateDormitoryRosterEntryInput, dormitoryApi, DormitoryRosterEntry, Room } from '@/api/dormitory-api';
+import { ApplicantProfile, Bed, CreateDormitoryRosterEntryInput, dormitoryApi, DormitoryRosterEntry, DormitoryRosterRoomOption, Room } from '@/api/dormitory-api';
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
@@ -263,11 +263,12 @@ export default function DormitoryRosterPage() {
   const canView = hasPermission('DORM_REG_READ');
   const canUpdate = hasPermission('DORM_REG_UPDATE');
   const canDelete = hasPermission('DORM_REG_DELETE');
-  const canAssignRoom = hasPermission('DORM_REG_UPDATE');
+  const canAssignRoom = hasPermission('DORM_REG_UPDATE') && hasPermission('DORM_ROOM_READ');
   const [registrations, setRegistrations] = useState<DormitoryRosterEntry[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(40);
   const [selected, setSelected] = useState<string[]>([]);
+  const [roomFilter, setRoomFilter] = useState(''); const [roomOptions, setRoomOptions] = useState<DormitoryRosterRoomOption[]>([]);
   const [meta, setMeta] = useState<{ total: number; totalPages: number } | null>(null); const [refreshing, setRefreshing] = useState(false); const [mobileSearchOpen, setMobileSearchOpen] = useState(false); const [isCompact, setIsCompact] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null); const mobileScrollRef = useRef<HTMLDivElement>(null); const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const rosterRequestRef = useRef(0); const studentRequestRef = useRef(0);
@@ -282,8 +283,15 @@ export default function DormitoryRosterPage() {
   const [operation, setOperation] = useState<'delete' | 'reconcile' | null>(null); const [operationProgress, setOperationProgress] = useState<RosterOperationProgress | null>(null); const [operationPending, setOperationPending] = useState(false);
   const [linkRow, setLinkRow] = useState<DormitoryRosterEntry | null>(null); const linkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [pdfRows, setPdfRows] = useState<DormitoryRosterEntry[]>([]); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
+  const [leaderRow, setLeaderRow] = useState<DormitoryRosterEntry | null>(null); const [leaderSaving, setLeaderSaving] = useState(false);
 
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
+  useEffect(() => {
+    if (!canView) return;
+    let cancelled = false;
+    void dormitoryApi.roster.getRoomOptions().then(options => { if (!cancelled) setRoomOptions(options); }).catch(() => { if (!cancelled) setRoomOptions([]); });
+    return () => { cancelled = true; };
+  }, [canView]);
   const loadPdfPreview = async (targets: DormitoryRosterEntry[]) => {
     if (pdfLoading || !targets.length) return;
     if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
@@ -368,13 +376,13 @@ export default function DormitoryRosterPage() {
     const payload: CreateDormitoryRosterEntryInput = { student_id: student._id, phone_number: createForm.phone_number.trim(), room_type: createForm.room_type, notes: createForm.notes || undefined };
     try { setCreateSaving(true); await dormitoryApi.roster.create(payload); toast.success('Đã thêm vào Danh sách KTX'); setCreateOpen(false); resetCreate(); reset(); await load(true, 1); } catch (err: any) { setCreateError(err?.message || 'Không thể thêm vào Danh sách KTX.'); } finally { setCreateSaving(false); }
   };
-  const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false); queryGenerationRef.current += 1; };
+  const reset = () => { setPage(1); setSelected([]); mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false); queryGenerationRef.current += 1; rosterRequestRef.current += 1; };
   const load = useCallback(async (background = false, requestedPage = page) => {
     const requestId = ++rosterRequestRef.current;
     const requested = isCompact ? 1 : requestedPage;
     try {
       background ? setRefreshing(true) : setLoading(true); setError('');
-      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: requested, limit: pageSize });
+      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, room_id: roomFilter || undefined, page: requested, limit: pageSize });
       if (rosterRequestRef.current !== requestId) return;
       setRegistrations(res.data); setMeta(res.meta); mobilePageRef.current = requested;
       const hasMore = isCompact && requested < res.meta.totalPages;
@@ -382,12 +390,12 @@ export default function DormitoryRosterPage() {
     } catch (err: any) {
       if (rosterRequestRef.current === requestId) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); }
     } finally { if (rosterRequestRef.current === requestId) { setLoading(false); setRefreshing(false); } }
-  }, [isCompact, page, pageSize, search]);
+  }, [isCompact, page, pageSize, search, roomFilter]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => {
     queryGenerationRef.current += 1; mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false);
     if (isCompact) { setPage(1); setSelected([]); }
-  }, [isCompact, pageSize, search]);
+  }, [isCompact, pageSize, search, roomFilter]);
   const loadMoreMobile = useCallback(async () => {
     if (!isCompact || loading || mobileLoadingMore || !mobileHasMoreRef.current) return;
     setMobileLoadingMore(true);
@@ -395,7 +403,7 @@ export default function DormitoryRosterPage() {
     const generation = queryGenerationRef.current;
     const requestId = ++rosterRequestRef.current;
     try {
-      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, page: nextPage, limit: pageSize });
+      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, room_id: roomFilter || undefined, page: nextPage, limit: pageSize });
       const next = res.data || [];
       if (rosterRequestRef.current !== requestId || queryGenerationRef.current !== generation) return;
       setRegistrations(current => [...current, ...next.filter(item => !current.some(row => row._id === item._id))]);
@@ -403,7 +411,7 @@ export default function DormitoryRosterPage() {
       const hasMore = nextPage < res.meta.totalPages;
       mobileHasMoreRef.current = hasMore; setMobileHasMore(hasMore); setMobileLoadError(false);
     } catch { if (queryGenerationRef.current === generation) { setMobileLoadError(true); setError('Không thể tải thêm đăng ký.'); } } finally { setMobileLoadingMore(false); }
-  }, [isCompact, loading, search, pageSize, mobileLoadingMore]);
+  }, [isCompact, loading, search, pageSize, mobileLoadingMore, roomFilter]);
   useEffect(() => {
     const target = mobileSentinelRef.current;
     if (!target || !isCompact) return;
@@ -496,12 +504,20 @@ export default function DormitoryRosterPage() {
     linkTriggerRef.current = event.currentTarget;
     setLinkRow(row);
   };
+  const saveLeader = async () => {
+    if (!leaderRow) return;
+    const target = leaderRow;
+    setLeaderSaving(true);
+    try { await dormitoryApi.roster.setRoomLeader(target._id, !target.is_room_leader); setLeaderRow(null); await load(true); toast.success(target.is_room_leader ? 'Đã gỡ trưởng phòng' : 'Đã cập nhật trưởng phòng'); }
+    catch (err: any) { toast.error(err?.message || 'Không thể cập nhật trưởng phòng.'); }
+    finally { setLeaderSaving(false); }
+  };
   const closeOperation = (open: boolean) => { if (!operationPending && !open) { setOperationProgress(null); setOperation(null); } };
   const columns: ResponsiveColumn<DormitoryRosterEntry>[] = [
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
-    { key: 'room', header: 'Phòng', render: (_, r) => <span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span> }, { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
+    { key: 'room', header: 'Phòng', render: (_, r) => <div className="flex flex-wrap items-center gap-1.5"><span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span>{r.is_room_leader && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800" aria-label="Trưởng phòng">Trưởng phòng</span>}</div> }, { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && !operationPending && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && r.identity_state !== 'LINKED' && <button type="button" aria-label={`Liên kết sinh viên cho ${studentName(r)}`} title="Liên kết sinh viên" disabled={bulkDeleting || reconciling || importing || operationPending} onClick={event => openStudentLink(r, event)} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"><Link2 size={16} /></button>}{canUpdate && <button type="button" aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" disabled={importing || operationPending} onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50"><Pencil size={16} /></button>}{canDelete && <button type="button" aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" disabled={importing || operationPending} onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && !operationPending && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && r.bed_id && r.room_id && <button type="button" aria-label={`${r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} cho ${studentName(r)}`} title={r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} disabled={leaderSaving || operationPending} onClick={() => setLeaderRow(r)} className="rounded-xl p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50">{r.is_room_leader ? '★' : '☆'}</button>}{canUpdate && r.identity_state !== 'LINKED' && <button type="button" aria-label={`Liên kết sinh viên cho ${studentName(r)}`} title="Liên kết sinh viên" disabled={bulkDeleting || reconciling || importing || operationPending} onClick={event => openStudentLink(r, event)} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"><Link2 size={16} /></button>}{canUpdate && <button type="button" aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" disabled={importing || operationPending} onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50"><Pencil size={16} /></button>}{canDelete && <button type="button" aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" disabled={importing || operationPending} onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden sm:p-6">
     {mobileSearchOpen ? (
@@ -513,6 +529,7 @@ export default function DormitoryRosterPage() {
     <div className={`flex shrink-0 items-center justify-start gap-1 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap ${mobileSearchOpen ? 'hidden lg:flex' : ''}`}>
       <Research aria-label="Tìm kiếm đăng ký" placeholder="Tìm kiếm..." value={search} onChange={e => { setSearch(e.target.value); reset(); }} containerClassName="hidden lg:flex shrink-0 w-[231px]" />
       {!mobileSearchOpen && <Button type="button" variant="outline" aria-label="Mở tìm kiếm" title="Tìm kiếm" onClick={() => setMobileSearchOpen(true)} className="flex lg:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><SearchIcon size={15} /></Button>}
+      {canView && <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-700"><span className="sr-only">Lọc theo phòng</span><select aria-label="Lọc theo phòng" value={roomFilter} onChange={event => { setRoomFilter(event.target.value); reset(); }} className="h-9 max-w-[190px] rounded-xl border border-white/80 bg-white/60 px-2 text-xs text-slate-700 outline-none"><option value="">Tất cả phòng</option>{roomOptions.map(room => <option key={room._id} value={room._id}>{room.room_name || room.room_code}</option>)}</select></label>}
       <div className="ml-auto flex items-center gap-2 shrink-0 flex-nowrap">
         {canView && <Button type="button" variant="outline" aria-label="Mở QR đăng ký KTX" title="QR đăng ký KTX" onClick={() => setQrOpen(true)} className="h-9 w-9 shrink-0 rounded-xl border border-white/80 bg-white/50 p-0 text-slate-700"><QrCode size={15} /></Button>}
         {shouldShowRosterImport(canCreate) && <Button type="button" variant="outline" aria-label="Nhập danh sách KTX từ Excel" disabled={importing || operationPending} onClick={() => setImportOpen(true)} className="h-9 shrink-0 rounded-xl border border-white/80 bg-white/50 px-3 text-xs text-slate-700 hover:bg-white/80"><Upload size={14} /> <span className="hidden sm:inline">Nhập Excel</span></Button>}
@@ -538,6 +555,7 @@ export default function DormitoryRosterPage() {
     <DormitoryRosterImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onSuccess={() => void load(true)} onOperationStateChange={setImporting} />
     <RosterOperationProgressDialog open={Boolean(operationProgress)} operation={operation || 'delete'} progress={operationProgress || { phase: 'preparing', processed: 0, total: 0, counters: {} }} pending={operationPending} onOpenChange={closeOperation} />
     <RosterStudentLinkModal open={Boolean(linkRow)} registration={linkRow} onOpenChange={open => { if (!open) setLinkRow(null); }} onSuccess={() => load(true)} restoreFocus={() => linkTriggerRef.current?.focus()} />
+    <ConfirmModal isOpen={Boolean(leaderRow)} onClose={() => !leaderSaving && setLeaderRow(null)} onConfirm={saveLeader} title={leaderRow?.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} message={leaderRow ? `Xác nhận ${leaderRow.is_room_leader ? 'gỡ vai trò trưởng phòng của' : 'chọn'} ${studentName(leaderRow)}? Trưởng phòng hiện tại của phòng sẽ được thay thế nếu có.` : null} confirmLabel="Xác nhận" cancelLabel="Hủy" variant="warning" disabled={leaderSaving} />
     <ConfirmModal
       isOpen={bulkDeleteOpen}
       onClose={() => !bulkDeleting && setBulkDeleteOpen(false)}

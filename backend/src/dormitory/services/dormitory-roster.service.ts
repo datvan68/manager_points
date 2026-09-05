@@ -18,10 +18,12 @@ import { ApplicantProfile } from '../schemas/applicant-profile.schema';
 import { Student, StudentDocument } from '../../students/schemas/student.schema';
 import { Semester, SemesterDocument } from '../../semesters/schemas/semester.schema';
 import { Contract, ContractDocument } from '../schemas/contract.schema';
+import { Room, RoomDocument } from '../schemas/room.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { CreateRosterEntryDto } from '../dto/create-roster-entry.dto';
 import { ImportRosterDto, ImportRosterRowDto } from '../dto/import-roster.dto';
 import { UpdateRosterEntryDto } from '../dto/update-roster-entry.dto';
+import { SetRoomLeaderDto } from '../dto/set-room-leader.dto';
 import { DORMITORY_ENUMS } from '../dormitory-enums';
 import { ApplicantProfileDto } from '../dto/applicant-profile.dto';
 import { PdfTemplateService as SharedPdfTemplateService } from '../../pdf-template/pdf-template.service';
@@ -47,6 +49,7 @@ export class DormitoryRosterService {
     @Optional() private readonly sharedPdfTemplateService?: SharedPdfTemplateService,
     @Optional() private readonly roomAssignmentService?: RoomAssignmentService,
     @Optional() private readonly rosterIdentityService?: DormitoryRosterIdentityService,
+    @Optional() @InjectModel(Room.name) private readonly roomModel?: Model<RoomDocument>,
   ) {}
 
   private id(value: unknown) {
@@ -191,6 +194,7 @@ export class DormitoryRosterService {
       gender: student?.sex || plain.gender,
       student_code: student?.student_code || plain.student_code || null,
       identity_state: plain.identity_state,
+      is_room_leader: Boolean(plain.is_room_leader),
     };
   }
 
@@ -388,10 +392,18 @@ export class DormitoryRosterService {
     return this.toResponse(saved);
   }
 
-  async findAll(query: { semester?: string; academic_year?: string; search?: string; page?: number; limit?: number }) {
+  async findAll(query: { semester?: string; academic_year?: string; search?: string; room_id?: string; page?: number; limit?: number }) {
     const filter: any = {};
     if (query.semester) filter.semester = query.semester;
     if (query.academic_year) filter.academic_year = query.academic_year;
+    if (query.room_id) {
+      if (!Types.ObjectId.isValid(query.room_id)) throw new BadRequestException('room_id không hợp lệ.');
+      if (this.roomModel) {
+        const room = await this.roomModel.findById(query.room_id).select('_id').lean().exec();
+        if (!room) throw new BadRequestException('room_id không tồn tại.');
+      }
+      filter.room_id = new Types.ObjectId(query.room_id);
+    }
     const search = query.search?.trim();
     if (search) {
       filter.$or = ['roster_entry_code', 'full_name', 'student_code', 'phone_number'].map((field) => ({ [field]: { $regex: search, $options: 'i' } }));
@@ -410,6 +422,41 @@ export class DormitoryRosterService {
       return this.toResponse({ ...row, active_contract_id: contract?._id || null, room_id: contract?.room_id || row.room_id, bed_id: contract?.bed_id || row.bed_id });
     });
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async findRoomOptions() {
+    if (!this.roomModel) return [];
+    return this.roomModel.find({}).select('_id room_code room_name').sort({ room_code: 1, _id: 1 }).limit(500).lean().exec();
+  }
+
+  async setRoomLeader(dto: SetRoomLeaderDto) {
+    const entry: any = await this.rosterModel.findById(dto.roster_entry_id).exec();
+    if (!entry) throw new NotFoundException('Không tìm thấy mục Danh sách KTX.');
+    if (!entry.room_id || !entry.bed_id) throw new BadRequestException('Chỉ sinh viên đã được phân phòng và giường mới có thể làm trưởng phòng.');
+    if (!dto.is_room_leader) {
+      const updated = await this.rosterModel.findOneAndUpdate(
+        { _id: entry._id, room_id: entry.room_id },
+        { $set: { is_room_leader: false } },
+        { new: true },
+      ).exec();
+      return this.toResponse(updated || entry);
+    }
+    await this.rosterModel.updateMany(
+      { room_id: entry.room_id, is_room_leader: true, _id: { $ne: entry._id } },
+      { $set: { is_room_leader: false } },
+    ).exec();
+    try {
+      const updated = await this.rosterModel.findOneAndUpdate(
+        { _id: entry._id, room_id: entry.room_id, bed_id: { $exists: true, $ne: null } },
+        { $set: { is_room_leader: true } },
+        { new: true },
+      ).exec();
+      if (!updated) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại.');
+      return this.toResponse(updated);
+    } catch (error: any) {
+      if (error?.code === 11000) throw new ConflictException('Phòng đã có trưởng phòng khác.');
+      throw error;
+    }
   }
 
   async reconcile(dto: { after_id?: string; limit?: number }) {

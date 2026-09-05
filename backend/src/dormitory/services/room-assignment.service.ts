@@ -30,6 +30,10 @@ export class RoomAssignmentService {
     return value?._id?.toString?.() || value?.toString?.();
   }
 
+  private sameId(left: any, right: any): boolean {
+    return Boolean(this.id(left) && this.id(left) === this.id(right));
+  }
+
   private async reserveBed(roomId: string, bedId: string): Promise<any> {
     return this.bedModel.findOneAndUpdate(
       { _id: bedId, room_id: roomId, status: DORMITORY_ENUMS.bedStatus[0] },
@@ -50,10 +54,11 @@ export class RoomAssignmentService {
     newBedId: any,
     oldRoomId: any,
     oldBedId: any,
+    oldLeader: boolean,
   ): Promise<void> {
     const update: any = oldBedId
-      ? { $set: { room_id: oldRoomId, bed_id: oldBedId } }
-      : { $unset: { room_id: '', bed_id: '' } };
+      ? { $set: { room_id: oldRoomId, bed_id: oldBedId, is_room_leader: oldLeader } }
+      : { $unset: { room_id: '', bed_id: '', is_room_leader: '' } };
     await this.rosterModel.findOneAndUpdate({ _id: rosterEntryId, bed_id: newBedId }, update, { new: true });
   }
 
@@ -70,6 +75,7 @@ export class RoomAssignmentService {
 
     const currentRoomId = rosterEntry.room_id;
     const currentBedId = rosterEntry.bed_id;
+    const currentLeader = Boolean(rosterEntry.is_room_leader);
     if (!currentBedId) {
       const deleted = await (this.rosterModel as any).findByIdAndDelete(rosterEntryId).exec();
       if (!deleted) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
@@ -78,7 +84,7 @@ export class RoomAssignmentService {
 
     const cleared = await this.rosterModel.findOneAndUpdate(
       { _id: rosterEntryId, bed_id: currentBedId },
-      { $unset: { room_id: '', bed_id: '' } },
+      { $unset: { room_id: '', bed_id: '', is_room_leader: '' } },
       { new: true },
     );
     if (!cleared) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
@@ -100,9 +106,11 @@ export class RoomAssignmentService {
           { $set: { status: DORMITORY_ENUMS.bedStatus[1] } },
         );
       }
+      const restoreUpdate: any = { $set: { room_id: currentRoomId, bed_id: currentBedId } };
+      if (currentLeader) restoreUpdate.$set.is_room_leader = true;
       await this.rosterModel.findOneAndUpdate(
         { _id: rosterEntryId, bed_id: { $exists: false } },
-        { $set: { room_id: currentRoomId, bed_id: currentBedId } },
+        restoreUpdate,
         { new: true },
       );
       try { await this.syncRooms(currentRoomId, null); } catch { /* preserve the assignment rollback */ }
@@ -153,6 +161,7 @@ export class RoomAssignmentService {
         bed_id: newBed._id,
       },
     };
+    if (!this.sameId(currentRoomId, room._id) && rosterEntry.is_room_leader) assignment.$unset = { is_room_leader: '' };
 
     let assignedRosterEntry: any;
     try {
@@ -176,7 +185,7 @@ export class RoomAssignmentService {
       }
       await this.syncRooms(currentRoomId, dto.room_id);
     } catch (error) {
-      await this.restoreRosterEntry(rosterEntryId, newBed._id, currentRoomId, currentBedId);
+      await this.restoreRosterEntry(rosterEntryId, newBed._id, currentRoomId, currentBedId, Boolean(rosterEntry.is_room_leader));
       await this.releaseBed(newBed._id);
       if (currentBedId) {
         await this.bedModel.findOneAndUpdate(
@@ -230,10 +239,11 @@ export class RoomAssignmentService {
 
     const currentRoomId = rosterEntry.room_id;
     const currentBedId = rosterEntry.bed_id;
+    const currentLeader = Boolean(rosterEntry.is_room_leader);
     if (!currentBedId) return { roster_entry: rosterEntry, room: null, bed: null, message: 'Mục Danh sách KTX chưa được phân phòng' };
 
     const filter: any = { _id: rosterEntryId, bed_id: currentBedId };
-    const unset: any = { room_id: '', bed_id: '' };
+    const unset: any = { room_id: '', bed_id: '', is_room_leader: '' };
     const cleared = await this.rosterModel.findOneAndUpdate(filter, { $unset: unset }, { new: true });
     if (!cleared) throw new ConflictException('Mục Danh sách KTX đã thay đổi, vui lòng tải lại');
 
@@ -248,6 +258,7 @@ export class RoomAssignmentService {
       return { roster_entry: cleared, room: null, bed: released, message: 'Đã bỏ chọn phòng' };
     } catch (error) {
       const restore: any = { $set: { room_id: currentRoomId, bed_id: currentBedId } };
+      if (currentLeader) restore.$set.is_room_leader = true;
       await this.rosterModel.findOneAndUpdate({ _id: rosterEntryId, bed_id: { $exists: false } }, restore, { new: true });
       throw error;
     }
@@ -274,7 +285,9 @@ export class RoomAssignmentService {
       const updatedRosterEntry = rosterEntry
         ? await this.rosterModel.findOneAndUpdate(
             { _id: rosterEntry._id },
-            { $set: { room_id: room._id, bed_id: newBed._id } },
+            this.sameId(oldRoomId, room._id)
+              ? { $set: { room_id: room._id, bed_id: newBed._id } }
+              : { $set: { room_id: room._id, bed_id: newBed._id }, $unset: { is_room_leader: '' } },
             { new: true },
           )
         : null;
@@ -298,7 +311,7 @@ export class RoomAssignmentService {
       await this.releaseBed(newBed._id);
       try {
         await this.contractModel.findOneAndUpdate({ _id: contract._id, bed_id: newBed._id }, { $set: { room_id: oldRoomId, bed_id: oldBedId } }, { new: true });
-        if (rosterEntry) await this.rosterModel.findOneAndUpdate({ _id: rosterEntry._id, bed_id: newBed._id }, { $set: { room_id: oldRoomId, bed_id: oldBedId } }, { new: true });
+        if (rosterEntry) await this.rosterModel.findOneAndUpdate({ _id: rosterEntry._id, bed_id: newBed._id }, { $set: { room_id: oldRoomId, bed_id: oldBedId, is_room_leader: Boolean(rosterEntry.is_room_leader) } }, { new: true });
         await this.bedModel.findOneAndUpdate({ _id: oldBedId, status: DORMITORY_ENUMS.bedStatus[0] }, { $set: { status: DORMITORY_ENUMS.bedStatus[1] } });
         await this.syncRooms(oldRoomId, newRoomId);
       } catch { /* preserve the complete old assignment as far as the datastore permits */ }

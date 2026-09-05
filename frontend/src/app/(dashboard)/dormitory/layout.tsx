@@ -28,7 +28,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
     if (hasPermission('DORM_REG_READ')) {
       list.push({ id: 'registrations', href: '/dormitory/roster', label: 'Danh sách' });
     }
-    if (hasPermission('DORM_BUILDING_READ')) {
+    if (hasPermission('DORM_BUILDING_READ') && hasPermission('DORM_ROOM_READ')) {
       list.push({ id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' });
     }
     if (canReadInvoices) {

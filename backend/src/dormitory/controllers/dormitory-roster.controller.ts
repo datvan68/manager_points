@@ -14,6 +14,7 @@ import { checkPermission } from '../../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ReconcileRosterDto } from '../dto/reconcile-roster.dto';
 import { QueryRosterLinkCandidatesDto } from '../dto/query-roster-link-candidates.dto';
+import { SetRoomLeaderDto } from '../dto/set-room-leader.dto';
 
 @ApiTags('Dormitory - Roster')
 @ApiBearerAuth()
@@ -34,9 +35,17 @@ export class DormitoryRosterController {
 
   @Get()
   @UseGuards(checkPermission('DORM_REG_READ'))
-  findAll(@Query('semester') semester?: string, @Query('academic_year') academic_year?: string, @Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
-    return this.rosterService.findAll({ semester, academic_year, search, page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined });
+  findAll(@Query('semester') semester?: string, @Query('academic_year') academic_year?: string, @Query('search') search?: string, @Query('room_id') room_id?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.rosterService.findAll({ semester, academic_year, search, room_id, page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined });
   }
+
+  @Get('room-options')
+  @UseGuards(checkPermission('DORM_REG_READ'))
+  roomOptions() { return this.rosterService.findRoomOptions(); }
+
+  @Post('room-leader')
+  @UseGuards(checkPermission('DORM_REG_UPDATE'))
+  setRoomLeader(@Body() dto: SetRoomLeaderDto) { return this.rosterService.setRoomLeader(dto); }
 
   @Post('reconcile')
   @UseGuards(checkPermission('DORM_REG_UPDATE'))

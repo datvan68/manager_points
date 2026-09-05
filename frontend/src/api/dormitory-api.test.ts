@@ -256,6 +256,20 @@ describe('dormitoryApi.roomFeeInvoices', () => {
   });
 });
 
+describe('dormitoryApi.roster leader and room filter contracts', () => {
+  it('builds additive room filter and leader requests', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true, json: async () => ({ data: [], meta: { total: 0 } }) } as any);
+    await dormitoryApi.roster.getAll({ room_id: 'room-1', page: 2 });
+    expect(httpClient).toHaveBeenCalledWith(expect.stringContaining('room_id=room-1'));
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => [{ _id: 'room-1', room_code: 'A101' }] } as any);
+    await dormitoryApi.roster.getRoomOptions();
+    expect(httpClient).toHaveBeenCalledWith(expect.stringContaining('/dormitory/roster/room-options'));
+    vi.mocked(httpClient).mockResolvedValueOnce({ ok: true, json: async () => ({ _id: 'entry-1', is_room_leader: true }) } as any);
+    await dormitoryApi.roster.setRoomLeader('entry-1', true);
+    expect(httpClient).toHaveBeenCalledWith(expect.stringContaining('/dormitory/roster/room-leader'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ roster_entry_id: 'entry-1', is_room_leader: true }) }));
+  });
+});
+
 describe('dormitoryApi.roster import', () => {
   it('posts typed bulk rows to the protected roster import endpoint', async () => {
     const payload = {
