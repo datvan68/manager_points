@@ -1,159 +1,40 @@
 ---
-description: Defines proportional Quick and Full software workflows.
-version: 3.3.5
+description: Choose one primary skill and proportional verification.
+version: 3.4.0
 managed_by: orchestrator
 ---
 
-# Pipelines
+# Pipeline routing
 
-## 1. Pipeline IDs
+Skill paths below are relative to `.agents/Skills/`. Load one primary skill;
+do not read the other rows' skills. Diagnose/explain/review requests are
+read-only unless the user also authorizes a fix or document change.
 
-```text
-feature_development
-bug_fix
-refactor
-test_only
-explain_or_document
-devops_infra
-pr_review
-```
+| Pipeline | Primary skill | Required outcome/check |
+| --- | --- | --- |
+| `feature_development` | `implement_feature.md` | Observable behavior, preserved contracts, relevant success/error test or manual evidence. |
+| `bug_fix` | `debug_issue.md` | Reproduction/equivalent evidence → confirmed cause → authorized fix → focused regression check. |
+| `refactor` | `refactor_code.md` | Passing baseline → scoped transform → unchanged observable behavior. |
+| `test_only` | `write_test.md` | Existing conventions → meaningful assertions → changed test target passes. |
+| `explain_or_document` | `explain_code.md` | Source-backed explanation or requested docs → links/consistency check. |
+| `devops_infra` | `implement_feature.md` | Full: inspect state → scoped change → validate/plan → required review/gate → authorized apply → verify. |
+| `pr_review` | `review_code.md` | Pin diff/base/head → executable evidence → prioritized findings; no patch. |
 
-Route by requested outcome and primary mutation. Split tasks only when
-boundaries, risk, environments, or approvals differ materially.
+Quick eligibility and budgets belong to `safety.md`. Promote to Full before
+mutation if scope exceeds those conditions. Full executes dependency steps
+serially by default; keep the same scope unless new evidence requires amendment.
 
-## 2. Profile selection
+Independent review is required for changed authentication/authorization,
+sensitive-data handling, concurrency, public compatibility, money, persistence,
+or another evidenced material risk. Schedule it only when authorized and
+available; otherwise record the unmet review requirement and do not claim
+completion. Ordinary documentation and file count alone do not require it.
 
-Read-only explanation and PR review do not persist taskscope by default. An
-explicit request for a new taskscope is the exception: reuse the lowest
-`completed` slot first, then the lowest `cancelled` slot. Create the next
-numbered slot only when every existing slot is `ready`, `in_progress`, or
-`blocked`. An active scope may be updated only by its assigned task, with an
-incremented `scope_revision`. A bug diagnosis immediately followed by an
-authorized fix shares one taskscope and one execution loop.
-DevOps/infrastructure mutation always uses Full. Other pipelines may use Quick
-only when every `safety.md` Quick condition passes.
+Verification order: changed behavior → direct affected contracts → package
+typecheck/build when required by scope or risk. Broaden only for new evidence,
+a failure, repository policy, or cross-module impact. Do not run an application
+build for instruction-only edits. Passing compilation does not prove behavior;
+DOM/class assertions do not prove browser layout.
 
-When a Quick trigger appears during execution—additional module/service,
-fourth changed file with meaningful scope impact, public contract, dependency,
-migration, persistent data, infrastructure, external effect, security-sensitive
-behavior, gate, or need for independent workers—stop mutation and promote to
-Full with the smallest scope amendment.
-
-## 3. Quick pipeline
-
-One actor (normally the orchestrator) performs one bounded capsule:
-
-```yaml
-profile: Quick
-steps:
-  - inspect_or_baseline
-  - mutate
-  - focused_verify
-  - self_review_diff
-actors: 1
-checkpoints: 0
-independent_review: conditional
-```
-
-Pipeline-specific requirements:
-
-| Pipeline | Quick requirement |
-| --- | --- |
-| `feature_development` | Verify changed behavior; update focused tests when behavior changes. |
-| `bug_fix` | Establish root cause; add the smallest regression protection when technically useful; verify the failure is fixed. |
-| `refactor` | Capture a passing focused baseline and prove observable behavior is preserved. |
-| `test_only` | Follow existing test conventions and run the changed test target. |
-| `explain_or_document` | Explanation stays read-only; requested docs use focused style/build checks. |
-
-Independent review becomes mandatory and the task promotes to Full when the
-change touches authentication/authorization, sensitive data, concurrency,
-public compatibility, money, persistence, or another material risk boundary.
-
-## 4. Full pipelines
-
-Use only applicable steps; do not create no-op agents or artifacts.
-
-### Feature development
-
-```text
-discover -> implement -> tests when behavior changes
-         -> docs when public/developer usage changes
-         -> independent review -> final affected verification
-```
-
-### Bug fix
-
-```text
-diagnose -> regression baseline or exact manual evidence -> fix
-         -> regression/affected verification -> independent review
-```
-
-### Refactor
-
-```text
-baseline invariants -> transform -> affected verification -> independent review
-```
-
-### Test-only
-
-```text
-discover behavior/risk -> write tests -> run affected tests -> review test quality
-```
-
-### Explanation or documentation
-
-```text
-focused inspect -> synthesize or scoped documentation write -> relevant check
-```
-
-### DevOps and infrastructure
-
-```text
-discover environment/state -> generate change -> validate/plan
--> architecture/security review -> Human Gate when triggered -> apply if authorized
--> post-apply verification and rollback evidence
-```
-
-### Pull-request review
-
-```text
-pin base/head and scope -> review affected boundaries, sharded when useful
--> deduplicate evidence -> prioritized verdict
-```
-
-## 5. Verification, loops, and artifacts
-
-- For Quick, inspect only the target, nearest representative implementation/test,
-  and direct dependencies needed to prove the change. Do not inventory the repo.
-- Before executing/continuing/resuming a persisted scope, validate exactly one
-  user-pinned taskscope through `global.md`; any `TASKSCOPE_PIN_*` warning stops
-  before discovery, status change, or implementation mutation.
-- Before publish/start/resume and immediately before mutation, apply the active
-  reservation and conflict protocol from `global.md`.
-- Start mutation once root cause/desired behavior, write paths, binary criteria,
-  and a focused verification command are known. More analysis needs a named
-  evidence gap or risk.
-- Run focused checks first, affected-package checks second, and broader
-  regression only when impact, repository policy, or risk requires it.
-- Required tests, security checks, acceptance criteria, and gated review use
-  stop-on-failure.
-- ENG loop is `0..3`; review remediation is `0..2`; idempotent retries are
-  `0..2`. These budgets are separate and shared across delegation.
-- Full checkpoints and hashes occur only at material synchronization/resume
-  points, not after every read-only step.
-- Store long output as an artifact only when it must be handed off, audited, or
-  resumed; otherwise retain the concise command result.
-- Track every task-created Markdown artifact by exact path. Before successful
-  completion, remove temporary taskscopes, raw benchmark reports, temporary
-  plans, and handoff/checkpoint notes that are no longer required. Retain only
-  explicit durable deliverables, canonical documentation updates, or evidence
-  required by an active audit/resume flow. Every explicitly requested
-  taskscope slot is a retained deliverable, not a cleanup target; `completed`
-  and `cancelled` release reservations and make the slot reusable.
-- Include artifact cleanup in final diff/status review; a leftover temporary
-  Markdown file is an incomplete cleanup obligation, not a deliverable.
-- Before reporting success for a persisted scope, write its evidence-backed
-  completion block and mark it `completed`; failed or incomplete mandatory
-  checks cannot produce completion.
-- Never parallelize overlapping writes; shard only independent read-only work or
-  disjoint mutations with proven dependencies.
+Use `global.md` for pin/isolation/completion and `orchestrator.md` for the
+execution loop. Do not create duplicate scope, result, or checkpoint artifacts.

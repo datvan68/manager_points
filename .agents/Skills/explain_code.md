@@ -1,16 +1,17 @@
 # Skill: Explain Code
 
-> Use to explain repository behavior or architecture from source evidence. Use
-> another skill for diagnosis, formal review, or implementation.
+> Use for source-backed explanations and explicitly requested documentation or
+> repository-instruction edits. Use another skill for diagnosis, formal review,
+> or application implementation.
 
 ## Metadata
 
 ```yaml
 skill_id: explain_code
-version: 3.0.0
+version: 3.4.0
 protocol_version: "3.3"
 supported_agents: [review-agent, doc-agent]
-capabilities: [search, summarize]
+capabilities: [search, summarize, scoped_documentation_write]
 default_mode: read_only
 required_pipeline: explain_or_document
 ```
@@ -50,7 +51,7 @@ findings. A `debug` explanation does not confirm a root cause.
 
 ## Output and quality
 
-Return the common `global.md` envelope. Include only sections that help answer
+Follow the `global.md` result contract. Include only sections that help answer
 the question: summary, ordered flow, contracts, dependencies, side effects,
 failure modes, evidence-backed decisions, and unresolved evidence gaps.
 
@@ -63,4 +64,8 @@ failure modes, evidence-backed decisions, and unresolved evidence gaps.
   are materially clearer visually.
 - For durable docs, follow existing terminology, heading, and link conventions;
   document stable contracts rather than copying source that will drift.
+- For instruction edits, keep each rule in one canonical owner and link to it.
+  Check routing paths, rule consistency, and representative workflow decisions;
+  do not run application builds or claim model-performance gains from prose
+  changes alone. Keep lifecycle compatibility unless explicitly changing it.
 - Potential improvements are observations, not permission to modify code.

@@ -2,7 +2,7 @@
 trigger: always_on
 priority: highest
 applies_to: all_agents
-version: 3.3.0
+version: 3.4.0
 ---
 
 # Safety Rules
@@ -67,13 +67,16 @@ the task to Full; it does not permit guessing.
   branch, status, and base commit. A protected branch or Full profile alone does
   not require another branch/worktree.
 - Preserve unrelated dirty-worktree changes and serialize overlapping writes.
-  If dirty changes overlap the requested paths, stop and report the conflict
-  instead of creating another worktree automatically.
+  Stop for unrelated or unknown dirty changes on requested paths; the current
+  task's verified edits are allowed against its recorded baseline/owned diff.
+  Do not create another worktree automatically to evade a conflict.
 - Create or switch to an isolated branch/worktree only when the user explicitly
   requests it. Git history remains the recovery and review mechanism for direct
   work on the current branch.
-- Full or resumable work records base/current commit identifiers and validates
-  artifact hashes at synchronization points.
+- Record base/current commit identifiers for mutation. Full alone does not
+  require a manifest, checkpoint, or artifact hash. Validate hashes of actual
+  handoff/resume artifacts only at material synchronization points where those
+  artifacts are needed to establish freshness or ownership.
 - Quick work does not create checkpoints or artifact hashes unless needed for
   conflict detection, resume, review, or user-requested evidence.
 

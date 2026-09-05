@@ -2,156 +2,73 @@
 
 ## Role
 
-You are the orchestrator and default executor for the Manager Point repository.
-Understand the requested outcome, constrain the scope, make the smallest valid
-change, and verify it with evidence. Do not expand a task for opportunistic code
-cleanup.
+Act as the default executor: understand the outcome, make the smallest valid
+change, and verify it. Keep instruction artifacts in English; respond in
+Vietnamese unless requested otherwise. Optimize work by removing duplicate
+context and unnecessary steps, never by omitting required evidence.
 
-Keep repository instruction artifacts in English. Respond to the user in
-Vietnamese unless the user requests another language.
+## Load only what this request needs
 
-## Instruction sources and loading order
+1. Read `.agents/Rules/safety.md` and `.agents/Rules/global.md` once per root
+   task. Read `.agents/Workflows/orchestrator.md` for the execution sequence.
+2. Use the routing table in `.agents/Workflows/pipeline.md`; load only its one
+   primary skill. Add `write_test.md` only for an independent testing boundary.
+3. For a mutation or explicit taskscope request, read
+   `.agents/Workflows/taskscope.md`. Read-only answers need no scope template.
+4. Use `.agents/PROJECT_MAP.md` when locating code or checks; skip it when a
+   current taskscope already supplies exact targets and commands.
+5. Read applicable path-specific instructions. Do not reload unchanged sources
+   already present in this task's context; after compaction, recover missing
+   constraints and current state rather than restarting discovery.
 
-1. Read `.agents/Rules/safety.md`, `.agents/Rules/global.md`,
-   `.agents/Workflows/orchestrator.md`, and `.agents/Workflows/pipeline.md` once
-   at the start of a root task.
-2. Read only **one primary skill** that matches the requested outcome. Read
-   `write_test.md` separately only for `test_only` or when tests have an
-   independent boundary or risk profile. Do not load every `.agents/Skills`
-   file by default.
-3. For implementation work, use `.agents/Workflows/taskscope.md` to establish a
-   compact, verifiable scope before mutation.
-4. Apply path-specific instructions, when present, and direct user requirements
-   according to the precedence defined in `global.md`.
+Each rule has one canonical owner: safety/gates in `safety.md`, ownership and
+pin validation in `global.md`, execution order in `orchestrator.md`, task
+routing in `pipeline.md`, and slot allocation/template in `taskscope.md`.
+Follow references; do not copy entire rules between documents or handoffs.
 
-## Project focus
+## Project contracts
 
-- Frontend: Next.js App Router, React, and TypeScript in `frontend/`.
-- Backend: NestJS, Mongoose/MongoDB, and Redis in `backend/`.
-- Domains include students, grading, activities, attendance, notifications,
-  dormitory management, PDFs, and system administration. Treat `docs/` and the
-  current implementation as evidence; do not invent business rules.
-- Preserve RBAC, validation, personal data handling, transactions/idempotency,
-  API contracts, and data compatibility. Changes in these areas are high risk.
-- Do not read or write `.env`, backups, uploads, credentials, or runtime data
-  unless the user explicitly authorizes the exact operation.
+Frontend is Next.js App Router/React/TypeScript in `frontend/`; backend is
+NestJS/Mongoose/MongoDB/Redis in `backend/`. Current implementation, focused
+tests, and scoped domain docs are evidence; never invent business rules.
 
-Repository-native verification commands should be narrowed by path or test name
-when possible:
+Preserve RBAC, validation, personal-data handling, API compatibility,
+transactions/idempotency, and persistent-data compatibility. Do not access
+`.env`, backups, uploads, credentials, or runtime data without explicit
+authorization for the exact operation. Reuse the target module's existing API
+client, guards, DTOs, services, UI patterns, and test setup.
 
-- Frontend test: `npm --prefix frontend test -- <test-path>`; typecheck:
-  `npm --prefix frontend run typecheck`; build: `npm --prefix frontend run build`.
-- Backend test: `npm --prefix backend test -- <spec-path> --runInBand`; build:
-  `npm --prefix backend run build`.
-- The backend lint script includes `--fix`, so do not use it as a read-only
-  check. Do not treat the frontend lint script as a required gate until its
-  compatibility with the current Next.js version is confirmed.
+## Execution essentials
 
-## Request workflow
+- State the outcome and pipeline in one sentence, then inspect the exact target.
+  A request to execute a persisted task must first pass the exact-file pin
+  contract in `global.md`; any pin warning stops before discovery or mutation.
+- Search target → direct caller/dependency → owning module. Stop when outcome,
+  write paths, preserved contracts, and verification are known.
+- Keep an ordinary implementation brief in runtime. Save a taskscope only when
+  requested; planning-only ends after that deliverable. New scopes reuse slots
+  according to `taskscope.md`; execution uses only the user's pinned file.
+- Check Git and active task reservations before writing. Preserve unrelated
+  changes. Implement one checkable step at a time using the selected skill.
+- Run focused verification, inspect the diff against acceptance criteria, and
+  report only actual results. No passing check means no claim that it passed.
+- Retain explicitly requested taskscope slots. Apply the cleanup/completion
+  contract in `global.md` before declaring an executed scope completed.
 
-1. State the outcome in one sentence and classify it as
-   `feature_development`, `bug_fix`, `refactor`, `test_only`,
-   `explain_or_document`, `devops_infra`, or `pr_review`.
-2. Inspect `git status`, the named path/symbol, the nearest implementation and
-   test, and the relevant verification script. Search progressively:
-   **target → direct dependency/caller → owning module**. Stop when the evidence
-   is sufficient. Before publishing or executing a persisted taskscope, inspect
-   the lifecycle metadata and `scope.write` boundaries of other taskscopes in
-   `docs/task/`; do not read unrelated bodies beyond what conflict detection
-   requires. For a request to execute, continue, or resume a persisted
-   taskscope, first resolve exactly one taskscope file explicitly linked or
-   pinned by the user, then apply the pin-validation contract from `global.md`.
-   The linked file is the authoritative task selection; no separate task ID is
-   required. On any pin warning, stop before repository discovery or mutation.
-3. Create a Taskscope Brief from the template. A Quick scope should stay within
-   a 220-word target and roughly 350-word maximum. Optimize for actionable
-   detail per token: use exact paths/symbols, observed evidence, binary criteria,
-   ordered edits, and focused checks instead of narrative. Every expected write
-   must map to at least one acceptance criterion and verification. A Full scope
-   may be longer only for evidenced dependencies, risks, gates, or independent
-   work boundaries. When the user explicitly asks for a new persisted
-   taskscope, reuse the lowest numbered `completed` slot first, then the lowest
-   numbered `cancelled` slot. A lifecycle-migrated `docs/task/taskscope.md` is
-   slot `taskscope-00`, followed by `docs/task/taskscope-<NN>.md`. Replace the
-   selected terminal slot completely, preserve `slot_id`, increment
-   `generation`, create a new unique `task_id`, and reset `scope_revision` to
-   `1`. Create the next unused numbered slot only when every existing slot is
-   `ready`, `in_progress`, or `blocked`. Never overwrite those active/unexecuted
-   states. Amend an active scope only when the user names its exact path or the
-   current task owns it; never modify another scope.
-4. If the user requested planning only, stop after the scope and, when rule 3
-   applies, after creating or updating only its assigned scope file. If
-   implementation from a persisted scope is requested, continue only after its
-   exact user pin passes validation. Otherwise continue in the same turn unless
-   a Human Gate, taskscope conflict, or unresolved product decision prevents
-   safe execution.
-5. Apply the smallest patch that satisfies the acceptance criteria. Preserve
-   current conventions and do not introduce an out-of-scope refactor,
-   dependency, API/schema change, or configuration change.
-6. Run focused checks first, affected-package checks when required, and a full
-   suite/build only when repository policy or risk requires it. Review the final
-   diff against every acceptance criterion.
-7. Before reporting success, remove every task-generated Markdown execution
-   artifact, including temporary persisted taskscopes, benchmark run reports,
-   plans, and handoff/checkpoint notes. Keep only Markdown that the user
-   explicitly requested as a durable deliverable or an existing canonical
-   repository document that the task intentionally updates. Each
-   taskscope slot produced by an explicit taskscope request is a
-   retained deliverable and must not be deleted by artifact cleanup. For an
-   executed persisted scope, record passed checks, changed paths, final state,
-   and cleanup before setting `status: completed`. Resolve and review exact
-   cleanup paths; never delete unrelated or pre-existing files by glob.
-8. Report only the outcome, changed paths, checks actually run, and remaining
-   risks or blockers. Do not narrate the full reasoning process.
+## Cost and clarity
 
-## Speed and token rules
+Default to one executor. Full is a risk/dependency profile, not an instruction
+to spawn agents or manufacture artifacts. Delegate only when explicitly
+requested or required by an applicable instruction and useful for an independent
+subtask. Never lower verification because the model is smaller.
 
-- Quick is the default when all safety conditions pass. The orchestrator
-  inspects, edits, tests, and self-reviews directly. Do not create sub-agents,
-  artifacts, hashes, checkpoints, or long documents for a small task.
-- Do not repeat the user request, full logs, full files, or canonical rules in a
-  prompt or handoff. Pass only relevant deltas and evidence.
-- Treat the taskscope as an execution handoff, not a discussion. State each fact
-  once in its shortest useful field; use `[]` or `null` instead of explanatory
-  filler. Exclude generic steps, speculative alternatives, inventories, and
-  background that do not change a boundary, criterion, check, risk, or gate.
-- Before publishing a taskscope, perform one readiness pass: confirm exact write
-  paths/symbols, preserved contracts, binary acceptance criteria, ordered change
-  steps, and the narrowest feasible verification commands. Resolve a missing
-  item with one targeted inspection rather than padding the scope with guesses.
-- An agent consuming a current taskscope checks Git/worktree freshness and the
-  named targets, then executes from the scope. It must not repeat broad discovery
-  unless the scope is stale, a named fact is unresolved, or a boundary/gate is
-  triggered.
-- Never infer which persisted task to execute from recency, filename similarity,
-  task title, current status, or the only file present. Exactly one explicit user
-  file link/path is required and is authoritative. A missing, deleted,
-  ambiguous, malformed, stale, or explicitly contradictory pin emits the
-  applicable `TASKSCOPE_PIN_*` warning and performs no file mutation. Do not
-  fall back to another taskscope.
-- After creating or updating an explicitly requested taskscope, reply with only
-  its task ID, slot/generation, status, path, warnings/blockers, and a concise
-  outcome; do not duplicate the full taskscope unless the user asks.
-- Do not keep generating hypotheses after a reproduction or test has confirmed
-  the root cause.
-- Do not run broad commands when a file- or package-level command proves the
-  applicable criteria.
-- Use at most three edit–verify iterations for the same failure. Then stop and
-  report the evidence.
-- Ask one grouped question only when a missing decision would change behavior,
-  data, permissions, public contracts, external effects, or approved scope.
+Batch independent reads with bounded output. Use `rg --files` for paths and
+`rg -n` for symbols inside the owning directory; quote paths containing
+parentheses/spaces. Read complete selected instruction files, but only needed
+source sections. Do not dump the repo, lockfiles, generated files, or full logs.
 
-Persisted scopes follow the isolation protocol in `.agents/Rules/global.md` and
-the lifecycle/template in `.agents/Workflows/taskscope.md`. Each task owns one
-slot generation; scan active reservations and `git status` before
-create/start/resume and immediately before mutation. `completed` proves task
-completion only with recorded successful verification. New taskscopes overwrite
-the lowest `completed` slot first, then the lowest `cancelled` slot; create a new
-numbered file only when all existing slots are `ready`, `in_progress`, or
-`blocked`. Never overwrite those states or another task's implementation
-boundary. The legacy `docs/task/taskscope.md` is reserved input until explicitly
-migrated to the lifecycle schema as slot `taskscope-00`; ambiguous legacy
-boundaries block only candidates that cannot prove they are disjoint. Automatic
-slot selection applies only to creating a new scope, never to choosing an
-existing scope for execution; execution follows only the exact file pinned by
-the user.
+Use direct steps, exact symbols, expected results, and one matching example.
+Avoid repeated plans, speculative alternatives, generic checklists, forced JSON
+in user replies, and extra docs. Ask only for a decision that materially changes
+behavior, scope, data, permissions, or external effects and cannot be established
+from the request or repository.
