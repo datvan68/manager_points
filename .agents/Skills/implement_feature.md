@@ -8,7 +8,7 @@
 
 ```yaml
 skill_id: implement_feature
-version: 3.0.0
+version: 3.4.1
 protocol_version: "3.3"
 supported_agents: [code-agent]
 capabilities: [search, code_gen]
@@ -64,6 +64,10 @@ requires an unapproved module, fourth meaningful Quick write path, public or
 schema change, dependency, migration, persistent-data mutation, infrastructure
 effect, external communication, credential/permission change, or production
 action.
+
+Bounded dev verification authorized by `safety.md` section 6a is not an
+unapproved persistent-data mutation and needs no repeated gate. Add its runtime
+boundary when needed; preserve explicit exclusions in the pinned taskscope.
 
 ## Result
 

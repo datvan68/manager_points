@@ -1,6 +1,6 @@
 ---
 description: Choose one primary skill and proportional verification.
-version: 3.4.0
+version: 3.4.1
 managed_by: orchestrator
 ---
 
@@ -35,6 +35,11 @@ typecheck/build when required by scope or risk. Broaden only for new evidence,
 a failure, repository policy, or cross-module impact. Do not run an application
 build for instruction-only edits. Passing compilation does not prove behavior;
 DOM/class assertions do not prove browser layout.
+
+When an AC depends on real interaction, integration or data behavior, include a
+focused dev UI/API scenario using `safety.md` section 6a. A mock-only pass cannot
+satisfy that AC. Ordinary authorized dev CRUD testing alone does not trigger
+Full or independent review; changed application risk still determines both.
 
 Use `global.md` for pin/isolation/completion and `orchestrator.md` for the
 execution loop. Do not create duplicate scope, result, or checkpoint artifacts.

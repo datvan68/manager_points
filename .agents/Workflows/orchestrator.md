@@ -1,6 +1,6 @@
 ---
 description: Deterministic execution with bounded context and evidence.
-version: 3.4.0
+version: 3.4.1
 ---
 
 # Orchestrator
@@ -29,9 +29,11 @@ automatically add workers.
    preserving its named contracts. Reuse the nearest matching pattern; inspect
    its inputs and error handling before copying it.
 6. **Verify.** Run the step's narrow check at a meaningful boundary, then the
-   required affected-package checks after dependent steps finish. If failure
-   occurs, capture the first actionable error and actual/expected behavior;
-   repair that cause within scope and the shared retry budget.
+   required affected-package checks after dependent steps finish. For runtime
+   criteria, verify dev targets once under `safety.md` section 6a, then interact
+   through the UI/API with scoped data without repeated approval. Restore/clean
+   test changes and record actual scenarios. If failure occurs, capture the first
+   actionable error and actual/expected behavior; repair within scope/budget.
 7. **Finish.** Check each AC against its evidence and review the final diff/status
    for unintended writes. Complete cleanup and, for an executed persisted scope,
    its completion block. Report outcome, changed paths, checks, and blockers.

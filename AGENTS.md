@@ -33,9 +33,11 @@ NestJS/Mongoose/MongoDB/Redis in `backend/`. Current implementation, focused
 tests, and scoped domain docs are evidence; never invent business rules.
 
 Preserve RBAC, validation, personal-data handling, API compatibility,
-transactions/idempotency, and persistent-data compatibility. Do not access
-`.env`, backups, uploads, credentials, or runtime data without explicit
-authorization for the exact operation. Reuse the target module's existing API
+transactions/idempotency, and persistent-data compatibility. Task-scoped testing
+on verified dev services and real dev data is authorized by the dev-testing
+contract in `safety.md`; do not ask again for each normal test interaction.
+Secrets, backups, destructive operations and production remain separately
+controlled there. Reuse the target module's existing API
 client, guards, DTOs, services, UI patterns, and test setup.
 
 ## Execution essentials
@@ -52,6 +54,10 @@ client, guards, DTOs, services, UI patterns, and test setup.
   changes. Implement one checkable step at a time using the selected skill.
 - Run focused verification, inspect the diff against acceptance criteria, and
   report only actual results. No passing check means no claim that it passed.
+- Verify user-facing behavior through the dev UI/API when the acceptance
+  criteria require runtime evidence. Use the dev-testing contract, then report
+  tested scenarios and any remaining data changes. Observe its release boundary
+  before commit/push actions that would trigger the VPS production rollout.
 - Retain explicitly requested taskscope slots. Apply the cleanup/completion
   contract in `global.md` before declaring an executed scope completed.
 

@@ -7,7 +7,7 @@
 
 ```yaml
 skill_id: debug_issue
-version: 3.0.0
+version: 3.4.1
 protocol_version: "3.3"
 supported_agents: [code-agent, review-agent]
 capabilities: [search]
@@ -69,8 +69,9 @@ root cause.
   ordering, retries/idempotency, transactions, cache state, and external
   partial failures only when they lie on the evidenced execution path.
 - Require profiles, query plans, traces, or measurements for performance claims.
-- Keep production diagnosis read-only; never mutate persistent data to reproduce
-  a failure without the required Human Gate.
+- Keep production diagnosis read-only. When runtime testing is authorized,
+  reproduce with verified dev data under `safety.md` section 6a without repeated
+  approval; actions outside that contract retain their required Human Gate.
 - Never swallow errors, weaken assertions, delete failing tests, or combine an
   unrelated refactor with the fix.
 - If evidence remains insufficient, report the exact discriminating check; do

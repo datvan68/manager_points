@@ -14,7 +14,7 @@ not a specification of business behavior. Do not load every listed path.
 | Shared request/auth behavior | `frontend/src/api/http-client.ts`, `frontend/src/providers/auth-provider.tsx` | `frontend/src/api/auth-api.ts`, `backend/src/auth/`. |
 | Backend domain behavior | Matching domain under `backend/src/` | Controller → DTO/guard → service → schema; module for provider wiring. |
 | Permission failure | Guard used by the actual controller | `backend/src/auth/guards/`; frontend visibility is not authorization. |
-| Storage or PDF | `backend/src/core/storage/`, `backend/src/pdf-template/` | `frontend/src/api/pdf-template-api.ts`; no runtime uploads/templates without authority. |
+| Storage or PDF | `backend/src/core/storage/`, `backend/src/pdf-template/` | `frontend/src/api/pdf-template-api.ts`; dev uploads/templates follow `safety.md` section 6a. |
 | Repository workflow | `AGENTS.md`, `.agents/` | Only the referenced rule/template or selected skill. |
 
 Domain starting points include `backend/src/students/`,
@@ -37,7 +37,8 @@ Locate the actual route/method before assuming ownership.
   do not prove isolation. Inspect imports for the changed symbol.
 - Read source/tests as observed behavior. Use relevant `docs/` only to resolve
   domain intent; report a material contradiction instead of choosing silently.
-- Use synthetic test data; do not query personal records to understand code.
+- Prefer synthetic data for unit tests. Runtime reproduction may inspect real
+  dev records under `safety.md` section 6a; keep evidence minimal and redacted.
 
 ## Verification entrypoints
 
@@ -61,3 +62,9 @@ Backend lint includes `--fix` and is a mutation. Frontend lint is configured as
 `next lint`; verify compatibility before using it as a gate. Avoid broad
 format commands, coverage runs, watch mode, dependency installation, or runtime
 migration/seed scripts as ordinary verification.
+
+For host dev startup, inspect `scripts/dev-host.sh` and
+`docker-compose.dev-infra.yml`; their defaults are not proof of effective
+connections. `scripts/deploy.sh` defaults to `docker-compose.prod.yml` and
+`.env.production`; do not use it for dev testing. Verify active destinations
+under `safety.md` section 6a instead of assuming local services use local data.

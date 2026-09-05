@@ -1,6 +1,6 @@
 ---
 description: Actionable scope and reusable task-file lifecycle.
-version: 3.4.0
+version: 3.4.1
 managed_by: orchestrator
 ---
 
@@ -104,6 +104,16 @@ stop_conditions: []
 Use the actual assigned slot in both `scope_file` and `retain`. Non-persisted
 briefs do not need these lifecycle fields. For Full, record only required
 additional risk/environment, dependency, review/gate or resume evidence.
+
+When runtime verification is needed, add one compact `runtime_test` block:
+dev frontend/API and data-service identities with isolation evidence, scoped
+records/resources and allowed operations, scenarios/pass signals, and cleanup
+or restore action. Unknown connection facts may be verified read-only at test
+start; stop dependent runtime actions until confirmed. Follow `safety.md`
+section 6a without requesting approval for each authorized interaction.
+Record code checks and actual runtime checks separately; do not mark a required
+runtime AC passed based only on mocks. Existing explicit runtime-data exclusions
+need a scope amendment before testing; never silently discard a pinned boundary.
 
 ## Make each step executable
 

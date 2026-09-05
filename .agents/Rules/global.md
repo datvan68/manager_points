@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.4.0
+version: 3.4.1
 ---
 
 # Global Rules
@@ -18,6 +18,12 @@ One writer per path. `ready`, `in_progress`, and `blocked` scopes reserve
 their `scope.write` paths; `completed` and `cancelled` release reservations.
 Apply these checks to ordinary implementation briefs as well as persisted
 scopes; lack of a saved file does not bypass other tasks' reservations.
+
+For shared dev testing, also reserve the relevant runtime resources (service,
+record IDs or task-specific dataset) in runtime or the owned scope. Apply the
+same conflict rules to overlapping data mutations and cleanup. Disjoint test
+records may run independently; file disjointness alone does not isolate a DB.
+Authorization and restoration follow `safety.md` section 6a.
 
 Before publish/start/resume and immediately before each mutation batch, compare
 candidate writes against active scope metadata/boundaries and Git status.
