@@ -2,10 +2,10 @@ slot_id: "taskscope-04"
 generation: 1
 task_id: "20260905-091059-align-roster-ui-design-system"
 scope_file: "docs/task/taskscope-04.md"
-status: blocked
-scope_revision: 1
+status: completed
+scope_revision: 3
 created_at: "2026-09-05T09:10:59+07:00"
-updated_at: "2026-09-05T09:10:59+07:00"
+updated_at: "2026-09-05T09:27:00+07:00"
 base_commit: "33cc462b4456ed41267fac118d3505604dd74d7f"
 task: "Align newly created KTX roster UI with the repository design system"
 pipeline: feature_development
@@ -17,17 +17,27 @@ objective: "Make the new KTX progress/result, reconciliation and manual Student-
 coordination:
   depends_on: ["20260905-081905-adjust-roster-operation-linking"]
   warnings:
-    - "TASKSCOPE_CONFLICT: HEAD contains docs/task/taskscope-03.md, slot 03 generation 1, status in_progress, reserving every implementation path below."
-    - "TASKSCOPE_CONFLICT: the working tree has an uncommitted deletion of taskscope-03.md and the four directly affected UI test files; ownership is unknown, so this successor must not restore, overwrite or execute against them."
-  reservation_check: "Branch main at 33cc462b4456ed41267fac118d3505604dd74d7f. HEAD has active slot 03; slot 04 is the next unused numbered slot. Published blocked with only this scope file added."
-  resume: "Resolve the uncommitted deletions and complete/cancel/supersede slot 03, then explicitly resume this exact file. Revalidate source/test baselines and retain only still-relevant UI adjustments."
+  reservation_check: "Resume verified on branch main at 5cb12a3b3f41f8cf519f6bf99d98315fe1297ae5. No taskscope-03.md exists and the working tree is clean; no competing reservation or unresolved deletion remains."
+  resume: "Resumed explicitly by the user; revalidated source/test baselines against the current HEAD before mutation."
 
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-09-05T09:27:00+07:00"
+  outcome: "completed"
+  final_commit_or_state: "Working tree contains only the scoped UI, test, and taskscope changes; no commit created."
+  changed_paths:
+    - "docs/task/taskscope-04.md"
+    - "frontend/src/components/dormitory/RosterOperationProgressDialog.tsx"
+    - "frontend/src/components/dormitory/RosterOperationProgressDialog.test.tsx"
+    - "frontend/src/components/dormitory/RosterStudentLinkModal.tsx"
+    - "frontend/src/components/dormitory/RosterStudentLinkModal.test.tsx"
+    - "frontend/src/components/dormitory/DormitoryRosterImportModal.tsx"
+    - "frontend/src/components/dormitory/DormitoryRosterImportModal.test.tsx"
+    - "frontend/src/app/(dashboard)/dormitory/roster/page.tsx"
+  checks_passed:
+    - "V-01/V-02: focused roster/import/link/API tests passed, 29 tests total."
+    - "V-03: scoped token inspection completed; remaining prohibited tokens are pre-existing legacy page/primitive usages outside the changed interaction surfaces."
+    - "V-04: frontend typecheck and scoped git diff --check passed."
+    - "V-05: browser checks measured scrollWidth == clientWidth at 375, 768, and 1280px; 375px manual-link modal opened with no overflow and accessible empty state."
   cleanup_pending: []
 
 evidence:

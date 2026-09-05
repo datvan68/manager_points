@@ -480,7 +480,7 @@ export default function DormitoryRosterPage() {
         processed += response.scanned;
         hasMore = response.has_more && Boolean(response.next_cursor);
         cursor = response.next_cursor;
-        setOperationProgress(current => ({ phase: hasMore ? 'processing' : 'completed', processed, total: hasMore ? processed + 1 : processed, counters: { linked: (current?.counters.linked || 0) + response.linked, unlinked: (current?.counters.unlinked || 0) + response.unlinked, conflicts: (current?.counters.conflicts || 0) + response.conflicts, failed: (current?.counters.failed || 0) + response.failed } }));
+        setOperationProgress(current => ({ phase: hasMore ? 'processing' : 'completed', processed, total: hasMore ? null : processed, counters: { linked: (current?.counters.linked || 0) + response.linked, unlinked: (current?.counters.unlinked || 0) + response.unlinked, conflicts: (current?.counters.conflicts || 0) + response.conflicts, failed: (current?.counters.failed || 0) + response.failed } }));
       }
       await load(true);
       toast.success('Đã hoàn tất đối chiếu liên kết.');
@@ -561,7 +561,7 @@ export default function DormitoryRosterPage() {
       cancelLabel="Hủy"
       variant="danger"
     />
-    <Dialog open={reconcileOpen} onOpenChange={open => { if (!reconciling) setReconcileOpen(open); }}><DialogContent className="w-[calc(100%-1rem)] max-w-lg rounded-2xl"><DialogHeader><DialogTitle>Đối chiếu liên kết KTX</DialogTitle></DialogHeader><p className="text-sm leading-6 text-slate-600">Hệ thống sẽ quét tất cả mục chưa liên kết hoặc đang xung đột ở mọi học kỳ, theo thứ tự ổn định. Chỉ sinh viên đang học và thuộc lớp hiện tại được xét.</p><DialogFooter><Button variant="outline" disabled={reconciling} onClick={() => setReconcileOpen(false)}>Hủy</Button><Button disabled={reconciling || bulkDeleting} onClick={() => void reconcileAll()}>Bắt đầu đối chiếu</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={reconcileOpen} onOpenChange={open => { if (!reconciling) setReconcileOpen(open); }}><DialogContent className="w-[calc(100%-1rem)] max-w-lg rounded-2xl border border-white/75 bg-white/45 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md sm:p-5"><DialogHeader><DialogTitle>Đối chiếu liên kết KTX</DialogTitle></DialogHeader><p className="rounded-xl border border-white/75 bg-white/50 p-3 text-sm leading-6 text-[#64748B]">Hệ thống sẽ quét tất cả mục chưa liên kết hoặc đang xung đột ở mọi học kỳ, theo thứ tự ổn định. Chỉ sinh viên đang học và thuộc lớp hiện tại được xét.</p><DialogFooter><Button variant="outline" disabled={reconciling} onClick={() => setReconcileOpen(false)} className="rounded-xl">Hủy</Button><Button disabled={reconciling || bulkDeleting} onClick={() => void reconcileAll()} className="rounded-xl">Bắt đầu đối chiếu</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open && !createSaving) resetCreate(); }}>
       <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl shadow-slate-300/40 backdrop-blur-md max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden sm:max-h-[90vh] sm:p-6 sm:max-w-4xl">
         <DialogHeader className="mb-4 border-b border-white/50 pb-3">
