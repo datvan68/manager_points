@@ -3,9 +3,9 @@ generation: 1
 task_id: "20260905-081905-adjust-roster-operation-linking"
 scope_file: "docs/task/taskscope-03.md"
 status: in_progress
-scope_revision: 2
+scope_revision: 3
 created_at: "2026-09-05T08:19:05+07:00"
-updated_at: "2026-09-05T08:27:00+07:00"
+updated_at: "2026-09-05T08:54:49+07:00"
 base_commit: "f6cc77609f386e56e03e7a510b3630ef753ff8a8"
 task: "Move KTX operations to progress dialogs and reconcile current students"
 pipeline: feature_development
@@ -18,17 +18,46 @@ coordination:
   depends_on:
     - "20260904-155313-dormitory-identity-bulk-progress"
     - "20260904-163806-fix-roster-progress-results-linking"
-  warnings: []
-  reservation_check: "At f24e604362bebf1a65cfb75c8072ddbbd33441a2, the overlapping scope files were removed, the worktree is clean, and no active reservation remains for the listed implementation paths."
+  warnings:
+    - "V-04 chưa chạy: tab browser hiện có đang hiển thị runtime data; scope chỉ cho phép synthetic verification, và môi trường CUA hiện không cung cấp viewport override 375/768/1280."
+    - "Independent review cho identity/RBAC/concurrency chưa khả dụng trong executor hiện tại; self-review đã thực hiện nhưng không được coi là independent review."
+  reservation_check: "At c2590230f8f04d7d8583ad2c2cebc2bbf67fc9d6, all implementation writes are committed on main; no active reservation remains for the listed implementation paths."
   resume: "Resumed after the overlapping scope files were removed and the current commit was verified equal to origin/main."
 
 completion:
   completed_at: null
   outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
-  cleanup_pending: []
+  final_commit_or_state: "Implementation commit c2590230f8f04d7d8583ad2c2cebc2bbf67fc9d6; scope remains in_progress pending V-04 and independent review."
+  changed_paths:
+    - "backend/src/dormitory/controllers/dormitory-permissions.spec.ts"
+    - "backend/src/dormitory/controllers/dormitory-roster.controller.ts"
+    - "backend/src/dormitory/dto/query-roster-link-candidates.dto.ts"
+    - "backend/src/dormitory/dto/reconcile-roster.dto.ts"
+    - "backend/src/dormitory/services/dormitory-roster-identity.service.spec.ts"
+    - "backend/src/dormitory/services/dormitory-roster-identity.service.ts"
+    - "backend/src/dormitory/services/dormitory-roster.service.spec.ts"
+    - "backend/src/dormitory/services/dormitory-roster.service.ts"
+    - "frontend/src/api/dormitory-api.test.ts"
+    - "frontend/src/api/dormitory-api.ts"
+    - "frontend/src/app/(dashboard)/dormitory/roster/page.test.tsx"
+    - "frontend/src/app/(dashboard)/dormitory/roster/page.tsx"
+    - "frontend/src/components/dormitory/DormitoryRosterImportModal.test.tsx"
+    - "frontend/src/components/dormitory/DormitoryRosterImportModal.tsx"
+    - "frontend/src/components/dormitory/RosterOperationProgressDialog.test.tsx"
+    - "frontend/src/components/dormitory/RosterOperationProgressDialog.tsx"
+    - "frontend/src/components/dormitory/RosterStudentLinkModal.test.tsx"
+    - "frontend/src/components/dormitory/RosterStudentLinkModal.tsx"
+    - "frontend/src/components/dormitory/roster-batch.test.ts"
+    - "frontend/src/components/dormitory/roster-batch.ts"
+    - "docs/task/taskscope-03.md"
+  checks_passed:
+    - "V-01 [AC-01,02,04..07]: frontend focused Vitest 6 files, 38/38 tests passed."
+    - "V-02 [AC-03..07]: backend focused Jest 4 suites, 44/44 tests passed."
+    - "V-03 [AC-01..07]: frontend typecheck and backend build exited 0."
+    - "V-05 partial [AC-01..07]: git diff --check passed; scoped paths reviewed."
+  cleanup_pending:
+    - "V-04 synthetic browser verification at 375/768/1280px."
+    - "Independent review findings for identity/RBAC/concurrency."
 
 evidence:
   current_behavior:
