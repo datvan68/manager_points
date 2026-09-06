@@ -47,15 +47,18 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const pathname = usePathname();
 
     const canSearchStudents = Boolean(
-        user && (
+        user && !isStudentRole(user) && (
             isAdminUser(user) ||
-            isStudentRole(user) ||
             isTeacherRole(user) ||
             hasPermission?.('STUDENT_READ') ||
             hasPermission?.('STUDENT_PAGE') ||
             hasPermission?.('READ_STUDENT_TASK')
         )
     );
+
+    useEffect(() => {
+        setIsSearchOpen(false);
+    }, [pathname, user?.id]);
     useNotificationRealtime(Boolean(user));
 
     useEffect(() => {

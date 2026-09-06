@@ -16,6 +16,7 @@ import {
   Search,
 } from "lucide-react";
 import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
+import StudentQrAttendance from "@/components/attendance/StudentQrAttendance";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
 import { authApi } from "@/api/auth-api";
@@ -105,15 +106,18 @@ const Sidebar = () => {
   const isTeacherUser = isTeacherRole(user);
   const isStudentUser = isStudentRole(user);
   const canSearchStudents = Boolean(
-    user && (
+    user && !isStudentUser && (
       isAdminUser(user) ||
-      isStudentUser ||
       isTeacherUser ||
       hasPermission("STUDENT_READ") ||
       hasPermission("STUDENT_PAGE") ||
       hasPermission("READ_STUDENT_TASK")
     )
   );
+
+  useEffect(() => {
+    setIsMobileSearchOpen(false);
+  }, [pathname, user?.id]);
 
   // Invalidate cache and trigger reload on update event
   useEffect(() => {
@@ -281,6 +285,7 @@ const Sidebar = () => {
   type MobileNavItem =
     | { type: 'link'; key: string; item: (typeof allMenuItems)[0]; isActive: boolean; targetHref: string }
     | { type: 'search'; key: string }
+    | { type: 'qr'; key: string }
     | { type: 'profile'; key: string };
 
   const baseMobileItems: MobileNavItem[] = visibleItems.map((item, index) => {
@@ -303,11 +308,11 @@ const Sidebar = () => {
   }
 
   const mobileItems: MobileNavItem[] = [...baseMobileItems];
-  if (canSearchStudents) {
+  if (isStudentUser || canSearchStudents) {
     const centerIndex = Math.floor(baseMobileItems.length / 2);
     mobileItems.splice(centerIndex, 0, {
-      type: 'search' as const,
-      key: 'search',
+      type: isStudentUser ? 'qr' as const : 'search' as const,
+      key: isStudentUser ? 'qr' : 'search',
     });
   }
 
@@ -431,6 +436,11 @@ const Sidebar = () => {
                 >
                   <item.item.icon size={25} strokeWidth={2.25} aria-hidden="true" />
                 </Link>
+              );
+            }
+            if (item.type === 'qr') {
+              return (
+                <StudentQrAttendance key={`mobile-qr-${pathname}-${user?.id}`} className="mobile-bottom-nav-item" />
               );
             }
             if (item.type === 'search') {

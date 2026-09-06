@@ -404,4 +404,19 @@ describe('Sidebar Component', () => {
 
     expect(screen.queryByRole('button', { name: 'Tìm kiếm sinh viên' })).not.toBeInTheDocument();
   });
+
+  it('shows QR attendance in the mobile center slot for students', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' }, isLoading: false,
+      hasPermission: vi.fn(() => true), hasAnyPermission: vi.fn(() => true), hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true, permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+    render(<Sidebar />);
+    await waitForSidebarItems();
+    expect(screen.getByRole('button', { name: 'Quét QR điểm danh' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tìm kiếm sinh viên' })).not.toBeInTheDocument();
+  });
 });

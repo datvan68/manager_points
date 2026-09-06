@@ -12,6 +12,11 @@ interface QrScannerModalProps {
   onReset?: () => void;
 }
 
+function normalizeAttendanceToken(value: string) {
+  const token = value.trim();
+  return token.startsWith('attendance:') ? token.slice('attendance:'.length).trim() : token;
+}
+
 export default function QrScannerModal({
   open,
   onClose,
@@ -20,17 +25,60 @@ export default function QrScannerModal({
   checkinError,
   onReset,
 }: QrScannerModalProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  const onCloseRef = useRef(onClose);
+  const onScannedRef = useRef(onScanned);
+  onCloseRef.current = onClose;
+  onScannedRef.current = onScanned;
+  const canSubmitRef = useRef(false);
+  canSubmitRef.current = open && isMobile && checkinStatus === 'idle';
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanningRef = useRef(false);
+  const cameraRequestRef = useRef(0);
+  const detectorRef = useRef<any>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
+  // Stop camera
+  const stopCamera = useCallback(() => {
+    cameraRequestRef.current += 1;
+    scanningRef.current = false;
+    setScanning(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  useEffect(() => {
+    if (!open) { setIsMobile(false); return; }
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => {
+      setIsMobile(media.matches);
+      if (!media.matches) {
+        canSubmitRef.current = false;
+        stopCamera();
+        if (open) onCloseRef.current();
+      }
+    };
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [open, stopCamera]);
+
   // Start camera
   const startCamera = useCallback(async () => {
+    stopCamera();
+    const requestId = ++cameraRequestRef.current;
     try {
       setCameraError(null);
+      if (!('BarcodeDetector' in window)) {
+        setCameraError('Trình duyệt chưa hỗ trợ quét QR tự động.');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
@@ -39,15 +87,26 @@ export default function QrScannerModal({
         },
       });
 
+      if (requestId !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+        if (requestId !== cameraRequestRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+          return;
+        }
         setScanning(true);
         scanningRef.current = true;
         scanFrame();
       }
     } catch (err: any) {
+      if (requestId !== cameraRequestRef.current) return;
+      stopCamera();
       if (err.name === 'NotAllowedError') {
         setCameraError('Quyền truy cập camera bị từ chối. Vui lòng bật trong cài đặt trình duyệt.');
       } else if (err.name === 'NotFoundError') {
@@ -56,17 +115,7 @@ export default function QrScannerModal({
         setCameraError('Không thể mở camera. Vui lòng thử lại.');
       }
     }
-  }, []);
-
-  // Stop camera
-  const stopCamera = useCallback(() => {
-    scanningRef.current = false;
-    setScanning(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  }, []);
+  }, [stopCamera]);
 
   // Scan frame for QR code
   const scanFrame = useCallback(() => {
@@ -86,12 +135,15 @@ export default function QrScannerModal({
 
     // Try BarcodeDetector API (Chrome/Edge)
     if ('BarcodeDetector' in window) {
-      const detector = new (window as any).BarcodeDetector({
+      const detector = detectorRef.current || new (window as any).BarcodeDetector({
         formats: ['qr_code'],
       });
+      detectorRef.current = detector;
+      const requestId = cameraRequestRef.current;
       detector
         .detect(canvas)
         .then((barcodes: any[]) => {
+          if (!scanningRef.current || requestId !== cameraRequestRef.current) return;
           if (barcodes.length > 0) {
             const rawValue = barcodes[0].rawValue;
             handleQrDetected(rawValue);
@@ -106,48 +158,37 @@ export default function QrScannerModal({
             requestAnimationFrame(scanFrame);
           }
         });
-    } else {
-      // Fallback: manual token input for browsers without BarcodeDetector
-      if (scanningRef.current) {
-        requestAnimationFrame(scanFrame);
-      }
     }
   }, []);
 
   // Handle detected QR
   const handleQrDetected = useCallback(
     (rawValue: string) => {
-      scanningRef.current = false;
-      setScanning(false);
-
-      // Extract token from QR data (format: "attendance:{token}")
-      let token = rawValue;
-      if (rawValue.startsWith('attendance:')) {
-        token = rawValue.substring('attendance:'.length);
-      }
-
-      onScanned(token);
+      if (!canSubmitRef.current) return;
+      canSubmitRef.current = false;
+      stopCamera();
+      void onScannedRef.current(normalizeAttendanceToken(rawValue)).catch(() => {});
     },
-    [onScanned],
+    [stopCamera],
   );
 
   // Manual token input (fallback)
   const [manualToken, setManualToken] = useState('');
   const handleManualSubmit = () => {
-    if (manualToken.trim()) {
-      onScanned(manualToken.trim());
+    if (normalizeAttendanceToken(manualToken) && canSubmitRef.current) {
+      handleQrDetected(manualToken);
     }
   };
 
   // Lifecycle
   useEffect(() => {
-    if (open && checkinStatus === 'idle') {
+    if (open && isMobile && checkinStatus === 'idle') {
       startCamera();
     }
     return () => {
       stopCamera();
     };
-  }, [open]);
+  }, [open, isMobile, checkinStatus, startCamera, stopCamera]);
 
   // Auto-close on success after delay
   useEffect(() => {
@@ -160,7 +201,7 @@ export default function QrScannerModal({
     }
   }, [checkinStatus]);
 
-  if (!open) return null;
+  if (!open || !isMobile) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -176,7 +217,8 @@ export default function QrScannerModal({
               stopCamera();
               onClose();
             }}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Đóng quét QR"
+            className="p-2.5 rounded-lg hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <X className="w-5 h-5 text-gray-400" />
           </button>
@@ -212,7 +254,6 @@ export default function QrScannerModal({
               <button
                 onClick={() => {
                   onReset?.();
-                  startCamera();
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl
                            text-sm font-medium hover:bg-blue-700 transition-colors"

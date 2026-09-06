@@ -138,6 +138,21 @@ describe('Header responsive shell contract', () => {
     expect(screen.queryByRole('button', { name: 'Tìm kiếm' })).not.toBeInTheDocument();
   });
 
+  it('hides both QR attendance and directory search for students', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-1', roleCode: 'STUDENT' },
+      isLoading: false,
+      hasPermission: vi.fn(() => true),
+      hasAnyPermission: vi.fn(() => true),
+      hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true,
+      permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    render(<Header />);
+    expect(screen.queryByRole('button', { name: 'Quét QR điểm danh' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tìm kiếm' })).not.toBeInTheDocument();
+  });
+
   it('enables viewport portal for desktop search to avoid header clipping', () => {
     expect(headerSource).toContain('usePortal={true}');
     expect(headerSource).toContain("target.closest('[data-student-preview]')");

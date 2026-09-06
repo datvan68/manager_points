@@ -535,7 +535,7 @@ function ActivityAttendanceTab({
             </button>
             <button
               onClick={() => setShowQrScanner(true)}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+              className="flex-1 flex md:hidden items-center justify-center gap-2 px-5 py-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
             >
               <QrCode size={15} /> Quét QR
             </button>
@@ -606,7 +606,7 @@ function ActivityAttendanceTab({
 
       {/* Student QR Scanner */}
       {isQrSession && (
-        <div className="flex justify-center">
+        <div className="flex justify-center md:hidden">
           <button
             onClick={() => setShowQrScanner(true)}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
