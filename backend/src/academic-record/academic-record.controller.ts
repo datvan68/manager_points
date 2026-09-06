@@ -264,7 +264,7 @@ export class AcademicRecordController {
   }
 
   @Get('student/:studentId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkAcademicRecordReadAccess())
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get academic records by Student ID' })
   findByStudentId(

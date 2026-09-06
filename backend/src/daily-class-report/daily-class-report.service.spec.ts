@@ -144,7 +144,12 @@ describe('DailyClassReportService', () => {
 
       await service.findAll(
         { page: 1, limit: 10 },
-        { userId: new Types.ObjectId().toString(), roleName, permissions },
+        {
+          userId: new Types.ObjectId().toString(),
+          roleName,
+          roleCode: roleName === 'Admin' ? 'ADMIN' : undefined,
+          permissions,
+        },
       );
 
       expect(mockDailyClassReportModel.find.mock.calls[0][0]).not.toHaveProperty('reported_by');

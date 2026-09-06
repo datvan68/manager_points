@@ -299,6 +299,8 @@ export default function ActivitiesPage() {
         onSingleStatusChange={handleSingleStatusChange}
         onScheduleClick={() => router.push(activityType ? `/activities/schedule?activityType=${activityType}` : '/activities/schedule')}
         onAttendanceClick={() => router.push('/activities/attendance')}
+        canCreateActivity={viewPolicy.canCreate}
+        canViewSchedule={viewPolicy.canReadSchedule}
         canViewAttendance={canViewAttendance}
         onRefreshClick={loadData}
         pendingStatusActivityIds={pendingStatusActivityIds}

@@ -28,6 +28,7 @@ describe('AcademicRecordController - Import Flow', () => {
 
   const mockAcademicRecordService = {
     findAll: jest.fn(),
+    findByStudentId: jest.fn(),
     importPreview: jest.fn(),
     importCommit: jest.fn(),
     getImportProgress: jest.fn(),
@@ -109,6 +110,29 @@ describe('AcademicRecordController - Import Flow', () => {
 
       await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
       expect(service.findAll).not.toHaveBeenCalled();
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it('denies student-id lookup without READ_STUDENT_RECORD before the service is invoked', async () => {
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const Guard = guardsFor('findByStudentId')[0];
+      const request = { user: { roleName: 'Records Reviewer', permissions: [] } };
+      const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+
+      await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(service.findByStudentId).not.toHaveBeenCalled();
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it('preserves authenticated Student self-service for student-id lookup', async () => {
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const Guard = guardsFor('findByStudentId')[0];
+      const request = { user: { roleName: 'Student', permissions: [] } };
+      const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+
+      await expect(new Guard().canActivate(context)).resolves.toBe(true);
       JwtAuthGuard.prototype.canActivate = original;
     });
 

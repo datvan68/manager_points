@@ -63,8 +63,7 @@ export function getPreviewPermissions(subject: PreviewSubject): string[] {
 
 export function buildSystemPreviewAccess(permissions: string[], role: any) {
   const roleCode = role?.role_code || '';
-  const roleName = role?.name || '';
-  const isPreviewAdmin = roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL') || roleName.toLowerCase() === 'admin';
+  const isPreviewAdmin = roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL');
   
   const hasPreviewPermission = (code: string) => isPreviewAdmin || permissions.includes(code);
 
@@ -74,7 +73,7 @@ export function buildSystemPreviewAccess(permissions: string[], role: any) {
     showGrading: isPreviewAdmin || roleCode === 'TEACHER' || roleCode === 'SUPERVISOR' || hasPreviewPermission('GRADING_PAGE'),
     showSystem: [
       'SYSTEM_ADMIN', 'LOGIN_LOG_READ', 'SYSTEM_REQUEST_READ', 'SYSTEM_REQUEST_MANAGE',
-      'DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE', 'DATABASE_BACKUP_RESTORE', 'SYSTEM_PERFORMANCE_READ'
+      'DATABASE_BACKUP_READ', 'DATABASE_BACKUP_CREATE', 'DATABASE_BACKUP_DOWNLOAD', 'DATABASE_BACKUP_DELETE', 'DATABASE_BACKUP_RESTORE', 'SYSTEM_PERFORMANCE_READ', 'SYSTEM_MAIL_CONFIG_MANAGE'
     ].some(code => permissions.includes(code)),
     showPermissions: hasPreviewPermission('admin') || hasPreviewPermission('ADMIN_FULL'),
     showReports: isPreviewAdmin || hasPreviewPermission('REPORTS_PAGE') || hasPreviewPermission('REPORTS_READ'),

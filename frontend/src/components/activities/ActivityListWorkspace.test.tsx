@@ -250,6 +250,18 @@ describe('ActivityListWorkspace', () => {
     });
   });
 
+  it('hides activity controls when the called routes are not permitted', () => {
+    renderWorkspace({
+      canCreateActivity: false,
+      canViewSchedule: false,
+      canViewAttendance: false,
+    });
+
+    expect(screen.queryByTestId('calendar-header-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('attendance-header-button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tạo Câu lạc bộ Mới' })).not.toBeInTheDocument();
+  });
+
   describe('Canonical types, selector/filtering, grouping headings, table type labels, and aria-pressed states', () => {
     beforeEach(() => {
       mockGetUser.mockReturnValue({ role: 'teacher' });

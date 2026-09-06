@@ -1300,7 +1300,12 @@ describe('ActivityDetailPage', () => {
 
   it('lets a delegated teacher open Attendance with only own-class manual controls', async () => {
     mockAuth.isAdmin = false;
-    mockAuth.user = { id: 'teacher-user', role: { role_code: 'TEACHER' }, roleCode: 'TEACHER' } as any;
+    mockAuth.user = {
+      id: 'teacher-user',
+      role: { role_code: 'TEACHER' },
+      roleCode: 'TEACHER',
+      permissions: ['ACTIVITY_READ', 'ACTIVITY_MEMBER_MANAGE', 'ATTENDANCE_SESSION_READ', 'ATTENDANCE_SESSION_CREATE', 'ATTENDANCE_SESSION_CLOSE', 'ACTIVITY_ATTENDANCE_CREATE', 'ACTIVITY_ATTENDANCE_DELETE'],
+    } as any;
     mockSearchParamsGet.mockReturnValue('attendance');
     attendanceMocks.state = {
       session: null,
@@ -1334,7 +1339,12 @@ describe('ActivityDetailPage', () => {
 
   it('resumes the owner manual lane while keeping self-service and other class lanes independent', async () => {
     mockAuth.isAdmin = false;
-    mockAuth.user = { id: 'teacher-user', role: { role_code: 'TEACHER' }, roleCode: 'TEACHER' } as any;
+    mockAuth.user = {
+      id: 'teacher-user',
+      role: { role_code: 'TEACHER' },
+      roleCode: 'TEACHER',
+      permissions: ['ACTIVITY_READ', 'ACTIVITY_MEMBER_MANAGE', 'ATTENDANCE_SESSION_READ', 'ATTENDANCE_SESSION_CREATE', 'ATTENDANCE_SESSION_CLOSE', 'ACTIVITY_ATTENDANCE_CREATE', 'ACTIVITY_ATTENDANCE_DELETE'],
+    } as any;
     mockSearchParamsGet.mockReturnValue('attendance');
     attendanceMocks.state = {
       session: {

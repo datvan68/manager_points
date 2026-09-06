@@ -3,6 +3,7 @@
   NotFoundException,
   BadRequestException,
   Logger,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -39,11 +40,76 @@ export class ActivityAttendanceService {
     private syncService: ActivityAttendanceSyncService,
   ) {}
 
+  private requesterId(requester?: any): string | undefined {
+    return typeof requester === 'string'
+      ? requester
+      : requester?.userId || requester?._id || requester?.id;
+  }
+
+  private async resolveStudentId(requester: any): Promise<string> {
+    if (requester?.studentId && Types.ObjectId.isValid(requester.studentId)) {
+      return requester.studentId;
+    }
+    const userId = this.requesterId(requester);
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      throw new ForbiddenException('Tài khoản chưa có hồ sơ sinh viên');
+    }
+    const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).exec();
+    if (!student) throw new ForbiddenException('Tài khoản chưa có hồ sơ sinh viên');
+    return student._id.toString();
+  }
+
+  private async ensureActivityAccess(activityId: string, requester?: any): Promise<void> {
+    const activity = await this.activityModel.findById(activityId).select('advisor_id president_id').lean().exec();
+    if (!activity) throw new NotFoundException('Không tìm thấy Hoạt động');
+    if (requester?.roleCode === 'ADMIN' || requester?.permissions?.includes('ADMIN_FULL')) return;
+
+    const userId = this.requesterId(requester);
+    if (userId && activity.advisor_id?.toString() === userId.toString()) return;
+    if (userId && Types.ObjectId.isValid(userId)) {
+      const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).select('_id').lean().exec();
+      if (student && activity.president_id?.toString() === student._id.toString()) return;
+    }
+    throw new ForbiddenException('Bạn không có quyền truy cập điểm danh của Hoạt động này');
+  }
+
+  private async ensureAttendanceContext(
+    activityId: string,
+    scheduleId: string,
+    semesterId: string,
+    studentId: string,
+    requester?: any,
+  ): Promise<void> {
+    if (requester) await this.ensureActivityAccess(activityId, requester);
+    const schedule = await this.scheduleModel
+      .findById(scheduleId)
+      .select('activity_id semester_id')
+      .lean()
+      .exec();
+    if (
+      !schedule ||
+      schedule.activity_id?.toString() !== activityId.toString() ||
+      schedule.semester_id?.toString() !== semesterId.toString()
+    ) {
+      throw new BadRequestException('Buổi điểm danh không thuộc hoạt động hoặc học kỳ đã chọn.');
+    }
+    const student = await this.studentModel.findById(studentId).select('_id').lean().exec();
+    if (!student) throw new NotFoundException('Không tìm thấy sinh viên điểm danh.');
+  }
+
   async create(
     dto: CreateAttendanceDto,
     userId: string,
     userRole: string,
+    requester?: any,
   ): Promise<ActivityAttendanceDocument> {
+    await this.ensureAttendanceContext(
+      dto.activity_id,
+      dto.schedule_id,
+      dto.semester_id,
+      dto.student_id,
+      requester,
+    );
     // Check duplicate
     const existing = await this.attendanceModel.findOne({
       schedule_id: new Types.ObjectId(dto.schedule_id),
@@ -75,13 +141,29 @@ export class ActivityAttendanceService {
     dto: BatchAttendanceDto,
     userId: string,
     userRole: string,
+    requester?: any,
   ): Promise<{ created: number; skipped: number; errors: string[] }> {
+    if (requester) await this.ensureActivityAccess(dto.activity_id, requester);
+    const schedule = await this.scheduleModel
+      .findById(dto.schedule_id)
+      .select('activity_id semester_id')
+      .lean()
+      .exec();
+    if (
+      !schedule ||
+      schedule.activity_id?.toString() !== dto.activity_id.toString() ||
+      schedule.semester_id?.toString() !== dto.semester_id.toString()
+    ) {
+      throw new BadRequestException('Buổi điểm danh không thuộc hoạt động hoặc học kỳ đã chọn.');
+    }
     let created = 0;
     let skipped = 0;
     const errors: string[] = [];
 
     for (const entry of dto.entries) {
       try {
+        const student = await this.studentModel.findById(entry.student_id).select('_id').lean().exec();
+        if (!student) throw new NotFoundException('Không tìm thấy sinh viên điểm danh.');
         const existing = await this.attendanceModel.findOne({
           schedule_id: new Types.ObjectId(dto.schedule_id),
           student_id: new Types.ObjectId(entry.student_id),
@@ -122,13 +204,32 @@ export class ActivityAttendanceService {
     return { created, skipped, errors };
   }
 
-  async findAll(query: QueryAttendanceDto): Promise<{
+  async findAll(query: QueryAttendanceDto, requester?: any): Promise<{
     items: ActivityAttendanceDocument[];
     total: number;
     page: number;
     limit: number;
   }> {
     const filter: any = {};
+
+    if (!requester) {
+      // Controller routes always pass the authenticated requester; preserve the
+      // service's existing direct-call behavior for internal sync jobs/tests.
+    } else if (query.activity_id) {
+      await this.ensureActivityAccess(query.activity_id, requester);
+    } else if (!(requester?.roleCode === 'ADMIN' || requester?.permissions?.includes('ADMIN_FULL'))) {
+      const userId = this.requesterId(requester);
+      const student = userId && Types.ObjectId.isValid(userId)
+        ? await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).select('_id').lean().exec()
+        : null;
+      const activityQuery: any = { $or: [] };
+      if (userId && Types.ObjectId.isValid(userId)) activityQuery.$or.push({ advisor_id: new Types.ObjectId(userId) });
+      if (student) activityQuery.$or.push({ president_id: student._id });
+      const activities = activityQuery.$or.length
+        ? await this.activityModel.find(activityQuery).select('_id').lean().exec()
+        : [];
+      filter.activity_id = { $in: activities.map((activity: any) => activity._id) };
+    }
 
     if (query.activity_id) filter.activity_id = new Types.ObjectId(query.activity_id);
     if (query.schedule_id)
@@ -197,10 +298,11 @@ export class ActivityAttendanceService {
   }
 
   async findMyAttendance(
-    studentId: string,
+    requester: any,
     semesterId?: string,
     activityId?: string,
   ): Promise<ActivityAttendanceDocument[]> {
+    const studentId = await this.resolveStudentId(requester);
     const filter: any = { student_id: new Types.ObjectId(studentId) };
     if (semesterId) filter.semester_id = new Types.ObjectId(semesterId);
     if (activityId) filter.activity_id = new Types.ObjectId(activityId);
@@ -214,7 +316,7 @@ export class ActivityAttendanceService {
       .exec();
   }
 
-  async findOne(id: string): Promise<ActivityAttendanceDocument> {
+  async findOne(id: string, requester?: any): Promise<ActivityAttendanceDocument> {
     const attendance = await this.attendanceModel
       .findById(id)
       .populate('student_id', 'full_name student_code email')
@@ -227,10 +329,22 @@ export class ActivityAttendanceService {
     if (!attendance) {
       throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
     }
+    if (requester) {
+      const activityId = attendance.activity_id?._id || attendance.activity_id;
+      await this.ensureActivityAccess(activityId.toString(), requester);
+    }
     return attendance;
   }
 
-  async update(id: string, updates: any): Promise<ActivityAttendanceDocument> {
+  async update(id: string, updates: any, requester?: any): Promise<ActivityAttendanceDocument> {
+    const immutableFields = ['activity_id', 'schedule_id', 'student_id', 'semester_id'];
+    const workflowFields = ['approval_status', 'approved_by', 'approved_at', 'rejection_reason', 'synced_to_academic_record', 'academic_record_id'];
+    if ([...immutableFields, ...workflowFields].some((field) => Object.prototype.hasOwnProperty.call(updates || {}, field))) {
+      throw new BadRequestException('Không được thay đổi định danh hoặc trạng thái workflow của bản ghi điểm danh.');
+    }
+    const existing = await this.attendanceModel.findById(id).select('activity_id').lean().exec();
+    if (!existing) throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
+    if (requester) await this.ensureActivityAccess(existing.activity_id.toString(), requester);
     const attendance = await this.attendanceModel.findByIdAndUpdate(
       id,
       { $set: updates },
@@ -242,7 +356,10 @@ export class ActivityAttendanceService {
     return attendance;
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(id: string, requester?: any): Promise<{ message: string }> {
+    const existing = await this.attendanceModel.findById(id).select('activity_id').lean().exec();
+    if (!existing) throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
+    if (requester) await this.ensureActivityAccess(existing.activity_id.toString(), requester);
     const attendance = await this.attendanceModel.findByIdAndDelete(id);
     if (!attendance) {
       throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
@@ -254,11 +371,13 @@ export class ActivityAttendanceService {
     id: string,
     dto: ApproveAttendanceDto,
     userId: string,
+    requester?: any,
   ): Promise<ActivityAttendanceDocument> {
     const attendance = await this.attendanceModel.findById(id);
     if (!attendance) {
       throw new NotFoundException('Không tìm thấy bản ghi điểm danh');
     }
+    if (requester) await this.ensureActivityAccess(attendance.activity_id.toString(), requester);
     if (attendance.approval_status !== 'pending') {
       throw new BadRequestException('Bản ghi đã được xử lý trước đó');
     }
@@ -305,20 +424,22 @@ export class ActivityAttendanceService {
     id: string,
     dto: ApproveAttendanceDto,
     userId: string,
+    requester?: any,
   ): Promise<ActivityAttendanceDocument> {
-    return this.approve(id, { ...dto, status: 'rejected' }, userId);
+    return this.approve(id, { ...dto, status: 'rejected' }, userId, requester);
   }
 
   async batchApprove(
     ids: string[],
     userId: string,
+    requester?: any,
   ): Promise<{ approved: number; errors: string[] }> {
     let approved = 0;
     const errors: string[] = [];
 
     for (const id of ids) {
       try {
-        await this.approve(id, { status: 'approved' }, userId);
+        await this.approve(id, { status: 'approved' }, userId, requester);
         approved++;
       } catch (err: any) {
         errors.push(`ID ${id}: ${err.message}`);
@@ -328,7 +449,8 @@ export class ActivityAttendanceService {
     return { approved, errors };
   }
 
-  async getSummary(activityId: string, semesterId: string): Promise<any> {
+  async getSummary(activityId: string, semesterId: string, requester?: any): Promise<any> {
+    if (requester) await this.ensureActivityAccess(activityId, requester);
     const pipeline = [
       {
         $match: {
@@ -401,9 +523,14 @@ export class ActivityAttendanceService {
     return this.attendanceModel.aggregate(pipeline);
   }
 
-  async getPendingCount(activityId?: string): Promise<{ count: number }> {
+  async getPendingCount(activityId?: string, requester?: any): Promise<{ count: number }> {
     const filter: any = { approval_status: 'pending' };
-    if (activityId) filter.activity_id = new Types.ObjectId(activityId);
+    if (activityId) {
+      if (requester) await this.ensureActivityAccess(activityId, requester);
+      filter.activity_id = new Types.ObjectId(activityId);
+    } else if (requester && !(requester?.roleCode === 'ADMIN' || requester?.permissions?.includes('ADMIN_FULL'))) {
+      throw new BadRequestException('Cần chọn hoạt động để xem số điểm danh chờ duyệt.');
+    }
 
     const count = await this.attendanceModel.countDocuments(filter);
     return { count };

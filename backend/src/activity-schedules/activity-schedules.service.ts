@@ -61,6 +61,17 @@ export class ActivitySchedulesService {
     }
   }
 
+  private async resolveStudentId(requesterId: string): Promise<string> {
+    if (!requesterId || !Types.ObjectId.isValid(requesterId)) {
+      throw new BadRequestException('Người dùng không hợp lệ');
+    }
+    const student = this.studentModel
+      ? await this.studentModel.findOne({ user_id: new Types.ObjectId(requesterId) }).exec()
+      : null;
+    if (!student) throw new ForbiddenException('Tài khoản chưa có hồ sơ sinh viên');
+    return student._id.toString();
+  }
+
   async create(
     dto: CreateScheduleDto,
     userId: string,
@@ -278,9 +289,10 @@ export class ActivitySchedulesService {
   }
 
   async findMySchedules(studentId: string): Promise<any[]> {
+    const resolvedStudentId = await this.resolveStudentId(studentId);
     const registrations = await this.registrationModel
       .find({
-        student_id: new Types.ObjectId(studentId),
+        student_id: new Types.ObjectId(resolvedStudentId),
         status: 'registered',
       })
       .populate({
@@ -798,6 +810,7 @@ export class ActivitySchedulesService {
     studentId: string,
     activityId: string,
   ): Promise<ScheduleRegistrationDocument> {
+    const resolvedStudentId = await this.resolveStudentId(studentId);
     const schedule = await this.scheduleModel.findById(scheduleId);
     if (!schedule) {
       throw new NotFoundException('Không tìm thấy buổi sinh hoạt');
@@ -820,7 +833,7 @@ export class ActivitySchedulesService {
     // Check duplicate
     const existing = await this.registrationModel.findOne({
       schedule_id: new Types.ObjectId(scheduleId),
-      student_id: new Types.ObjectId(studentId),
+      student_id: new Types.ObjectId(resolvedStudentId),
     });
     if (existing) {
       if (existing.status === 'cancelled') {
@@ -834,7 +847,7 @@ export class ActivitySchedulesService {
 
     const registration = new this.registrationModel({
       schedule_id: new Types.ObjectId(scheduleId),
-      student_id: new Types.ObjectId(studentId),
+      student_id: new Types.ObjectId(resolvedStudentId),
       activity_id: new Types.ObjectId(activityId),
       status: 'registered',
       registered_at: new Date(),
@@ -847,6 +860,7 @@ export class ActivitySchedulesService {
     scheduleId: string,
     studentId: string,
   ): Promise<{ message: string }> {
+    const resolvedStudentId = await this.resolveStudentId(studentId);
     const schedule = await this.scheduleModel.findById(scheduleId);
     if (!schedule) {
       throw new NotFoundException('Không tìm thấy buổi sinh hoạt');
@@ -860,7 +874,7 @@ export class ActivitySchedulesService {
     const registration = await this.registrationModel.findOneAndUpdate(
       {
         schedule_id: new Types.ObjectId(scheduleId),
-        student_id: new Types.ObjectId(studentId),
+        student_id: new Types.ObjectId(resolvedStudentId),
         status: 'registered',
       },
       { $set: { status: 'cancelled', cancelled_at: new Date() } },
@@ -960,7 +974,12 @@ export class ActivitySchedulesService {
     let viewerMode: 'student' | 'staff';
     if (isStudent(requester)) {
       viewerMode = 'student';
-    } else if (isAdmin(requester) || isSupervisor(requester) || isAssignedTeacher) {
+    } else if (
+      isAdmin(requester) ||
+      isSupervisor(requester) ||
+      isAssignedTeacher ||
+      (requester?.permissions || []).includes('ACTIVITY_SCHEDULE_READ')
+    ) {
       viewerMode = 'staff';
     } else if (isTeacher(requester)) {
       viewerMode = 'student';
@@ -991,7 +1010,7 @@ export class ActivitySchedulesService {
 
     let attendanceList: any[] = [];
     if (viewerMode === 'student') {
-      let studentId = requester.studentId || requester._id;
+      let studentId = requester.studentId || (!requester.userId && requester._id);
       const userId = requester.userId || requester.id;
       if (!studentId && userId && this.studentModel) {
         const student = await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).select('_id').lean().exec();

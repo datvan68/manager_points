@@ -72,12 +72,24 @@ export class RbacService {
     const codeSet = new Set(codes);
     if (!codeSet.has('ADMIN_FULL')) {
       const missing = new Set<string>();
+      const visited = new Set<string>();
+      const collectDependencies = (code: string) => {
+        if (visited.has(code)) return;
+        visited.add(code);
+
+        const policy = getPermissionPolicy(code);
+        if (!policy) return;
+
+        for (const dependency of policy.requires) {
+          if (!codeSet.has(dependency)) missing.add(dependency);
+          collectDependencies(dependency);
+        }
+      };
+
       for (const code of codes) {
         const policy = getPermissionPolicy(code);
         if (!policy || !['action', 'scope modifier'].includes(policy.kind)) continue;
-        for (const dependency of policy.requires) {
-          if (!codeSet.has(dependency)) missing.add(dependency);
-        }
+        collectDependencies(code);
       }
       if (missing.size) {
         throw new BadRequestException({

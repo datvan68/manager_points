@@ -25,6 +25,7 @@ import {
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
+import { checkAnyPermission } from '../auth/guards/check-permission.guard';
 import { GradingRealtimeService } from './grading-realtime.service';
 
 @ApiTags('summaries-points')
@@ -143,6 +144,7 @@ export class SummariesPointController {
   }
 
   @Get()
+  @UseGuards(checkAnyPermission('GRADING_PAGE', 'READ_STUDENT_RECORD'))
   @ApiOperation({ summary: 'Lấy danh sách tất cả điểm tổng kết' })
   @ApiResponse({
     status: 200,

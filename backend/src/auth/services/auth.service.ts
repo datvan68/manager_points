@@ -560,6 +560,7 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_DOWNLOAD',
           'DATABASE_BACKUP_DELETE',
           'DATABASE_BACKUP_RESTORE',
+          'SYSTEM_MAIL_CONFIG_MANAGE',
         ],
         action_permissions: [
           'SYSTEM_PERFORMANCE_READ',
@@ -571,6 +572,7 @@ export class AuthService implements OnModuleInit {
           'DATABASE_BACKUP_DOWNLOAD',
           'DATABASE_BACKUP_DELETE',
           'DATABASE_BACKUP_RESTORE',
+          'SYSTEM_MAIL_CONFIG_MANAGE',
         ],
       },
       {
@@ -1482,7 +1484,10 @@ export class AuthService implements OnModuleInit {
         name: 'Audit Viewer',
         role_code: 'AUDIT_VIEWER',
         description: 'Chỉ xem nhật ký hệ thống',
-        permissions: [createdPerms['LOGIN_LOG_READ']].filter(Boolean),
+        permissions: [
+          createdPerms['SYSTEM_ADMIN'],
+          createdPerms['LOGIN_LOG_READ'],
+        ].filter(Boolean),
       },
       {
         name: 'Backup Operator',
@@ -1490,6 +1495,7 @@ export class AuthService implements OnModuleInit {
         description:
           'Vận hành sao lưu hệ thống (không có quyền xóa/tải backup)',
         permissions: [
+          createdPerms['SYSTEM_ADMIN'],
           createdPerms['DATABASE_BACKUP_READ'],
           createdPerms['DATABASE_BACKUP_CREATE'],
         ].filter(Boolean),

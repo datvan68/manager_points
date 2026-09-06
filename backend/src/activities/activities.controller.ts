@@ -22,7 +22,6 @@ import {
   ApiOperation,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   checkPermission,
   checkAnyPermission,
@@ -74,7 +73,7 @@ export class ActivitiesController {
   }
 
   @Post('media/upload')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkAnyPermission('ACTIVITY_CREATE', 'ACTIVITY_UPDATE'))
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -126,7 +125,7 @@ export class ActivitiesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách tất cả câu lạc bộ' })
   findAll(
@@ -139,7 +138,7 @@ export class ActivitiesController {
   }
 
   @Get('my')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Hoạt động của sinh viên đang đăng nhập' })
   getMyActivities(@Request() req: any) {
@@ -149,7 +148,7 @@ export class ActivitiesController {
   }
 
   @Get('my/transfer-policy')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy chính sách chuyển câu lạc bộ của tôi' })
   getMyTransferPolicy(
@@ -161,7 +160,7 @@ export class ActivitiesController {
   }
 
   @Get('favorites/me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách ID câu lạc bộ đã yêu thích của tôi' })
   getMyFavoriteActivityIds(@Request() req: any) {
@@ -170,7 +169,7 @@ export class ActivitiesController {
   }
 
   @Post(':id/favorite')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Yêu thích câu lạc bộ' })
   favoriteActivity(@Param('id') id: string, @Request() req: any) {
@@ -179,7 +178,7 @@ export class ActivitiesController {
   }
 
   @Delete(':id/favorite')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Hủy yêu thích câu lạc bộ' })
   unfavoriteActivity(@Param('id') id: string, @Request() req: any) {
@@ -188,7 +187,7 @@ export class ActivitiesController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết câu lạc bộ' })
   findOne(@Param('id') id: string, @Request() req: any) {
@@ -196,7 +195,7 @@ export class ActivitiesController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_UPDATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật thông tin Hoạt động' })
   update(@Param('id') id: string, @Body() dto: UpdateActivityDto, @Request() req: any) {
@@ -204,7 +203,7 @@ export class ActivitiesController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Vô hiệu hóa Hoạt động (soft delete)' })
   remove(@Param('id') id: string, @Request() req: any) {
@@ -214,7 +213,7 @@ export class ActivitiesController {
   // ── Member endpoints ──
 
   @Get(':id/members')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách thành viên Hoạt động' })
   @ApiQuery({ name: 'status', required: false })
@@ -232,12 +231,12 @@ export class ActivitiesController {
   @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Thêm thành viên vào Hoạt động' })
-  addMember(@Param('id') id: string, @Body() dto: AddActivityMemberDto) {
-    return this.activitiesService.addMember(id, dto);
+  addMember(@Param('id') id: string, @Body() dto: AddActivityMemberDto, @Request() req: any) {
+    return this.activitiesService.addMember(id, dto, req.user);
   }
 
   @Post(':id/join')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Sinh viên tự đăng ký tham gia Hoạt động' })
   joinActivity(
@@ -257,27 +256,28 @@ export class ActivitiesController {
     @Param('id') id: string,
     @Param('memberId') memberId: string,
     @Body() dto: UpdateActivityMemberDto,
+    @Request() req: any,
   ) {
-    return this.activitiesService.updateMember(id, memberId, dto);
+    return this.activitiesService.updateMember(id, memberId, dto, req.user);
   }
 
   @Delete(':id/members/:memberId')
   @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa thành viên khỏi Hoạt động' })
-  removeMember(@Param('id') id: string, @Param('memberId') memberId: string) {
-    return this.activitiesService.removeMember(id, memberId);
+  removeMember(@Param('id') id: string, @Param('memberId') memberId: string, @Request() req: any) {
+    return this.activitiesService.removeMember(id, memberId, req.user);
   }
 
   @Post(':id/members/batch-delete')
   @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
   @ApiBearerAuth()
-  bulkRemoveMembers(@Param('id') id: string, @Body() dto: BulkDeleteActivityMembersDto) {
-    return this.activitiesService.removeMembers(id, dto.member_ids);
+  bulkRemoveMembers(@Param('id') id: string, @Body() dto: BulkDeleteActivityMembersDto, @Request() req: any) {
+    return this.activitiesService.removeMembers(id, dto.member_ids, req.user);
   }
 
   @Post(':id/members/:memberId/approve')
-  @UseGuards(JwtAuthGuard) // Guard changed to JwtAuthGuard to allow advisors (TEACHER role) who may not have ACTIVITY_MEMBER_MANAGE globally, but check is inside service
+  @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Duyệt/từ chối đăng ký thành viên' })
   approveMember(
@@ -295,7 +295,7 @@ export class ActivitiesController {
   }
 
   @Post(':id/leave')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Sinh viên tự rời câu lạc bộ' })
   leaveActivity(
@@ -308,7 +308,7 @@ export class ActivitiesController {
   }
 
   @Post(':id/switch')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Sinh viên tự chuyển đổi sang câu lạc bộ khác' })
   switchActivity(
@@ -321,7 +321,7 @@ export class ActivitiesController {
   }
 
   @Post(':id/admin-transfer')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_MEMBER_MANAGE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Quản trị viên chuyển trực tiếp sinh viên sang Hoạt động khác' })
   adminTransferActivity(
@@ -334,7 +334,7 @@ export class ActivitiesController {
   }
 
   @Get(':id/stats')
-  @UseGuards(checkPermission('ACTIVITY_READ'))
+  @UseGuards(checkPermission('ACTIVITY_REPORT_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Thống kê Hoạt động' })
   getActivityStats(@Param('id') id: string) {

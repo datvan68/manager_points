@@ -140,7 +140,6 @@ export default function ActivityDetailPage() {
 
   const isAdmin = isAdminUser(user);
   const isAssignedTeacher = isTeacherRole(user) && Boolean(activity?.advisor_id) && normalizeEntityId(activity.advisor_id) === normalizeEntityId(user?.id);
-  const isAdminOrAdvisor = isAdmin || isAssignedTeacher;
   const isStudent = isStudentRole(user);
   const canUseMemberFlow = isStudent || isAdmin;
   const activityPolicy = getActivityViewPolicy({
@@ -149,7 +148,14 @@ export default function ActivityDetailPage() {
     isStudent,
     isOwner: isAssignedTeacher,
   });
-  const canViewStaffTabs = activityPolicy.canManageMembers || isAssignedTeacher;
+  const canManageAttendancePermission = isAdmin || [
+    'ATTENDANCE_SESSION_CREATE',
+    'ACTIVITY_ATTENDANCE_CREATE',
+    'ACTIVITY_ATTENDANCE_UPDATE',
+    'ACTIVITY_ATTENDANCE_APPROVE',
+  ].some((permission) => (user?.permissions || []).includes(permission));
+  const isAdminOrAdvisor = activityPolicy.canUpdate || activityPolicy.canManageSchedule || canManageAttendancePermission;
+  const canViewStaffTabs = activityPolicy.canManageMembers;
   const todayScheduleId = getTodaySchedule(schedules)?._id;
 
   const attendance = useAttendanceSession({
@@ -159,9 +165,9 @@ export default function ActivityDetailPage() {
     activityId,
     currentUserId: normalizeEntityId(user?.id),
     manualScheduleId: todayScheduleId,
-    canManage: isAdmin || isAssignedTeacher || members.some((member) => member.status === 'active' && member.role === 'president' && (
+    canManage: canManageAttendancePermission && (isAdmin || isAssignedTeacher || members.some((member) => member.status === 'active' && member.role === 'president' && (
       normalizeEntityId(member.student_id) === user?.studentId || normalizeEntityId(member.user_id) === user?.id
-    )),
+    ))),
   });
 
 

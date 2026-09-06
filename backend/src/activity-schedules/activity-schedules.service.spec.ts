@@ -508,7 +508,7 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
         };
       });
 
-      const requester = { role: 'ADMIN' };
+      const requester = { roleCode: 'ADMIN', role: 'ADMIN' };
       const res = await service.findActivityTimeline(activityId, requester);
       expect(res.viewer_mode).toBe('staff');
       expect(res.items[0].my_attendance).toBeUndefined();
@@ -580,7 +580,7 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
       expect(teacherRes.items[0].attendance_records[0].status).toBe('present');
 
       // Test admin
-      const adminRequester = { role: 'ADMIN' };
+      const adminRequester = { roleCode: 'ADMIN', role: 'ADMIN' };
       const adminRes = await service.findActivityTimeline(activityId, adminRequester);
       expect(adminRes.viewer_mode).toBe('staff');
       expect(adminRes.items[0].my_attendance).toBeUndefined();
@@ -596,9 +596,9 @@ describe('ActivitySchedulesService - Recurrence Date Range Validation', () => {
         // Past schedule (10 days ago)
         { _id: new Types.ObjectId(), start_time: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000), end_time: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), title: 'Past Schedule', status: 'scheduled' },
         // Today schedule 1
-        { _id: new Types.ObjectId(), start_time: new Date(today), end_time: new Date(today.getTime() + 2 * 60 * 60 * 1000), title: 'Today Schedule 1', status: 'scheduled' },
+        { _id: new Types.ObjectId(), start_time: new Date(new Date(today).setHours(10, 0, 0, 0)), end_time: new Date(new Date(today).setHours(12, 0, 0, 0)), title: 'Today Schedule 1', status: 'scheduled' },
         // Today schedule 2
-        { _id: new Types.ObjectId(), start_time: new Date(today.getTime() + 15 * 60 * 1000), end_time: new Date(today.getTime() + 2 * 60 * 60 * 1000 + 15 * 60 * 1000), title: 'Today Schedule 2', status: 'scheduled' },
+        { _id: new Types.ObjectId(), start_time: new Date(new Date(today).setHours(13, 0, 0, 0)), end_time: new Date(new Date(today).setHours(15, 0, 0, 0)), title: 'Today Schedule 2', status: 'scheduled' },
         // Future schedule (10 days later)
         { _id: new Types.ObjectId(), start_time: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000), end_time: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), title: 'Future Schedule', status: 'scheduled' },
       ];

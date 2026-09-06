@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, ClientSession } from 'mongoose';
 import {
@@ -14,6 +14,8 @@ import { Activity, ActivityDocument } from '../activities/schemas/activity.schem
 import { AcademicRecord, AcademicRecordDocument } from '../academic-record/schemas/academic-record.schema';
 import { CreateActivityCompletionRuleDto, UpdateActivityCompletionRuleDto } from './dto/activity-completion-rule.dto';
 import { ActivityMember, ActivityMemberDocument } from '../activities/schemas/activity-member.schema';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { isAdminUser } from '../auth/utils/role.util';
 
 @Injectable()
 export class ActivityCompletionService {
@@ -30,11 +32,54 @@ export class ActivityCompletionService {
     private academicRecordModel: Model<AcademicRecordDocument>,
     @InjectModel(ActivityMember.name)
     private memberModel: Model<ActivityMemberDocument>,
+    @InjectModel(Student.name)
+    private studentModel: Model<StudentDocument>,
   ) {}
+
+  private requesterId(requester?: any): string | undefined {
+    return requester?.userId || requester?._id || requester?.id;
+  }
+
+  private async ensureActivityAccess(activityId: string, requester?: any) {
+    if (!requester) return;
+    const activity: any = await this.clubModel
+      .findById(activityId)
+      .select('advisor_id president_id')
+      .lean()
+      .exec();
+    if (!activity) throw new NotFoundException('Không tìm thấy hoạt động.');
+    if (isAdminUser(requester) || requester?.permissions?.includes('ADMIN_FULL')) return;
+    const userId = this.requesterId(requester);
+    if (userId && activity.advisor_id?.toString() === userId.toString()) return;
+    if (userId && Types.ObjectId.isValid(userId)) {
+      const student: any = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(userId) })
+        .select('_id')
+        .lean()
+        .exec();
+      if (student && activity.president_id?.toString() === student._id.toString()) return;
+    }
+    throw new ForbiddenException('Bạn không có quyền quản lý hoạt động này.');
+  }
+
+  private async scopedActivityIds(requester?: any): Promise<any[] | null> {
+    if (!requester || isAdminUser(requester) || requester?.permissions?.includes('ADMIN_FULL')) return null;
+    const userId = this.requesterId(requester);
+    const student = userId && Types.ObjectId.isValid(userId)
+      ? await this.studentModel.findOne({ user_id: new Types.ObjectId(userId) }).select('_id').lean().exec()
+      : null;
+    const clauses: any[] = [];
+    if (userId && Types.ObjectId.isValid(userId)) clauses.push({ advisor_id: new Types.ObjectId(userId) });
+    if (student) clauses.push({ president_id: student._id });
+    if (!clauses.length) return [];
+    const activities: any[] = await this.clubModel.find({ $or: clauses }).select('_id').lean().exec();
+    return activities.map((activity) => activity._id);
+  }
 
   // ─── RULE CRUD ───
 
-  async createRule(dto: CreateActivityCompletionRuleDto): Promise<ActivityCompletionRuleDocument> {
+  async createRule(dto: CreateActivityCompletionRuleDto, requester?: any): Promise<ActivityCompletionRuleDocument> {
+    await this.ensureActivityAccess(dto.activity_id, requester);
     const existing = await this.ruleModel.findOne({
       activity_id: new Types.ObjectId(dto.activity_id),
       semester_id: new Types.ObjectId(dto.semester_id),
@@ -55,8 +100,10 @@ export class ActivityCompletionService {
     return rule.save();
   }
 
-  async findAllRules(): Promise<ActivityCompletionRuleDocument[]> {
-    return this.ruleModel.find()
+  async findAllRules(requester?: any): Promise<ActivityCompletionRuleDocument[]> {
+    const activityIds = await this.scopedActivityIds(requester);
+    const filter = activityIds ? { activity_id: { $in: activityIds } } : {};
+    return this.ruleModel.find(filter)
       .populate('activity_id', 'name code')
       .populate('semester_id', 'name')
       .populate('criterion_ids', 'name')
@@ -64,7 +111,7 @@ export class ActivityCompletionService {
       .exec();
   }
 
-  async findOneRule(id: string): Promise<ActivityCompletionRuleDocument> {
+  async findOneRule(id: string, requester?: any): Promise<ActivityCompletionRuleDocument> {
     const rule = await this.ruleModel.findById(id)
       .populate('activity_id', 'name code')
       .populate('semester_id', 'name')
@@ -74,14 +121,17 @@ export class ActivityCompletionService {
     if (!rule) {
       throw new NotFoundException(`Không tìm thấy quy tắc hoàn thành với ID: ${id}`);
     }
+    await this.ensureActivityAccess(rule.activity_id.toString(), requester);
     return rule;
   }
 
-  async updateRule(id: string, dto: UpdateActivityCompletionRuleDto): Promise<ActivityCompletionRuleDocument> {
+  async updateRule(id: string, dto: UpdateActivityCompletionRuleDto, requester?: any): Promise<ActivityCompletionRuleDocument> {
     const rule = await this.ruleModel.findById(id).exec();
     if (!rule) {
       throw new NotFoundException(`Không tìm thấy quy tắc hoàn thành với ID: ${id}`);
     }
+    await this.ensureActivityAccess(rule.activity_id.toString(), requester);
+    if (dto.activity_id) await this.ensureActivityAccess(dto.activity_id, requester);
 
     if (dto.activity_id || dto.semester_id) {
       const activityId = dto.activity_id || rule.activity_id.toString();
@@ -109,12 +159,14 @@ export class ActivityCompletionService {
     return saved;
   }
 
-  async getMemberProgress(activityId: string, semesterId: string) {
+  async getMemberProgress(activityId: string, semesterId: string, requester?: any) {
+    await this.ensureActivityAccess(activityId, requester);
     const members = await this.memberModel.find({ activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId), status: 'active' }).lean().exec();
     return members.map((member: any) => ({ member_id: member._id.toString(), participation_count: Math.max(0, 3 - (member.self_service_leave_count ?? 0)) }));
   }
 
-  async resetMemberProgress(activityId: string, semesterId: string, memberId: string) {
+  async resetMemberProgress(activityId: string, semesterId: string, memberId: string, requester?: any) {
+    await this.ensureActivityAccess(activityId, requester);
     const member = await this.memberModel.findOneAndUpdate({ _id: new Types.ObjectId(memberId), activity_id: new Types.ObjectId(activityId), semester_id: new Types.ObjectId(semesterId) }, { $set: { self_service_leave_count: 0 } }, { returnDocument: 'after' }).exec();
     if (!member) throw new NotFoundException('Không tìm thấy thành viên trong hoạt động và học kỳ yêu cầu');
     return { member_id: member._id.toString(), participation_count: 3 };
@@ -125,7 +177,10 @@ export class ActivityCompletionService {
     return resetAt ? attendanceCount.then((count) => count + 3) : attendanceCount;
   }
 
-  async removeRule(id: string): Promise<{ message: string }> {
+  async removeRule(id: string, requester?: any): Promise<{ message: string }> {
+    const rule = await this.ruleModel.findById(id).select('activity_id').lean().exec();
+    if (!rule) throw new NotFoundException(`Không tìm thấy quy tắc hoàn thành với ID: ${id}`);
+    await this.ensureActivityAccess(rule.activity_id.toString(), requester);
     const result = await this.ruleModel.findByIdAndDelete(id).exec();
     if (!result) {
       throw new NotFoundException(`Không tìm thấy quy tắc hoàn thành với ID: ${id}`);

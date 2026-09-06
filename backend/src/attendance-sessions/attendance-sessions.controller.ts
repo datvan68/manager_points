@@ -16,7 +16,7 @@ import {
   ApiOperation,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { checkAnyPermission, checkPermission } from '../auth/guards/check-permission.guard';
 import { AttendanceSessionsService } from './attendance-sessions.service';
 import { AttendanceRealtimeService } from './attendance-realtime.service';
 import { OpenSessionDto } from './dto/open-session.dto';
@@ -32,20 +32,26 @@ export class AttendanceSessionsController {
     private readonly realtimeService: AttendanceRealtimeService,
   ) {}
 
+  private serviceRoleCode(user: any): string {
+    return user?.roleCode === 'ADMIN' || user?.permissions?.includes('ADMIN_FULL')
+      ? 'ADMIN'
+      : user?.roleCode || 'USER';
+  }
+
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_CREATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Mở phiên điểm danh mới (QR hoặc Proximity)' })
   openSession(@Body() dto: OpenSessionDto, @Request() req: any) {
     return this.sessionsService.openSession(
       dto,
       req.user.userId,
-      req.user.roleCode,
+      this.serviceRoleCode(req.user),
     );
   }
 
   @Get('active')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy phiên điểm danh đang active theo context' })
   @ApiQuery({ name: 'context_type', required: true })
@@ -60,13 +66,13 @@ export class AttendanceSessionsController {
       classId: req.query?.class_id,
       scheduleId: req.query?.schedule_id,
     };
-    const args: any[] = [contextType, contextId, req.user.userId, req.user.roleCode];
+    const args: any[] = [contextType, contextId, req.user.userId, this.serviceRoleCode(req.user)];
     if (Object.values(filters).some(Boolean)) args.push(filters);
     return (this.sessionsService.getActiveSession as any)(...args);
   }
 
   @Sse('realtime')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Realtime attendance updates for one activity context' })
   @ApiQuery({ name: 'context_type', required: true })
@@ -80,7 +86,7 @@ export class AttendanceSessionsController {
   }
 
   @Get('history')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lịch sử phiên điểm danh theo context' })
   @ApiQuery({ name: 'context_type', required: true })
@@ -100,40 +106,40 @@ export class AttendanceSessionsController {
       page ? Number(page) : 1,
       limit ? Number(limit) : 10,
       req?.user?.userId,
-      req?.user?.roleCode,
+      this.serviceRoleCode(req?.user),
     );
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết phiên điểm danh' })
   getSessionById(@Param('id') id: string, @Request() req: any) {
-    return this.sessionsService.getSessionById(id, req.user.userId, req.user.roleCode);
+    return this.sessionsService.getSessionById(id, req.user.userId, this.serviceRoleCode(req.user));
   }
 
   @Get(':id/qr')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy QR data hiện tại (admin polling)' })
   getQrData(@Param('id') id: string, @Request() req: any) {
-    return this.sessionsService.getQrData(id, req.user.userId, req.user.roleCode);
+    return this.sessionsService.getQrData(id, req.user.userId, this.serviceRoleCode(req.user));
   }
 
   @Post(':id/close')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_CLOSE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đóng phiên điểm danh' })
   closeSession(@Param('id') id: string, @Request() req: any) {
     return this.sessionsService.closeSession(
       id,
       req.user.userId,
-      req.user.roleCode,
+      this.serviceRoleCode(req.user),
     );
   }
 
   @Post('checkin/qr')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check-in bằng QR code' })
   checkinQr(@Body() dto: CheckinQrDto, @Request() req: any) {
@@ -141,13 +147,13 @@ export class AttendanceSessionsController {
     return this.sessionsService.checkinQr(
       dto,
       req.user.userId,
-      req.user.roleCode,
+      this.serviceRoleCode(req.user),
       userAgent,
     );
   }
 
   @Post('checkin/proximity')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check-in bằng proximity (GPS)' })
   checkinProximity(@Body() dto: CheckinProximityDto, @Request() req: any) {
@@ -155,41 +161,41 @@ export class AttendanceSessionsController {
     return this.sessionsService.checkinProximity(
       dto,
       req.user.userId,
-      req.user.roleCode,
+      this.serviceRoleCode(req.user),
       userAgent,
     );
   }
 
   @Get(':id/checkins')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách đã check-in trong phiên' })
   getCheckins(@Param('id') id: string, @Request() req: any) {
     return this.sessionsService.getCheckins(
       id,
       req.user.userId,
-      req.user.roleCode,
+      this.serviceRoleCode(req.user),
     );
   }
 
   @Get(':id/manual-roster')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ATTENDANCE_SESSION_READ'))
   @ApiBearerAuth()
   getManualRoster(@Param('id') id: string, @Request() req: any) {
-    return this.sessionsService.getManualRoster(id, req.user.userId, req.user.roleCode);
+    return this.sessionsService.getManualRoster(id, req.user.userId, this.serviceRoleCode(req.user));
   }
 
   @Post(':id/manual-checkins')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
   manualCheckin(@Param('id') id: string, @Body() dto: ManualAttendanceDto, @Request() req: any) {
-    return this.sessionsService.manualCheckin(id, dto.student_id, req.user.userId, req.user.roleCode);
+    return this.sessionsService.manualCheckin(id, dto.student_id, req.user.userId, this.serviceRoleCode(req.user));
   }
 
   @Delete(':id/manual-checkins/:studentId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_DELETE'))
   @ApiBearerAuth()
   cancelManualCheckin(@Param('id') id: string, @Param('studentId') studentId: string, @Request() req: any) {
-    return this.sessionsService.cancelManualCheckin(id, studentId, req.user.userId, req.user.roleCode);
+    return this.sessionsService.cancelManualCheckin(id, studentId, req.user.userId, this.serviceRoleCode(req.user));
   }
 }

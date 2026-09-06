@@ -543,6 +543,29 @@ export class ActivitiesService {
     return Boolean(userId && activity?.advisor_id && activity.advisor_id.toString() === userId.toString());
   }
 
+  private async ensureActivityMemberManagementAccess(
+    activityId: string,
+    user?: any,
+  ): Promise<ActivityDocument> {
+    const activity = await this.activityModel.findById(activityId).exec();
+    if (!activity) throw new NotFoundException('Không tìm thấy Hoạt động');
+    if (user && (isAdminUser(user) || this.isAssignedAdvisor(activity, user))) {
+      return activity;
+    }
+
+    const userId = this.getRequesterId(user);
+    if (userId && Types.ObjectId.isValid(userId)) {
+      const student = await this.studentModel
+        .findOne({ user_id: new Types.ObjectId(userId) })
+        .exec();
+      if (student && activity.president_id?.toString() === student._id.toString()) {
+        return activity;
+      }
+    }
+
+    throw new ForbiddenException('Bạn không có quyền quản lý thành viên của Hoạt động này');
+  }
+
   private async ensureActivityReadAccess(activityId: string, user: any): Promise<ActivityDocument> {
     const activity = await this.activityModel.findById(activityId).exec();
     if (!activity) throw new NotFoundException('Không tìm thấy Hoạt động');
@@ -623,11 +646,9 @@ export class ActivitiesService {
   async addMember(
     activityId: string,
     dto: AddActivityMemberDto,
+    requester?: any,
   ): Promise<ActivityMemberDocument> {
-    const activity = await this.activityModel.findById(activityId);
-    if (!activity) {
-      throw new NotFoundException(`Không tìm thấy Hoạt động`);
-    }
+    const activity = await this.ensureActivityMemberManagementAccess(activityId, requester);
 
     // Check max members
     if (activity.max_members) {
@@ -1182,7 +1203,9 @@ export class ActivitiesService {
     activityId: string,
     memberId: string,
     dto: UpdateActivityMemberDto,
+    requester?: any,
   ): Promise<ActivityMemberDocument> {
+    await this.ensureActivityMemberManagementAccess(activityId, requester);
     const member = await this.memberModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(memberId),
@@ -1201,7 +1224,9 @@ export class ActivitiesService {
   async removeMember(
     activityId: string,
     memberId: string,
+    requester?: any,
   ): Promise<{ message: string }> {
+    await this.ensureActivityMemberManagementAccess(activityId, requester);
     const member = await this.memberModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(memberId),
@@ -1217,7 +1242,8 @@ export class ActivitiesService {
     return { message: 'Đã xóa thành viên khỏi Hoạt động' };
   }
 
-  async removeMembers(activityId: string, memberIds: string[]): Promise<{ deletedIds: string[]; failedIds: string[] }> {
+  async removeMembers(activityId: string, memberIds: string[], requester?: any): Promise<{ deletedIds: string[]; failedIds: string[] }> {
+    await this.ensureActivityMemberManagementAccess(activityId, requester);
     const eligible = await this.memberModel.find({ _id: { $in: memberIds.map((id) => new Types.ObjectId(id)) }, activity_id: new Types.ObjectId(activityId), status: { $ne: 'left' } }).select('_id').lean().exec();
     const deletedIds = eligible.map((member) => member._id.toString());
     await this.memberModel.updateMany(

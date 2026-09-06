@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -6,6 +7,9 @@ import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ActivitiesRealtimeService } from './activities-realtime.service';
 import { StorageService } from '../core/storage/storage.service';
 import { ImageProcessorService } from '../core/storage/image-processor.service';
+
+const guardsFor = (method: string) =>
+  (Reflect.getMetadata('__guards__', ActivitiesController.prototype[method]) || []) as any[];
 
 describe('ActivitiesController', () => {
   let controller: ActivitiesController;
@@ -24,6 +28,7 @@ describe('ActivitiesController', () => {
     joinActivity: jest.fn(),
     updateMember: jest.fn(),
     removeMember: jest.fn(),
+    removeMembers: jest.fn(),
     approveMember: jest.fn(),
     getActivityStats: jest.fn(),
     leaveActivity: jest.fn(),
@@ -112,6 +117,21 @@ describe('ActivitiesController', () => {
   });
 
   describe('route-to-service requester propagation', () => {
+    it('propagates requester to member mutations so the service can enforce activity ownership', async () => {
+      const req = { user: { userId: 'advisor-1' } };
+      const dto = { student_id: 'student-1', semester_id: 'semester-1' };
+
+      await controller.addMember('activity-1', dto as any, req);
+      await controller.updateMember('activity-1', 'member-1', { role: 'president' } as any, req);
+      await controller.removeMember('activity-1', 'member-1', req);
+      await controller.bulkRemoveMembers('activity-1', { member_ids: ['member-1'] } as any, req);
+
+      expect(service.addMember).toHaveBeenCalledWith('activity-1', dto, req.user);
+      expect(service.updateMember).toHaveBeenCalledWith('activity-1', 'member-1', { role: 'president' }, req.user);
+      expect(service.removeMember).toHaveBeenCalledWith('activity-1', 'member-1', req.user);
+      expect(service.removeMembers).toHaveBeenCalledWith('activity-1', ['member-1'], req.user);
+    });
+
     it('should propagate userId to joinActivity service method', async () => {
       const activityId = 'club123';
       const semesterId = 'sem123';
@@ -177,5 +197,20 @@ describe('ActivitiesController', () => {
 
       expect(service.approveMember).toHaveBeenCalledWith(activityId, memberId, dto, approverUserId);
     });
+  });
+
+  it('rejects activity updates before the service when ACTIVITY_UPDATE is missing', async () => {
+    const original = JwtAuthGuard.prototype.canActivate;
+    jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+    const Guard = guardsFor('update')[0];
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { roleCode: 'TEACHER', permissions: ['ACTIVITY_READ'] } }),
+      }),
+    } as any;
+
+    await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.update).not.toHaveBeenCalled();
+    JwtAuthGuard.prototype.canActivate = original;
   });
 });

@@ -39,11 +39,11 @@ describe('Grading Access and Role Normalization', () => {
   });
 
   describe('grading-access.util.ts', () => {
-    it('should map various Admin indicators to admin key', () => {
+    it('should map only canonical Admin signals to admin key', () => {
       expect(getGradingRole({ roleCode: 'ADMIN' })).toBe('admin');
       expect(getGradingRole({ permissions: ['ADMIN_FULL'] })).toBe('admin');
-      expect(getGradingRole({ roleName: 'Admin' })).toBe('admin');
-      expect(getGradingRole({ role: { name: 'admin' } })).toBe('admin');
+      expect(getGradingRole({ roleName: 'Assistant Admin' })).not.toBe('admin');
+      expect(getGradingRole({ role: { name: 'admin' } })).not.toBe('admin');
     });
 
     it('should map Supervisor indicators to supervisor key', () => {

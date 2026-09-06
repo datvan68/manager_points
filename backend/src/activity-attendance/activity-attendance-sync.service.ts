@@ -1,4 +1,5 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -20,6 +21,8 @@ import {
 } from '../activity-schedules/schemas/activity-schedule.schema';
 import { ActivityCompletionService } from './activity-completion.service';
 import { Interval } from '@nestjs/schedule';
+import { Student, StudentDocument } from '../students/schemas/student.schema';
+import { isAdminUser } from '../auth/utils/role.util';
 
 /**
  * Service responsible for syncing approved club attendance records

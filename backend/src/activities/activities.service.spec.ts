@@ -706,6 +706,27 @@ describe('ActivitiesService - Membership Policy & Auditing', () => {
     });
   });
 
+  describe('member management ownership', () => {
+    it('rejects a permissioned teacher who is not assigned to the activity', async () => {
+      const activityId = new Types.ObjectId();
+      const requesterId = new Types.ObjectId();
+      const assignedAdvisorId = new Types.ObjectId();
+      MockActivityModel.findById.mockReturnValue(mockQuery({
+        _id: activityId,
+        advisor_id: assignedAdvisorId,
+      }));
+      MockStudentModel.findOne.mockReturnValue(mockQuery(null));
+
+      await expect(
+        service.addMember(activityId.toString(), {
+          student_id: new Types.ObjectId().toString(),
+          semester_id: new Types.ObjectId().toString(),
+        } as any, { userId: requesterId.toString(), roleCode: 'TEACHER', permissions: ['ACTIVITY_MEMBER_MANAGE'] }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(MockActivityMemberModel.findOne).not.toHaveBeenCalled();
+    });
+  });
+
   describe('approveMember', () => {
     const advisorId = new Types.ObjectId();
     const otherTeacherId = new Types.ObjectId();

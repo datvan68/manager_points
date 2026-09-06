@@ -536,6 +536,11 @@ export const activityScheduleApi = {
 // ── Activity Attendance API ──
 
 export const activityAttendanceApi = {
+  async authorizeExport(): Promise<{ authorized: boolean }> {
+    const res = await httpClient(`${API_BASE}/activity-attendance/export`);
+    return handleResponse<{ authorized: boolean }>(res);
+  },
+
   async getAll(params?: {
     activity_id?: string;
     schedule_id?: string;

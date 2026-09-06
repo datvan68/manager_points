@@ -38,6 +38,8 @@ interface ActivityListWorkspaceProps {
   onConfigureDesign?: (activity: any) => void;
   onScheduleClick?: () => void;
   onAttendanceClick?: () => void;
+  canCreateActivity?: boolean;
+  canViewSchedule?: boolean;
   canViewAttendance?: boolean;
   onRefreshClick?: () => void;
 
@@ -65,6 +67,8 @@ export default function ActivityListWorkspace({
   onConfigureDesign,
   onScheduleClick,
   onAttendanceClick,
+  canCreateActivity,
+  canViewSchedule = true,
   canViewAttendance = true,
   onRefreshClick,
 
@@ -187,7 +191,7 @@ export default function ActivityListWorkspace({
 
         {/* Action Button & View Toggle */}
         <div className="flex items-center justify-end gap-2 w-full md:w-auto shrink-0">
-          {canViewAttendance && <Button
+          {canViewSchedule && <Button
             variant="outline"
             onClick={onScheduleClick}
             className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
@@ -198,7 +202,7 @@ export default function ActivityListWorkspace({
             <span>Lịch trình</span>
           </Button>}
 
-          <Button
+          {canViewAttendance && <Button
             variant="outline"
             onClick={onAttendanceClick}
             className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
@@ -207,9 +211,9 @@ export default function ActivityListWorkspace({
           >
             <ClipboardCheck size={13} />
             <span>Điểm danh</span>
-          </Button>
+          </Button>}
 
-          {!isStudent && (
+          {!isStudent && canCreateActivity !== false && (
             <Button
               variant="outline"
               onClick={onCreateClick}

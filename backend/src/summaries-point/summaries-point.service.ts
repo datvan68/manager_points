@@ -169,6 +169,24 @@ export class SummariesPointService {
   }
 
   private async assertCanAccessStudent(studentId: string, requester?: any) {
+    if (!requester) return;
+    const role = getGradingRole(requester);
+    if (role === 'admin' || role === 'supervisor') return;
+
+    if (role === 'student' || role === 'unknown') {
+      const student = await this.studentModel
+        .findById(studentId)
+        .select('user_id')
+        .lean()
+        .exec();
+      if (student?.user_id?.toString() !== requester?.userId?.toString()) {
+        throw new ForbiddenException(
+          'Bạn không thể thao tác bảng điểm của sinh viên khác.',
+        );
+      }
+      return;
+    }
+
     const teacherClassIds = await this.getTeacherClassIds(requester);
     if (!teacherClassIds) return;
 
@@ -186,6 +204,21 @@ export class SummariesPointService {
   }
 
   private async assertCanAccessSummary(summaryId: string, requester?: any) {
+    if (!requester) return;
+    const role = getGradingRole(requester);
+    if (role === 'admin' || role === 'supervisor') return;
+
+    if (role === 'student' || role === 'unknown') {
+      const summary = await this.summaryPointModel
+        .findById(summaryId)
+        .select('student_id')
+        .lean()
+        .exec();
+      if (!summary) return;
+      await this.assertCanAccessStudent(summary.student_id.toString(), requester);
+      return;
+    }
+
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
     if (!teacherStudentIds) return;
 
@@ -421,12 +454,26 @@ export class SummariesPointService {
       fields?: string;
     },
   ): Promise<any> {
+    const gradingRole = getGradingRole(requester);
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
-    const isStudentRequester = getGradingRole(requester) === 'student';
+    const isStudentRequester = gradingRole === 'student';
+    const isGlobalRequester =
+      gradingRole === 'admin' ||
+      gradingRole === 'supervisor' ||
+      (requester?.permissions || []).includes('READ_ALL_CLASS_RECORD');
     const filter: any = teacherStudentIds
       ? { student_id: { $in: teacherStudentIds } }
       : {};
     if (isStudentRequester) {
+      const ownStudent = await this.studentModel
+        .findOne({ user_id: requester?.userId })
+        .select('_id')
+        .lean()
+        .exec();
+      filter.student_id = ownStudent?._id || new Types.ObjectId();
+    }
+
+    if (requester && !isStudentRequester && !teacherStudentIds && !isGlobalRequester) {
       const ownStudent = await this.studentModel
         .findOne({ user_id: requester?.userId })
         .select('_id')

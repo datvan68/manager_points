@@ -919,12 +919,38 @@ const POLICY_OVERRIDES: Record<
   UPDATE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['PATCH /daily-class-reports/:id'], routePath: '/students/record' },
   DELETE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['DELETE /daily-class-reports/:id'], routePath: '/students/record' },
   READ_STUDENT_TASK: { kind: 'read', requires: ['STUDENT_PAGE'], owners: ['/students/tasks', 'GET /student-tasks'], routePath: '/students/tasks' },
+  SYSTEM_ADMIN: { kind: 'page/module access', owners: ['/system'], routePath: '/system' },
+  LOGIN_LOG_READ: { kind: 'read', requires: ['SYSTEM_ADMIN'], owners: ['GET /system/login-logs', 'GET /system/login-logs/summary'], routePath: '/system' },
+  SYSTEM_REQUEST_READ: { kind: 'read', requires: ['SYSTEM_ADMIN'], owners: ['GET /system/requests'], routePath: '/system' },
+  SYSTEM_REQUEST_MANAGE: { kind: 'action', requires: ['SYSTEM_ADMIN', 'SYSTEM_REQUEST_READ'], owners: ['POST/PATCH/DELETE /system/requests'], routePath: '/system' },
+  DATABASE_BACKUP_READ: { kind: 'read', requires: ['SYSTEM_ADMIN'], owners: ['GET /system/backups', 'GET /system/backups/:id'], routePath: '/system' },
+  DATABASE_BACKUP_CREATE: { kind: 'action', requires: ['SYSTEM_ADMIN', 'DATABASE_BACKUP_READ'], owners: ['POST /system/backups'], routePath: '/system' },
+  DATABASE_BACKUP_DOWNLOAD: { kind: 'action', requires: ['SYSTEM_ADMIN', 'DATABASE_BACKUP_READ'], owners: ['GET /system/backups/:id/download'], routePath: '/system' },
+  DATABASE_BACKUP_DELETE: { kind: 'action', requires: ['SYSTEM_ADMIN', 'DATABASE_BACKUP_READ'], owners: ['DELETE /system/backups/:id'], routePath: '/system' },
+  DATABASE_BACKUP_RESTORE: { kind: 'action', requires: ['SYSTEM_ADMIN', 'DATABASE_BACKUP_READ'], owners: ['POST /system/backups/import/*'], routePath: '/system' },
+  SYSTEM_PERFORMANCE_READ: { kind: 'read', requires: ['SYSTEM_ADMIN'], owners: ['GET /system/performance/summary', 'GET /system/performance/metrics'], routePath: '/system' },
+  SYSTEM_MAIL_CONFIG_MANAGE: { kind: 'action', requires: ['SYSTEM_ADMIN'], owners: ['GET/PATCH/POST /system/settings/mail'], routePath: '/system' },
   ACTIVITY_PAGE: { kind: 'page/module access', owners: ['/activities'], routePath: '/activities' },
   ACTIVITY_READ: { kind: 'read', requires: ['ACTIVITY_PAGE'], owners: ['/activities', 'GET /activities'], routePath: '/activities' },
+  ACTIVITY_CREATE: { kind: 'action', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['POST /activities'], routePath: '/activities' },
+  ACTIVITY_UPDATE: { kind: 'action', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['PATCH /activities/:id', 'POST /activities/media/upload'], routePath: '/activities' },
+  ACTIVITY_DELETE: { kind: 'action', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['DELETE /activities/:id'], routePath: '/activities' },
+  ACTIVITY_MEMBER_MANAGE: { kind: 'action', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['POST/PATCH/DELETE /activities/:id/members'], routePath: '/activities/:activityId' },
   ACTIVITY_SCHEDULE_READ: { kind: 'read', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['/activities/schedule', 'GET /activity-schedules'], routePath: '/activities/schedule' },
-  ACTIVITY_SCHEDULE_REGISTER: { kind: 'self-service', requires: ['ACTIVITY_SCHEDULE_READ'], owners: ['/activities/schedule', 'POST /activities/:id/join'], routePath: '/activities/schedule' },
+  ACTIVITY_SCHEDULE_MANAGE: { kind: 'action', requires: ['ACTIVITY_SCHEDULE_READ'], owners: ['POST/PATCH/DELETE /activity-schedules'], routePath: '/activities/schedule' },
+  ACTIVITY_SCHEDULE_REGISTER: { kind: 'self-service', requires: ['ACTIVITY_SCHEDULE_READ'], owners: ['/activities/schedule', 'POST /activities/:id/join', 'GET /activity-attendance/my'], routePath: '/activities/schedule' },
   ACTIVITY_ATTENDANCE_READ: { kind: 'read', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['/activities/attendance', 'GET /activity-attendance'], routePath: '/activities/attendance' },
+  ACTIVITY_ATTENDANCE_CREATE: { kind: 'action', requires: ['ACTIVITY_ATTENDANCE_READ'], owners: ['POST /activity-attendance', 'POST /activity-completion-rules'], routePath: '/activities/:activityId' },
+  ACTIVITY_ATTENDANCE_UPDATE: { kind: 'action', requires: ['ACTIVITY_ATTENDANCE_READ'], owners: ['PATCH /activity-attendance/:id', 'PATCH /activity-completion-rules/:id'], routePath: '/activities/:activityId' },
+  ACTIVITY_ATTENDANCE_APPROVE: { kind: 'action', requires: ['ACTIVITY_ATTENDANCE_READ'], owners: ['POST /activity-attendance/:id/approve'], routePath: '/activities/:activityId' },
+  ACTIVITY_ATTENDANCE_DELETE: { kind: 'action', requires: ['ACTIVITY_ATTENDANCE_READ'], owners: ['DELETE /activity-attendance/:id'], routePath: '/activities/:activityId' },
+  ACTIVITY_CONFIG_READ: { kind: 'read', requires: ['ACTIVITY_PAGE'], owners: ['GET /activity-attendance-config'], routePath: '/activities/:activityId' },
+  ACTIVITY_CONFIG_MANAGE: { kind: 'action', requires: ['ACTIVITY_CONFIG_READ'], owners: ['POST/PATCH/DELETE /activity-attendance-config'], routePath: '/activities/:activityId' },
+  ACTIVITY_REPORT_READ: { kind: 'read', requires: ['ACTIVITY_PAGE', 'ACTIVITY_READ'], owners: ['GET /activities/:id/stats'], routePath: '/activities/:activityId' },
+  ACTIVITY_EXPORT: { kind: 'action', requires: ['ACTIVITY_ATTENDANCE_READ'], owners: ['frontend/src/app/(dashboard)/activities/attendance/page.tsx:exportSelected'], routePath: '/activities/attendance' },
+  ATTENDANCE_SESSION_CREATE: { kind: 'action', requires: ['ACTIVITY_PAGE', 'ATTENDANCE_SESSION_READ'], owners: ['POST /attendance-sessions'], routePath: '/activities/:activityId' },
   ATTENDANCE_SESSION_READ: { kind: 'read', requires: ['ACTIVITY_PAGE'], owners: ['/activities/:activityId', 'GET /attendance-sessions'], routePath: '/activities/:activityId' },
+  ATTENDANCE_SESSION_CLOSE: { kind: 'action', requires: ['ATTENDANCE_SESSION_READ'], owners: ['POST /attendance-sessions/:id/close'], routePath: '/activities/:activityId' },
   DORM_PAGE: { kind: 'page/module access', owners: ['/dormitory'], routePath: '/dormitory' },
   DORM_REG_READ: { kind: 'read', requires: ['DORM_PAGE'], owners: ['/dormitory/roster', 'GET /dormitory/roster'], routePath: '/dormitory/roster' },
   DORM_REG_CREATE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['POST /dormitory/roster'], routePath: '/dormitory/roster' },
@@ -964,7 +990,9 @@ function inferredPolicy(seed: PermissionSeed): PermissionPolicy {
   if (code.startsWith('SYSTEM_') || code.startsWith('LOGIN_') || code.startsWith('DATABASE_')) {
     routePath = '/system';
     owners = ['/system', `API permission ${code}`];
-    kind = code === 'SYSTEM_ADMIN' ? 'page/module access' : 'read';
+    if (!override.kind) kind = code === 'SYSTEM_ADMIN' ? 'page/module access' : 'read';
+    if (override.owners?.length) owners = override.owners;
+    if (override.routePath) routePath = override.routePath;
     if (code !== 'SYSTEM_ADMIN' && !requires.length) requires = ['SYSTEM_ADMIN'];
   }
   if (code.startsWith('REPORTS_')) {

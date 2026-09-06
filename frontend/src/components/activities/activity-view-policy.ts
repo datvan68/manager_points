@@ -60,18 +60,18 @@ export function getActivityViewPolicy(input: ActivityViewPolicyInput = {}): Acti
   const permissions = new Set(input.permissions || []);
   const isAdmin = input.isAdmin === true || permissions.has('ADMIN_FULL');
   const has = (code: string) => isAdmin || permissions.has(code);
-  const canManageActivity = has('ACTIVITY_UPDATE') || Boolean(input.isOwner);
-  const canManageAttendance = has('ACTIVITY_ATTENDANCE_CREATE') || has('ACTIVITY_ATTENDANCE_UPDATE') || has('ACTIVITY_ATTENDANCE_APPROVE') || Boolean(input.isPresident) || Boolean(input.isDelegatedAttendance);
+  const canManageActivity = has('ACTIVITY_UPDATE');
+  const canManageAttendance = has('ATTENDANCE_SESSION_CREATE') || has('ACTIVITY_ATTENDANCE_CREATE') || has('ACTIVITY_ATTENDANCE_UPDATE') || has('ACTIVITY_ATTENDANCE_APPROVE');
 
   return {
-    canRead: has('ACTIVITY_READ') || Boolean(input.isStudent),
+    canRead: has('ACTIVITY_READ'),
     canCreate: has('ACTIVITY_CREATE'),
     canUpdate: canManageActivity,
     canDelete: has('ACTIVITY_DELETE'),
-    canManageMembers: has('ACTIVITY_MEMBER_MANAGE') || Boolean(input.isPresident),
-    canReadSchedule: has('ACTIVITY_SCHEDULE_READ') || Boolean(input.isStudent),
+    canManageMembers: has('ACTIVITY_MEMBER_MANAGE'),
+    canReadSchedule: has('ACTIVITY_SCHEDULE_READ'),
     canManageSchedule: has('ACTIVITY_SCHEDULE_MANAGE'),
-    canRegisterSchedule: has('ACTIVITY_SCHEDULE_REGISTER') || Boolean(input.isStudent),
+    canRegisterSchedule: has('ACTIVITY_SCHEDULE_REGISTER'),
     canReadAttendance: has('ACTIVITY_ATTENDANCE_READ'),
     canManageAttendance,
     canReadConfig: has('ACTIVITY_CONFIG_READ'),

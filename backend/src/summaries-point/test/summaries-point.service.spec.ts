@@ -529,6 +529,7 @@ describe('SummariesPointService', () => {
       await expect(
         service.approveGrading('some-id', {
           userId: '507f1f77bcf86cd799439011',
+          roleCode: 'ADMIN',
           roleName: 'admin',
         }),
       ).rejects.toThrow(NotFoundException);
@@ -582,6 +583,7 @@ describe('SummariesPointService', () => {
 
       const result = await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -609,6 +611,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -641,6 +644,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -673,6 +677,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -714,6 +719,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -739,6 +745,7 @@ describe('SummariesPointService', () => {
 
       const result = await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -787,8 +794,9 @@ describe('SummariesPointService', () => {
 
       await expect(
         service.approveGrading('some-id', {
-          userId: '507f1f77bcf86cd799439011',
-          roleName: 'admin',
+        userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
+        roleName: 'admin',
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -834,6 +842,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -879,6 +888,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -924,6 +934,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -971,8 +982,9 @@ describe('SummariesPointService', () => {
 
       await expect(
         service.approveGrading('some-id', {
-          userId: '507f1f77bcf86cd799439011',
-          roleName: 'admin',
+        userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
+        roleName: 'admin',
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1018,6 +1030,7 @@ describe('SummariesPointService', () => {
       await expect(
         service.approveGrading('some-id', {
           userId: '507f1f77bcf86cd799439011',
+          roleCode: 'ADMIN',
           roleName: 'admin',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -1064,6 +1077,7 @@ describe('SummariesPointService', () => {
 
       await service.approveGrading('some-id', {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       });
 
@@ -1091,6 +1105,7 @@ describe('SummariesPointService', () => {
       await expect(
         service.cancelApproval('some-id', {
           userId: '507f1f77bcf86cd799439011',
+          roleCode: 'ADMIN',
           roleName: 'admin',
         }),
       ).rejects.toThrow(NotFoundException);
@@ -1108,6 +1123,7 @@ describe('SummariesPointService', () => {
       await expect(
         service.cancelApproval('some-id', {
           userId: '507f1f77bcf86cd799439011',
+          roleCode: 'ADMIN',
           roleName: 'admin',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -1156,6 +1172,7 @@ describe('SummariesPointService', () => {
 
       const requester = {
         userId: '507f1f77bcf86cd799439011',
+        roleCode: 'ADMIN',
         roleName: 'admin',
       };
       const result = await service.cancelApproval('some-id', requester);
@@ -1192,7 +1209,7 @@ describe('SummariesPointService', () => {
   describe('cancelApprovalBulk', () => {
     it('should throw BadRequestException if summaryIds is empty', async () => {
       await expect(
-        service.cancelApprovalBulk([], { userId: 'admin1', roleName: 'admin' }),
+        service.cancelApprovalBulk([], { userId: 'admin1', roleCode: 'ADMIN', roleName: 'admin' }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1203,7 +1220,7 @@ describe('SummariesPointService', () => {
         .mockResolvedValueOnce(mockResult as any)
         .mockRejectedValueOnce(new Error('Some error'));
 
-      const requester = { userId: 'admin1', roleName: 'admin' };
+      const requester = { userId: 'admin1', roleCode: 'ADMIN', roleName: 'admin' };
       const results = await service.cancelApprovalBulk(
         ['id1', 'id2'],
         requester,
@@ -1421,6 +1438,7 @@ describe('SummariesPointService', () => {
       };
       const result = await service.generateSummaryExcel(dto, {
         userId: 'u1',
+        roleCode: 'ADMIN',
         roleName: 'Admin',
       });
 
@@ -1539,6 +1557,7 @@ describe('SummariesPointService', () => {
       };
       const resFaculty = await service.generateSummaryExcel(dtoFaculty, {
         userId: 'u1',
+        roleCode: 'ADMIN',
         roleName: 'Admin',
       });
       expect(resFaculty.buffer).toBeInstanceOf(Buffer);
@@ -1550,6 +1569,7 @@ describe('SummariesPointService', () => {
       };
       const resAll = await service.generateSummaryExcel(dtoAll, {
         userId: 'u1',
+        roleCode: 'ADMIN',
         roleName: 'Admin',
       });
       expect(resAll.buffer).toBeInstanceOf(Buffer);
@@ -1588,7 +1608,7 @@ describe('SummariesPointService', () => {
         service.update(
           'some-id',
           { status: 'draft' },
-          { userId: 'user1', roleName: 'admin' },
+          { userId: 'user1', roleCode: 'ADMIN', roleName: 'admin' },
         ),
       ).rejects.toThrow(BadRequestException);
     });

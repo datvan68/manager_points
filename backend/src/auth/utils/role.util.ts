@@ -29,7 +29,7 @@ export function getRequesterRoleName(requester?: any): string {
   }
 
   const roleLower = rawRole.toLowerCase();
-  if (roleLower.includes('admin')) return 'Admin';
+  if (roleLower === 'admin' || roleLower === 'administrator') return 'Admin';
   if (
     roleLower.includes('teacher') ||
     roleLower.includes('advisor') ||
@@ -75,7 +75,7 @@ export function isSupervisor(requester?: any): boolean {
 }
 
 export function isAdmin(requester?: any): boolean {
-  return getRequesterRoleName(requester) === 'Admin';
+  return isAdminUser(requester);
 }
 
 export function isAdminUser(requester?: any): boolean {
@@ -83,11 +83,7 @@ export function isAdminUser(requester?: any): boolean {
   const roleCode =
     requester.roleCode || (requester.role && requester.role.role_code);
   const permissions = requester.permissions || [];
-  return (
-    roleCode === 'ADMIN' ||
-    permissions.includes('ADMIN_FULL') ||
-    getRequesterRoleName(requester) === 'Admin'
-  );
+  return roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL');
 }
 
 export function getAssignedRoles(user?: any): any[] {

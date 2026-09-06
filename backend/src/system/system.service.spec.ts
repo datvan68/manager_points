@@ -267,6 +267,20 @@ describe('SystemService', () => {
     expect(service).toBeDefined();
   });
 
+  it('keeps unknown authenticated roles in self-service dashboard scope', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, './system.service.ts'),
+      'utf8',
+    );
+    const dashboardSource = source.slice(
+      source.indexOf('async getDashboardMetrics'),
+    );
+
+    expect(dashboardSource).toContain(
+      "let roleScope: 'admin' | 'teacher' | 'student' | 'system' = 'student';",
+    );
+  });
+
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, './system.service.ts'),

@@ -36,6 +36,10 @@ export class ActivityAttendanceController {
     private readonly syncService: ActivityAttendanceSyncService,
   ) {}
 
+  private requesterId(user: any): string {
+    return user?.userId || user?._id || user?.id;
+  }
+
   @Post()
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
@@ -49,8 +53,9 @@ export class ActivityAttendanceController {
     const mappedRole = role.includes('student') ? 'student' : 'teacher';
     return this.attendanceService.create(
       dto,
-      req.user._id || req.user.id,
+      this.requesterId(req.user),
       mappedRole,
+      req.user,
     );
   }
 
@@ -61,21 +66,30 @@ export class ActivityAttendanceController {
   batchCreate(@Body() dto: BatchAttendanceDto, @Request() req: any) {
     return this.attendanceService.batchCreate(
       dto,
-      req.user._id || req.user.id,
+      this.requesterId(req.user),
       'teacher',
+      req.user,
     );
+  }
+
+  @Get('export')
+  @UseGuards(checkPermission('ACTIVITY_EXPORT'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xác nhận quyền xuất dữ liệu điểm danh' })
+  authorizeExport() {
+    return { authorized: true };
   }
 
   @Get()
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách điểm danh' })
-  findAll(@Query() query: QueryAttendanceDto) {
-    return this.attendanceService.findAll(query);
+  findAll(@Query() query: QueryAttendanceDto, @Request() req: any) {
+    return this.attendanceService.findAll(query, req.user);
   }
 
   @Get('my')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lịch sử điểm danh cá nhân' })
   @ApiQuery({ name: 'semester_id', required: false })
@@ -86,7 +100,7 @@ export class ActivityAttendanceController {
     @Query('activity_id') activityId?: string,
   ) {
     return this.attendanceService.findMyAttendance(
-      req.user.studentId || req.user._id,
+      req.user,
       semesterId,
       activityId,
     );
@@ -98,9 +112,10 @@ export class ActivityAttendanceController {
   @ApiOperation({ summary: 'Số lượng điểm danh chờ duyệt' })
   @ApiQuery({ name: 'activity_id', required: false })
   getPendingCount(
+    @Request() req: any,
     @Query('activity_id') activityId?: string,
   ) {
-    return this.attendanceService.getPendingCount(activityId);
+    return this.attendanceService.getPendingCount(activityId, req?.user);
   }
 
   @Get('summary/:activityId')
@@ -111,32 +126,33 @@ export class ActivityAttendanceController {
   getSummary(
     @Param('activityId') activityId: string,
     @Query('semester_id') semesterId: string,
+    @Request() req: any,
   ) {
-    return this.attendanceService.getSummary(activityId, semesterId);
+    return this.attendanceService.getSummary(activityId, semesterId, req.user);
   }
 
   @Get(':id')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết bản ghi điểm danh' })
-  findOne(@Param('id') id: string) {
-    return this.attendanceService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.attendanceService.findOne(id, req.user);
   }
 
   @Patch(':id')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_UPDATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cập nhật điểm danh' })
-  update(@Param('id') id: string, @Body() updates: any) {
-    return this.attendanceService.update(id, updates);
+  update(@Param('id') id: string, @Body() updates: any, @Request() req: any) {
+    return this.attendanceService.update(id, updates, req.user);
   }
 
   @Delete(':id')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa bản ghi điểm danh' })
-  remove(@Param('id') id: string) {
-    return this.attendanceService.remove(id);
+  remove(@Param('id') id: string, @Request() req: any) {
+    return this.attendanceService.remove(id, req.user);
   }
 
   @Post(':id/approve')
@@ -148,7 +164,7 @@ export class ActivityAttendanceController {
     @Body() dto: ApproveAttendanceDto,
     @Request() req: any,
   ) {
-    return this.attendanceService.approve(id, dto, req.user._id || req.user.id);
+    return this.attendanceService.approve(id, dto, this.requesterId(req.user), req.user);
   }
 
   @Post(':id/reject')
@@ -160,7 +176,7 @@ export class ActivityAttendanceController {
     @Body() dto: ApproveAttendanceDto,
     @Request() req: any,
   ) {
-    return this.attendanceService.reject(id, dto, req.user._id || req.user.id);
+    return this.attendanceService.reject(id, dto, this.requesterId(req.user), req.user);
   }
 
   @Post('batch-approve')
@@ -170,7 +186,8 @@ export class ActivityAttendanceController {
   batchApprove(@Body() dto: BatchApproveDto, @Request() req: any) {
     return this.attendanceService.batchApprove(
       dto.ids,
-      req.user._id || req.user.id,
+      this.requesterId(req.user),
+      req.user,
     );
   }
 

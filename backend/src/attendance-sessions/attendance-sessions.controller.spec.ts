@@ -1,6 +1,11 @@
 jest.mock('uuid', () => ({ v4: jest.fn(() => 'uuid-token') }));
 
 import { AttendanceSessionsController } from './attendance-sessions.controller';
+import { ForbiddenException } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+const guardsFor = (method: string) =>
+  (Reflect.getMetadata('__guards__', AttendanceSessionsController.prototype[method]) || []) as any[];
 
 describe('AttendanceSessionsController', () => {
   const sessionsService = {
@@ -58,5 +63,19 @@ describe('AttendanceSessionsController', () => {
         scheduleId: 'schedule-1',
       },
     );
+  });
+
+  it('does not let a read-only session permission create a check-in', async () => {
+    const original = JwtAuthGuard.prototype.canActivate;
+    jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+    const Guard = guardsFor('checkinQr')[0];
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { roleCode: 'TEACHER', permissions: ['ATTENDANCE_SESSION_READ'] } }),
+      }),
+    } as any;
+
+    await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+    JwtAuthGuard.prototype.canActivate = original;
   });
 });

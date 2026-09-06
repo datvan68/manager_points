@@ -148,7 +148,7 @@ describe('AcademicRecordService - Import Flow', () => {
         startDate: '2026-08-01',
         endDate: '2026-08-31',
       };
-      const result = await service.previewBulkRemove(dto, { roleName: 'Admin' });
+      const result = await service.previewBulkRemove(dto, { roleCode: 'ADMIN', roleName: 'Admin' });
 
       expect(mockAcademicRecordModel.find).toHaveBeenCalledWith(expect.objectContaining({
         student_id: { $in: [expect.any(Types.ObjectId)] },
@@ -863,7 +863,7 @@ describe('AcademicRecordService - Import Flow', () => {
       const semesterId = new Types.ObjectId().toString();
       const result = await service.findAll(
         { groupBy: 'student', page: 2, limit: 5, semesterId },
-        { roleName: 'Admin' },
+        { roleCode: 'ADMIN', roleName: 'Admin' },
       );
 
       expect(result).toEqual({
@@ -1385,7 +1385,7 @@ describe('AcademicRecordService - Import Flow', () => {
       const { Logger } = require('@nestjs/common');
       const loggerSpy = jest.spyOn(Logger, 'log');
 
-      const requester = { userId: studentId, roleName: 'Admin' };
+      const requester = { userId: studentId, roleCode: 'ADMIN', roleName: 'Admin' };
       const intentDto: any = {
         student_id: studentId,
         semester_id: semesterId,
@@ -1658,7 +1658,7 @@ describe('AcademicRecordService - Import Flow', () => {
     });
 
     it('should throw BadRequestException if baseline_count mismatch when decreasing count', async () => {
-      const requester = { userId: studentId, roleName: 'Admin' };
+      const requester = { userId: studentId, roleCode: 'ADMIN', roleName: 'Admin' };
       const intentDto: any = {
         student_id: studentId,
         semester_id: semesterId,
@@ -1698,7 +1698,7 @@ describe('AcademicRecordService - Import Flow', () => {
     });
 
     it('should allow decrease if baseline_count matches currentCount', async () => {
-      const requester = { userId: studentId, roleName: 'Admin' };
+      const requester = { userId: studentId, roleCode: 'ADMIN', roleName: 'Admin' };
       const intentDto: any = {
         student_id: studentId,
         semester_id: semesterId,
@@ -2032,7 +2032,7 @@ describe('AcademicRecordService - Import Flow', () => {
         exec: jest.fn().mockResolvedValue([{}]), // 1 record
       });
 
-      const adminRequester = { userId: 'admin-1', roleName: 'Admin' };
+      const adminRequester = { userId: 'admin-1', roleCode: 'ADMIN', roleName: 'Admin' };
       await service.syncStudentCriterionScore(
         studentId,
         semesterId,
@@ -2275,7 +2275,7 @@ describe('AcademicRecordService - Import Flow', () => {
       const lockSpy = jest.spyOn(service as any, 'checkSummaryLocked');
 
       await expect(
-        service.remove('507f1f77bcf86cd799439011', { roleName: 'Admin' } as any),
+        service.remove('507f1f77bcf86cd799439011', { roleCode: 'ADMIN', roleName: 'Admin' } as any),
       ).resolves.toBe(deletedRecord);
       expect(mockAcademicRecordModel.findByIdAndUpdate).toHaveBeenCalled();
       expect(lockSpy).not.toHaveBeenCalled();
@@ -2319,7 +2319,7 @@ describe('AcademicRecordService - Import Flow', () => {
       const lockSpy = jest.spyOn(service as any, 'checkSummaryLocked');
 
       await expect(
-        service.forceRemove('507f1f77bcf86cd799439011', { roleName: 'Admin' } as any),
+        service.forceRemove('507f1f77bcf86cd799439011', { roleCode: 'ADMIN', roleName: 'Admin' } as any),
       ).resolves.toBe(existingRecord);
       expect(mockAcademicRecordModel.findByIdAndDelete).toHaveBeenCalledWith(
         '507f1f77bcf86cd799439011',
@@ -2355,7 +2355,7 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       await expect(
-        service.forceRemove(existingRecord._id.toString(), { roleName: 'Admin' }),
+        service.forceRemove(existingRecord._id.toString(), { roleCode: 'ADMIN', roleName: 'Admin' }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({ reasonCode: 'ACADEMIC_RECORD_NOT_TRASHED' }),
       });
@@ -2378,7 +2378,7 @@ describe('AcademicRecordService - Import Flow', () => {
       });
 
       await expect(
-        service.forceRemove(existingRecord._id.toString(), { roleName: 'Admin' }),
+        service.forceRemove(existingRecord._id.toString(), { roleCode: 'ADMIN', roleName: 'Admin' }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({ reasonCode: 'ACADEMIC_RECORD_DAILY_REPORT_OWNED' }),
       });
@@ -2930,12 +2930,37 @@ describe('AcademicRecordService - Import Flow', () => {
       await expect(service.findByStudentId(studentId, teacherUser)).rejects.toThrow(ForbiddenException);
     });
 
+    it('scopes daily-report reads to the requesting Student', async () => {
+      const dailyReportId = new Types.ObjectId();
+      const ownStudentId = new Types.ObjectId();
+      mockStudentModel.findOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: ownStudentId }),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      await service.findByDailyReportId(
+        dailyReportId.toString(),
+        false,
+        { userId: new Types.ObjectId().toString(), roleName: 'Student' },
+      );
+
+      expect(mockAcademicRecordModel.find).toHaveBeenCalledWith({
+        daily_report_id: dailyReportId,
+        status: 'active',
+        is_deleted: { $ne: true },
+        student_id: ownStudentId,
+      });
+    });
+
     it('deduplicates bulk IDs and returns partial failures without touching snapshots', async () => {
       const removeSpy = jest.spyOn(service, 'remove')
         .mockResolvedValueOnce({ _id: 'ok' } as any)
         .mockRejectedValueOnce(new BadRequestException('locked'));
 
-      const result = await service.bulkRemove(['ok', 'ok', 'blocked'], { roleName: 'Admin' });
+      const result = await service.bulkRemove(['ok', 'ok', 'blocked'], { roleCode: 'ADMIN', roleName: 'Admin' });
 
       expect(removeSpy).toHaveBeenCalledTimes(2);
       expect(result).toEqual({

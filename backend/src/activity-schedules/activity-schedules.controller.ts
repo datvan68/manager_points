@@ -16,7 +16,6 @@ import {
   ApiOperation,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { ActivitySchedulesService } from './activity-schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -33,7 +32,7 @@ export class ActivitySchedulesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo lịch sinh hoạt Hoạt động' })
   create(@Body() dto: CreateScheduleDto, @Request() req: any) {
-    return this.schedulesService.create(dto, req.user._id || req.user.id);
+    return this.schedulesService.create(dto, req.user.userId || req.user._id || req.user.id);
   }
 
   @Get()
@@ -45,12 +44,12 @@ export class ActivitySchedulesController {
   }
 
   @Get('my')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lịch sinh hoạt đã đăng ký của sinh viên' })
   findMySchedules(@Request() req: any) {
     return this.schedulesService.findMySchedules(
-      req.user.studentId || req.user._id,
+      req.user.userId || req.user.studentId || req.user._id,
     );
   }
 
@@ -68,7 +67,7 @@ export class ActivitySchedulesController {
   }
 
   @Get('activity/:activityId/timeline')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy timeline sinh hoạt của Hoạt động (tất cả các tuần đã lên lịch)' })
   findActivityTimeline(
@@ -126,7 +125,7 @@ export class ActivitySchedulesController {
   // ── Registration ──
 
   @Post(':id/register')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đăng ký tham gia buổi sinh hoạt' })
   register(
@@ -136,19 +135,19 @@ export class ActivitySchedulesController {
   ) {
     return this.schedulesService.register(
       id,
-      req.user.studentId || req.user._id,
+      req.user.userId || req.user.studentId || req.user._id,
       activityId,
     );
   }
 
   @Post(':id/cancel-registration')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(checkPermission('ACTIVITY_SCHEDULE_REGISTER'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Hủy đăng ký buổi sinh hoạt' })
   cancelRegistration(@Param('id') id: string, @Request() req: any) {
     return this.schedulesService.cancelRegistration(
       id,
-      req.user.studentId || req.user._id,
+      req.user.userId || req.user.studentId || req.user._id,
     );
   }
 

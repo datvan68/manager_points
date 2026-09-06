@@ -4,6 +4,7 @@ import {
   getPermissionPolicy,
   validatePermissionPolicyCatalog,
 } from '../permissions.registry';
+import { isAdminUser } from '../utils/role.util';
 
 describe('canonical permission policy registry', () => {
   it('classifies every declared seed exactly once and gives it an owner', () => {
@@ -39,5 +40,20 @@ describe('canonical permission policy registry', () => {
     expect(getPermissionPolicy('DORM_QR_CHECKIN')?.owners.join(' ')).toContain(
       'backend/src/dormitory/controllers',
     );
+  });
+
+  it('keeps sensitive system and database operations as guarded actions', () => {
+    expect(getPermissionPolicy('DATABASE_BACKUP_DELETE')).toMatchObject({
+      kind: 'action',
+      requires: ['SYSTEM_ADMIN', 'DATABASE_BACKUP_READ'],
+      owners: expect.arrayContaining(['DELETE /system/backups/:id']),
+    });
+    expect(getPermissionPolicy('SYSTEM_MAIL_CONFIG_MANAGE')?.kind).toBe('action');
+  });
+
+  it('does not treat an arbitrary role name containing admin as an ADMIN bypass', () => {
+    expect(isAdminUser({ roleName: 'Assistant Admin', permissions: [] })).toBe(false);
+    expect(isAdminUser({ roleCode: 'ADMIN', permissions: [] })).toBe(true);
+    expect(isAdminUser({ roleCode: 'TEACHER', permissions: ['ADMIN_FULL'] })).toBe(true);
   });
 });

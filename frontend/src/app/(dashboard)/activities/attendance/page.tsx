@@ -13,6 +13,7 @@ import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/providers/auth-provider';
 
 const pageSizeOptions = [20, 40, 50, 100];
 type DateRange = { start: Date; end: Date } | null;
@@ -40,6 +41,8 @@ const toDateParam = (date: Date) => {
 
 export default function ActivitiesAttendancePage() {
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission('ACTIVITY_EXPORT');
   const [items, setItems] = useState<ActivityAttendance[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(40);
@@ -140,6 +143,7 @@ export default function ActivitiesAttendancePage() {
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
   const selectAll = (checked: boolean) => setSelectedIds((ids) => checked ? Array.from(new Set([...ids, ...pageIds])) : ids.filter((id) => !pageIds.includes(id)));
   const exportSelected = async () => {
+    await activityAttendanceApi.authorizeExport();
     const XLSX = await import('xlsx');
     const rows = items.filter((row) => selectedIds.includes(row._id)).map((row) => ({
       'Hoạt động': display(row.activity_id), 'Lịch': display(row.schedule_id), 'Sinh viên': display(row.student_id),
@@ -238,7 +242,7 @@ export default function ActivitiesAttendancePage() {
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
         <ResponsiveDataView data={items} columns={columns} isLoading={loading} keyExtractor={(row) => row._id} mobileScrollRef={mobileScrollRef} hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMoreRef.current && items.length > 0 ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selectedIds, onSelectRow: (key, checked) => setSelectedIds((ids) => checked ? [...ids, key] : ids.filter((id) => id !== key)), onSelectAll: selectAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có dữ liệu điểm danh.</div>} pagination={<CustomPagination totalItems={total} pageSize={pageSize} currentPage={page} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); setSelectedIds([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="bản ghi" />} />
       </div>
-      <FloatingActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} itemLabel="bản ghi" actions={<button type="button" onClick={exportSelected} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><Download size={14} /> Xuất Excel</button>} />
+      <FloatingActionBar selectedCount={selectedIds.length} onClear={() => setSelectedIds([])} itemLabel="bản ghi" actions={canExport ? <button type="button" onClick={exportSelected} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><Download size={14} /> Xuất Excel</button> : null} />
     </main>
   </RouteGuard>;
 }

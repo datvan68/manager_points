@@ -54,7 +54,7 @@ export function getGradingRole(requester?: any): GradingRoleKey {
     requester.roleCode || (requester.role && requester.role.role_code);
   const roleLower = (rawRole || '').toLowerCase();
 
-  if (roleLower.includes('admin') || roleCode === 'ADMIN') return 'admin';
+  if (roleCode === 'ADMIN') return 'admin';
 
   if (
     roleLower.includes('supervisor') ||

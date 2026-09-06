@@ -372,7 +372,7 @@ export class AcademicRecordService {
 
       let requesterLevel = 0;
       if (requester) {
-        requesterLevel = this.getRoleLevel(requester.roleName);
+        requesterLevel = this.getRoleLevel(requester);
       }
 
       if (requesterLevel === 1) {
@@ -989,11 +989,11 @@ export class AcademicRecordService {
       );
     }
 
-    const requesterLevel = this.getRoleLevel(requester?.roleName);
+    const requesterLevel = this.getRoleLevel(requester);
     // === NEW: Derive recorded_by_role from requester ===
     const recordedByRole =
       intentDto.recorded_by_role ||
-      this.deriveRecordedByRole(requester?.roleName);
+      this.deriveRecordedByRole(requester);
     const changedRecordIds: string[] = [];
 
     if (
@@ -1528,10 +1528,18 @@ export class AcademicRecordService {
     };
   }
 
-  private getRoleLevel(roleName?: string): number {
+  private getRoleLevel(roleOrRequester?: any): number {
+    const roleCode = typeof roleOrRequester === 'object'
+      ? roleOrRequester?.roleCode || roleOrRequester?.role?.role_code
+      : undefined;
+    const permissions = typeof roleOrRequester === 'object' ? roleOrRequester?.permissions || [] : [];
+    if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) return 4;
+    const roleName = typeof roleOrRequester === 'string'
+      ? roleOrRequester
+      : roleOrRequester?.roleName || roleOrRequester?.role?.name;
     if (!roleName) return 1;
     const nameLower = roleName.toLowerCase();
-    if (nameLower.includes('admin')) return 4;
+    if (typeof roleOrRequester === 'string' && (nameLower === 'admin' || nameLower === 'administrator')) return 4;
     if (
       nameLower.includes('supervisor') ||
       nameLower.includes('quản sinh') ||
@@ -1556,10 +1564,18 @@ export class AcademicRecordService {
    * Uses the same mapping logic as getRoleLevel but returns the enum value
    * for the academic_record.recorded_by_role field.
    */
-  private deriveRecordedByRole(roleName?: string): string {
+  private deriveRecordedByRole(roleOrRequester?: any): string {
+    const roleCode = typeof roleOrRequester === 'object'
+      ? roleOrRequester?.roleCode || roleOrRequester?.role?.role_code
+      : undefined;
+    const permissions = typeof roleOrRequester === 'object' ? roleOrRequester?.permissions || [] : [];
+    if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) return 'admin';
+    const roleName = typeof roleOrRequester === 'string'
+      ? roleOrRequester
+      : roleOrRequester?.roleName || roleOrRequester?.role?.name;
     if (!roleName) return 'system';
     const nameLower = roleName.toLowerCase();
-    if (nameLower.includes('admin')) return 'admin';
+    if (typeof roleOrRequester === 'string' && (nameLower === 'admin' || nameLower === 'administrator')) return 'admin';
     if (
       nameLower.includes('supervisor') ||
       nameLower.includes('quản sinh') ||
@@ -3046,10 +3062,18 @@ export class AcademicRecordService {
       throw new ForbiddenException('Thông tin người yêu cầu không hợp lệ.');
     }
 
-    const getRoleLevel = (roleName?: string): number => {
+    const getRoleLevel = (roleOrRequester?: any): number => {
+      const roleCode = typeof roleOrRequester === 'object'
+        ? roleOrRequester?.roleCode || roleOrRequester?.role?.role_code
+        : undefined;
+      const permissions = typeof roleOrRequester === 'object' ? roleOrRequester?.permissions || [] : [];
+      if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) return 4;
+      const roleName = typeof roleOrRequester === 'string'
+        ? roleOrRequester
+        : roleOrRequester?.roleName || roleOrRequester?.role?.name;
       if (!roleName) return 1;
       const nameLower = roleName.toLowerCase();
-      if (nameLower.includes('admin')) return 4;
+      if (typeof roleOrRequester === 'string' && (nameLower === 'admin' || nameLower === 'administrator')) return 4;
       if (
         nameLower.includes('supervisor') ||
         nameLower.includes('quản sinh') ||
@@ -3069,7 +3093,7 @@ export class AcademicRecordService {
       return 1; // student or generic user
     };
 
-    const requesterLevel = getRoleLevel(requester.roleName);
+    const requesterLevel = getRoleLevel(requester);
 
     // Nếu là Admin, cho phép xóa luôn
     if (requesterLevel === 4) return;
@@ -3115,7 +3139,7 @@ export class AcademicRecordService {
           : record.recorded_by.toString();
       const creatorRoleName = record.recorded_by.role
         ? typeof record.recorded_by.role === 'object'
-          ? record.recorded_by.role.name
+          ? record.recorded_by.role.name || record.recorded_by.role.role_name || record.recorded_by.role.role_code
           : record.recorded_by.role
         : '';
       creatorLevel = getRoleLevel(creatorRoleName);

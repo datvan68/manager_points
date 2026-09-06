@@ -2247,8 +2247,10 @@ export class SystemService {
     const criterionModel = this.connection.model('Criterion');
 
     const role = getRequesterRoleName(requester);
-    let roleScope: 'admin' | 'teacher' | 'student' | 'system' | 'unknown' =
-      'unknown';
+    // Unknown authenticated roles must remain least-privilege and receive only
+    // the same self-service scope as a student unless an explicit operator
+    // capability classifies them otherwise.
+    let roleScope: 'admin' | 'teacher' | 'student' | 'system' = 'student';
 
     if (isAdminUser(requester)) {
       roleScope = 'admin';
@@ -3616,7 +3618,15 @@ export class SystemService {
     const semesterId = query.semesterId ? new Types.ObjectId(query.semesterId) : active?._id;
     if (!semesterId) return { items: [], total: 0, page, limit, hasMore: false, semesterId: null };
 
-    const roleScope = isTeacher(requester) ? 'teacher' : isStudent(requester) ? 'student' : 'operator';
+    const isSystemOperator = isAdminUser(requester) || isSupervisor(requester) ||
+      (requester?.permissions || []).some((permission: any) =>
+        ['SYSTEM_ADMIN', 'SYSTEM_PERFORMANCE_READ'].includes(permission),
+      );
+    const roleScope = isTeacher(requester)
+      ? 'teacher'
+      : isStudent(requester) || !isSystemOperator
+        ? 'student'
+        : 'operator';
     let scopeStages: any[] = [];
     if (roleScope === 'teacher') {
       const classes = await classModel.find({ advisor_id: new Types.ObjectId(requester.userId) }).select('_id').lean().exec();

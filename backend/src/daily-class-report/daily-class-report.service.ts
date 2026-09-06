@@ -14,6 +14,7 @@ import {
 import { CreateDailyClassReportDto } from './dto/create-daily-class-report.dto';
 import { UpdateDailyClassReportDto } from './dto/update-daily-class-report.dto';
 import { AcademicRecordService } from '../academic-record/academic-record.service';
+import { isAdminUser } from '../auth/utils/role.util';
 
 @Injectable()
 export class DailyClassReportService {
@@ -48,7 +49,6 @@ export class DailyClassReportService {
 
   private async getScopeFilter(requester?: any): Promise<any> {
     if (!requester) return {};
-    const roleName = (requester.roleName || '').toLowerCase();
     const permissions = Array.isArray(requester.permissions)
       ? requester.permissions.map((permission: any) =>
           typeof permission === 'string' ? permission : permission?.code,
@@ -56,7 +56,7 @@ export class DailyClassReportService {
       : [];
 
     // Admin hoặc người được cấp quyền explicit xem tất cả báo cáo.
-    if (roleName.includes('admin') || permissions.includes('READ_ALL_CLASS_RECORD')) {
+    if (isAdminUser(requester) || permissions.includes('READ_ALL_CLASS_RECORD')) {
       return {};
     }
 
@@ -356,8 +356,7 @@ export class DailyClassReportService {
       throw new ForbiddenException('Thông tin người yêu cầu không hợp lệ.');
     }
 
-    const roleName = requester.roleName ? requester.roleName.toLowerCase() : '';
-    const isAdmin = roleName.includes('admin');
+    const isAdmin = isAdminUser(requester);
 
     if (isAdmin) return;
 

@@ -8,6 +8,7 @@
   Delete,
   UseGuards,
   Query,
+  Request,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { checkPermission } from '../auth/guards/check-permission.guard';
@@ -28,36 +29,36 @@ export class ActivityCompletionController {
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_CREATE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Tạo quy tắc hoàn thành hoạt động mới' })
-  createRule(@Body() dto: CreateActivityCompletionRuleDto) {
-    return this.activityCompletionService.createRule(dto);
+  createRule(@Body() dto: CreateActivityCompletionRuleDto, @Request() req: any) {
+    return this.activityCompletionService.createRule(dto, req.user);
   }
 
   @Get()
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Danh sách tất cả quy tắc hoàn thành hoạt động' })
-  findAllRules() {
-    return this.activityCompletionService.findAllRules();
+  findAllRules(@Request() req: any) {
+    return this.activityCompletionService.findAllRules(req.user);
   }
 
   @Get('activity/:activityId/progress')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
-  getProgress(@Param('activityId') activityId: string, @Query('semester_id') semesterId: string) {
-    return this.activityCompletionService.getMemberProgress(activityId, semesterId);
+  getProgress(@Param('activityId') activityId: string, @Query('semester_id') semesterId: string, @Request() req: any) {
+    return this.activityCompletionService.getMemberProgress(activityId, semesterId, req.user);
   }
 
   @Post('activity/:activityId/members/:memberId/reset')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_UPDATE'))
-  resetProgress(@Param('activityId') activityId: string, @Param('memberId') memberId: string, @Body('semester_id') semesterId: string) {
-    return this.activityCompletionService.resetMemberProgress(activityId, semesterId, memberId);
+  resetProgress(@Param('activityId') activityId: string, @Param('memberId') memberId: string, @Body('semester_id') semesterId: string, @Request() req: any) {
+    return this.activityCompletionService.resetMemberProgress(activityId, semesterId, memberId, req.user);
   }
 
   @Get(':id')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_READ'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Chi tiết quy tắc hoàn thành hoạt động' })
-  findOneRule(@Param('id') id: string) {
-    return this.activityCompletionService.findOneRule(id);
+  findOneRule(@Param('id') id: string, @Request() req: any) {
+    return this.activityCompletionService.findOneRule(id, req.user);
   }
 
   @Patch(':id')
@@ -67,15 +68,16 @@ export class ActivityCompletionController {
   updateRule(
     @Param('id') id: string,
     @Body() dto: UpdateActivityCompletionRuleDto,
+    @Request() req: any,
   ) {
-    return this.activityCompletionService.updateRule(id, dto);
+    return this.activityCompletionService.updateRule(id, dto, req.user);
   }
 
   @Delete(':id')
   @UseGuards(checkPermission('ACTIVITY_ATTENDANCE_DELETE'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Xóa quy tắc hoàn thành hoạt động' })
-  removeRule(@Param('id') id: string) {
-    return this.activityCompletionService.removeRule(id);
+  removeRule(@Param('id') id: string, @Request() req: any) {
+    return this.activityCompletionService.removeRule(id, req.user);
   }
 }

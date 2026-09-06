@@ -493,8 +493,6 @@ export function useAuth() {
 export function isAdminUser(user: UserInfo | null): boolean {
   if (!user) return false;
   return (
-    user.role === "Admin" ||
-    user.roleName === "Admin" ||
     user.roleCode === "ADMIN" ||
     user.permissions?.includes("ADMIN_FULL") === true
   );
