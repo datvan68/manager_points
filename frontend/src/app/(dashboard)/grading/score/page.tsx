@@ -770,6 +770,7 @@ function GradingScoreContent() {
   // States cho Kỳ đánh giá (Evaluation Periods)
   const [apiEvaluationPeriods, setApiEvaluationPeriods] = useState<any[]>([]);
   const [activePeriod, setActivePeriod] = useState<any | null>(null);
+  const [accessRefreshNonce, setAccessRefreshNonce] = useState(0);
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState(false);
   const [evaluationDetailsMap, setEvaluationDetailsMap] = useState<
     Record<string, any>
@@ -784,7 +785,6 @@ function GradingScoreContent() {
   const [studentSummaryMap, setStudentSummaryMap] = useState<
     Record<string, string>
   >({});
-  const [accessError, setAccessError] = useState<string | null>(null);
 
   const syncLinkedTaskCompleted = async (summaryId: string, studentId: string) => {
     // markCompleted has been removed from useLinkedTaskProgress because 
@@ -852,11 +852,12 @@ function GradingScoreContent() {
 
   // Tự động tìm kỳ đánh giá (Evaluation Period) hoạt động tương ứng với học kỳ được chọn
   useEffect(() => {
-    const period = apiEvaluationPeriods.find((p) => {
+    const semesterPeriods = apiEvaluationPeriods.filter((p) => {
       const semId =
         typeof p.semester_id === "object" ? p.semester_id?._id : p.semester_id;
       return semId === selectedSemesterId;
     });
+    const period = semesterPeriods.find((item) => item.status !== "closed") || semesterPeriods[0];
     setActivePeriod(period || null);
   }, [selectedSemesterId, apiEvaluationPeriods]);
 
@@ -868,18 +869,12 @@ function GradingScoreContent() {
     studentId: activeStudentId,
     semesterId: selectedSemesterId,
     summaryId: studentSummaryMap[activeStudentId],
+    refreshKey: accessRefreshNonce,
   });
 
   const currentUserRole = access.role;
   const isAdminOrSupervisor = access.isAdminOrSupervisor;
 
-  useEffect(() => {
-    if (access.backendDeniedReason && access.backendReasonCode !== 'GRADING_SUMMARY_LOCKED') {
-      setAccessError(access.backendDeniedReason);
-    } else {
-      setAccessError(null);
-    }
-  }, [access.backendDeniedReason, access.backendReasonCode]);
   const gradingTabs = [
     ...(currentUserRole === "student"
       ? []
@@ -907,6 +902,7 @@ function GradingScoreContent() {
     try {
       const periods = await evaluationPeriodApi.getEvaluationPeriods();
       setApiEvaluationPeriods(periods || []);
+      setAccessRefreshNonce((value) => value + 1);
     } catch {
       // Do not block closing the modal if period refresh fails.
     }
@@ -916,6 +912,7 @@ function GradingScoreContent() {
   const canModifyScore = (() => {
     if (viewParam) return false;
     if (isInitialLoading || isDetailsLoading || isFetching || isRosterLoading) return false;
+    if (access.loading) return false;
 
     if (!isSemesterActive) return false;
 
@@ -926,7 +923,7 @@ function GradingScoreContent() {
     const summaryStatus = summary?.status || "draft";
     if (summaryStatus === "locked") return false;
 
-    if (!activePeriod) return isSemesterActive;
+    if (!activePeriod) return false;
 
     // Nếu kỳ đánh giá đã đóng hoặc chưa mở cổng
     if (activePeriod.status === "closed" || activePeriod.status === "pending")
@@ -954,11 +951,31 @@ function GradingScoreContent() {
     ? currentUserRole === "student"
       ? "Bạn đang được phép tự chấm điểm trong giai đoạn hiện tại."
       : "Bạn đang được phép chấm điểm trong giai đoạn hiện tại."
-    : !studentSummaryMap[activeStudentId]
+    : access.backendDeniedReason || (!studentSummaryMap[activeStudentId]
       ? "Không thể chấm điểm vì sinh viên này chưa có bảng điểm trong học kỳ."
       : currentUserRole === "student"
         ? "Hiện tại bạn chưa được phép tự chấm điểm."
-        : "Hiện tại bạn chưa được phép chấm điểm.";
+        : "Hiện tại bạn chưa được phép chấm điểm.");
+
+  const canModifyScoreRef = useRef(canModifyScore);
+  useEffect(() => {
+    canModifyScoreRef.current = canModifyScore;
+  }, [canModifyScore]);
+
+  useEffect(() => {
+    if (currentUserRole !== "student" || !roleDeadline) return;
+    const deadline = new Date(roleDeadline).getTime();
+    if (!Number.isFinite(deadline)) return;
+    const delay = deadline - Date.now();
+    if (delay <= 0) {
+      setAccessRefreshNonce((value) => value + 1);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setAccessRefreshNonce((value) => value + 1);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [currentUserRole, roleDeadline]);
 
   const loadClassRosterAndSummaries = React.useCallback(
     async (classId: string, semesterId: string, options?: { preferStudentId?: string }) => {
@@ -1510,6 +1527,10 @@ function GradingScoreContent() {
     value?: number | string
   ) => {
     if (!activeStudentId || !selectedSemesterId) return;
+    if (!canModifyScoreRef.current) {
+      toast.error(access.backendDeniedReason || "Hiện tại không được phép cập nhật điểm.");
+      return;
+    }
 
     if (!isMongoObjectId(activeStudentId)) {
       toast.error("Không xác định được ID sinh viên hợp lệ để chấm điểm.");
@@ -1635,6 +1656,22 @@ function GradingScoreContent() {
     const key = `${studentId}:${criteriaId}`;
     const backupCount = originalCountsRef.current[key] ?? (evaluationCounts[studentId]?.[criteriaId] ?? 0);
 
+    if (!canModifyScoreRef.current) {
+      setEvaluationCounts(prev => {
+        const studentCounts = prev[studentId] ? { ...prev[studentId] } : {};
+        studentCounts[criteriaId] = backupCount;
+        const updated = { ...prev, [studentId]: studentCounts };
+        evaluationCountsRef.current = updated;
+        return updated;
+      });
+      delete pendingCountByCriterionRef.current[key];
+      dirtyStudentIdsRef.current.delete(studentId);
+      setDirtyStudentIds(new Set(dirtyStudentIdsRef.current));
+      delete originalCountsRef.current[key];
+      setPendingIntentKeys(prev => ({ ...prev, [intentKey]: false }));
+      return;
+    }
+
     try {
       const res = await academicRecordApi.sendIntent({
         student_id: studentId,
@@ -1709,6 +1746,7 @@ function GradingScoreContent() {
 
   const handleCountChange = (criteriaId: string, delta: number) => {
     if (!activeStudentId || !selectedSemesterId) return;
+    if (!canModifyScoreRef.current) return;
 
     const criterion = findCriterion(criteriaId);
     if (!criterion) return;
@@ -1768,6 +1806,7 @@ function GradingScoreContent() {
 
   const handleCountSet = (criteriaId: string, value: number) => {
     if (!activeStudentId || !selectedSemesterId) return;
+    if (!canModifyScoreRef.current) return;
 
     const criterion = findCriterion(criteriaId);
     if (!criterion) return;
@@ -2132,6 +2171,9 @@ function GradingScoreContent() {
     reason: string,
     options?: { skipCriterionIds?: Set<string>; source?: string }
   ) => {
+    if (!canModifyScoreRef.current) {
+      throw new Error(access.backendDeniedReason || "Hiện tại không được phép cập nhật điểm.");
+    }
     // Sử dụng trực tiếp currentUserRole đã được chuẩn hóa qua getRoleKey
     const userRole = currentUserRole;
     const detailStatus = "draft";
@@ -2255,6 +2297,12 @@ function GradingScoreContent() {
   };
 
   const saveStudentScore = async (studentId: string, options?: { mode: "manual" | "autosave"; reason?: string; showToast?: boolean }) => {
+    if (!canModifyScoreRef.current) {
+      if (options?.showToast || options?.mode === "manual") {
+        toast.error(access.backendDeniedReason || "Hiện tại không được phép cập nhật điểm.");
+      }
+      return false;
+    }
     const summaryId = studentSummaryMap[studentId];
     if (!summaryId) {
       if (options?.showToast) toast.error("Không tìm thấy bảng điểm rèn luyện của sinh viên này trong học kỳ!");
@@ -2807,24 +2855,6 @@ function GradingScoreContent() {
     }
   };
 
-  if (accessError) {
-    return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center p-4">
-        <div className="bg-white/90 backdrop-blur-md p-8 rounded-2xl border border-slate-200 max-w-md w-full text-center shadow-sm flex flex-col items-center gap-4">
-          <div className="p-4 bg-rose-500/10 text-rose-600 rounded-xl">
-            <AlertTriangle size={32} />
-          </div>
-          <h3 className="font-bold text-slate-800 text-[17px]">
-            Truy cập bị từ chối
-          </h3>
-          <p className="text-slate-500 text-[13.5px] leading-relaxed">
-            {accessError}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <style>{`
@@ -3155,6 +3185,11 @@ function GradingScoreContent() {
                       Học kỳ hiện tại chưa được thiết lập các giai đoạn và thời
                       hạn chấm điểm cụ thể.
                     </p>
+                    {access.backendDeniedReason && (
+                      <p className="text-rose-700 text-[12px] mt-1 font-semibold">
+                        {access.backendDeniedReason}
+                      </p>
+                    )}
                   </div>
                   {isAdminOrSupervisor && (
                     <button

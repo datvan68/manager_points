@@ -98,6 +98,22 @@ export interface LatestStudentSummaryDto {
   };
 }
 
+export interface StudentEvaluationWindowContext {
+  requester?: any;
+  studentId?: any;
+  semesterId?: any;
+  summaryId?: any;
+  periodId?: any;
+  summaryStatus?: string;
+  allowMissingSummary?: boolean;
+}
+
+export interface StudentEvaluationWindowDecision {
+  allowed: boolean;
+  reasonCode?: string;
+  reason?: string;
+}
+
 @Injectable()
 export class SummariesPointService {
   constructor(
@@ -238,6 +254,252 @@ export class SummariesPointService {
     }
   }
 
+  private studentWindowDenied(
+    reasonCode: string,
+    reason: string,
+  ): StudentEvaluationWindowDecision {
+    return { allowed: false, reasonCode, reason };
+  }
+
+  /**
+   * Resolves the authoritative student grading context and checks the only
+   * window in which a student may mutate scores. Non-student callers are
+   * intentionally unchanged; staff and internal synchronization have their
+   * existing permission paths.
+   */
+  async getStudentEvaluationWindowDecision(
+    context: StudentEvaluationWindowContext,
+  ): Promise<StudentEvaluationWindowDecision> {
+    if (getGradingRole(context.requester) !== 'student') {
+      return { allowed: true };
+    }
+
+    const studentId = normalizeObjectId(context.studentId);
+    const requestedSemesterId = normalizeObjectId(context.semesterId);
+    const requestedSummaryId = normalizeObjectId(context.summaryId);
+    const requestedPeriodId = normalizeObjectId(context.periodId);
+
+    if (!studentId || !Types.ObjectId.isValid(studentId)) {
+      return this.studentWindowDenied(
+        'GRADING_CONTEXT_INVALID',
+        'Không xác định được sinh viên hợp lệ cho thao tác chấm điểm.',
+      );
+    }
+
+    await assertCanAccessStudent(
+      context.requester,
+      studentId,
+      this.classModel,
+      this.studentModel,
+    );
+
+    let summary: any = null;
+    if (requestedSummaryId) {
+      if (!Types.ObjectId.isValid(requestedSummaryId)) {
+        return this.studentWindowDenied(
+          'GRADING_CONTEXT_INVALID',
+          'Bảng điểm rèn luyện không hợp lệ.',
+        );
+      }
+      summary = await this.summaryPointModel
+        .findById(requestedSummaryId)
+        .lean()
+        .exec();
+      if (!summary) {
+        return this.studentWindowDenied(
+          'GRADING_SUMMARY_MISSING',
+          'Không tìm thấy bảng điểm rèn luyện của sinh viên.',
+        );
+      }
+    } else if (requestedSemesterId && Types.ObjectId.isValid(requestedSemesterId)) {
+      const summaries = await this.summaryPointModel
+        .find({
+          student_id: new Types.ObjectId(studentId),
+          semester_id: new Types.ObjectId(requestedSemesterId),
+        } as any)
+        .lean()
+        .exec();
+      const semesterSummaries = (summaries || []).filter(
+        (item: any) => !item.period_id,
+      );
+      if (semesterSummaries.length === 1) {
+        summary = semesterSummaries[0];
+      } else if (semesterSummaries.length > 1 || summaries?.length) {
+        return this.studentWindowDenied(
+          'GRADING_CONTEXT_AMBIGUOUS',
+          'Ngữ cảnh bảng điểm rèn luyện không xác định duy nhất.',
+        );
+      }
+    }
+
+    const studentFromSummary = normalizeObjectId(summary?.student_id);
+    const semesterId = normalizeObjectId(
+      summary?.semester_id || context.semesterId,
+    );
+    if (studentFromSummary && studentFromSummary !== studentId) {
+      return this.studentWindowDenied(
+        'GRADING_CONTEXT_MISMATCH',
+        'Bảng điểm không thuộc tài khoản sinh viên đang đăng nhập.',
+      );
+    }
+    if (!semesterId || !Types.ObjectId.isValid(semesterId)) {
+      return this.studentWindowDenied(
+        'GRADING_CONTEXT_INVALID',
+        'Không xác định được học kỳ của bảng điểm.',
+      );
+    }
+    if (
+      requestedSemesterId &&
+      Types.ObjectId.isValid(requestedSemesterId) &&
+      requestedSemesterId !== semesterId
+    ) {
+      return this.studentWindowDenied(
+        'GRADING_CONTEXT_MISMATCH',
+        'Học kỳ của bảng điểm không khớp ngữ cảnh yêu cầu.',
+      );
+    }
+
+    const semester = await this.semesterModel
+      .findById(semesterId)
+      .lean()
+      .exec();
+    if (!semester) {
+      return this.studentWindowDenied(
+        'GRADING_SEMESTER_MISSING',
+        'Không tìm thấy học kỳ của bảng điểm.',
+      );
+    }
+    if (semester.status !== 'active') {
+      return this.studentWindowDenied(
+        'GRADING_SEMESTER_INACTIVE',
+        'Học kỳ hiện không hoạt động nên sinh viên chỉ được xem điểm.',
+      );
+    }
+
+    const summaryStatus = context.summaryStatus || summary?.status;
+    if (!summary && !context.allowMissingSummary) {
+      return this.studentWindowDenied(
+        'GRADING_SUMMARY_MISSING',
+        'Chưa có bảng điểm nháp để sinh viên cập nhật.',
+      );
+    }
+    if (summaryStatus && summaryStatus !== 'draft') {
+      return this.studentWindowDenied(
+        'GRADING_SUMMARY_NOT_DRAFT',
+        'Bảng điểm không còn ở trạng thái nháp để sinh viên cập nhật.',
+      );
+    }
+
+    const summaryPeriodId = normalizeObjectId(summary?.period_id);
+    if (requestedPeriodId && summaryPeriodId && requestedPeriodId !== summaryPeriodId) {
+      return this.studentWindowDenied(
+        'GRADING_CONTEXT_MISMATCH',
+        'Kỳ đánh giá của bảng điểm không khớp ngữ cảnh yêu cầu.',
+      );
+    }
+
+    let period: any = null;
+    const periodId = summaryPeriodId || requestedPeriodId;
+    if (periodId) {
+      if (!Types.ObjectId.isValid(periodId)) {
+        return this.studentWindowDenied(
+          'GRADING_CONTEXT_INVALID',
+          'Kỳ đánh giá của bảng điểm không hợp lệ.',
+        );
+      }
+      period = await this.evaluationPeriodModel
+        .findById(periodId)
+        .lean()
+        .exec();
+      if (!period) {
+        return this.studentWindowDenied(
+          'GRADING_EVALUATION_PERIOD_MISSING',
+          'Chưa cấu hình kỳ đánh giá cho học kỳ này.',
+        );
+      }
+      if (normalizeObjectId(period.semester_id) !== semesterId) {
+        return this.studentWindowDenied(
+          'GRADING_CONTEXT_MISMATCH',
+          'Kỳ đánh giá không thuộc học kỳ của bảng điểm.',
+        );
+      }
+    } else {
+      const periods = await this.evaluationPeriodModel
+        .find({
+          semester_id: new Types.ObjectId(semesterId),
+        } as any)
+        .lean()
+        .exec();
+      const openPeriods = (periods || []).filter(
+        (item: any) => item.status !== 'closed',
+      );
+      if (!openPeriods.length && periods?.some((item: any) => item.status === 'closed')) {
+        return this.studentWindowDenied(
+          'GRADING_EVALUATION_PERIOD_CLOSED',
+          'Kỳ đánh giá đã đóng.',
+        );
+      }
+      if (!openPeriods.length) {
+        return this.studentWindowDenied(
+          'GRADING_EVALUATION_PERIOD_MISSING',
+          'Chưa cấu hình kỳ đánh giá đang mở cho học kỳ này.',
+        );
+      }
+      if (openPeriods.length !== 1) {
+        return this.studentWindowDenied(
+          'GRADING_CONTEXT_AMBIGUOUS',
+          'Có nhiều kỳ đánh giá đang mở; không thể xác định kỳ áp dụng.',
+        );
+      }
+      period = openPeriods[0];
+    }
+
+    if (period.status === 'closed') {
+      return this.studentWindowDenied(
+        'GRADING_EVALUATION_PERIOD_CLOSED',
+        'Kỳ đánh giá đã đóng.',
+      );
+    }
+    if (period.status !== 'sv_phase') {
+      return this.studentWindowDenied(
+        `GRADING_EVALUATION_${String(period.status || 'UNKNOWN').toUpperCase()}`,
+        period.status === 'pending'
+          ? 'Kỳ đánh giá chưa mở giai đoạn sinh viên.'
+          : 'Hiện không phải giai đoạn sinh viên tự chấm điểm.',
+      );
+    }
+
+    const deadline = new Date(period.sv_deadline);
+    if (Number.isNaN(deadline.getTime())) {
+      return this.studentWindowDenied(
+        'GRADING_EVALUATION_DEADLINE_INVALID',
+        'Thời hạn tự chấm điểm không hợp lệ.',
+      );
+    }
+    if (Date.now() >= deadline.getTime()) {
+      return this.studentWindowDenied(
+        'GRADING_EVALUATION_DEADLINE_EXPIRED',
+        'Đã hết hạn sinh viên tự chấm điểm.',
+      );
+    }
+
+    return { allowed: true };
+  }
+
+  async assertStudentEvaluationWindow(
+    context: StudentEvaluationWindowContext,
+  ): Promise<void> {
+    const decision = await this.getStudentEvaluationWindowDecision(context);
+    if (!decision.allowed) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: decision.reason,
+        error: 'Forbidden',
+        reasonCode: decision.reasonCode,
+      });
+    }
+  }
+
   private buildSummaryIdentity(
     studentId: string | Types.ObjectId,
     semesterId: string | Types.ObjectId,
@@ -304,7 +566,28 @@ export class SummariesPointService {
       .exec();
 
     if (existing) {
+      if (getGradingRole(requester) === 'student') {
+        await this.assertStudentEvaluationWindow({
+          requester,
+          studentId: createSummaryPointDto.student_id,
+          semesterId: createSummaryPointDto.semester_id,
+          periodId: createSummaryPointDto.period_id,
+          summaryId: existing._id,
+          summaryStatus: existing.status,
+        });
+      }
       return existing;
+    }
+
+    if (getGradingRole(requester) === 'student') {
+      await this.assertStudentEvaluationWindow({
+        requester,
+        studentId: createSummaryPointDto.student_id,
+        semesterId: createSummaryPointDto.semester_id,
+        periodId: createSummaryPointDto.period_id,
+        summaryStatus: createSummaryPointDto.status || 'draft',
+        allowMissingSummary: true,
+      });
     }
 
     try {
@@ -665,6 +948,25 @@ export class SummariesPointService {
       throw new BadRequestException(
         'Không thể sửa bảng điểm đã chốt. Vui lòng sử dụng chức năng hủy phê duyệt.',
       );
+    }
+
+    if (getGradingRole(requester) === 'student') {
+      const dtoHasPeriodId = Object.prototype.hasOwnProperty.call(
+        updateSummaryPointDto,
+        'period_id',
+      );
+      await this.assertStudentEvaluationWindow({
+        requester,
+        studentId: updateSummaryPointDto.student_id || existingSummary.student_id,
+        semesterId: updateSummaryPointDto.semester_id || existingSummary.semester_id,
+        periodId: dtoHasPeriodId
+          ? (updateSummaryPointDto as any).period_id
+          : existingSummary.period_id,
+        summaryId: id,
+        // The current persisted status is authoritative. A student must not
+        // be able to submit `status: draft` to reopen a submitted summary.
+        summaryStatus: existingSummary.status,
+      });
     }
 
     if (updateSummaryPointDto.status === 'draft') {
@@ -1554,6 +1856,17 @@ export class SummariesPointService {
       );
     }
 
+    if (getGradingRole(requester) === 'student') {
+      await this.assertStudentEvaluationWindow({
+        requester,
+        studentId: existingSummary.student_id,
+        semesterId: existingSummary.semester_id,
+        periodId: existingSummary.period_id,
+        summaryId: existingSummary._id,
+        summaryStatus: existingSummary.status,
+      });
+    }
+
     const deleted = await this.summaryPointModel.findByIdAndDelete(id).exec();
     if (!deleted) {
       throw new NotFoundException(`SummaryPoint with ID ${id} not found`);
@@ -2080,6 +2393,9 @@ export class SummariesPointService {
           .findOne({
             student_id: new Types.ObjectId(context.studentId),
             semester_id: new Types.ObjectId(context.semesterId),
+            // Do not let a historical period-bound summary determine the
+            // current student editing window when no summary was selected.
+            period_id: null,
           } as any)
           .exec();
       }
@@ -2091,6 +2407,21 @@ export class SummariesPointService {
           decision.canCopyScore = false;
           decision.reasonCode = 'GRADING_SUMMARY_LOCKED';
           decision.reason = 'Bảng điểm rèn luyện đã chốt.';
+        }
+      }
+
+      if (decision.role === 'student' && decision.canModifyScore) {
+        const studentWindow = await this.getStudentEvaluationWindowDecision({
+          requester,
+          studentId: context.studentId || summaryObj?.student_id,
+          semesterId: context.semesterId || summaryObj?.semester_id,
+          summaryId: context.summaryId || summaryObj?._id,
+        });
+        if (!studentWindow.allowed) {
+          decision.canModifyScore = false;
+          decision.canCopyScore = false;
+          decision.reasonCode = studentWindow.reasonCode;
+          decision.reason = studentWindow.reason;
         }
       }
     } catch (err: any) {

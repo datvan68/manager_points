@@ -545,6 +545,15 @@ export class EvaluationDetailService {
       );
     }
 
+    if (this.isStudent(requester)) {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: summary.student_id,
+        semesterId: summary.semester_id,
+        summaryId: summary_id,
+      });
+    }
+
     if (summary.status === 'locked') {
       throw new BadRequestException(
         'Không thể thêm chi tiết chấm điểm cho bảng điểm đã chốt',
@@ -876,6 +885,15 @@ export class EvaluationDetailService {
     }
     await this.assertCanAccessSummary(summary._id.toString(), requester);
 
+    if (this.isStudent(requester)) {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: summary.student_id,
+        semesterId: summary.semester_id,
+        summaryId: summary._id,
+      });
+    }
+
     if (summary.status === 'locked') {
       throw new BadRequestException(
         'Không thể chỉnh sửa chi tiết chấm điểm của bảng điểm đã chốt',
@@ -990,6 +1008,15 @@ export class EvaluationDetailService {
       throw new NotFoundException(
         `SummaryPoint with ID ${summary_id} not found`,
       );
+    }
+
+    if (this.isStudent(requester)) {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: summary.student_id,
+        semesterId: summary.semester_id,
+        summaryId: summary_id,
+      });
     }
 
     if (summary.status === 'locked') {

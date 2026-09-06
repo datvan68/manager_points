@@ -19,6 +19,7 @@ export interface GradingAccessState {
   canManageEvaluationPeriod: boolean;
   backendDeniedReason?: string;
   backendReasonCode?: string;
+  backendError?: string;
   loading: boolean;
 }
 
@@ -62,14 +63,31 @@ export function useGradingScoreAccess(context?: {
   studentId?: string;
   semesterId?: string;
   summaryId?: string;
+  refreshKey?: string | number;
 }): GradingAccessState {
   const { user, isLoading: authLoading } = useAuth();
   const [backendAccess, setBackendAccess] = useState<any>(null);
+  const [backendAccessKey, setBackendAccessKey] = useState('');
+  const [backendError, setBackendError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
   // Active user details (fallback to localStorage if auth context is loading)
   const activeUser = authLoading ? tokenStorage.getUser() : (user || tokenStorage.getUser());
   const role = getClientGradingRole(activeUser);
+  const activeUserId = activeUser?.id || activeUser?._id || activeUser?.userId || '';
+  const hasCoordinates = !!(
+    context &&
+    (context.classId || context.studentId || context.semesterId || context.summaryId)
+  );
+  const requestKey = [
+    activeUserId,
+    role,
+    context?.classId || '',
+    context?.studentId || '',
+    context?.semesterId || '',
+    context?.summaryId || '',
+    context?.refreshKey || '',
+  ].join(':');
 
   // Client-side quick access logic
   const isAdmin = role === 'admin';
@@ -86,16 +104,18 @@ export function useGradingScoreAccess(context?: {
 
   // Sync access state from backend when parameters are provided
   useEffect(() => {
-    if (!activeUser) return;
-    
-    // Only call backend if we have context coordinates
-    const hasCoordinates = context && (context.classId || context.studentId || context.semesterId || context.summaryId);
-    if (!hasCoordinates) {
+    if (!activeUser || !hasCoordinates) {
       setBackendAccess(null);
+      setBackendAccessKey(requestKey);
+      setBackendError(undefined);
+      setLoading(false);
       return;
     }
 
     let isMounted = true;
+    setBackendAccess(null);
+    setBackendAccessKey('');
+    setBackendError(undefined);
     const fetchBackendAccess = async () => {
       try {
         setLoading(true);
@@ -107,9 +127,15 @@ export function useGradingScoreAccess(context?: {
         });
         if (isMounted) {
           setBackendAccess(res);
+          setBackendAccessKey(requestKey);
         }
       } catch (err) {
         console.error('Failed to retrieve backend grading access:', err);
+        if (isMounted) {
+          setBackendAccess(null);
+          setBackendAccessKey(requestKey);
+          setBackendError('Không thể xác định quyền chấm điểm hiện tại.');
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -122,9 +148,11 @@ export function useGradingScoreAccess(context?: {
     return () => {
       isMounted = false;
     };
-  }, [context?.classId, context?.studentId, context?.semesterId, context?.summaryId, activeUser]);
+  }, [context?.classId, context?.studentId, context?.semesterId, context?.summaryId, context?.refreshKey, activeUserId, role, authLoading]);
 
   // Combine client-side quick rules with backend strict evaluations
+  const resolvedBackendAccess = backendAccessKey === requestKey ? backendAccess : null;
+  const accessLoading = loading || authLoading || (hasCoordinates && backendAccessKey !== requestKey);
   const mergedState: GradingAccessState = {
     role,
     isAdmin,
@@ -133,13 +161,14 @@ export function useGradingScoreAccess(context?: {
     isTeacher,
     isStudent,
     canReadRoster,
-    canModifyScoreByRole: backendAccess ? backendAccess.canModifyScore : canModifyScoreByRole,
-    canDeleteSummaryByRole: backendAccess ? backendAccess.canDeleteSummary : canDeleteSummaryByRole,
-    canDeleteHistoryByRole: backendAccess ? backendAccess.canDeleteHistory : canDeleteHistoryByRole,
-    canManageEvaluationPeriod: backendAccess ? backendAccess.canManageEvaluationPeriod : canManageEvaluationPeriod,
-    backendDeniedReason: backendAccess?.reason,
-    backendReasonCode: backendAccess?.reasonCode,
-    loading: loading || authLoading,
+    canModifyScoreByRole: hasCoordinates ? !!resolvedBackendAccess?.canModifyScore : canModifyScoreByRole,
+    canDeleteSummaryByRole: resolvedBackendAccess ? resolvedBackendAccess.canDeleteSummary : canDeleteSummaryByRole,
+    canDeleteHistoryByRole: resolvedBackendAccess ? resolvedBackendAccess.canDeleteHistory : canDeleteHistoryByRole,
+    canManageEvaluationPeriod: resolvedBackendAccess ? resolvedBackendAccess.canManageEvaluationPeriod : canManageEvaluationPeriod,
+    backendDeniedReason: resolvedBackendAccess?.reason || backendError,
+    backendReasonCode: resolvedBackendAccess?.reasonCode || (backendError ? 'GRADING_ACCESS_UNAVAILABLE' : undefined),
+    backendError,
+    loading: accessLoading,
   };
 
   return mergedState;

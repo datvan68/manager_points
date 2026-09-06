@@ -46,6 +46,7 @@ import {
   UNGROUPED_PERMISSION_GROUP,
   ADMIN_RBAC_GROUP,
   STUDENT_MANAGER_GROUP,
+  STUDENT_RECORD_GROUP,
   GRADING_MANAGER_GROUP,
   TASK_MANAGER_GROUP,
   SYSTEM_OPERATIONS_GROUP,
@@ -1589,6 +1590,12 @@ export class AuthService implements OnModuleInit {
         permissions: [
           createdPerms['GRADING_PAGE'],
           createdPerms['GRADING_SEMESTER_MANAGE'],
+          createdPerms['CONFIG_RECORD'],
+        ],
+      },
+      {
+        constant: STUDENT_RECORD_GROUP,
+        permissions: [
           createdPerms['READ_STUDENT_RECORD'],
           createdPerms['CREATE_STUDENT_RECORD'],
           createdPerms['UPDATE_STUDENT_RECORD'],
@@ -1598,7 +1605,6 @@ export class AuthService implements OnModuleInit {
           createdPerms['CREATE_CLASS_RECORD'],
           createdPerms['UPDATE_CLASS_RECORD'],
           createdPerms['DELETE_CLASS_RECORD'],
-          createdPerms['CONFIG_RECORD'],
         ],
       },
       {
@@ -1710,6 +1716,38 @@ export class AuthService implements OnModuleInit {
           .exec();
       }),
     );
+
+    // Reconcile only the canonical record permissions moved out of G_GRADING.
+    // Roles and users are intentionally untouched: groups are metadata only.
+    const studentRecordPermissionIds = [
+      'READ_STUDENT_RECORD',
+      'CREATE_STUDENT_RECORD',
+      'UPDATE_STUDENT_RECORD',
+      'DELETE_STUDENT_RECORD',
+      'READ_CLASS_RECORD',
+      'READ_ALL_CLASS_RECORD',
+      'CREATE_CLASS_RECORD',
+      'UPDATE_CLASS_RECORD',
+      'DELETE_CLASS_RECORD',
+    ]
+      .map((code) => createdPerms[code])
+      .filter(Boolean);
+    if (studentRecordPermissionIds.length > 0) {
+      await Promise.all([
+        this.permissionGroupModel
+          .updateOne(
+            { code: GRADING_MANAGER_GROUP.code },
+            { $pull: { permissions: { $in: studentRecordPermissionIds } } },
+          )
+          .exec(),
+        this.permissionGroupModel
+          .updateOne(
+            { code: STUDENT_RECORD_GROUP.code },
+            { $addToSet: { permissions: { $each: studentRecordPermissionIds } } },
+          )
+          .exec(),
+      ]);
+    }
 
     // Seed default route permissions
     const permMap = createdPerms;

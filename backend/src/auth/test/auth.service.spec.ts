@@ -726,14 +726,60 @@ describe('AuthService', () => {
 
       const gradingCall = groupCalls.find((c) => c[0].code === 'G_GRADING');
       expect(gradingCall).toBeDefined();
-      expect(gradingCall[1].$addToSet.permissions.$each).toContain(
+      expect(gradingCall[1].$addToSet.permissions.$each).not.toContain(
+        'id-READ_ALL_CLASS_RECORD',
+      );
+      const recordCall = groupCalls.find((c) => c[0].code === 'G_STUDENT_RECORD');
+      expect(recordCall).toBeDefined();
+      expect(recordCall[1].$addToSet.permissions.$each).toContain(
         'id-READ_ALL_CLASS_RECORD',
       );
 
       const gradingRoute = (await service.getPagePermissionScopes()).find(
         (scope) => scope.route_path === '/grading',
       );
-      expect(gradingRoute?.action_permissions).toContain('READ_ALL_CLASS_RECORD');
+      expect(gradingRoute?.action_permissions).toEqual([
+        'GRADING_SEMESTER_MANAGE',
+        'CONFIG_RECORD',
+      ]);
+    });
+
+    it('reconciles legacy mixed membership idempotently without touching roles', async () => {
+      const permissionGroupModel = (service as any).permissionGroupModel;
+      const permissionModel = (service as any).permissionModel;
+      const roleModel = (service as any).roleModel;
+      permissionModel.deleteMany = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionModel.find = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          ...['READ_STUDENT_RECORD', 'CREATE_STUDENT_RECORD', 'UPDATE_STUDENT_RECORD',
+            'DELETE_STUDENT_RECORD', 'READ_CLASS_RECORD', 'READ_ALL_CLASS_RECORD',
+            'CREATE_CLASS_RECORD', 'UPDATE_CLASS_RECORD', 'DELETE_CLASS_RECORD',
+            'GRADING_PAGE', 'GRADING_SEMESTER_MANAGE', 'CONFIG_RECORD']
+            .map((code) => ({ _id: `id-${code}`, code })),
+        ]),
+      });
+      permissionModel.findOneAndUpdate = jest.fn().mockImplementation((query) => ({
+        exec: jest.fn().mockResolvedValue({ _id: `id-${query.code}` }),
+      }));
+      permissionGroupModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      permissionGroupModel.find = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) });
+      permissionGroupModel.updateOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      (service as any).routePermissionModel.deleteOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      (service as any).routePermissionModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+      roleModel.findOneAndUpdate = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(true) });
+
+      await (service as any).seedRbac();
+      await (service as any).seedRbac();
+
+      const pullCalls = permissionGroupModel.updateOne.mock.calls.filter((call) => call[1]?.$pull);
+      const addCalls = permissionGroupModel.updateOne.mock.calls.filter((call) => call[1]?.$addToSet);
+      expect(pullCalls).toHaveLength(2);
+      expect(pullCalls[0][0]).toEqual({ code: 'G_GRADING' });
+      expect(pullCalls[0][1].$pull.permissions.$in).toHaveLength(9);
+      expect(addCalls).toHaveLength(2);
+      expect(addCalls[0][0]).toEqual({ code: 'G_STUDENT_RECORD' });
+      expect(roleModel.findOneAndUpdate.mock.calls.every((call) => !call[1].$set?.permissions)).toBe(true);
     });
   });
 

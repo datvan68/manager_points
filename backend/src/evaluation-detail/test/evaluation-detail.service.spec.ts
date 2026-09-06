@@ -69,6 +69,7 @@ describe('EvaluationDetailService', () => {
 
   const mockSummariesPointService = {
     recomputeTotalScore: jest.fn().mockResolvedValue(undefined),
+    assertStudentEvaluationWindow: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -205,6 +206,34 @@ describe('EvaluationDetailService', () => {
           { userId: 'u1' },
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not write a detail when the student evaluation window is denied', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: summaryId,
+          student_id: new Types.ObjectId(),
+          semester_id: new Types.ObjectId(),
+          status: 'draft',
+          details: [],
+        }),
+      } as any);
+      jest
+        .spyOn(service as any, 'assertCanAccessSummary')
+        .mockResolvedValue(undefined);
+      mockSummariesPointService.assertStudentEvaluationWindow.mockRejectedValueOnce(
+        new ForbiddenException('evaluation window closed'),
+      );
+
+      await expect(
+        service.create(
+          { summary_id: summaryId, criterion_id: new Types.ObjectId().toString() } as any,
+          { userId: new Types.ObjectId().toString(), roleName: 'Student' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockSummaryPointModel.findByIdAndUpdate).not.toHaveBeenCalled();
+      expect(mockSummariesPointService.recomputeTotalScore).not.toHaveBeenCalled();
     });
     it('should successfully create a detail with scoring_mode single_option', async () => {
       const summaryId = new Types.ObjectId().toString();

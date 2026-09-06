@@ -77,6 +77,7 @@ describe('AcademicRecordService - Import Flow', () => {
   };
   const mockSummariesPointService: any = {
     recomputeTotalScore: jest.fn(),
+    assertStudentEvaluationWindow: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockSemesterModel: any = {
@@ -1319,6 +1320,26 @@ describe('AcademicRecordService - Import Flow', () => {
       await expect(
         service.handleScoreIntent(intentDto, requester),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('does not mutate records when the student evaluation window is denied', async () => {
+      mockSummariesPointService.assertStudentEvaluationWindow.mockRejectedValueOnce(
+        new ForbiddenException('evaluation window closed'),
+      );
+      const requester = { userId: studentId, roleName: 'Student' };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
+      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockAcademicRecordModel.insertMany).not.toHaveBeenCalled();
+      expect(mockAcademicRecordModel.deleteOne).not.toHaveBeenCalled();
+      expect(service.syncStudentCriterionScore).not.toHaveBeenCalled();
     });
 
     it('should handle increase intent and create 1 record when current count = 0', async () => {

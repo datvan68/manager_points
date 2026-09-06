@@ -51,6 +51,7 @@ import {
   type PreviewPermissionItem,
 } from './preview-permissions';
 import { sortRolesByPriority, sortUsersByRolePriority } from './user-role-priority';
+import { sortPermissionGroups, sortPermissions } from './permission-order';
 
 const getUserDisplayName = (user: any) =>
   user?.student_profile?.full_name || user?.display_name || user?.user_name || user?.username || 'Unknown user';
@@ -691,36 +692,11 @@ function PermissionsPageContent() {
         });
       }
 
-      // Sort groups in specified order, fallback to sorting by name
-      const groupOrder: Record<string, number> = {
-        'G_ADMIN_RBAC': 1,
-        'G_SYSTEM_OPERATIONS': 2,
-        'G_STUDENT': 3,
-        'G_GRADING': 4,
-        'G_TASK': 5,
-        'G_REPORT': 6,
-        'G_CLUB': 7,
-        'G_DORMITORY': 8,
-        'G_UNGROUPED': 9,
-      };
+      apiGroups.splice(0, apiGroups.length, ...sortPermissionGroups(apiGroups));
 
-      apiGroups.sort((a: any, b: any) => {
-        const orderA = groupOrder[a.tag] || 999;
-        const orderB = groupOrder[b.tag] || 999;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.name.localeCompare(b.name);
-      });
-
-      // Sort permissions inside each group (page access first, then by code)
       apiGroups.forEach((group: any) => {
         if (Array.isArray(group.permissions)) {
-          group.permissions.sort((a: any, b: any) => {
-            const isPageA = a.code.endsWith('_PAGE') || a.code === 'admin';
-            const isPageB = b.code.endsWith('_PAGE') || b.code === 'admin';
-            if (isPageA && !isPageB) return -1;
-            if (!isPageA && isPageB) return 1;
-            return a.code.localeCompare(b.code);
-          });
+          group.permissions = sortPermissions(group.permissions);
         }
       });
 

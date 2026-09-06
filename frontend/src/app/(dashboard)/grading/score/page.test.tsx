@@ -659,4 +659,21 @@ describe("Score Attribution Badges Rendering", () => {
     expect(screen.queryByText("SV:")).toBeNull();
     expect(screen.queryByText("GV:")).toBeNull();
   });
+
+  it("keeps readable scores visible when backend denies student editing", async () => {
+    vi.mocked(summariesPointApi.getGradingAccess).mockResolvedValue({
+      canModifyScore: false,
+      canReadSummary: true,
+      reason: "Chưa đến giai đoạn sinh viên.",
+      reasonCode: "GRADING_EVALUATION_PENDING",
+    } as any);
+
+    render(<ProtectedGradingScorePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tiêu chí 1")).toBeDefined();
+    });
+    expect(screen.getByText("Chưa cấu hình kỳ đánh giá")).toBeDefined();
+    expect(screen.queryByText("Đặt lại")).toBeNull();
+  });
 });

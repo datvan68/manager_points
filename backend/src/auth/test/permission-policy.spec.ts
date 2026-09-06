@@ -21,9 +21,17 @@ describe('canonical permission policy registry', () => {
   });
 
   it('uses real destination and API owners for parent/read-sensitive capabilities', () => {
+    expect(getPermissionPolicy('GRADING_PAGE')).toMatchObject({
+      routePath: '/grading',
+      requires: [],
+    });
     expect(getPermissionPolicy('READ_STUDENT_RECORD')).toMatchObject({
       routePath: '/students/record',
       kind: 'read',
+      requires: [],
+    });
+    expect(getPermissionPolicy('READ_CLASS_RECORD')).toMatchObject({
+      requires: ['READ_STUDENT_RECORD'],
     });
     expect(getPermissionPolicy('CREATE_CLASS_RECORD')).toMatchObject({
       requires: ['READ_CLASS_RECORD'],

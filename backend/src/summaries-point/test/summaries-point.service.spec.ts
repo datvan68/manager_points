@@ -143,6 +143,7 @@ describe('SummariesPointService', () => {
   };
   const mockEvaluationPeriodModel = {
     findById: jest.fn(),
+    find: jest.fn(),
   };
 
   const mockAcademicRecordService = {
@@ -218,6 +219,156 @@ describe('SummariesPointService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('student evaluation window', () => {
+    const studentId = new Types.ObjectId();
+    const semesterId = new Types.ObjectId();
+    const periodId = new Types.ObjectId();
+    const requester = {
+      userId: studentId.toString(),
+      roleName: 'Student',
+    };
+    const query = (value: any) => ({
+      lean: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(value),
+    });
+
+    beforeEach(() => {
+      mockStudentModel.findById.mockReturnValue(query({
+        _id: studentId,
+        user_id: studentId,
+      }));
+      mockSemesterModel.findById.mockReturnValue(query({
+        _id: semesterId,
+        status: 'active',
+      }));
+      mockSummaryPointModel.findById.mockReturnValue(query({
+        _id: new Types.ObjectId(),
+        student_id: studentId,
+        semester_id: semesterId,
+        period_id: periodId,
+        status: 'draft',
+      }));
+      mockEvaluationPeriodModel.findById.mockReturnValue(query({
+        _id: periodId,
+        semester_id: semesterId,
+        status: 'sv_phase',
+        sv_deadline: new Date(Date.now() + 60_000),
+      }));
+    });
+
+    it.each([
+      ['pending', 'GRADING_EVALUATION_PENDING'],
+      ['gv_phase', 'GRADING_EVALUATION_GV_PHASE'],
+      ['admin_phase', 'GRADING_EVALUATION_ADMIN_PHASE'],
+      ['closed', 'GRADING_EVALUATION_PERIOD_CLOSED'],
+    ])('denies %s phase with a specific reason', async (status, reasonCode) => {
+      mockEvaluationPeriodModel.findById.mockReturnValue(query({
+        _id: periodId,
+        semester_id: semesterId,
+        status,
+        sv_deadline: new Date(Date.now() + 60_000),
+      }));
+
+      await expect(
+        service.getStudentEvaluationWindowDecision({
+          requester,
+          studentId,
+          semesterId,
+          summaryId: new Types.ObjectId(),
+        }),
+      ).resolves.toEqual(expect.objectContaining({
+        allowed: false,
+        reasonCode,
+      }));
+    });
+
+    it.each([
+      ['expired deadline', new Date(Date.now() - 1_000), 'GRADING_EVALUATION_DEADLINE_EXPIRED'],
+      ['invalid deadline', 'not-a-date', 'GRADING_EVALUATION_DEADLINE_INVALID'],
+    ])('denies %s', async (_label, deadline, reasonCode) => {
+      mockEvaluationPeriodModel.findById.mockReturnValue(query({
+        _id: periodId,
+        semester_id: semesterId,
+        status: 'sv_phase',
+        sv_deadline: deadline,
+      }));
+
+      await expect(
+        service.getStudentEvaluationWindowDecision({
+          requester,
+          studentId,
+          semesterId,
+          summaryId: new Types.ObjectId(),
+        }),
+      ).resolves.toEqual(expect.objectContaining({
+        allowed: false,
+        reasonCode,
+      }));
+    });
+
+    it('allows an own draft in an active student phase before the server deadline', async () => {
+      await expect(
+        service.getStudentEvaluationWindowDecision({
+          requester,
+          studentId,
+          semesterId,
+          summaryId: new Types.ObjectId(),
+        }),
+      ).resolves.toEqual({ allowed: true });
+    });
+
+    it('prefers the single open period over a historical closed period', async () => {
+      mockSummaryPointModel.find.mockReturnValue(query([
+        {
+          _id: new Types.ObjectId(),
+          student_id: studentId,
+          semester_id: semesterId,
+          status: 'draft',
+        },
+      ]));
+      mockEvaluationPeriodModel.find.mockReturnValue(query([
+        {
+          _id: new Types.ObjectId(),
+          semester_id: semesterId,
+          status: 'closed',
+          sv_deadline: new Date(Date.now() - 60_000),
+        },
+        {
+          _id: new Types.ObjectId(),
+          semester_id: semesterId,
+          status: 'sv_phase',
+          sv_deadline: new Date(Date.now() + 60_000),
+        },
+      ]));
+
+      await expect(
+        service.getStudentEvaluationWindowDecision({
+          requester,
+          studentId,
+          semesterId,
+        }),
+      ).resolves.toEqual({ allowed: true });
+    });
+
+    it('keeps readable access while a student phase is unavailable', async () => {
+      mockEvaluationPeriodModel.findById.mockReturnValue(query({
+        _id: periodId,
+        semester_id: semesterId,
+        status: 'pending',
+        sv_deadline: new Date(Date.now() + 60_000),
+      }));
+      const decision = await service.getGradingAccess(requester, {
+        studentId: studentId.toString(),
+        semesterId: semesterId.toString(),
+        summaryId: new Types.ObjectId().toString(),
+      });
+      expect(decision.canReadSummary).toBe(true);
+      expect(decision.canModifyScore).toBe(false);
+      expect(decision.reasonCode).toBe('GRADING_EVALUATION_PENDING');
+    });
   });
 
   describe('create', () => {
@@ -388,6 +539,61 @@ describe('SummariesPointService', () => {
 
       await expect(service.create(createDto)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+  });
+
+  describe('student mutation guards', () => {
+    it('does not delete a student summary when the evaluation window is denied', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const summary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'draft',
+      };
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(summary),
+      });
+      jest.spyOn(service, 'assertStudentEvaluationWindow').mockRejectedValue(
+        new ForbiddenException('evaluation window closed'),
+      );
+
+      await expect(
+        service.remove(summaryId, {
+          userId: summary.student_id.toString(),
+          roleName: 'Student',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockSummaryPointModel.findByIdAndDelete).not.toHaveBeenCalled();
+    });
+
+    it('uses the persisted summary status when guarding a student update', async () => {
+      const summaryId = new Types.ObjectId().toString();
+      const summary = {
+        _id: summaryId,
+        student_id: new Types.ObjectId(),
+        semester_id: new Types.ObjectId(),
+        status: 'sv_submitted',
+      };
+      jest.spyOn(service as any, 'assertCanAccessSummary').mockResolvedValue(undefined);
+      mockSummaryPointModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(summary),
+      });
+      const guard = jest
+        .spyOn(service, 'assertStudentEvaluationWindow')
+        .mockRejectedValue(new ForbiddenException('summary is not draft'));
+
+      await expect(
+        service.update(
+          summaryId,
+          { status: 'draft' },
+          { userId: summary.student_id.toString(), roleName: 'Student' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(guard).toHaveBeenCalledWith(
+        expect.objectContaining({ summaryStatus: 'sv_submitted' }),
       );
     });
   });

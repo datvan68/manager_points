@@ -44,11 +44,17 @@ export const STUDENT_MANAGER_GROUP = {
   status: 'Active',
 };
 
+export const STUDENT_RECORD_GROUP = {
+  code: 'G_STUDENT_RECORD',
+  name: 'Ghi nhận sinh viên',
+  description: 'Ghi nhận rèn luyện cá nhân, lớp học và phạm vi dữ liệu ghi nhận.',
+  status: 'Active',
+};
+
 export const GRADING_MANAGER_GROUP = {
   code: 'G_GRADING',
   name: 'Quản lý Điểm Rèn Luyện',
-  description:
-    'Quản lý ghi nhận rèn luyện cá nhân, ghi nhận lớp và cấu hình điểm rèn luyện.',
+  description: 'Chấm điểm, quản lý học kỳ và cấu hình điểm rèn luyện.',
   status: 'Active',
 };
 
@@ -256,56 +262,56 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   {
     code: 'READ_STUDENT_RECORD',
     name: 'Xem ghi nhận sinh viên',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description:
       'Cho phép xem lịch sử ghi nhận điểm rèn luyện cá nhân của sinh viên.',
   },
   {
     code: 'CREATE_STUDENT_RECORD',
     name: 'Thêm ghi nhận sinh viên',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép thêm mới ghi nhận rèn luyện cho sinh viên.',
   },
   {
     code: 'UPDATE_STUDENT_RECORD',
     name: 'Cập nhật ghi nhận sinh viên',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép sửa thông tin ghi nhận rèn luyện sinh viên.',
   },
   {
     code: 'DELETE_STUDENT_RECORD',
     name: 'Xóa ghi nhận sinh viên',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép xóa ghi nhận rèn luyện sinh viên.',
   },
   {
     code: 'READ_CLASS_RECORD',
     name: 'Xem ghi nhận lớp',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép xem tổng hợp ghi nhận rèn luyện của cả lớp học.',
   },
   {
     code: 'READ_ALL_CLASS_RECORD',
     name: 'Xem toàn bộ ghi nhận lớp',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép xem ghi nhận lớp do người dùng khác tạo.',
   },
   {
     code: 'CREATE_CLASS_RECORD',
     name: 'Thêm ghi nhận lớp',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép thêm ghi nhận rèn luyện tập thể cho cả lớp.',
   },
   {
     code: 'UPDATE_CLASS_RECORD',
     name: 'Cập nhật ghi nhận lớp',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép chỉnh sửa ghi nhận rèn luyện tập thể.',
   },
   {
     code: 'DELETE_CLASS_RECORD',
     name: 'Xóa ghi nhận lớp',
-    module: GRADING_MANAGER_GROUP.name,
+    module: STUDENT_RECORD_GROUP.name,
     description: 'Cho phép xóa ghi nhận rèn luyện tập thể.',
   },
   {
@@ -908,12 +914,12 @@ const POLICY_OVERRIDES: Record<
   reset_pwd: { kind: 'action', requires: ['admin', 'view_users'], owners: ['/permissions'], routePath: '/permissions' },
   STUDENT_PAGE: { kind: 'page/module access', owners: ['/students'], routePath: '/students' },
   STUDENT_READ: { kind: 'read', requires: ['STUDENT_PAGE'], owners: ['/students'], routePath: '/students' },
-  GRADING_PAGE: { kind: 'page/module access', owners: ['/students/record'], routePath: '/students/record' },
-  READ_STUDENT_RECORD: { kind: 'read', requires: ['GRADING_PAGE'], owners: ['/students/record', 'GET /academic-records'], routePath: '/students/record' },
+  GRADING_PAGE: { kind: 'page/module access', owners: ['/grading'], routePath: '/grading' },
+  READ_STUDENT_RECORD: { kind: 'read', requires: [], owners: ['/students/record', 'GET /academic-records'], routePath: '/students/record' },
   CREATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['POST /academic-records'], routePath: '/students/record' },
   UPDATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['PATCH /academic-records/:id'], routePath: '/students/record' },
   DELETE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['DELETE /academic-records/:id'], routePath: '/students/record' },
-  READ_CLASS_RECORD: { kind: 'read', requires: ['GRADING_PAGE'], owners: ['/students/record', 'GET /daily-class-reports'], routePath: '/students/record' },
+  READ_CLASS_RECORD: { kind: 'read', requires: ['READ_STUDENT_RECORD'], owners: ['/students/record', 'GET /daily-class-reports'], routePath: '/students/record' },
   READ_ALL_CLASS_RECORD: { kind: 'scope modifier', requires: ['READ_CLASS_RECORD'], owners: ['GET /daily-class-reports'], routePath: '/students/record' },
   CREATE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['POST /daily-class-reports'], routePath: '/students/record' },
   UPDATE_CLASS_RECORD: { kind: 'action', requires: ['READ_CLASS_RECORD'], owners: ['PATCH /daily-class-reports/:id'], routePath: '/students/record' },

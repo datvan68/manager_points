@@ -976,6 +976,14 @@ export class AcademicRecordService {
       note,
     } = intentDto;
 
+    if (getGradingRole(requester) === 'student') {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: student_id,
+        semesterId: semester_id,
+      });
+    }
+
     // Preflight check: check if the summary is locked
     await this.checkSummaryLocked(student_id, semester_id);
 
@@ -1606,6 +1614,13 @@ export class AcademicRecordService {
     createAcademicRecordDto: CreateAcademicRecordDto,
     requester?: any,
   ): Promise<AcademicRecord> {
+    if (getGradingRole(requester) === 'student') {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: createAcademicRecordDto.student_id,
+        semesterId: createAcademicRecordDto.semester_id,
+      });
+    }
     await this.checkSummaryLocked(
       createAcademicRecordDto.student_id,
       createAcademicRecordDto.semester_id,
@@ -1660,6 +1675,13 @@ export class AcademicRecordService {
         }
       }
       for (const { studentId, semesterId } of studentSemMap.values()) {
+        if (getGradingRole(requester) === 'student') {
+          await this.summariesPointService.assertStudentEvaluationWindow({
+            requester,
+            studentId,
+            semesterId,
+          });
+        }
         await this.checkSummaryLocked(studentId, semesterId);
       }
     }
@@ -2763,6 +2785,14 @@ export class AcademicRecordService {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
     }
 
+    if (getGradingRole(requester) === 'student') {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: oldRecord.student_id,
+        semesterId: oldRecord.semester_id,
+      });
+    }
+
     await this.checkSummaryLocked(oldRecord.student_id, oldRecord.semester_id);
     if (
       updateAcademicRecordDto.student_id ||
@@ -2772,6 +2802,13 @@ export class AcademicRecordService {
         updateAcademicRecordDto.student_id || oldRecord.student_id;
       const nextSemester =
         updateAcademicRecordDto.semester_id || oldRecord.semester_id;
+      if (getGradingRole(requester) === 'student') {
+        await this.summariesPointService.assertStudentEvaluationWindow({
+          requester,
+          studentId: nextStudent,
+          semesterId: nextSemester,
+        });
+      }
       await this.checkSummaryLocked(nextStudent, nextSemester);
     }
 
@@ -2856,6 +2893,14 @@ export class AcademicRecordService {
       .exec();
     if (!record) {
       throw new NotFoundException(`AcademicRecord with ID ${id} not found`);
+    }
+
+    if (getGradingRole(requester) === 'student') {
+      await this.summariesPointService.assertStudentEvaluationWindow({
+        requester,
+        studentId: record.student_id,
+        semesterId: record.semester_id,
+      });
     }
 
     if (record.daily_report_id && !bypassDailyReportCheck) {
