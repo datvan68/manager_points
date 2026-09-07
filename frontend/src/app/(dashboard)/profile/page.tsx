@@ -41,6 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { normalizeProfile, NormalizedProfile } from "./_lib/normalize-profile";
 import { StudentDormitorySection } from "@/components/profile/StudentDormitorySection";
+import { ActiveSessionsSection } from "@/components/profile/ActiveSessionsSection";
 import { useLocationPermission } from "@/hooks/useLocationPermission";
 
 export function resolveLatestSummaryState(summary: any, error: string | null) {
@@ -317,6 +318,7 @@ export default function ProfilePage() {
         />
         <main className="flex-1 p-3 md:p-4 overflow-y-auto bg-transparent scrollbar-hide">
           <div className="max-w-[1280px] mx-auto space-y-6">
+            <ActiveSessionsSection />
             {/* Header Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}

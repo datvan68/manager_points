@@ -281,7 +281,7 @@ describe('AuthProvider session rehydration', () => {
     );
   });
 
-  it('still forks a duplicated ordinary session', async () => {
+  it('shares a duplicated ordinary session without forking', async () => {
     const forkSession = vi.spyOn(authApi, 'forkSession').mockResolvedValue({
       access_token: 'forked-token',
     });
@@ -301,10 +301,42 @@ describe('AuthProvider session rehydration', () => {
 
     render(<AuthProvider><Probe /></AuthProvider>);
 
-    await waitFor(() => expect(forkSession).toHaveBeenCalledWith(
-      expect.any(String),
-      false,
-    ));
-    expect(tokenStorage.getAccessToken()).toBe('forked-token');
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(forkSession).not.toHaveBeenCalled();
+    expect(tokenStorage.getSessionId()).toBe('admin-session');
+
+  });
+});
+
+// Regression coverage for recovery and session generation changes.
+describe('AuthProvider recovery boundaries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks(); sessionStorage.clear(); localStorage.clear(); pathnameState.current = '/students/tasks';
+  });
+  it('keeps a recoverable failure on screen instead of redirecting to login', async () => {
+    refresh.mockRejectedValue(Object.assign(new Error('offline'), { status: 503 }));
+    const { findByRole } = render(<AuthProvider><Probe /></AuthProvider>);
+    expect(await findByRole('alert')).toHaveTextContent('Chưa thể xác minh');
+    expect(push).not.toHaveBeenCalled();
+  });
+  it('does not restore a user from a response that arrives after logout', async () => {
+    tokenStorage.setAccessToken('old'); tokenStorage.setUser({ id: 'u1' });
+    let resolve!: (value: Response) => void;
+    const response = new Promise<Response>(r => { resolve = r; });
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(response));
+    const { findByRole, queryByText } = render(<AuthProvider><LogoutProbe /><Probe /></AuthProvider>);
+    // Trigger logout externally while bootstrap /me is still pending.
+    tokenStorage.clearTokens(); window.dispatchEvent(new Event('auth-session-ended'));
+    await findByRole('button', { name: 'logout' });
+    resolve(new Response(JSON.stringify({ id: 'stale-user', roleCode: 'ADMIN' })));
+    await waitFor(() => expect(tokenStorage.getUser()).toBeNull());
+    expect(queryByText(/stale-user/)).not.toBeInTheDocument();
+  });
+  it('retries on reconnect and hydrates the account', async () => {
+    refresh.mockRejectedValueOnce(new TypeError('offline')).mockResolvedValue({ access_token: 'new' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'recovered', roleCode: 'ADMIN' }))));
+    const { findByRole, findByText } = render(<AuthProvider><Probe /></AuthProvider>);
+    await findByRole('alert'); fireEvent(window, new Event('online'));
+    await findByText(/recovered/); expect(push).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import { SessionService } from '../services/session.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from '../controllers/auth.controller';
 import { AuthService } from '../services/auth.service';
@@ -23,6 +24,7 @@ describe('AuthController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
+        { provide: SessionService, useValue: { validate: jest.fn().mockResolvedValue({}), create: jest.fn(), revoke: jest.fn(), revokeUser: jest.fn() } },
         {
           provide: AuthService,
           useValue: mockAuthService,
@@ -125,7 +127,7 @@ describe('AuthController', () => {
       const response = { cookie: jest.fn() } as any;
       const result = await controller.createImpersonation(
         {
-          user: { userId: 'admin-id' },
+          user: { userId: 'admin-id', sessionId: 'parent-id' },
           ip: '127.0.0.1',
           headers: {},
         },
@@ -141,6 +143,7 @@ describe('AuthController', () => {
         '507f1f77bcf86cd799439011',
         'browser_session_01',
         '127.0.0.1',
+        'parent-id',
       );
       expect(response.cookie).toHaveBeenCalledWith(
         'refresh_token_browser_session_01',
@@ -214,4 +217,11 @@ describe('AuthController', () => {
       ).rejects.toThrow('Không thể nhân bản một phiên truy cập quản trị');
     });
   });
+  it('rejects impersonated session-management requests before any service call', async () => {
+    const req = { user: { userId: 'subject', sessionId: 'child', impersonationSessionId: 'lease' } };
+    await expect(controller.listSessions(req)).rejects.toMatchObject({ status: 403 });
+    await expect(controller.revokeSession(req, 'another-session')).rejects.toMatchObject({ status: 403 });
+    await expect(controller.revokeOtherSessions(req)).rejects.toMatchObject({ status: 403 });
+  });
+
 });

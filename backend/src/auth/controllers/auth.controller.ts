@@ -12,6 +12,7 @@ import {
   Param,
   Res,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { CookieOptions, Response, Request } from 'express';
 import {
@@ -21,6 +22,8 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
+import { SessionService } from '../services/session.service';
+import { ImpersonationService } from '../services/impersonation.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PermissionsGuard } from '../guards/permissions.guard';
 import { Permissions } from '../decorators/permissions.decorator';
@@ -95,7 +98,9 @@ function getRefreshCookieOptions(maxAge?: number): CookieOptions {
 @ApiTags('Authentication & RBAC')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService,
+    private readonly sessions: SessionService,
+    private readonly impersonations: ImpersonationService) {}
 
   // ─── AUTHENTICATION ─────────────────────────────────────────
 
@@ -115,7 +120,16 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const ip = req.ip || req.headers?.['x-forwarded-for'] || '0.0.0.0';
-    const result = await this.authService.login(dto, ip);
+    const agent = String(req.headers?.['user-agent'] || '');
+    const browser = /Edg\//.test(agent) ? 'Edge' : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : 'Trình duyệt';
+    const device = /Android|iPhone|iPad|Mobile/.test(agent) ? 'di động' : 'máy tính';
+    const result = await this.authService.login(dto, ip, `${browser} - ${device}`);
+    if (dto.previous_session_id) {
+      const previousCookie = getRefreshCookieName(dto.previous_session_id);
+      const previousToken = req.cookies?.[previousCookie];
+      if (previousToken) await this.authService.revokeToken(previousToken, ip);
+      res.clearCookie(previousCookie, getRefreshCookieOptions());
+    }
 
     // The service owns the session policy; the cookie mirrors its result.
     const cookieMaxAge =
@@ -283,6 +297,7 @@ export class AuthController {
       dto.target_user_id,
       dto.session_id,
       ip,
+      req.user.sessionId,
     );
     const maxAge = Math.max(
       0,
@@ -361,7 +376,36 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile with permissions' })
   async getMe(@Req() req: any) {
-    return this.authService.getMe(req.user.userId);
+    const me = await this.authService.getMe(req.user.userId);
+    if (!req.user.impersonationSessionId) return me;
+    const lease = await this.impersonations.validateSession(req.user.impersonationSessionId, req.user.userId, req.user.actorUserId);
+    return { ...me, impersonation: { id: lease._id.toString(), expires_at: lease.expires_at } };
+  }
+
+  private requireOrdinarySession(req: any) {
+    if (req.user.impersonationSessionId) throw new ForbiddenException('Phiên truy cập không được quản lý thiết bị');
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  async listSessions(@Req() req: any) {
+    this.requireOrdinarySession(req);
+    return this.sessions.list(req.user.userId, req.user.sessionId);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  async revokeSession(@Req() req: any, @Param('id') id: string) {
+    this.requireOrdinarySession(req);
+    return this.sessions.revokeOwned(req.user.userId, id);
+  }
+
+  @Post('sessions/revoke-others')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async revokeOtherSessions(@Req() req: any) {
+    this.requireOrdinarySession(req);
+    return this.sessions.revokeOthers(req.user.userId, req.user.sessionId);
   }
 
   @Patch('me')

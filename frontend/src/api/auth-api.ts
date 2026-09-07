@@ -1,6 +1,14 @@
 import { API_BASE } from './config';
 import { apiCache } from './api-cache';
-import { fetchWithRetry } from './http-client';
+import { fetchWithRetry, httpClient } from './http-client';
+
+export interface ActiveSession {
+  id: string;
+  device_label: string;
+  created_at: string;
+  last_active_at: string;
+  current: boolean;
+}
 
 export interface LoginResponse {
   access_token: string;
@@ -84,15 +92,33 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const authApi = {
+  async listSessions(): Promise<ActiveSession[]> {
+    return handleResponse(await httpClient(`${API_BASE}/auth/sessions`));
+  },
+  async revokeSession(id: string): Promise<void> {
+    await handleResponse(await httpClient(`${API_BASE}/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }));
+  },
+  async revokeOtherSessions(): Promise<void> {
+    await handleResponse(await httpClient(`${API_BASE}/auth/sessions/revoke-others`, { method: 'POST' }));
+  },
   async login(email: string, password: string, remember: boolean = false): Promise<LoginResponse> {
-    const sessionId = tokenStorage.getSessionId();
+    const previous_session_id = tokenStorage.getSessionId();
+    tokenStorage.clearTokens();
+    const sessionId = crypto.randomUUID();
+    const identity = tokenStorage.getAuthIdentity();
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
-      body: JSON.stringify({ email, password, remember }),
+      body: JSON.stringify({ email, password, remember, previous_session_id }),
       credentials: 'include', // Important to receive the cookie
       headers: { 'Content-Type': 'application/json', 'X-Auth-Session-Id': sessionId },
     });
-    return handleResponse<LoginResponse>(res);
+    const result = await handleResponse<LoginResponse>(res);
+    if (identity !== tokenStorage.getAuthIdentity()) throw new DOMException('Session changed', 'AbortError');
+    // Publish only after the server has installed the new cookie. Sibling tabs
+    // must never try to refresh a cookie namespace which does not exist yet.
+    tokenStorage.setSessionId(sessionId);
+    tokenStorage.markLoggedIn();
+    return result;
   },
 
   async register(user_name: string, email: string, password: string): Promise<MessageResponse> {
@@ -171,21 +197,21 @@ export const authApi = {
   },
 
   async refreshToken(): Promise<RefreshResponse> {
-    console.log(`[AuthApi/Refresh] Requesting ${API_BASE}/auth/refresh`);
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include', // Important to send the cookie
+      signal: AbortSignal.timeout(10000),
       headers: { 'Content-Type': 'application/json', 'X-Auth-Session-Id': tokenStorage.getSessionId() },
     });
-    console.log(`[AuthApi/Refresh] Response status: ${res.status}`);
     return handleResponse<RefreshResponse>(res);
   },
 
-  async logout(): Promise<MessageResponse> {
+  async logout(sessionId = tokenStorage.getSessionId()): Promise<MessageResponse> {
     const res = await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'X-Auth-Session-Id': tokenStorage.getSessionId() },
+      headers: { 'X-Auth-Session-Id': sessionId },
+      signal: AbortSignal.timeout(10000),
     });
     return handleResponse<MessageResponse>(res);
   },
@@ -545,11 +571,36 @@ export const authApi = {
 
 // Token helpers — supports "remember login" persistence
 export const tokenStorage = {
+  isLoggedOut(): boolean {
+    const storage = sessionStorage.getItem('auth_child') === 'true' ? sessionStorage : localStorage;
+    return storage.getItem(`auth_logged_out_${this.getSessionId()}`) === 'true';
+  },
+  markLoggedIn() {
+    const storage = sessionStorage.getItem('auth_child') === 'true' ? sessionStorage : localStorage;
+    storage.removeItem(`auth_logged_out_${this.getSessionId()}`);
+    this.invalidateAuth();
+  },
+  clearLocalAuth() {
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('user');
+  },
+  getAuthIdentity(): string {
+    const id = this.getSessionId();
+    const child = sessionStorage.getItem('auth_child') === 'true';
+    return `${id}:${(child ? sessionStorage : localStorage).getItem(`auth_epoch_${id}`) || '0'}`;
+  },
+  invalidateAuth() {
+    const id = this.getSessionId();
+    const storage = sessionStorage.getItem('auth_child') === 'true' ? sessionStorage : localStorage;
+    storage.setItem(`auth_epoch_${id}`, `${Date.now()}-${Math.random()}`);
+  },
   setSessionId(value: string) {
+    sessionStorage.removeItem('auth_child');
     sessionStorage.setItem('auth_session_id', value);
     localStorage.setItem('auth_session_id', value);
   },
   setTabSessionId(value: string) {
+    sessionStorage.setItem('auth_child', 'true');
     sessionStorage.setItem('auth_session_id', value);
   },
   getTabSessionId(): string | null {
@@ -557,7 +608,8 @@ export const tokenStorage = {
   },
   getSessionId(): string {
     const key = 'auth_session_id';
-    let value = sessionStorage.getItem(key);
+    let value = sessionStorage.getItem('auth_child') === 'true'
+      ? sessionStorage.getItem(key) : localStorage.getItem(key) || sessionStorage.getItem(key);
     if (!value) {
       value = localStorage.getItem('auth_session_id') || (typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
@@ -565,6 +617,7 @@ export const tokenStorage = {
       sessionStorage.setItem(key, value);
       localStorage.setItem(key, value);
     }
+    sessionStorage.setItem(key, value);
     return value;
   },
   // ─── Remember flag ────────────────────────────────
@@ -593,9 +646,12 @@ export const tokenStorage = {
 
   // ─── Clear All ────────────────────────────────────
   clearTokens() {
+    const storage = sessionStorage.getItem('auth_child') === 'true' ? sessionStorage : localStorage;
+    storage.setItem(`auth_logged_out_${this.getSessionId()}`, 'true');
+    this.invalidateAuth();
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('remember_login');
-    localStorage.removeItem('remember_login');
+    if (sessionStorage.getItem('auth_child') !== 'true') localStorage.removeItem('remember_login');
     sessionStorage.removeItem('user');
     try {
       const keysToRemove: string[] = [];
@@ -611,10 +667,12 @@ export const tokenStorage = {
     }
   },
   clearTabAuth() {
+    // Clearing copied credentials during /access bootstrap must not invalidate the parent.
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('remember_login');
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('auth_session_id');
+    sessionStorage.removeItem('auth_child');
   },
 
   // ─── Saved Email (for pre-fill on login page) ────

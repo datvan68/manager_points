@@ -41,6 +41,8 @@ import {
 } from './schemas/impersonation-session.schema';
 import { ImpersonationService } from './services/impersonation.service';
 import { StrictAdminGuard } from './guards/strict-admin.guard';
+import { AuthSession, AuthSessionSchema } from './schemas/auth-session.schema';
+import { SessionService } from './services/session.service';
 
 @Module({
   imports: [
@@ -55,6 +57,7 @@ import { StrictAdminGuard } from './guards/strict-admin.guard';
       inject: [ConfigService],
     }),
     MongooseModule.forFeature([
+      { name: AuthSession.name, schema: AuthSessionSchema },
       { name: User.name, schema: UserSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: PasswordResetToken.name, schema: PasswordResetTokenSchema },
@@ -74,6 +77,7 @@ import { StrictAdminGuard } from './guards/strict-admin.guard';
   ],
   controllers: [AuthController],
   providers: [
+    SessionService,
     AuthService,
     TokenService,
     { provide: 'TOKEN_REVOCATION', useExisting: TokenService },
@@ -84,6 +88,7 @@ import { StrictAdminGuard } from './guards/strict-admin.guard';
     StrictAdminGuard,
   ],
   exports: [
+    SessionService,
     AuthService,
     TokenService,
     PasswordService,

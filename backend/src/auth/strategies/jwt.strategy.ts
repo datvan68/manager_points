@@ -7,6 +7,7 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from '../schemas/user.schema';
 import { ImpersonationService } from '../services/impersonation.service';
 import { getAssignedRoles, getEffectivePermissions } from '../utils/role.util';
+import { SessionService } from '../services/session.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,6 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     configService: ConfigService,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private impersonationService: ImpersonationService,
+    private sessionService: SessionService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -25,9 +27,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: {
     user_id: string;
+    session_id?: string;
     actor_user_id?: string;
     impersonation_session_id?: string;
   }) {
+    if (!payload.session_id) throw new UnauthorizedException('Vui lòng gia hạn phiên đăng nhập');
+    const session = await this.sessionService.validate(payload.session_id, payload.user_id);
+    if (session.impersonation_session_id?.toString() !== payload.impersonation_session_id) {
+      if (session.impersonation_session_id || payload.impersonation_session_id) {
+        throw new UnauthorizedException('Phiên truy cập không hợp lệ');
+      }
+    }
     if (payload.impersonation_session_id || payload.actor_user_id) {
       if (!payload.impersonation_session_id || !payload.actor_user_id) {
         throw new UnauthorizedException('Phiên truy cập không hợp lệ');
@@ -76,6 +86,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       userId: payload.user_id,
+      sessionId: payload.session_id,
       username: user.user_name,
       email: user.email,
       roleName: role?.name || 'User',

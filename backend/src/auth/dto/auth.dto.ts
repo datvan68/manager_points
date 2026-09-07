@@ -35,6 +35,11 @@ export class RegisterDto {
 }
 
 export class LoginDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{16,64}$/)
+  previous_session_id?: string;
+
   @ApiProperty({ example: 'user@example.com' })
   @IsString()
   @IsNotEmpty({ message: 'Email hoặc Mã sinh viên không được để trống' })

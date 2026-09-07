@@ -82,7 +82,7 @@ describe('ImpersonationService', () => {
         for (const session of sessions) {
           if (
             session.status === filter.status &&
-            session.expires_at <= filter.expires_at.$lte
+            (session.expires_at <= (filter.expires_at?.$lte || filter.$or?.[0]?.expires_at?.$lte) || (filter.$or && !session.parent_session_id))
           ) {
             Object.assign(session, update.$set);
           }
@@ -143,7 +143,7 @@ describe('ImpersonationService', () => {
         populate: jest.fn().mockResolvedValue(input),
       })),
     };
-    service = new ImpersonationService(sessionModel, userModel, loginLogModel);
+    service = new ImpersonationService(sessionModel, userModel, loginLogModel, { validate: jest.fn().mockResolvedValue({}) } as any);
   });
 
   it('declares the two active partial unique indexes that enforce the cap', () => {
@@ -178,7 +178,7 @@ describe('ImpersonationService', () => {
           actorId.toString(),
           targetId,
           `browser_session_${String(index).padStart(2, '0')}`,
-          '127.0.0.1',
+          '127.0.0.1', new Types.ObjectId().toString()
         ),
       ),
     );
@@ -213,7 +213,7 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       replacementTarget!,
       'browser_session_released',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
     expect(
       sessions.filter(
@@ -228,14 +228,14 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       targetId,
       'browser_session_first',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
     await expect(
       service.acquire(
         actorId.toString(),
         targetId,
         'browser_session_again',
-        '127.0.0.1',
+        '127.0.0.1', new Types.ObjectId().toString()
       ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -250,7 +250,7 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       targetId,
       'browser_session_cancel',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
 
     await expect(
@@ -278,7 +278,7 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       targetId,
       'browser_session_admin_stop',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
 
     await expect(
@@ -330,7 +330,7 @@ describe('ImpersonationService', () => {
         actorId.toString(),
         [...users.keys()][1],
         'browser_session_adminfull',
-        '127.0.0.1',
+        '127.0.0.1', new Types.ObjectId().toString()
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -341,7 +341,7 @@ describe('ImpersonationService', () => {
         actorId.toString(),
         actorId.toString(),
         'browser_session_self',
-        '127.0.0.1',
+        '127.0.0.1', new Types.ObjectId().toString()
       ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -356,7 +356,7 @@ describe('ImpersonationService', () => {
         actorId.toString(),
         target._id.toString(),
         'browser_session_locked',
-        '127.0.0.1',
+        '127.0.0.1', new Types.ObjectId().toString()
       ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -371,7 +371,7 @@ describe('ImpersonationService', () => {
         actorId.toString(),
         target._id.toString(),
         'browser_session_targetadmin',
-        '127.0.0.1',
+        '127.0.0.1', new Types.ObjectId().toString()
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -382,7 +382,7 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       firstTargetId,
       'browser_session_expiry',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
     session.expires_at = new Date(Date.now() - 1);
 
@@ -390,7 +390,7 @@ describe('ImpersonationService', () => {
       actorId.toString(),
       [...users.keys()][2],
       'browser_session_reclaim',
-      '127.0.0.1',
+      '127.0.0.1', new Types.ObjectId().toString()
     );
     expect(session.status).toBe(ImpersonationSessionStatus.EXPIRED);
 

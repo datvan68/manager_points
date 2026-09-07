@@ -27,6 +27,12 @@ interface HeaderProps {
 
 const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
     const { user, logout, hasPermission } = useAuth();
+    const [leaseNow, setLeaseNow] = useState(Date.now());
+    useEffect(() => {
+      if (!user?.impersonation) return;
+      const timer = setInterval(() => setLeaseNow(Date.now()), 30000);
+      return () => clearInterval(timer);
+    }, [user?.impersonation?.id]);
     const router = useRouter();
     const headerContext = useHeader();
     const customMappings = headerContext ? { ...headerContext.customMappings, ...propMappings } : propMappings;
@@ -249,6 +255,10 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
 
   return (
     <>
+      {user?.impersonation && <div role="status" className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+        <span>Đang truy cập với tư cách {user.display_name || user.username || user.user_name}. Còn {Math.max(0, Math.ceil((new Date(user.impersonation.expires_at).getTime() - leaseNow) / 60000))} phút.</span>
+        <button className="font-semibold underline" onClick={() => void logout()}>Kết thúc truy cập</button>
+      </div>}
       <header className="dashboard-header sticky top-0 h-16 shrink-0 bg-white/45 backdrop-blur-md border-b border-white/70 flex items-center justify-between px-4 pt-[env(safe-area-inset-top,0px)] z-50 shadow-sm shadow-slate-200/20 mt-0 min-w-0 w-full">
         {/* Left: Logo + System Name (mobile/tablet) OR Breadcrumbs (desktop) */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

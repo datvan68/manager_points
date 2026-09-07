@@ -114,3 +114,20 @@ describe('fetchWithRetry', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+import { synchronizedRefreshToken } from './http-client';
+import { authApi, tokenStorage } from './auth-api';
+describe('Refresh ownership', () => {
+  beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
+  it('deduplicates requests and discards a pending result after logout', async () => {
+    let resolve!: (value: { access_token: string }) => void;
+    const response = new Promise<{ access_token: string }>(r => { resolve = r; });
+    const spy = vi.spyOn(authApi, 'refreshToken').mockReturnValue(response);
+    const a = synchronizedRefreshToken(); const b = synchronizedRefreshToken();
+    await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    tokenStorage.clearTokens(); resolve({ access_token: 'stale' });
+    await expect(a).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(b).rejects.toMatchObject({ name: 'AbortError' });
+    expect(tokenStorage.getAccessToken()).toBeNull(); spy.mockRestore();
+  });
+});

@@ -396,4 +396,25 @@ describe('PasswordService - OTP Flow', () => {
       ).rejects.toThrow('Token không hợp lệ hoặc đã được sử dụng.');
     });
   });
+  it.each(['active', 'inactive', 'locked'])('does not overwrite %s status during OTP reset', async status => {
+    const id = new Types.ObjectId();
+    const reqDoc = { _id: new Types.ObjectId(), user_id: id, reset_token_expires_at: new Date(Date.now()+60000), save: jest.fn() };
+    mockPasswordResetRequestModel.findOne.mockResolvedValue(reqDoc);
+    mockUserModel.findById.mockResolvedValue({ _id: id, status, locked_until: null });
+    jest.spyOn(service, 'hashPassword').mockResolvedValue('synthetic-hash');
+    await service.completePasswordReset({ resetToken: 'synthetic', newPassword: 'Password1!', confirmPassword: 'Password1!' });
+    expect(mockUserModel.updateOne).toHaveBeenCalledTimes(1);
+    expect(mockUserModel.updateOne.mock.calls[0][1]).not.toHaveProperty('status');
+    expect(mockUserModel.updateOne.mock.calls[0][1]).not.toHaveProperty('locked_until');
+  });
+  it('clears only the exact temporary lock observed before hashing', async () => {
+    const id = new Types.ObjectId(), until = new Date(Date.now()+60000);
+    mockPasswordResetRequestModel.findOne.mockResolvedValue({ _id: new Types.ObjectId(), user_id: id, reset_token_expires_at: until, save: jest.fn() });
+    mockUserModel.findById.mockResolvedValue({ _id: id, status: 'locked', locked_until: until });
+    jest.spyOn(service, 'hashPassword').mockResolvedValue('synthetic-hash');
+    await service.completePasswordReset({ resetToken: 'synthetic', newPassword: 'Password1!', confirmPassword: 'Password1!' });
+    expect(mockUserModel.updateOne).toHaveBeenLastCalledWith({ _id: id, status: 'locked', locked_until: until },
+      { $set: { status: 'active', locked_until: null } });
+  });
+
 });

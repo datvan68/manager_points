@@ -16,6 +16,7 @@ import {
 import { LoginLog, LoginLogDocument } from '../schemas/login-log.schema';
 import { User, UserDocument, UserStatus } from '../schemas/user.schema';
 import { systemEventEmitter } from '../../system/system-event-emitter';
+import { SessionService } from './session.service';
 
 export const IMPERSONATION_LEASE_MS = 4 * 60 * 60 * 1000;
 export const IMPERSONATION_CHAINING_DENIAL_REASON =
@@ -37,6 +38,7 @@ export class ImpersonationService implements OnModuleInit {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(LoginLog.name)
     private readonly loginLogModel: Model<LoginLogDocument>,
+    private readonly sessionService: SessionService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -50,11 +52,16 @@ export class ImpersonationService implements OnModuleInit {
     subjectUserId: string,
     browserSessionId: string,
     ip: string,
+    parentSessionId: string,
   ): Promise<{
     session: ImpersonationSessionDocument;
     subject: UserDocument;
   }> {
     try {
+      const parent = await this.sessionService.validate(parentSessionId, actorUserId);
+      if (parent.parent_session_id || parent.impersonation_session_id) {
+        throw new ForbiddenException('Không thể mở phiên truy cập từ phiên con');
+      }
       if (
         !Types.ObjectId.isValid(actorUserId) ||
         !Types.ObjectId.isValid(subjectUserId)
@@ -127,6 +134,7 @@ export class ImpersonationService implements OnModuleInit {
           const session = await this.sessionModel.create({
             slot,
             actor_user_id: actor._id,
+            parent_session_id: new Types.ObjectId(parentSessionId),
             subject_user_id: subject._id,
             browser_session_id: browserSessionId,
             status: ImpersonationSessionStatus.ACTIVE,
@@ -195,6 +203,9 @@ export class ImpersonationService implements OnModuleInit {
     if (!session) {
       throw new UnauthorizedException('Phiên truy cập đã kết thúc');
     }
+
+    if (!session.parent_session_id) throw new UnauthorizedException('Vui lòng mở lại phiên truy cập');
+    await this.sessionService.validate(session.parent_session_id.toString(), session.actor_user_id.toString());
 
     const actor = await this.userModel
       .findById(session.actor_user_id)
@@ -344,7 +355,7 @@ export class ImpersonationService implements OnModuleInit {
     await this.sessionModel.updateMany(
       {
         status: ImpersonationSessionStatus.ACTIVE,
-        expires_at: { $lte: now },
+        $or: [{ expires_at: { $lte: now } }, { parent_session_id: null }],
       },
       {
         $set: {

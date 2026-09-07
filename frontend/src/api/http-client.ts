@@ -14,242 +14,46 @@ export function isAuthError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as any).status === 401;
 }
 
-interface Subscriber {
-  resolve: (token: string) => void;
-  reject: (error: Error) => void;
-}
+const refreshes = new Map<string, Promise<RefreshResponse>>();
 
-let isRefreshing = false;
-let refreshSubscribers: Subscriber[] = [];
-
-function subscribeTokenRefresh(resolve: (token: string) => void, reject: (error: Error) => void) {
-  refreshSubscribers.push({ resolve, reject });
-}
-
-function onRefreshed(token: string) {
-  refreshSubscribers.forEach((sub) => sub.resolve(token));
-  refreshSubscribers = [];
-}
-
-function onRefreshFailed(error: Error) {
-  refreshSubscribers.forEach((sub) => sub.reject(error));
-  refreshSubscribers = [];
-}
-
-let refreshPromise: Promise<RefreshResponse> | null = null;
-const sessionId = typeof window !== 'undefined' ? sessionStorage.getItem('auth_session_id') || 'anonymous' : 'ssr';
-const authChannel = typeof window !== 'undefined' ? new BroadcastChannel(`auth_sync_channel_${sessionId}`) : null;
-
-function currentSessionId(): string {
-  return typeof window !== 'undefined' ? sessionStorage.getItem('auth_session_id') || 'anonymous' : 'ssr';
-}
-
-if (authChannel) {
-  authChannel.onmessage = async (event) => {
-    if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
-    const { tokenStorage } = await import('./auth-api');
-    if (event.data.type === 'TOKEN_REFRESHED') {
-      tokenStorage.setAccessToken(event.data.token);
-      onRefreshed(event.data.token);
-    } else if (event.data.type === 'TOKEN_CLEARED') {
-      tokenStorage.clearTokens();
-    } else if (event.data.type === 'RESTORE_SESSION_INVALIDATED') {
-      tokenStorage.clearTokens();
-      if (typeof window !== 'undefined') {
-        const isPublicRoute = [
-          "/login",
-          "/register",
-          "/forgot-password",
-          "/reset-password",
-        ].includes(window.location.pathname);
-        if (!isPublicRoute) {
-          window.location.href = `/login?reason=restore`;
-        }
-      }
-    }
-  };
-}
-
-function getLockKey(): string { return `auth_refresh_lock_${currentSessionId()}`; }
-const LOCK_TTL = 10000;
-const TAB_ID = typeof window !== 'undefined' ? Math.random().toString(36).substring(2, 15) : 'ssr';
-
-function acquireLock(): boolean {
-  if (typeof window === 'undefined') return true;
-  const lockRaw = localStorage.getItem(getLockKey());
-  const now = Date.now();
-  if (!lockRaw) {
-    localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
-    return true;
-  }
-  try {
-    const lock = JSON.parse(lockRaw);
-    if (lock.ownerId === TAB_ID) return true;
-    if (now - lock.timestamp > LOCK_TTL) {
-      localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
-      return true;
-    }
-    return false;
-  } catch (e) {
-    localStorage.setItem(getLockKey(), JSON.stringify({ ownerId: TAB_ID, timestamp: now }));
-    return true;
-  }
-}
-
-function releaseLock() {
-  if (typeof window === 'undefined') return;
-  const lockRaw = localStorage.getItem(getLockKey());
-  if (!lockRaw) return;
-  try {
-    const lock = JSON.parse(lockRaw);
-    if (lock.ownerId === TAB_ID) {
-      localStorage.removeItem(getLockKey());
-    }
-  } catch (e) {
-    localStorage.removeItem(getLockKey());
-  }
-}
-
-export async function synchronizedRefreshToken(forceSelf = false): Promise<RefreshResponse> {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-  
-  if (typeof window !== 'undefined' && !forceSelf && !acquireLock()) {
-    return new Promise((resolve, reject) => {
-      let timeoutId: NodeJS.Timeout;
-      const listener = (event: MessageEvent) => {
-        if (event.data.type === 'TOKEN_REFRESHED') {
-          clearTimeout(timeoutId);
-          authChannel?.removeEventListener('message', listener);
-          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
-          resolve({ access_token: event.data.token });
-        } else if (event.data.type === 'TOKEN_CLEARED') {
-          clearTimeout(timeoutId);
-          authChannel?.removeEventListener('message', listener);
-          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
-          reject(new ApiError('Refresh failed in another tab', 401));
-        } else if (event.data.type === 'REFRESH_FAILED') {
-          clearTimeout(timeoutId);
-          authChannel?.removeEventListener('message', listener);
-          if (event.data.sessionId && event.data.sessionId !== currentSessionId()) return;
-          resolve(synchronizedRefreshToken(true));
-        }
-      };
-      authChannel?.addEventListener('message', listener);
-      timeoutId = setTimeout(() => {
-        authChannel?.removeEventListener('message', listener);
-        // Timeout waiting for other tab to finish refresh.
-        // Try to refresh ourselves.
-        resolve(synchronizedRefreshToken(true));
-      }, 5000);
-    });
-  }
-  
-  if (authChannel) {
-    authChannel.postMessage({ type: 'REFRESH_STARTED', ownerId: TAB_ID, sessionId: currentSessionId() });
-  }
-
-  const { authApi } = await import('./auth-api');
-  refreshPromise = authApi.refreshToken().then((result) => {
-    if (authChannel) {
-      authChannel.postMessage({ type: 'TOKEN_REFRESHED', token: result.access_token, sessionId: currentSessionId() });
-    }
+export async function synchronizedRefreshToken(_forceSelf = false): Promise<RefreshResponse> {
+  const { authApi, tokenStorage } = await import('./auth-api');
+  const identity = tokenStorage.getAuthIdentity();
+  const existing = refreshes.get(identity);
+  if (existing) return existing;
+  const promise = authApi.refreshToken().then((result) => {
+    if (tokenStorage.getAuthIdentity() !== identity) throw new DOMException('Session changed', 'AbortError');
+    tokenStorage.setAccessToken(result.access_token);
     return result;
-  }).catch((err) => {
-    if (authChannel) {
-      authChannel.postMessage({ type: 'REFRESH_FAILED', error: err.message, sessionId: currentSessionId() });
-    }
-    throw err;
-  }).finally(() => {
-    refreshPromise = null;
-    releaseLock();
-  });
-  
-  return refreshPromise;
+  }).finally(() => { if (refreshes.get(identity) === promise) refreshes.delete(identity); });
+  refreshes.set(identity, promise);
+  return promise;
 }
 
 export async function httpClient(url: string, options: RequestInit = {}): Promise<Response> {
   const { tokenStorage } = await import('./auth-api');
+  const identity = tokenStorage.getAuthIdentity();
   const token = tokenStorage.getAccessToken();
   const headers = new Headers(options.headers || {});
-  
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-  
+  if (token && !headers.has('Authorization')) headers.set('Authorization', 'Bearer ' + token);
   const res = await fetch(url, { ...options, headers });
-  
-  const isRetry = (options as any)._isRetry;
- 
-  if (res.status === 401 && !url.includes('/api/auth/refresh') && !isRetry) {
-    if (isRefreshing) {
-      // Đang có request khác thực hiện refresh token, xếp hàng chờ
-      return new Promise<Response>((resolve, reject) => {
-        subscribeTokenRefresh(
-          async (newToken) => {
-            try {
-              headers.set('Authorization', `Bearer ${newToken}`);
-              const retryRes = await fetch(url, { ...options, headers, _isRetry: true } as any);
-              resolve(retryRes);
-            } catch (err) {
-              reject(err);
-            }
-          },
-          (err) => {
-            reject(err);
-          }
-        );
-      });
+  if (tokenStorage.getAuthIdentity() !== identity) throw new DOMException('Session changed', 'AbortError');
+  if (res.status !== 401 || url.includes('/api/auth/refresh')) return res;
+  try {
+    const result = await synchronizedRefreshToken();
+    if (tokenStorage.getAuthIdentity() !== identity) throw new DOMException('Session changed', 'AbortError');
+    headers.set('Authorization', 'Bearer ' + result.access_token);
+    const retried = await fetch(url, { ...options, headers });
+    if (tokenStorage.getAuthIdentity() !== identity) throw new DOMException('Session changed', 'AbortError');
+    return retried;
+  } catch (error: any) {
+    if (tokenStorage.getAuthIdentity() === identity && error?.status === 401) {
+      tokenStorage.clearTokens();
+      window.dispatchEvent(new Event('auth-session-ended'));
+      toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', { id: 'session-expired-toast' });
     }
- 
-    // Đây là request đầu tiên gặp lỗi 401, chịu trách nhiệm refresh token
-    isRefreshing = true;
-    try {
-      const result = await synchronizedRefreshToken();
-      tokenStorage.setAccessToken(result.access_token);
-      isRefreshing = false;
-      onRefreshed(result.access_token);
-
-      // Retry trực tiếp request gốc của chính nó
-      headers.set('Authorization', `Bearer ${result.access_token}`);
-      return await fetch(url, { ...options, headers, _isRetry: true } as any);
-    } catch (err) {
-      isRefreshing = false;
-      
-      const isAuthFailure = 
-        err && 
-        typeof err === 'object' && 
-        'status' in err && 
-        typeof (err as any).status === 'number' && 
-        [400, 401, 403].includes((err as any).status);
-
-      if (isAuthFailure) {
-        const error = new ApiError('Phiên đăng nhập đã hết hạn', 401);
-        onRefreshFailed(error);
-        tokenStorage.clearTokens();
-        if (authChannel) {
-          authChannel.postMessage({ type: 'TOKEN_CLEARED', sessionId: currentSessionId() });
-        }
-        if (typeof window !== 'undefined') {
-          if (!sessionStorage.getItem("restore_logout_in_progress")) {
-            toast.error('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.', {
-              id: 'session-expired-toast'
-            });
-          }
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
-        }
-        throw error;
-      } else {
-        onRefreshFailed(err as Error);
-        throw err;
-      }
-    }
+    throw error;
   }
-  
-  return res;
 }
 
 export async function handleResponse<T>(res: Response): Promise<T> {

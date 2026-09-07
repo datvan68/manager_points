@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Types, SchemaTypes } from 'mongoose';
 
 export type RefreshTokenDocument = RefreshToken &
   Document & {
@@ -9,6 +9,9 @@ export type RefreshTokenDocument = RefreshToken &
 
 @Schema({ timestamps: true, collection: 'refresh_tokens' })
 export class RefreshToken {
+  @Prop({ type: SchemaTypes.ObjectId, default: null, index: true })
+  session_id: Types.ObjectId | null;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user_id: Types.ObjectId;
 

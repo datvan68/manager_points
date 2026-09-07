@@ -165,10 +165,10 @@ export class PasswordService {
       {
         pw_hash: password_hash,
         failed_login_attempts: 0,
-        status: UserStatus.ACTIVE,
-        locked_until: null,
       },
     );
+
+    await this.clearTemporaryLock(user);
 
     // Revoke all refresh tokens for security
     await this.tokenService.revokeAllUserTokens(resetToken.user_id.toString());
@@ -433,11 +433,10 @@ export class PasswordService {
       {
         pw_hash: password_hash,
         failed_login_attempts: 0,
-        status: UserStatus.ACTIVE,
-        locked_until: null,
       },
     );
 
+    await this.clearTemporaryLock(user);
     reqDoc.used_at = new Date();
     reqDoc.reset_token_hash = null;
     await reqDoc.save();
@@ -455,5 +454,12 @@ export class PasswordService {
     await this.tokenService.revokeAllUserTokens(user._id.toString());
 
     return { message: 'Đặt lại mật khẩu thành công.' };
+  }
+
+  private async clearTemporaryLock(user: UserDocument) {
+    if (user.status === UserStatus.LOCKED && user.locked_until) {
+      await this.userModel.updateOne({ _id: user._id, status: UserStatus.LOCKED, locked_until: user.locked_until },
+        { $set: { status: UserStatus.ACTIVE, locked_until: null } });
+    }
   }
 }

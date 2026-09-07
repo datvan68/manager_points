@@ -172,7 +172,7 @@ export class AuthService implements OnModuleInit {
     return { message: 'Account created successfully' };
   }
 
-  async login(dto: LoginDto, ip: string) {
+  async login(dto: LoginDto, ip: string, deviceLabel?: string) {
     const loginKey = dto.email.trim();
     const isStudentCode = /^\d+$/.test(loginKey);
     const studentEmail = isStudentCode ? `${loginKey}@school.edu.vn` : loginKey;
@@ -259,12 +259,16 @@ export class AuthService implements OnModuleInit {
     // short-lived access token remains independent from this refresh lifetime.
     const rtExpirationDays = dto.remember ? 30 : 1;
 
-    const payload = { user_id: user._id.toString() };
+    const sessionId = new Types.ObjectId();
+    const payload = { user_id: user._id.toString(), session_id: sessionId.toString() };
     const access_token = this.tokenService.generateAccessToken(payload);
     const refresh_token = await this.tokenService.createRefreshToken(
       user._id,
       rtExpirationDays,
       !!dto.remember,
+      undefined,
+      sessionId,
+      deviceLabel,
     );
 
     await this.logAction(
@@ -350,13 +354,17 @@ export class AuthService implements OnModuleInit {
   async forkSession(userId: string, remember: boolean) {
     const days = remember ? 30 : 1;
     const objectId = new Types.ObjectId(userId);
+    const sessionId = new Types.ObjectId();
     const access_token = this.tokenService.generateAccessToken({
       user_id: userId,
+      session_id: sessionId.toString(),
     });
     const refresh_token = await this.tokenService.createRefreshToken(
       objectId,
       days,
       remember,
+      undefined,
+      sessionId,
     );
     return {
       access_token,
@@ -371,6 +379,7 @@ export class AuthService implements OnModuleInit {
     subjectUserId: string,
     browserSessionId: string,
     ip: string,
+    parentSessionId: string,
   ) {
     let session: any;
     let refreshToken: string | undefined;
@@ -380,11 +389,14 @@ export class AuthService implements OnModuleInit {
         subjectUserId,
         browserSessionId,
         ip,
+        parentSessionId,
       );
       session = acquired.session;
 
+      const childSessionId = new Types.ObjectId();
       const payload = {
         user_id: acquired.subject._id.toString(),
+        session_id: childSessionId.toString(),
         actor_user_id: actorUserId,
         impersonation_session_id: session._id.toString(),
       };
@@ -397,7 +409,9 @@ export class AuthService implements OnModuleInit {
           sessionId: session._id,
           actorUserId: new Types.ObjectId(actorUserId),
           expiresAt: session.expires_at,
+          parentSessionId: new Types.ObjectId(parentSessionId),
         },
+        childSessionId,
       );
       await this.impersonationService.recordStarted(session);
 
@@ -921,6 +935,10 @@ export class AuthService implements OnModuleInit {
 
     // Update other fields
     if (dto.status) {
+      if (dto.status === UserStatus.LOCKED) {
+        user.locked_until = null;
+        shouldRevokeTokens = true;
+      }
       if (
         dto.status !== UserStatus.ACTIVE &&
         dto.status !== UserStatus.LOCKED &&

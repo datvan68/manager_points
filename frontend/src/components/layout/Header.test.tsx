@@ -84,8 +84,8 @@ describe('Header responsive shell contract', () => {
     expect(headerSource).toContain("toast.success('Đã bật chia sẻ vị trí cho điểm danh.')");
   });
 
-  it('removes the impersonation banner while keeping the menu exit action', () => {
-    expect(headerSource).not.toContain('Đang truy cập với tư cách');
+  it('shows the scoped impersonation identity and keeps the menu exit action', () => {
+    expect(headerSource).toContain('Đang truy cập với tư cách');
     expect(headerSource).toContain("user?.impersonation ? 'Kết thúc truy cập' : 'Đăng xuất'");
     expect(headerSource).toContain('logout();');
   });

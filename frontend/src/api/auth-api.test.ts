@@ -191,4 +191,16 @@ describe('authApi', () => {
       expect(mockFetch.mock.calls[0][0]).not.toContain('admin-token');
     });
   });
+  it('publishes the new browser session only after the login cookie response', async () => {
+    sessionStorage.clear(); localStorage.clear(); tokenStorage.setSessionId('old-session-123456789');
+    let finish!: (value: any) => void;
+    mockFetch.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const pending = authApi.login('test@example.com', 'Password1!', true);
+    expect(localStorage.getItem('auth_session_id')).toBe('old-session-123456789');
+    finish({ ok: true, text: async () => JSON.stringify({ access_token: 'new' }) });
+    await pending;
+    expect(localStorage.getItem('auth_session_id')).not.toBe('old-session-123456789');
+    expect(tokenStorage.isLoggedOut()).toBe(false);
+  });
+
 });

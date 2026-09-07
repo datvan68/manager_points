@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Types, SchemaTypes } from 'mongoose';
 
 export type ImpersonationSessionDocument = ImpersonationSession &
   Document & {
@@ -15,6 +15,9 @@ export enum ImpersonationSessionStatus {
 
 @Schema({ timestamps: true, collection: 'impersonation_sessions' })
 export class ImpersonationSession {
+  @Prop({ type: SchemaTypes.ObjectId, default: null, index: true })
+  parent_session_id: Types.ObjectId | null;
+
   @Prop({ required: true, min: 1, max: 5 })
   slot: number;
 
