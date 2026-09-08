@@ -1225,7 +1225,6 @@ export default function ReportsPage() {
             onChange={setActiveTab}
             onTabMouseEnter={handleTabMouseEnter}
             counts={tabCounts}
-            showSystemTab={showSystem}
           />
 
           {/* Dynamic Tab Content rendering */}

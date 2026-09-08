@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { 
-  LayoutDashboard, Users, Award, FileText, Calendar, CheckSquare, Settings 
+  LayoutDashboard, Users, Award, FileText, Calendar
 } from 'lucide-react';
 
 export type ReportTabType = 'overview' | 'student' | 'score' | 'record' | 'attendance' | 'task' | 'system';
@@ -12,7 +12,6 @@ interface ReportTabsProps {
   onChange: (tab: ReportTabType) => void;
   onTabMouseEnter?: (tab: ReportTabType) => void;
   counts?: Record<string, number>;
-  showSystemTab?: boolean;
 }
 
 interface TabItem {
@@ -25,21 +24,15 @@ export default function ReportTabs({
   activeTab,
   onChange,
   onTabMouseEnter,
-  counts = {},
-  showSystemTab = true
+  counts = {}
 }: ReportTabsProps) {
   const tabs: TabItem[] = [
     { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'student', label: 'Sinh viên', icon: Users },
     { id: 'score', label: 'Điểm rèn luyện', icon: Award },
-    { id: 'record', label: 'Ghi nhận rèn luyện', icon: FileText },
-    { id: 'attendance', label: 'Chuyên cần', icon: Calendar },
-    { id: 'task', label: 'Nhiệm vụ', icon: CheckSquare }
+    { id: 'record', label: 'Ghi nhận sv', icon: FileText },
+    { id: 'attendance', label: 'Ghi nhận lớp', icon: Calendar }
   ];
-
-  if (showSystemTab) {
-    tabs.push({ id: 'system', label: 'Hệ thống & Logs', icon: Settings });
-  }
 
   return (
     <div className="mx-6 mt-6 pb-2 border-b border-white/50">
