@@ -14,7 +14,8 @@ context and unnecessary steps, never by omitting required evidence.
 2. Use the routing table in `.agents/Workflows/pipeline.md`; load only its one
    primary skill. Add `write_test.md` only for an independent testing boundary.
 3. For a mutation or explicit taskscope request, read
-   `.agents/Workflows/taskscope.md`. Read-only answers need no scope template.
+   `.agents/Workflows/taskscope.md`. Load its persisted-scope reference only for
+   scope creation/update or pinned execution. Read-only answers need no template.
 4. Use `.agents/PROJECT_MAP.md` when locating code or checks; skip it when a
    current taskscope already supplies exact targets and commands.
 5. Read applicable path-specific instructions. Do not reload unchanged sources
@@ -45,6 +46,10 @@ client, guards, DTOs, services, UI patterns, and test setup.
 - State the outcome and pipeline in one sentence, then inspect the exact target.
   A request to execute a persisted task must first pass the exact-file pin
   contract in `global.md`; any pin warning stops before discovery or mutation.
+- Resolve the application repository from the requested target, not the rules
+  directory. A standalone instruction/document edit may use an exact file
+  snapshot when its target is outside Git; do not search sibling repositories
+  for an unrelated baseline. See `global.md` for ownership and baseline rules.
 - Search target → direct caller/dependency → owning module. Stop when outcome,
   write paths, preserved contracts, and verification are known.
 - Keep an ordinary implementation brief in runtime. Save a taskscope only when

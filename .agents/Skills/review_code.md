@@ -7,7 +7,7 @@
 
 ```yaml
 skill_id: review_code
-version: 3.0.0
+version: 3.0.1
 protocol_version: "3.3"
 supported_agents: [review-agent]
 capabilities: [search, summarize, security_scan]
@@ -67,7 +67,9 @@ preferences never override established repository convention.
 - `blocked`: critical finding, stale/incomplete/unreviewable target, safety
   violation, or unresolved Human Gate.
 
-Return the common `global.md` envelope plus verdict/reason, prioritized findings,
-criterion checks, and test-impact gaps. Return an empty findings list when no
-actionable issue exists; never approve by counting findings or by assuming an
-unreviewed shard passed.
+Follow `global.md`: report verdict/reason, actionable prioritized findings and
+verification gaps in concise prose. State when no actionable findings exist;
+use an empty findings field only for a machine-consumed handoff. Reuse valid
+execution-check evidence while independently inspecting the changed behavior;
+rerun checks to resolve evidence gaps or staleness under `pipeline.md`.
+Never approve by counting findings or assuming an unreviewed shard passed.

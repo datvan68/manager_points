@@ -8,7 +8,7 @@
 
 ```yaml
 skill_id: refactor_code
-version: 3.0.0
+version: 3.0.1
 protocol_version: "3.3"
 supported_agents: [code-agent]
 capabilities: [search, code_gen]
@@ -57,8 +57,9 @@ smallest baseline test as a separate test boundary before transforming code.
 
 ## Result
 
-Return the common `global.md` envelope plus the transformation summary,
-changed paths, invariant status with command evidence, and explicit booleans for
-public-contract and performance-characteristic changes. Success requires both
+Follow `global.md` with a concise transformation summary, changed paths,
+invariant verification and actual command evidence. Mention public-contract or
+performance-characteristic changes when present; reserve structured fields for
+machine-consumed handoffs. Success requires both
 the focused baseline comparison and applicable consumer checks; code review
 alone is insufficient when executable checks exist.

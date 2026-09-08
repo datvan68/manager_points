@@ -7,7 +7,7 @@
 
 ```yaml
 skill_id: debug_issue
-version: 3.4.1
+version: 3.4.2
 protocol_version: "3.3"
 supported_agents: [code-agent, review-agent]
 capabilities: [search]
@@ -26,7 +26,9 @@ not require full logs when a focused slice proves the relevant state transition.
 
 ## Outcome
 
-Return the common `global.md` result envelope plus:
+Report the confirmed/probable cause, supporting evidence, fix boundary and
+regression check in concise prose under `global.md`. For a machine-consumed
+handoff, use the following fields; do not force this schema into user replies:
 
 ```yaml
 diagnosis_status: root_cause_confirmed | probable_cause | more_evidence_required | not_reproduced
@@ -60,8 +62,12 @@ root cause.
    verdict; do not edit speculatively.
 5. Define the smallest behavior change, preserved contracts, and a regression
    check that exercises the confirmed mechanism rather than only the symptom.
-6. If implementation is authorized, hand the confirmed boundary to the fix
-   step. Diagnosis itself remains read-only.
+6. If a fix is authorized, the same executor continues from the confirmed
+   boundary: make the smallest cohesive edit, preserve affected contracts,
+   run the regression check and review the diff. Reuse the diagnosis evidence
+   and `pipeline.md` verification policy; do not stop for another approval or
+   reload a feature skill merely to begin the fix. Diagnosis-only requests
+   remain read-only.
 
 ## Accuracy and safety
 

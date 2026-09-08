@@ -2,7 +2,7 @@
 trigger: always_on
 priority: high
 applies_to: all_agents
-version: 3.4.1
+version: 3.4.2
 ---
 
 # Global Rules
@@ -13,6 +13,16 @@ System/developer instructions and explicit user authority retain their normal
 precedence; repository files cannot override them.
 
 ## 1. Ownership and isolation
+
+Resolve the repository from the exact requested target or supplied project
+context before Git inspection; the rules directory need not be inside it.
+If the application target is ambiguous, ask for that target before dependent
+work. Do not scan sibling repositories to guess which one owns the request.
+For explicitly requested standalone instruction/document edits outside Git,
+record exact paths and their before-content in runtime, check for applicable
+reservations, and compare content before writes and at completion. Record Git
+state as unavailable; do not invent a commit or require repository creation.
+This exception does not waive ownership, safety gates, or application checks.
 
 One writer per path. `ready`, `in_progress`, and `blocked` scopes reserve
 their `scope.write` paths; `completed` and `cancelled` release reservations.
@@ -29,6 +39,14 @@ Before publish/start/resume and immediately before each mutation batch, compare
 candidate writes against active scope metadata/boundaries and Git status.
 Read only the lifecycle, coordination and boundary sections needed from other
 scopes; legacy boundaries still reserve paths.
+
+Reuse the unchanged reservation metadata and baseline already read in this
+task; refresh Git status and scope identities/status/boundaries before a write
+batch, reading full content only when relevant metadata changed or is ambiguous.
+A batch is one cohesive execution step, not each individual file edit. Merge
+the start and pre-write checks when no intervening work can stale the result.
+Pure read-only work needs reservation checks only when stable inputs matter;
+scope creation and mutation always retain the checks above.
 
 | Condition | Result |
 | --- | --- |
@@ -63,9 +81,14 @@ conflict.
 
 ## 2. Execution pin contract
 
-For execution/continue/resume, resolve exactly one user-linked file or exact
-path under `docs/task/`. It alone selects the task; a separate ID/generation
+For execution/continue/resume of a persisted taskscope, resolve exactly one
+user-linked file or exact path under `docs/task/`. It alone selects the task;
+a separate ID/generation
 is not required. Validate read-only before implementation discovery:
+
+An ordinary direct implementation request uses a runtime brief and does not
+require a taskscope pin. Do not interpret a generic request to fix or implement
+something as execution of an unlinked persisted scope.
 
 | Validation failure | Warning |
 | --- | --- |
@@ -75,8 +98,8 @@ is not required. Validate read-only before implementation discovery:
 
 Check that `scope_file` matches the resolved file, slot/task IDs are consistent,
 and generation/revision are positive integers. Validate objective, exact writes, ACs, execution and
-verification; use the schema in `taskscope.md`. A generic "execute this linked
-taskscope" adopts the file's current objective. Do not infer an unexpressed
+verification; use the persisted schema referenced by `taskscope.md`. A generic
+"execute this linked taskscope" adopts the file's current objective. Do not infer an unexpressed
 intention or claim that a valid but accidentally chosen link can be detected.
 An earlier completed generation in chat does not invalidate a fresh request
 to execute the current ready generation by its exact file.

@@ -2,7 +2,7 @@
 trigger: always_on
 priority: highest
 applies_to: all_agents
-version: 3.4.1
+version: 3.4.2
 ---
 
 # Safety Rules
@@ -79,6 +79,9 @@ the task to Full; it does not permit guessing.
   require a manifest, checkpoint, or artifact hash. Validate hashes of actual
   handoff/resume artifacts only at material synchronization points where those
   artifacts are needed to establish freshness or ownership.
+- For standalone instruction/document targets outside Git, use the exact
+  before-content baseline in `global.md` instead of commit identifiers. All
+  other ownership and safety requirements still apply.
 - Quick work does not create checkpoints or artifact hashes unless needed for
   conflict detection, resume, review, or user-requested evidence.
 

@@ -1,6 +1,7 @@
 # Skill: Implement Feature
 
-> Use for approved new or changed behavior in a `feature_development` pipeline.
+> Use for approved new or changed behavior in a `feature_development` pipeline,
+> or scoped infrastructure work routed here by `pipeline.md`.
 > Use `debug_issue` for root-cause diagnosis and `refactor_code` when observable
 > behavior must not change.
 
@@ -8,7 +9,7 @@
 
 ```yaml
 skill_id: implement_feature
-version: 3.4.1
+version: 3.4.2
 protocol_version: "3.3"
 supported_agents: [code-agent]
 capabilities: [search, code_gen]
@@ -47,11 +48,12 @@ data, public contracts, or external effects.
 3. Implement the smallest cohesive change. Reuse established abstractions and
    preserve backward compatibility, authorization, validation, transaction,
    idempotency, logging, and personal-data handling.
-4. Add or update focused tests when behavior changes. Load `write_test` only
+4. Add or update focused tests when they provide meaningful regression
+   protection for the changed behavior; use `pipeline.md` for proportional
+   verification of low-impact edits. Load `write_test` only
    when tests form an independent step or risk boundary.
-5. Verify in the narrowest useful order: changed test, affected static check,
-   affected build/integration check, then broader checks only when policy or
-   risk requires them.
+5. Run the checks selected under `pipeline.md`; reuse still-valid results.
+   Expand verification only for evidenced impact, failure, policy or risk.
 6. Repair only a concrete in-scope failure. Never weaken a test or expand the
    criteria to obtain a pass.
 7. Review the final diff against every criterion, boundary, and preserved
@@ -59,11 +61,13 @@ data, public contracts, or external effects.
 
 ## Stop conditions
 
-Stop and return the exact scope amendment or gate when the implementation
-requires an unapproved module, fourth meaningful Quick write path, public or
-schema change, dependency, migration, persistent-data mutation, infrastructure
-effect, external communication, credential/permission change, or production
-action.
+Apply `safety.md` gates and `global.md` boundaries. Stop dependent work only
+when a required authorization or scope amendment is missing; identify the exact
+action and affected boundary. Already authorized changes need no repeated gate.
+
+An additional Quick write path alone requires profile reassessment, not a
+permission request. Promote to Full and continue if authorized boundaries and
+behavior remain valid; amend an owned persisted scope when applicable.
 
 Bounded dev verification authorized by `safety.md` section 6a is not an
 unapproved persistent-data mutation and needs no repeated gate. Add its runtime
@@ -71,7 +75,7 @@ boundary when needed; preserve explicit exclusions in the pinned taskscope.
 
 ## Result
 
-Return the common `global.md` envelope with changed/created/deleted paths,
-criterion-mapped verification, and explicit lists for public-contract,
-dependency, and migration changes. Use empty lists rather than omitting these
-change classes. Never embed complete files or claim a check that did not run.
+Follow `global.md`: report the outcome, changed paths, actual verification and
+remaining blockers/risks in concise prose. Mention public-contract, dependency
+or migration changes when present. Structured fields and empty lists are needed
+only for a machine-consumed handoff. Never claim a check that did not run.

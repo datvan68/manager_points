@@ -8,7 +8,7 @@
 
 ```yaml
 skill_id: write_test
-version: 3.0.0
+version: 3.0.1
 protocol_version: "3.3"
 supported_agents: [test-agent, code-agent]
 capabilities: [search, code_gen]
@@ -52,9 +52,9 @@ details, broad snapshots, and assertions that exist only to raise line coverage.
 4. Use established isolated test resources. Never use production databases,
    credentials, or uncontrolled external services; clean persistent/process
    state through repository fixtures.
-5. Run the changed test first, then the affected suite/package and static checks.
-   Run integration, full regression, or coverage only when impact, policy, or
-   risk requires it.
+5. Run the changed test first. Select affected suite/package, static,
+   integration or coverage checks only when required by impact, policy or risk
+   under `pipeline.md`; reuse current passing results as allowed there.
 6. Fix only faulty test setup or expectations inside this step. If the test
    exposes a product defect, return the failure to the owning pipeline instead
    of silently changing implementation code.
@@ -65,7 +65,7 @@ When a pre-change baseline is feasible, the test must fail for the intended
 reason and pass after the authorized implementation. Never add retries, sleeps,
 skips, broad mocks, or weaker assertions merely to obtain green status.
 
-Return the common `global.md` envelope plus a criterion-mapped test matrix,
-commands actually run, changed paths, and measured coverage data when available.
-If coverage was not run or no repository threshold exists, report threshold and
-report reference as `null`; never present estimated coverage as measured.
+Follow `global.md`: report tested behavior, commands actually run, changed paths
+and remaining gaps. Include a test matrix only when it clarifies multiple
+criteria or a machine-consumed handoff requires it. Report coverage only when
+measured or explicitly requested; distinguish unrun coverage from zero coverage.
