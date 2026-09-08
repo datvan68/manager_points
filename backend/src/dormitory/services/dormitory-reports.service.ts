@@ -267,7 +267,7 @@ export class DormitoryReportsService implements OnModuleInit, OnModuleDestroy {
               select: 'full_name class_id',
               populate: { path: 'class_id', select: 'class_name' },
             }),
-          '_id student_id full_name room_id bed_id active_contract_id gender room_type identity_state createdAt',
+          '_id student_id full_name room_id bed_id active_contract_id gender room_type identity_state is_room_leader createdAt',
         )
           .lean()
           .exec(),
@@ -315,7 +315,7 @@ export class DormitoryReportsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const membersByRoom = new Map<string, Array<{ full_name: string; class_name: string }>>();
+    const membersByRoom = new Map<string, Array<{ full_name: string; class_name: string; is_room_leader: boolean }>>();
     const seenRosterByRoom = new Map<string, Set<string>>();
 
     for (const roster of rosterList) {
@@ -336,7 +336,7 @@ export class DormitoryReportsService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      const member = { full_name: fullName, class_name: className };
+      const member = { full_name: fullName, class_name: className, is_room_leader: Boolean(roster.is_room_leader) };
 
       const targetRoomIds = new Set<string>();
       const directRoomId = idOf(roster.room_id);

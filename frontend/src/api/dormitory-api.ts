@@ -594,6 +594,7 @@ export interface DormitoryRoomSummary {
 export interface DormitoryRoomMember {
   full_name: string;
   class_name: string;
+  is_room_leader: boolean;
 }
 
 export interface DormitoryRoomRow {

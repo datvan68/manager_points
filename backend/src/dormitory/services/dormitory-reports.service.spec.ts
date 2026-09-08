@@ -64,6 +64,7 @@ describe('DormitoryReportsService canonical roster summary', () => {
           _id: 'roster-1',
           student_id: { _id: 's-1', full_name: 'Trần Văn A', class_id: { _id: 'cl-1', class_name: '12A1' } },
           room_id: 'room-1',
+          is_room_leader: true,
           createdAt: new Date(),
         },
         // Roster 2: unlinked student with only roster.full_name and no class, mapped directly to room-1
@@ -71,12 +72,14 @@ describe('DormitoryReportsService canonical roster summary', () => {
           _id: 'roster-2',
           full_name: 'Lê Thị B',
           room_id: 'room-1',
+          is_room_leader: false,
           createdAt: new Date(),
         },
         // Roster 3: student with string class_id, mapped to room-2 via active contract
         {
           _id: 'roster-3',
           student_id: { _id: 's-3', full_name: 'Phạm Văn C', class_id: '11B2' },
+          is_room_leader: false,
           createdAt: new Date(),
         },
         // Roster 4: inactive contract, should not appear in room-2
@@ -96,14 +99,14 @@ describe('DormitoryReportsService canonical roster summary', () => {
     expect(room1).toBeDefined();
     // Check deduplication and exact member shape (no extra fields)
     expect(room1?.members).toEqual([
-      { full_name: 'Trần Văn A', class_name: '12A1' },
-      { full_name: 'Lê Thị B', class_name: 'Chưa cập nhật' },
+      { full_name: 'Trần Văn A', class_name: '12A1', is_room_leader: true },
+      { full_name: 'Lê Thị B', class_name: 'Chưa cập nhật', is_room_leader: false },
     ]);
-    expect(Object.keys(room1!.members[0])).toEqual(['full_name', 'class_name']);
+    expect(Object.keys(room1!.members[0])).toEqual(['full_name', 'class_name', 'is_room_leader']);
 
     expect(room2).toBeDefined();
     expect(room2?.members).toEqual([
-      { full_name: 'Phạm Văn C', class_name: '11B2' },
+      { full_name: 'Phạm Văn C', class_name: '11B2', is_room_leader: false },
     ]);
 
     expect(roomEmpty).toBeDefined();

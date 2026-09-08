@@ -69,8 +69,8 @@ const mockStats = {
       free_beds: 2,
       state: 'Còn chỗ',
       members: [
-        { full_name: 'Nguyễn Văn A', class_name: '12A1' },
-        { full_name: 'Trần Thị B', class_name: 'Chưa cập nhật' },
+        { full_name: 'Nguyễn Văn A', class_name: '12A1', is_room_leader: true },
+        { full_name: 'Trần Thị B', class_name: 'Chưa cập nhật', is_room_leader: false },
       ],
     },
     {
@@ -100,8 +100,8 @@ const mockStats = {
       free_beds: 0,
       state: 'Đầy',
       members: [
-        { full_name: 'Lê Văn C', class_name: '11B3' },
-        { full_name: 'Phạm Thị D', class_name: '11B3' },
+        { full_name: 'Lê Văn C', class_name: '11B3', is_room_leader: false },
+        { full_name: 'Phạm Thị D', class_name: '11B3', is_room_leader: false },
       ],
     },
   ],
@@ -245,10 +245,28 @@ describe('DormitoryOverviewPage', () => {
     expect(screen.getByText('12A1')).toBeInTheDocument();
     expect(screen.getByText('Trần Thị B')).toBeInTheDocument();
     expect(screen.getByText('Chưa cập nhật')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Trưởng phòng')).toHaveLength(1);
+    expect(screen.getByText('Nguyễn Văn A').parentElement).toHaveTextContent('Trưởng phòng');
 
     // Close via close button
     fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(screen.queryByText('Thành viên phòng A101')).not.toBeInTheDocument());
+  });
+
+  it('does not render a leader marker when every member is an ordinary member', async () => {
+    vi.mocked(dormitoryApi.reports.getDashboardStats).mockResolvedValueOnce({
+      ...mockStats,
+      room_rows: mockStats.room_rows.map((room) => room.room_id === 'r-partial'
+        ? { ...room, members: room.members?.map((member) => ({ ...member, is_room_leader: false })) }
+        : room),
+    } as any);
+
+    render(<DormitoryOverviewPage />);
+    await waitFor(() => expect(screen.getByText('Tổng quan Quản lý KTX')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('Xem thành viên phòng A101'));
+
+    expect(screen.queryByLabelText('Trưởng phòng')).not.toBeInTheDocument();
+    expect(screen.getByText('Chưa cập nhật')).toBeInTheDocument();
   });
 
   it('shows empty state when room has no members and closes on Escape', async () => {

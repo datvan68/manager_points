@@ -557,7 +557,12 @@ export default function DormitoryOverviewPage() {
                 <tbody className="divide-y divide-slate-100">
                   {selectedRoom.members.map((member, index) => (
                     <tr key={index} className="hover:bg-slate-50/50">
-                      <td className="px-3 py-2.5 font-medium text-slate-800">{member.full_name}</td>
+                      <td className="px-3 py-2.5 font-medium text-slate-800">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{member.full_name}</span>
+                          {member.is_room_leader && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800" aria-label="Trưởng phòng">Trưởng phòng</span>}
+                        </div>
+                      </td>
                       <td className="px-3 py-2.5 text-slate-600">{member.class_name || 'Chưa cập nhật'}</td>
                     </tr>
                   ))}
