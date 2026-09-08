@@ -2466,18 +2466,24 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setIsMobileSearchOpen(true)} aria-label="Tìm kiếm" title="Tìm kiếm" className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm">
+                    {ghiNhanAccess.createStudentRecord && (
+                      <button
+                        onClick={handleCreate}
+                        className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Thêm ghi nhận</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSearchOpen(true)}
+                      aria-label="Tìm kiếm"
+                      title="Tìm kiếm"
+                      className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm"
+                    >
                       <Search className="w-4 h-4" />
                     </button>
-                    {ghiNhanAccess.createStudentRecord && (
-                  <button
-                    onClick={handleCreate}
-                    className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Thêm ghi nhận</span>
-                  </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -2599,18 +2605,24 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setIsMobileSearchOpen(true)} aria-label="Tìm kiếm" title="Tìm kiếm" className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm">
+                    {ghiNhanAccess.createClassRecord && (
+                      <button
+                        onClick={handleCreate}
+                        className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Thêm ghi nhận</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSearchOpen(true)}
+                      aria-label="Tìm kiếm"
+                      title="Tìm kiếm"
+                      className="flex items-center justify-center h-10 w-10 shrink-0 bg-white/70 border border-white/80 text-slate-600 rounded-xl shadow-sm"
+                    >
                       <Search className="w-4 h-4" />
                     </button>
-                    {ghiNhanAccess.createClassRecord && (
-                  <button
-                    onClick={handleCreate}
-                    className="flex-1 flex items-center justify-center gap-2 h-10 px-4 bg-[#1A73E8] text-white rounded-xl hover:bg-[#1557b0] transition-all duration-150 ease-out hover:scale-[1.01] active:scale-[0.99] font-semibold text-sm shadow-sm cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Thêm ghi nhận</span>
-                  </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -2624,11 +2636,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         {activeSubTab === "student" ? (
           <>
             {/* Table Content student record */}
-            <div className="flex-1 overflow-y-auto w-full max-w-full bg-transparent flex flex-col">
+            <div className="flex-1 overflow-hidden lg:overflow-y-auto w-full max-w-full bg-transparent flex flex-col min-h-0">
             {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ tinh giản và ẩn trên desktop) */}
-            <div ref={scrollContainerRef} className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
+            <div ref={scrollContainerRef} className="px-0 py-1 pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
               {isLoading ? (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
@@ -2641,7 +2653,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   {paginatedRecords.map((record) => (
                     <div key={record.id} className="bg-white/50 backdrop-blur-md border border-white/70 rounded-xl p-4 shadow-sm flex flex-col gap-3">
                       <div className="flex justify-between items-start">
@@ -3819,11 +3831,11 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
         // ==================== TAB 2: TÌNH HÌNH LỚP HỌC ====================
         <>
           {/* Table Content class record */}
-          <div className="flex-1 overflow-y-auto w-full max-w-full bg-transparent flex flex-col">
+          <div className="flex-1 overflow-hidden lg:overflow-y-auto w-full max-w-full bg-transparent flex flex-col min-h-0">
             {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ và ẩn trên desktop) */}
-            <div className="p-4 bg-blue-50/30 backdrop-blur-md lg:hidden flex-1 overflow-y-auto">
+            <div className="px-0 py-1 pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
               {isClassLoading ? (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div
                       key={i}
@@ -3836,7 +3848,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                   {paginatedClassReports.map((report) => {
                     const classObj =
                       typeof report.class_id === "object"
