@@ -165,4 +165,55 @@ describe('MaintenanceGuard', () => {
       expect(screen.queryByText('Phân hệ đang bảo trì')).toBeNull();
     });
   });
+
+  it('keeps settled content visible while a pathname maintenance refresh is pending', async () => {
+    const firstCheck = Promise.resolve({ events: false, grading: false });
+    let resolveSecondCheck!: (value: Record<string, boolean>) => void;
+    const secondCheck = new Promise<Record<string, boolean>>((resolve) => { resolveSecondCheck = resolve; });
+    let pathname = '/students/tasks';
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'teacher-1', role: 'Teacher' }, isAuthenticated: true, isLoading: false,
+      permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+      hasPermission: () => true, hasAnyPermission: () => true, hasAllPermissions: () => true,
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(usePathname).mockImplementation(() => pathname);
+    vi.mocked(getModuleIdByPath).mockImplementation((path) => path.includes('grading') ? 'grading' : 'events');
+    vi.mocked(getMaintenanceStatesWithCache)
+      .mockReturnValueOnce(firstCheck)
+      .mockReturnValueOnce(secondCheck);
+
+    const view = renderGuard();
+    await waitFor(() => expect(screen.getByTestId('children')).toBeDefined());
+
+    pathname = '/grading';
+    view.rerender(<MaintenanceGuard><div data-testid="children">Protected Content</div></MaintenanceGuard>);
+    expect(screen.getByTestId('children')).toBeDefined();
+    expect(screen.queryByText('Phân hệ đang bảo trì')).toBeNull();
+
+    resolveSecondCheck({ events: false, grading: true });
+    await waitFor(() => expect(screen.getByText('Phân hệ đang bảo trì')).toBeDefined());
+    expect(screen.queryByTestId('children')).toBeNull();
+  });
+
+  it('uses the failure fallback without blanking already settled content', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'teacher-2', role: 'Teacher' }, isAuthenticated: true, isLoading: false,
+      permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+      hasPermission: () => true, hasAnyPermission: () => true, hasAllPermissions: () => true,
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(usePathname).mockReturnValue('/students/tasks');
+    vi.mocked(getModuleIdByPath).mockReturnValue('events');
+    vi.mocked(getMaintenanceStatesWithCache)
+      .mockResolvedValueOnce({ events: false })
+      .mockRejectedValueOnce(new Error('offline'));
+
+    const view = renderGuard();
+    await waitFor(() => expect(screen.getByTestId('children')).toBeDefined());
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(screen.getByTestId('children')).toBeDefined());
+    expect(screen.queryByText('Phân hệ đang bảo trì')).toBeNull();
+    view.unmount();
+  });
 });

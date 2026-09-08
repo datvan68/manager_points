@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { Settings } from 'lucide-react';
@@ -18,8 +18,10 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
-  const [maintenanceCheckDone, setMaintenanceCheckDone] = useState(false);
+  const [maintenanceStates, setMaintenanceStates] = useState<Record<string, boolean> | null>(null);
+  const authIdentityRef = useRef<string | null>(null);
+  const authIdentity = user?.id || null;
+  const moduleId = useMemo(() => getModuleIdByPath(pathname), [pathname]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -27,28 +29,28 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
     let cancelled = false;
 
     if (isLoading) {
-      setMaintenanceCheckDone(false);
       return;
+    }
+
+    if (authIdentityRef.current !== authIdentity) {
+      authIdentityRef.current = authIdentity;
+      setMaintenanceStates(null);
     }
 
     // Admins bypass maintenance mode
     if (!user || isAdminUser(user)) {
-      setIsUnderMaintenance(false);
-      setMaintenanceCheckDone(true);
+      setMaintenanceStates({});
       return;
     }
 
-    const moduleId = getModuleIdByPath(pathname);
     if (!moduleId) {
-      setIsUnderMaintenance(false);
-      setMaintenanceCheckDone(true);
+      setMaintenanceStates((current) => current || {});
       return;
     }
 
     const applyStates = (states: Record<string, boolean>) => {
       if (cancelled) return;
-      setIsUnderMaintenance(states[moduleId] === true);
-      setMaintenanceCheckDone(true);
+      setMaintenanceStates(states);
     };
 
     const checkMaintenance = async () => {
@@ -61,13 +63,11 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
       } catch (error) {
         console.error('Failed to load module maintenance states in layout guard:', error);
         if (!cancelled) {
-          setIsUnderMaintenance(false);
-          setMaintenanceCheckDone(true);
+          setMaintenanceStates((current) => current || {});
         }
       }
     };
 
-    setMaintenanceCheckDone(false);
     checkMaintenance();
 
     const unsubscribe = subscribeModuleMaintenanceUpdates(applyStates);
@@ -81,9 +81,11 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
       window.removeEventListener('focus', handleFocus);
       window.clearInterval(intervalId);
     };
-  }, [pathname, user, isLoading]);
+  }, [authIdentity, isLoading, moduleId, user]);
 
-  if (isLoading || !maintenanceCheckDone) {
+  const isUnderMaintenance = moduleId ? maintenanceStates?.[moduleId] === true : false;
+
+  if (isLoading || maintenanceStates === null) {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
         <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent"></div>
