@@ -27,6 +27,11 @@ export interface ReportFilterState {
 export interface ReportsDataset {
   students: Student[];
   studentsTotal?: number;
+  academicRecordAggregates?: {
+    totalStudents: number;
+    disciplineOccurrences: number;
+    attentionStudentCount: number;
+  };
   classes: Class[];
   departments: Department[];
   semesters: Semester[];

@@ -594,48 +594,37 @@ export function processReportsData(
   });
 
   // KPI CALCULATION
+  const recordAggregates = dataset.academicRecordAggregates;
+  const matchingClasses = classes.filter(cls => {
+    const classId = getEntityId(cls._id);
+    const deptId = getEntityId(cls.dept_id);
+    return (!filters.departmentId || deptId === filters.departmentId) &&
+      (!filters.classId || classId === filters.classId);
+  });
   const kpis: ReportKpi[] = [
     {
       title: 'Tổng sinh viên',
-      value: dataset.studentsTotal !== undefined ? dataset.studentsTotal : filteredStudents.length,
+      value: dataset.studentsTotal ?? recordAggregates?.totalStudents ?? filteredStudents.length,
       description: 'Sinh viên trong phạm vi bộ lọc',
       iconName: 'users'
     },
     {
-      title: 'Điểm RL trung bình',
-      value: scoreRows.length > 0 
-        ? (scoreRows.reduce((acc, curr) => acc + curr.total_score, 0) / scoreRows.length).toFixed(1)
-        : '0.0',
-      description: 'Trung bình điểm rèn luyện',
-      iconName: 'award'
+      title: 'Tổng số lớp',
+      value: matchingClasses.length,
+      description: 'Lớp học trong phạm vi bộ lọc',
+      iconName: 'school'
     },
     {
-      title: 'Tỉ lệ chuyên cần',
-      value: attendanceRows.length > 0
-        ? `${(attendanceRows.reduce((acc, curr) => acc + curr.attendance_rate, 0) / attendanceRows.length * 100).toFixed(1)}%`
-        : '100%',
-      description: 'Hiện diện lớp trung bình',
-      iconName: 'calendar'
-    },
-    {
-      title: 'Kỷ luật phát sinh',
-      value: recordRows.filter(r => r.type === 'ky_luat').length,
-      description: 'Số vụ kỷ luật/vi phạm',
-      trend: {
-        value: recordRows.filter(r => r.type === 'khen_thuong').length > 0 
-          ? `Khen thưởng: ${recordRows.filter(r => r.type === 'khen_thuong').length}`
-          : 'Khen thưởng: 0',
-        isPositive: true
-      },
+      title: 'Số kỷ luật',
+      value: recordAggregates?.disciplineOccurrences ?? recordRows.filter(r => r.type === 'ky_luat').length,
+      description: 'Tổng số lần kỷ luật',
       iconName: 'shield-alert'
     },
     {
-      title: 'Tiến độ nhiệm vụ',
-      value: taskRows.length > 0
-        ? `${(taskRows.reduce((acc, curr) => acc + curr.completion_rate, 0) / taskRows.length * 100).toFixed(0)}%`
-        : '0%',
-      description: 'Tỉ lệ hoàn thành nhiệm vụ',
-      iconName: 'check-square'
+      title: 'Cần xử lý',
+      value: recordAggregates?.attentionStudentCount ?? 0,
+      description: 'Sinh viên có trên 3 lần kỷ luật',
+      iconName: 'clipboard-check'
     }
   ];
 

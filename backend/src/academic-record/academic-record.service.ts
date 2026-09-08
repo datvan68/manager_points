@@ -69,6 +69,8 @@ export interface AcademicRecordFindAllQuery {
   startDate?: string;
   endDate?: string;
   creator?: string;
+  departmentId?: string;
+  status?: string;
 }
 
 export interface AcademicRecordMutationOptions {
@@ -1883,6 +1885,8 @@ export class AcademicRecordService {
     let classId: string | undefined;
     let semesterId: string | undefined;
     let studentId: string | undefined;
+    let departmentId: string | undefined;
+    let studentStatus: string | undefined;
     let groupBy: 'student' | undefined;
     let sortBy: 'recordCount' | undefined;
     let actualRequester = requester;
@@ -1904,6 +1908,8 @@ export class AcademicRecordService {
       classId = query.classId;
       semesterId = query.semesterId;
       studentId = query.studentId;
+      departmentId = query.departmentId;
+      studentStatus = query.status;
     }
 
     const isGroupedByStudent = groupBy === 'student';
@@ -2041,6 +2047,34 @@ export class AcademicRecordService {
     // Apply semester filter
     if (semesterId && Types.ObjectId.isValid(semesterId)) {
       filter.semester_id = new Types.ObjectId(semesterId);
+    }
+
+    // Apply student-scope filters by intersecting with the requester scope
+    // already represented by filter.student_id.
+    if ((departmentId && Types.ObjectId.isValid(departmentId)) || studentStatus) {
+      const classFilter: any = departmentId && Types.ObjectId.isValid(departmentId)
+        ? { dept_id: new Types.ObjectId(departmentId) }
+        : {};
+      const matchingClasses = departmentId
+        ? await this.classModel.find(classFilter).select('_id').exec()
+        : [];
+      const studentFilter: any = {
+        ...(departmentId ? { class_id: { $in: matchingClasses.map((item: any) => item._id) } } : {}),
+        ...(studentStatus ? { status: studentStatus } : {}),
+      };
+      const matchingStudents = await this.studentModel.find(studentFilter).select('_id').exec();
+      const allowedStudentIds = matchingStudents.map((item: any) => item._id);
+      if (filter.student_id?.$in) {
+        filter.student_id.$in = filter.student_id.$in.filter((id: any) =>
+          allowedStudentIds.some((allowed: any) => allowed.toString() === id.toString()),
+        );
+      } else if (filter.student_id) {
+        if (!allowedStudentIds.some((id: any) => id.toString() === filter.student_id.toString())) {
+          filter.student_id = { $in: [] };
+        }
+      } else {
+        filter.student_id = { $in: allowedStudentIds };
+      }
     }
 
     // Apply search filter
@@ -2211,6 +2245,15 @@ export class AcademicRecordService {
                   ],
                 },
               },
+              disciplineOccurrences: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$criterion.criterion_type', 'ky_luat'] },
+                    { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } },
+                    0,
+                  ],
+                },
+              },
               recordTypes: { $addToSet: '$criterion.criterion_type' },
               // Keep only the score inputs needed to reuse ScoreEngineService
               // after pagination, without returning the full history payload.
@@ -2266,12 +2309,23 @@ export class AcademicRecordService {
                 { $limit: l },
               ],
               meta: [{ $count: 'total' }],
+              aggregates: [{
+                $group: {
+                  _id: null,
+                  totalStudents: { $sum: 1 },
+                  disciplineOccurrences: { $sum: '$disciplineOccurrences' },
+                  attentionStudentCount: {
+                    $sum: { $cond: [{ $gt: ['$disciplineOccurrences', 3] }, 1, 0] },
+                  },
+                },
+              }],
             },
           },
         ])
         .exec();
 
       const pageResult = groupedResult[0] || { data: [], meta: [] };
+      const aggregates = pageResult.aggregates?.[0] || {};
       const groups = pageResult.data || [];
       const latestRecordIds = groups.map((group: any) => group.latestRecordId);
       const latestRecords = latestRecordIds.length
@@ -2300,6 +2354,9 @@ export class AcademicRecordService {
               cong_diem: 0,
               ky_luat: 0,
             },
+            ...(Object.prototype.hasOwnProperty.call(group, 'disciplineOccurrences')
+              ? { disciplineOccurrences: Number(group.disciplineOccurrences || 0) }
+              : {}),
             recordTypes: group.recordTypes || [],
             totalPoints:
               Array.isArray(group.scoreRecords) && group.scoreRecords.length > 0
@@ -2324,6 +2381,11 @@ export class AcademicRecordService {
           limit: l,
           totalPages: Math.ceil(total / l),
           has_more: p * l < total,
+          ...(pageResult.aggregates?.length ? {
+            totalStudents: Number(aggregates.totalStudents || 0),
+            disciplineOccurrences: Number(aggregates.disciplineOccurrences || 0),
+            attentionStudentCount: Number(aggregates.attentionStudentCount || 0),
+          } : {}),
         },
       };
     }

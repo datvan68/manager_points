@@ -196,6 +196,8 @@ export class AcademicRecordController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('creator') creator?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('status') status?: string,
     @Query('groupBy') groupBy?: string,
     @Query('sortBy') sortBy?: string,
   ) {
@@ -213,6 +215,8 @@ export class AcademicRecordController {
         startDate,
         endDate,
         creator,
+        departmentId,
+        status,
       },
       requester,
     );

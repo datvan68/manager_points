@@ -1,31 +1,39 @@
 'use client';
 
 import React from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, SlidersHorizontal } from 'lucide-react';
 
 interface ReportPageHeaderProps {
   onExportAll: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   canExport: boolean;
+  isFiltersOpen: boolean;
+  onToggleFilters: () => void;
 }
 
 export default function ReportPageHeader({
   onExportAll,
   onRefresh,
   isRefreshing,
-  canExport
+  canExport,
+  isFiltersOpen,
+  onToggleFilters
 }: ReportPageHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/45 backdrop-blur-md border-b border-white/75 shadow-sm">
-      <div>
-        <h1 className="text-2xl font-black text-[#1E293B] tracking-tight">Thống kê & Báo cáo</h1>
-        <p className="text-xs text-[#64748B] font-semibold mt-1">
-          Tổng hợp tình hình sinh viên, học tập, chuyên cần, rèn luyện và tiến độ nhiệm vụ
-        </p>
-      </div>
+    <div className="mx-6 mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm">
+      <button
+        type="button"
+        onClick={onToggleFilters}
+        aria-expanded={isFiltersOpen}
+        aria-controls="reports-filter-panel"
+        className="flex items-center justify-center gap-2 px-3 h-9 rounded-xl text-[13px] font-bold text-[#1E293B] bg-white/50 hover:bg-white/80 border border-white/70 transition-all"
+      >
+        <SlidersHorizontal size={15} />
+        <span>Bộ lọc</span>
+      </button>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={onRefresh}
           disabled={isRefreshing}

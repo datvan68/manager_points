@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Users, Award, Calendar, ShieldAlert, CheckSquare } from 'lucide-react';
+import { Users, School, ShieldAlert, ClipboardCheck } from 'lucide-react';
 import { ReportKpi } from './report-types';
 
 interface ReportKpiGridProps {
@@ -11,17 +11,16 @@ interface ReportKpiGridProps {
 
 const IconMapper: Record<string, React.ComponentType<any>> = {
   'users': Users,
-  'award': Award,
-  'calendar': Calendar,
+  'school': School,
   'shield-alert': ShieldAlert,
-  'check-square': CheckSquare
+  'clipboard-check': ClipboardCheck
 };
 
 export default function ReportKpiGrid({ kpis, isLoading }: ReportKpiGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mx-6 mt-6">
-        {Array.from({ length: 5 }).map((_, idx) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mx-6 mt-6">
+        {Array.from({ length: 4 }).map((_, idx) => (
           <div key={idx} className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 h-28 animate-pulse flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <div className="h-4 bg-slate-200 rounded-md w-2/3" />
@@ -36,7 +35,7 @@ export default function ReportKpiGrid({ kpis, isLoading }: ReportKpiGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mx-6 mt-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mx-6 mt-6">
       {kpis.map((kpi, index) => {
         const IconComponent = IconMapper[kpi.iconName] || Users;
         return (

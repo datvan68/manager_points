@@ -56,6 +56,9 @@ export interface PaginatedAcademicRecordStudentGroups {
     limit: number;
     totalPages: number;
     has_more: boolean;
+    totalStudents?: number;
+    disciplineOccurrences?: number;
+    attentionStudentCount?: number;
   };
 }
 
@@ -153,6 +156,8 @@ export const academicRecordApi = {
     startDate?: string;
     endDate?: string;
     creator?: string;
+    departmentId?: string;
+    status?: string;
   }): Promise<
     | AcademicRecord[]
     | PaginatedAcademicRecords

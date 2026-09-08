@@ -85,6 +85,7 @@ export default function ReportsPage() {
   // Main dataset & loading
   const [dataset, setDataset] = useState<ReportsDataset>({
     students: [],
+    academicRecordAggregates: undefined,
     classes: [],
     departments: [],
     semesters: [],
@@ -106,6 +107,7 @@ export default function ReportsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ReportTabType>('overview');
   const [hasLimitWarning, setHasLimitWarning] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Tab-specific pagination states
   const [studentPage, setStudentPage] = useState(1);
@@ -262,8 +264,12 @@ export default function ReportsPage() {
           }).catch(() => null),
           academicRecordApi.getAcademicRecords({
             limit: 10,
+            groupBy: 'student',
+            sortBy: 'recordCount',
             semesterId: filters.semesterId,
             classId: filters.classId,
+            departmentId: filters.departmentId,
+            status: filters.status,
             search: filters.searchQuery,
             startDate: filters.startDate,
             endDate: filters.endDate
@@ -279,6 +285,8 @@ export default function ReportsPage() {
         const summariesData = summariesRes && 'data' in summariesRes ? summariesRes.data : (Array.isArray(summariesRes) ? summariesRes : []);
         const dailyReportsData = dailyReportsRes && 'data' in dailyReportsRes ? dailyReportsRes.data : (Array.isArray(dailyReportsRes) ? dailyReportsRes : []);
         const recordsData = recordsRes && 'data' in recordsRes ? recordsRes.data : (Array.isArray(recordsRes) ? recordsRes : []);
+        const recordGroups = recordsRes && 'data' in recordsRes ? recordsRes.data as any[] : [];
+        const recordMeta = recordsRes && 'meta' in recordsRes ? (recordsRes as any).meta : undefined;
 
         setDataset(prev => ({
           ...prev,
@@ -286,7 +294,14 @@ export default function ReportsPage() {
           studentsTotal: studentsTotalCount,
           summaries: summariesData,
           dailyReports: dailyReportsData,
-          academicRecords: recordsData,
+          academicRecords: recordsRes
+            ? recordGroups.map((group: any) => group.latestRecord).filter(Boolean)
+            : prev.academicRecords,
+          academicRecordAggregates: recordMeta ? {
+            totalStudents: Number(recordMeta.totalStudents ?? studentsTotalCount ?? 0),
+            disciplineOccurrences: Number(recordMeta.disciplineOccurrences ?? 0),
+            attentionStudentCount: Number(recordMeta.attentionStudentCount ?? 0),
+          } : prev.academicRecordAggregates,
           tasks: tasksRes.items || []
         }));
       }
@@ -370,6 +385,8 @@ export default function ReportsPage() {
           sortBy: 'recordCount',
           semesterId: filters.semesterId,
           classId: filters.classId,
+          departmentId: filters.departmentId,
+          status: filters.status,
           search: filters.searchQuery,
           startDate: filters.startDate,
           endDate: filters.endDate
@@ -387,7 +404,12 @@ export default function ReportsPage() {
 
         setDataset(prev => ({
           ...prev,
-          academicRecordGroups: recordsData
+          academicRecordGroups: recordsRes ? recordsData : prev.academicRecordGroups,
+          academicRecordAggregates: recordsRes && 'meta' in recordsRes ? {
+            totalStudents: Number((recordsRes as any).meta?.totalStudents ?? 0),
+            disciplineOccurrences: Number((recordsRes as any).meta?.disciplineOccurrences ?? 0),
+            attentionStudentCount: Number((recordsRes as any).meta?.attentionStudentCount ?? 0),
+          } : prev.academicRecordAggregates
         }));
       }
 
@@ -1196,16 +1218,20 @@ export default function ReportsPage() {
             onRefresh={handleRefresh}
             isRefreshing={isRefreshing}
             canExport={!isLoading && studentTotal > 0}
+            isFiltersOpen={isFiltersOpen}
+            onToggleFilters={() => setIsFiltersOpen(open => !open)}
           />
 
           {/* Filters Area */}
-          <ReportFilters
-            semesters={semesters}
-            departments={departments}
-            classes={classes}
-            filters={filters}
-            onChange={handleFiltersChange}
-          />
+          {isFiltersOpen && (
+            <ReportFilters
+              semesters={semesters}
+              departments={departments}
+              classes={classes}
+              filters={filters}
+              onChange={handleFiltersChange}
+            />
+          )}
 
           {/* Limit warning banner */}
           {hasLimitWarning && (
