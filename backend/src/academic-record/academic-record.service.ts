@@ -61,6 +61,7 @@ export interface AcademicRecordFindAllQuery {
   page?: number;
   limit?: number;
   groupBy?: 'student';
+  sortBy?: 'recordCount';
   search?: string;
   classId?: string;
   semesterId?: string;
@@ -1883,6 +1884,7 @@ export class AcademicRecordService {
     let semesterId: string | undefined;
     let studentId: string | undefined;
     let groupBy: 'student' | undefined;
+    let sortBy: 'recordCount' | undefined;
     let actualRequester = requester;
 
     if (
@@ -1897,6 +1899,7 @@ export class AcademicRecordService {
       page = query.page;
       limit = query.limit;
       groupBy = query.groupBy;
+      sortBy = query.sortBy;
       search = query.search;
       classId = query.classId;
       semesterId = query.semesterId;
@@ -2243,11 +2246,18 @@ export class AcademicRecordService {
             },
           },
           {
-            $sort: {
-              latestCreatedAt: -1,
-              latestRecordedAt: -1,
-              _id: 1,
-            },
+            $sort: sortBy === 'recordCount'
+              ? {
+                  recordCount: -1,
+                  latestRecordedAt: -1,
+                  latestCreatedAt: -1,
+                  _id: 1,
+                }
+              : {
+                  latestCreatedAt: -1,
+                  latestRecordedAt: -1,
+                  _id: 1,
+                },
           },
           {
             $facet: {

@@ -6,7 +6,7 @@ const row = {
   key: 'student-1', _id: 'student-1', student_code: 'SV001', full_name: 'Nguyễn Văn A',
   class_name: 'K TP1', department_name: 'CNTT', record_count: 3, reward_count: 1,
   bonus_count: 1, discipline_count: 1, total_points: -1, latest_record_title: 'Cảnh cáo',
-  latest_record_at: '07/09/2026', latest_record_type: 'ky_luat' as const, latest_recorded_by: 'Hệ thống'
+  latest_record_at: '07/09/2026', latest_record_type: 'ky_luat' as const
 };
 
 describe('AcademicRecordReportTab', () => {
@@ -20,6 +20,7 @@ describe('AcademicRecordReportTab', () => {
     expect(screen.getAllByRole('button', { name: 'Chi tiết' }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Chi tiết' })[0]);
     expect(screen.getByText('Chi tiết ghi nhận')).toBeInTheDocument();
+    expect(screen.queryByText(/Người ghi/)).not.toBeInTheDocument();
   });
 
   it('keeps loading and empty states', () => {

@@ -919,6 +919,35 @@ describe('AcademicRecordService - Import Flow', () => {
       });
     });
 
+    it('sorts grouped students by record count before pagination when requested', async () => {
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ data: [], meta: [] }]),
+      });
+
+      await service.findAll({ groupBy: 'student', sortBy: 'recordCount', page: 2, limit: 10 });
+
+      const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
+      const facetIndex = pipeline.findIndex((stage: any) => stage.$facet);
+      const groupedSortIndex = pipeline.findIndex(
+        (stage: any) => stage.$sort?.recordCount === -1,
+      );
+
+      expect(groupedSortIndex).toBeGreaterThan(
+        pipeline.findIndex((stage: any) => stage.$group),
+      );
+      expect(groupedSortIndex).toBeLessThan(facetIndex);
+      expect(pipeline[groupedSortIndex].$sort).toEqual({
+        recordCount: -1,
+        latestRecordedAt: -1,
+        latestCreatedAt: -1,
+        _id: 1,
+      });
+      expect(pipeline[facetIndex].$facet.data).toEqual([
+        { $skip: 10 },
+        { $limit: 10 },
+      ]);
+    });
+
     it('returns a reconciled total and per-type counts for a grouped student', async () => {
       const studentId = new Types.ObjectId();
       const latestRecordId = new Types.ObjectId();

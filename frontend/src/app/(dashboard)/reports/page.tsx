@@ -355,6 +355,7 @@ export default function ReportsPage() {
           page: recordPage,
           limit: recordLimit,
           groupBy: 'student',
+          sortBy: 'recordCount',
           semesterId: filters.semesterId,
           classId: filters.classId,
           search: filters.searchQuery,
@@ -467,9 +468,11 @@ export default function ReportsPage() {
       console.error(`Failed to load data for tab ${tab}:`, error);
       toast.error(`Không thể tải dữ liệu cho tab ${tab}`);
     } finally {
-      setIsTabLoading(prev => ({ ...prev, [tab]: false }));
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (currentSeq === requestSeqRef.current) {
+        setIsTabLoading(prev => ({ ...prev, [tab]: false }));
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 
@@ -479,16 +482,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (user) {
-      loadTabSpecificData(activeTab, false);
-    }
-  }, [activeTab, user]);
-
-  useEffect(() => {
-    if (user) {
-      const timer = setTimeout(() => {
-        loadTabSpecificData(activeTab, true);
-      }, 50);
-      return () => clearTimeout(timer);
+      loadTabSpecificData(activeTab, true);
     }
   }, [
     user,
@@ -696,6 +690,7 @@ export default function ReportsPage() {
           academicRecordApi.getAcademicRecords,
           {
             groupBy: 'student',
+            sortBy: 'recordCount',
             semesterId: filters.semesterId,
             classId: filters.classId,
             search: filters.searchQuery,

@@ -120,7 +120,6 @@ export interface AcademicRecordStudentSummaryRow {
   latest_record_title: string;
   latest_record_at: string;
   latest_record_type: 'khen_thuong' | 'cong_diem' | 'ky_luat' | 'khac';
-  latest_recorded_by: string;
 }
 
 export interface AttendanceReportRow {

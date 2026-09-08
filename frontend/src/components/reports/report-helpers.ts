@@ -53,8 +53,6 @@ export function mapAcademicRecordStudentGroup(
       : titleLower.includes('khen thưởng') || titleLower.includes('giải thưởng') || titleLower.includes('xuất sắc')
         ? 'khen_thuong'
         : effect > 0 ? 'cong_diem' : 'khac');
-  const recordedBy = latestRecord?.recorded_by;
-
   return {
     key: group.studentId,
     _id: group.studentId,
@@ -70,9 +68,6 @@ export function mapAcademicRecordStudentGroup(
     latest_record_title: title,
     latest_record_at: safeFormatDate(latestRecord?.recorded_at || latestRecord?.date_record || latestRecord?.createdAt),
     latest_record_type: latestType,
-    latest_recorded_by: typeof recordedBy === 'object'
-      ? recordedBy?.full_name || recordedBy?.user_name || 'Quản trị viên'
-      : recordedBy ? String(recordedBy) : 'Hệ thống'
   };
 }
 

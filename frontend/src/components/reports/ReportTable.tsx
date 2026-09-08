@@ -68,13 +68,17 @@ export default function ReportTable({
   };
 
   const handlePageSizeChange = (size: number) => {
+    const normalizedSize = [10, 20, 40].includes(size) ? size : 10;
     if (serverSide && onPageSizeChange) {
-      onPageSizeChange(size);
+      onPageChange?.(1);
+      onPageSizeChange(normalizedSize);
     } else {
-      setLocalPageSize(size);
+      setLocalPageSize(normalizedSize);
       setLocalCurrentPage(1);
     }
   };
+
+  const showLoading = isLoading && data.length === 0;
 
   const responsiveColumns: ResponsiveColumn[] = columns.map((col, idx) => {
     let priority: 'primary' | 'secondary' | 'metadata' | 'action' | undefined = undefined;
@@ -100,7 +104,7 @@ export default function ReportTable({
     };
   });
 
-  const paginationNode = !isLoading && totalCount > 0 ? (
+  const paginationNode = !showLoading && totalCount > 0 ? (
     <div className="border-t border-white/50 w-full">
       <CustomPagination
         totalItems={totalCount}
@@ -108,6 +112,7 @@ export default function ReportTable({
         currentPage={activeCurrentPage}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        pageSizeOptions={[10, 20, 40]}
         label={label}
         className="shadow-none border-none rounded-none bg-transparent"
       />
@@ -135,11 +140,12 @@ export default function ReportTable({
       </div>
 
       {/* Table Content */}
-      <div className="overflow-x-auto custom-scrollbar flex-1 min-h-[300px]">
+      <div className="overflow-hidden custom-scrollbar flex-1 min-h-[300px] max-h-[min(65vh,600px)]">
         <ResponsiveDataView
           data={paginatedData}
           columns={responsiveColumns}
-          isLoading={isLoading}
+          isLoading={showLoading}
+          tableClassName="text-[11px]"
           emptyState={
             <div className="py-12 flex justify-center w-full">
               <ReportEmptyState message={emptyMessage} />

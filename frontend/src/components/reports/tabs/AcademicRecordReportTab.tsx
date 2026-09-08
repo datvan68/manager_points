@@ -38,7 +38,6 @@ function DetailCell({ row }: { row: AcademicRecordStudentSummaryRow }) {
           <p><span className="font-semibold">Tổng điểm:</span> {row.total_points}</p>
           <p><span className="font-semibold">Gần nhất:</span> {row.latest_record_title}</p>
           <p><span className="font-semibold">Ngày:</span> {row.latest_record_at}</p>
-          <p><span className="font-semibold">Người ghi:</span> {row.latest_recorded_by}</p>
         </div>
       </PopoverContent>
     </Popover>

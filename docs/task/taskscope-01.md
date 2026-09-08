@@ -1,72 +1,112 @@
 slot_id: "taskscope-01"
-generation: 1
-task_id: "20260908T075842+0700-report-tabs-student-class-records"
+generation: 2
+task_id: "20260908T084510+0700-report-table-stability-and-density"
 scope_file: "docs/task/taskscope-01.md"
 status: completed
-scope_revision: 1
-created_at: "2026-09-08T07:58:42+07:00"
-updated_at: "2026-09-08T08:03:31+07:00"
-base_commit: "3564113b0bd7bada867730265d0c02e4ae5b094b"
-task: "Cập nhật các tab Thống kê báo cáo"
+scope_revision: 3
+created_at: "2026-09-08T08:45:10+07:00"
+updated_at: "2026-09-08T09:12:00+07:00"
+base_commit: "d9c1512d6317a25cc69ef6810ef9fb6c8fd5edaa"
+task: "Stabilize and compact report tables"
 pipeline: feature_development
-profile: Quick
-objective: "Trang Thống kê báo cáo chỉ hiển thị Tổng quan, Sinh viên, Điểm rèn luyện, Ghi nhận sv và Ghi nhận lớp; hai tab ghi nhận tiếp tục dùng đúng dữ liệu hiện có."
+profile: Full
+objective: "Make Student records sort by highest record count, simplify its detail popover, eliminate data-loading flicker, cap pages at 40 rows with scrolling, and use compact table text consistently across visible report tabs."
 coordination:
   depends_on: []
   warnings:
-    - "docs/task/taskscope.md đang rỗng và được giữ lại như slot 00 chưa migrate; task này dùng slot 01."
+    - "The completed student-summary implementation from taskscope-02 is present in base_commit."
+    - "Descending order is interpreted as record_count descending for Ghi nhận sv; ties use latest record time descending, then student id for stable pagination."
 completion:
-  completed_at: "2026-09-08T08:03:31+07:00"
-  outcome: "success"
-  final_commit_or_state: "Working tree on main; changes uncommitted."
+  completed_at: "2026-09-08T09:12:00+07:00"
+  outcome: "completed"
+  final_commit_or_state: "worktree modified; HEAD remains d9c1512d6317a25cc69ef6810ef9fb6c8fd5edaa"
   changed_paths:
-    - "frontend/src/components/reports/ReportTabs.tsx"
+    - "backend/src/academic-record/academic-record.controller.ts"
+    - "backend/src/academic-record/academic-record.service.ts"
+    - "backend/src/academic-record/academic-record.service.spec.ts"
+    - "frontend/src/api/academic-record-api.ts"
     - "frontend/src/app/(dashboard)/reports/page.tsx"
-    - "frontend/src/components/reports/ReportTabs.test.tsx"
+    - "frontend/src/app/(dashboard)/reports/page.test.tsx"
+    - "frontend/src/components/reports/ReportTable.tsx"
+    - "frontend/src/components/reports/ReportTable.test.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.test.tsx"
+    - "frontend/src/components/reports/report-types.ts"
+    - "frontend/src/components/reports/report-helpers.ts"
+    - "frontend/src/components/reports/report-helpers.test.ts"
+    - "docs/task/taskscope-01.md"
   checks_passed:
-    - "V-01: npm --prefix frontend test -- src/components/reports/ReportTabs.test.tsx — 2 tests passed, 0 skipped."
-    - "V-02: npm --prefix frontend run typecheck — exit code 0."
-    - "V-03: git diff --check -- frontend/src/components/reports/ReportTabs.tsx frontend/src/app/(dashboard)/reports/page.tsx frontend/src/components/reports/ReportTabs.test.tsx — passed."
+    - "V-01: backend academic-record service suite passed, 84 passed and 2 todo"
+    - "V-02: focused frontend Vitest passed, 4 files and 6 tests"
+    - "V-03: reports page loading contract test passed; single active-tab effect and stale-response guard are asserted"
+    - "V-04: frontend typecheck and backend build exited 0"
+    - "V-05: dev UI showed 193 grouped students in count-desc order, recorder-free details, 10/20/40 options, 40-row page and compact scrolling table"
+    - "V-06: git diff --check passed with no whitespace errors"
   cleanup_pending: []
 evidence:
-  current_behavior: "frontend/src/components/reports/ReportTabs.tsx:ReportTabs hiển thị 7 tab, gồm Ghi nhận rèn luyện, Chuyên cần, Nhiệm vụ và Hệ thống & Logs; frontend/src/app/(dashboard)/reports/page.tsx ánh xạ record tới AcademicRecordReportTab và attendance tới AttendanceReportTab."
-  expected_behavior: "Thanh tab có đúng 5 mục theo thứ tự hiện hành: Tổng quan, Sinh viên, Điểm rèn luyện, Ghi nhận sv, Ghi nhận lớp; không còn bốn nhãn tab bị bỏ."
-  root_cause: null
+  current_behavior: "academic-record.service.ts sorts grouped students by latest time; AcademicRecordReportTab shows latest_recorded_by; reports/page.tsx has two effects that can fetch the active tab twice and replaces rows with skeletons during refresh; ReportTable delegates pagination options [5,10,20,50,100] and has no bounded vertical table viewport; compact text is applied only by the Ghi nhận sv wrapper."
+  expected_behavior: "Ghi nhận sv is stably ordered by highest count, the misleading recorder line is absent, refreshes retain current rows without duplicate fetch flicker, selectable page sizes never exceed 40, long tables scroll, and all visible data tables use the same compact text scale."
+  root_cause: "The grouped aggregation orders by latest dates instead of recordCount; overlapping load effects and destructive loading rendering cause flicker; ReportTable does not constrain its page-size options, viewport height, or body typography."
 scope:
   inspect:
-    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx"
-    - "frontend/src/components/reports/tabs/AttendanceReportTab.tsx"
-    - "frontend/src/components/ui/TabNavigation.test.tsx"
-    - "frontend/package.json"
+    - "frontend/src/components/ui/pagination.tsx"
+    - "frontend/src/components/ui/ResponsiveDataView.tsx"
   write:
-    - "frontend/src/components/reports/ReportTabs.tsx"
+    - "backend/src/academic-record/academic-record.controller.ts"
+    - "backend/src/academic-record/academic-record.service.ts"
+    - "backend/src/academic-record/academic-record.service.spec.ts"
+    - "frontend/src/api/academic-record-api.ts"
     - "frontend/src/app/(dashboard)/reports/page.tsx"
-    - "frontend/src/components/reports/ReportTabs.test.tsx"
+    - "frontend/src/app/(dashboard)/reports/page.test.tsx (new)"
+    - "frontend/src/components/reports/ReportTable.tsx"
+    - "frontend/src/components/reports/ReportTable.test.tsx (new)"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.test.tsx"
+    - "frontend/src/components/reports/report-types.ts"
+    - "frontend/src/components/reports/report-helpers.ts"
+    - "frontend/src/components/reports/report-helpers.test.ts"
   preserve:
-    - "Ghi nhận sv giữ id record, tải AcademicRecordReportTab và toàn bộ hành vi lọc, phân trang, badge, export hiện có."
-    - "Ghi nhận lớp giữ id attendance, tải AttendanceReportTab và toàn bộ hành vi lọc, phân trang, badge, export hiện có."
-    - "Tổng quan, Sinh viên, Điểm rèn luyện, API/backend, RBAC và dữ liệu lưu trữ không thay đổi."
+    - "Keep existing filters, RBAC, active/non-deleted counting, totals, exports, and the default grouped API ordering for callers that do not request count sorting."
+    - "Keep initial-load skeletons and visible refresh feedback; only background page/filter/refresh loads retain the last successful rows."
+    - "Do not change Overview charts/KPIs, tab labels, Excel columns, mobile cards, or hidden task/system navigation behavior."
   out:
-    - "Xóa code/API/export của Nhiệm vụ, Chuyên cần hoặc Hệ thống khỏi page.tsx; yêu cầu chỉ bỏ khả năng truy cập qua thanh tab."
-    - "Đổi tiêu đề bảng, tên sheet Excel hoặc mô hình dữ liệu bên trong các tab ghi nhận."
+    - "Schema, migration, scoring, persisted-data, dependency, or global pagination changes."
+    - "Showing every recorder for a student or adding a record-history drill-down."
 acceptance_criteria:
-  - "AC-01: Thanh tab hiển thị đúng thứ tự Tổng quan, Sinh viên, Điểm rèn luyện, Ghi nhận sv, Ghi nhận lớp và không hiển thị Ghi nhận rèn luyện, Chuyên cần, Nhiệm vụ, Hệ thống & Logs cho mọi vai trò."
-  - "AC-02: Chọn Ghi nhận sv phát onChange('record'); chọn Ghi nhận lớp phát onChange('attendance'), nên nội dung, badge, lọc, phân trang và export hiện có vẫn được dùng."
+  - "AC-01: Ghi nhận sv requests count-desc sorting before server pagination; rows are ordered by record_count descending, with latest record time descending and student id as deterministic tie-breakers across pages."
+  - "AC-02: The Chi tiết ghi nhận popover remains compact and shows totals, type counts, total points, latest title, and date, but never shows Người ghi; the unused mapped recorder field is removed."
+  - "AC-03: Initial entry may show a skeleton, but changing tab/page/page size/filter or refreshing issues one current-tab request and retains the last successful table until the latest response replaces it; stale responses do not overwrite newer results."
+  - "AC-04: Every visible report data table offers only 10, 20, and 40 rows per page, resets to page 1 when size changes, and uses a bounded vertical viewport with internal scrolling and a reachable pagination footer."
+  - "AC-05: Desktop table body text in Sinh viên, Điểm rèn luyện, Ghi nhận sv, and Ghi nhận lớp uses the same compact size without truncating exported values or changing mobile content."
 execution:
-  - "E-01 [AC-01, AC-02] frontend/src/components/reports/ReportTabs.tsx:ReportTabs -> thay nhãn record/attendance, bỏ task/system khỏi danh sách hiển thị và dọn prop/icon chỉ phục vụ tab system."
-  - "E-02 [AC-01] frontend/src/app/(dashboard)/reports/page.tsx:ReportTabs usage -> bỏ showSystemTab đã không còn thuộc contract điều hướng; giữ nguyên các nhánh dữ liệu/render/export ngoài thanh tab."
-  - "E-03 [AC-01, AC-02] frontend/src/components/reports/ReportTabs.test.tsx (new) -> render component, khẳng định đúng tập/thứ tự nhãn, các nhãn cũ vắng mặt và callback record/attendance chính xác."
+  - "E-01 [AC-01] academic-record controller/service/API client -> add an optional grouped sortBy=recordCount query used by reports only; place count-desc and stable tie-break sorting before $facet skip/limit while preserving the existing default order."
+  - "E-02 [AC-02] report types/helper/AcademicRecordReportTab -> remove latest_recorded_by mapping and the Người ghi popover row; retain the other detail fields and compact width."
+  - "E-03 [AC-03] reports/page.tsx -> consolidate active-tab loading into one dependency-aware path, separate initial loading from background refresh, keep prior rows during background loads, and retain request-sequence stale-response protection."
+  - "E-04 [AC-04, AC-05] ReportTable.tsx -> pass report-only pageSizeOptions [10,20,40], normalize size changes to page 1, apply one shared compact desktop text class, and bound the table viewport so rows scroll while pagination remains usable."
+  - "E-05 [AC-01, AC-03] service and reports page tests -> assert aggregation sort placement/tie-breaks/default compatibility and prove a deferred refresh produces one request, keeps old rows, and ignores stale completion."
+  - "E-06 [AC-02, AC-04, AC-05] component/helper tests -> assert the recorder field is absent, page-size controls exclude 50/100, 40 is selectable, size changes reset page 1, and shared compact/scroll contracts render."
 verification:
-  - "V-01 [AC-01, AC-02] npm --prefix frontend test -- src/components/reports/ReportTabs.test.tsx -> Vitest chạy test mục tab, nhãn bị bỏ và callback mới với kết quả pass, không có test bị skip."
-  - "V-02 [AC-01, AC-02] npm --prefix frontend run typecheck -> TypeScript hoàn tất với exit code 0."
-  - "V-03 [AC-01, AC-02] git diff --check -- frontend/src/components/reports/ReportTabs.tsx 'frontend/src/app/(dashboard)/reports/page.tsx' frontend/src/components/reports/ReportTabs.test.tsx -> không có lỗi whitespace."
+  - "V-01 [AC-01] npm --prefix backend test -- academic-record.service.spec.ts --runInBand -> grouped sorting tests and existing academic-record service tests pass with no skips."
+  - "V-02 [AC-02, AC-04, AC-05] npm --prefix frontend test -- src/components/reports/report-helpers.test.ts src/components/reports/tabs/AcademicRecordReportTab.test.tsx src/components/reports/ReportTable.test.tsx -> focused tests pass with no skips."
+  - "V-03 [AC-03] npm --prefix frontend test -- 'src/app/(dashboard)/reports/page.test.tsx' -> request-count, retained-data, and stale-response cases pass."
+  - "V-04 [AC-01, AC-02, AC-03, AC-04, AC-05] npm --prefix frontend run typecheck && npm --prefix backend run build -> both commands exit 0."
+  - "V-05 [AC-01, AC-02, AC-03, AC-04, AC-05] In the development UI, verify a multi-page Ghi nhận sv result is count-desc, the popover omits Người ghi, filter/page changes do not flash blank/skeleton content, 40 rows is the maximum, the table scrolls, and the four visible data tabs have matching body text size."
+  - "V-06 [AC-01, AC-02, AC-03, AC-04, AC-05] git diff --check -- backend/src/academic-record/academic-record.controller.ts backend/src/academic-record/academic-record.service.ts backend/src/academic-record/academic-record.service.spec.ts frontend/src/api/academic-record-api.ts 'frontend/src/app/(dashboard)/reports/page.tsx' 'frontend/src/app/(dashboard)/reports/page.test.tsx' frontend/src/components/reports/ReportTable.tsx frontend/src/components/reports/ReportTable.test.tsx frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx frontend/src/components/reports/tabs/AcademicRecordReportTab.test.tsx frontend/src/components/reports/report-types.ts frontend/src/components/reports/report-helpers.ts frontend/src/components/reports/report-helpers.test.ts -> no whitespace errors."
+runtime_test:
+  environment: "Existing local development frontend and API; verify identities and non-production endpoints read-only before testing."
+  data: "Existing active grouped academic records; no create/update/delete operations."
+  scenarios: "Open Ghi nhận sv, compare first two API pages, open details, change filters and page size, then inspect Sinh viên, Điểm rèn luyện, and Ghi nhận lớp."
+  pass_signal: "Stable descending ordering, no recorder label, no content flash, maximum 40 rows with internal scrolling, and consistent compact text."
+  cleanup: "None; read-only verification."
 temporary_artifacts:
   create: []
   cleanup: []
   retain:
     - "docs/task/taskscope-01.md: user-requested reusable taskscope slot"
 risks:
-  - "Các nhánh task/system vẫn tồn tại nội bộ nhưng không còn đường chọn từ thanh tab; không xóa để tránh mở rộng phạm vi và ảnh hưởng export tổng hợp."
+  - "A sort added after $facet would only reorder one page and violate global ordering; the regression test must inspect stage order."
+  - "Shared table styling must not alter mobile cards or the global CustomPagination defaults outside reports."
 stop_conditions:
-  - "Dừng và xin mở rộng scope nếu yêu cầu thực tế là tạo báo cáo/API mới thay vì tái sử dụng record và attendance hiện có."
-  - "Dừng với TASKSCOPE_CONFLICT nếu một task active khác giữ một trong ba write path hoặc có thay đổi không rõ chủ sở hữu trên các path đó."
+  - "Stop for clarification if descending means latest date rather than record count, or if the 40-row cap should apply outside Thống kê báo cáo."
+  - "Stop if eliminating flicker requires changing a shared loader outside the scoped report page."
+  - "Stop with TASKSCOPE_CONFLICT if an active task reserves a write path or an unowned change appears on one."

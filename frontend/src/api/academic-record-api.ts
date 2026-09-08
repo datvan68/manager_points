@@ -145,6 +145,7 @@ export const academicRecordApi = {
     page?: number;
     limit?: number;
     groupBy?: 'student';
+    sortBy?: 'recordCount';
     search?: string;
     classId?: string;
     semesterId?: string;

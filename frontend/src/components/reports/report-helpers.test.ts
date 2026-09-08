@@ -37,5 +37,6 @@ describe('mapAcademicRecordStudentGroup', () => {
       total_points: -1,
       latest_record_title: 'Cảnh cáo'
     });
+    expect(row).not.toHaveProperty('latest_recorded_by');
   });
 });
