@@ -140,7 +140,10 @@ export default function ReportTable({
       </div>
 
       {/* Table Content */}
-      <div className="overflow-hidden custom-scrollbar flex-1 min-h-[300px] max-h-[min(65vh,600px)]">
+      <div
+        data-testid="report-table-viewport"
+        className="flex h-[min(65vh,600px)] min-h-[300px] flex-none flex-col overflow-hidden custom-scrollbar"
+      >
         <ResponsiveDataView
           data={paginatedData}
           columns={responsiveColumns}

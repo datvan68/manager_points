@@ -49,4 +49,18 @@ describe('ReportTable report pagination contract', () => {
     expect(screen.getAllByText('Dữ liệu cũ')).toHaveLength(2);
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
+
+  it('gives the table body a bounded height so its inner views can scroll', () => {
+    render(
+      <ReportTable
+        title="Báo cáo"
+        columns={[{ key: 'name', header: 'Tên' }]}
+        data={[{ id: '1', name: 'Một' }]}
+        isLoading={false}
+        onExportExcel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('report-table-viewport')).toHaveClass('flex', 'h-[min(65vh,600px)]', 'flex-none', 'flex-col', 'overflow-hidden');
+  });
 });

@@ -146,6 +146,18 @@ export default function ReportsPage() {
 
   const requestSeqRef = React.useRef(0);
 
+  const activePaginationKey = (() => {
+    switch (activeTab) {
+      case 'student': return `${studentPage}:${studentLimit}`;
+      case 'score': return `${scorePage}:${scoreLimit}:${scoreDetailsPage}:${scoreDetailsLimit}`;
+      case 'record': return `${recordPage}:${recordLimit}`;
+      case 'attendance': return `${attendancePage}:${attendanceLimit}`;
+      case 'task': return `${taskPage}:${taskLimit}:${taskProgressPage}:${taskProgressLimit}`;
+      case 'system': return `${notificationPage}:${notificationLimit}:${logPage}:${logLimit}`;
+      default: return 'overview';
+    }
+  })();
+
   // Filter State
   const [filters, setFilters] = useState<ReportFilterState>({
     semesterId: '',
@@ -486,24 +498,8 @@ export default function ReportsPage() {
     }
   }, [
     user,
-    studentPage,
-    studentLimit,
-    recordPage,
-    recordLimit,
-    attendancePage,
-    attendanceLimit,
-    scorePage,
-    scoreLimit,
-    scoreDetailsPage,
-    scoreDetailsLimit,
-    taskPage,
-    taskLimit,
-    taskProgressPage,
-    taskProgressLimit,
-    notificationPage,
-    notificationLimit,
-    logPage,
-    logLimit,
+    activeTab,
+    activePaginationKey,
     filters.semesterId,
     filters.evaluationPeriodId,
     filters.departmentId,
@@ -514,32 +510,27 @@ export default function ReportsPage() {
     filters.status
   ]);
 
-  const prevFiltersRef = React.useRef(filters);
-  useEffect(() => {
-    if (user && JSON.stringify(prevFiltersRef.current) !== JSON.stringify(filters)) {
-      prevFiltersRef.current = filters;
-      setStudentPage(1);
-      setRecordPage(1);
-      setAttendancePage(1);
-      setScorePage(1);
-      setScoreDetailsPage(1);
-      setTaskPage(1);
-      setTaskProgressPage(1);
-      setNotificationPage(1);
-      setLogPage(1);
-
-      setLoadedTabs({
-        overview: false,
-        student: false,
-        score: false,
-        record: false,
-        attendance: false,
-        task: false,
-        system: false
-      });
-      setIsLoading(true);
-    }
-  }, [filters, user]);
+  const handleFiltersChange = (nextFilters: ReportFilterState) => {
+    setStudentPage(1);
+    setRecordPage(1);
+    setAttendancePage(1);
+    setScorePage(1);
+    setScoreDetailsPage(1);
+    setTaskPage(1);
+    setTaskProgressPage(1);
+    setNotificationPage(1);
+    setLogPage(1);
+    setLoadedTabs({
+      overview: false,
+      student: false,
+      score: false,
+      record: false,
+      attendance: false,
+      task: false,
+      system: false
+    });
+    setFilters(nextFilters);
+  };
 
   const handleRefresh = () => {
     loadTabSpecificData(activeTab, true).then(() => {
@@ -1213,7 +1204,7 @@ export default function ReportsPage() {
             departments={departments}
             classes={classes}
             filters={filters}
-            onChange={setFilters}
+            onChange={handleFiltersChange}
           />
 
           {/* Limit warning banner */}
@@ -1302,6 +1293,13 @@ export default function ReportsPage() {
                 pageSize={recordLimit}
                 onPageChange={setRecordPage}
                 onPageSizeChange={setRecordLimit}
+                detailQuery={{
+                  semesterId: filters.semesterId,
+                  classId: filters.classId,
+                  search: filters.searchQuery,
+                  startDate: filters.startDate,
+                  endDate: filters.endDate,
+                }}
               />
             )}
 

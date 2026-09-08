@@ -7,6 +7,9 @@ describe('reports loading contract', () => {
     const source = fs.readFileSync(path.resolve(__dirname, 'page.tsx'), 'utf8');
 
     expect(source.match(/loadTabSpecificData\(activeTab, true\)/g)).toHaveLength(2);
+    expect(source).toContain('activeTab,\n    activePaginationKey,');
+    expect(source).toContain('onChange={handleFiltersChange}');
+    expect(source).not.toContain('prevFiltersRef');
     expect(source).toContain('if (currentSeq !== requestSeqRef.current) return;');
     expect(source).toContain('if (currentSeq === requestSeqRef.current)');
     expect(source).not.toContain('loadTabSpecificData(activeTab, false)');
