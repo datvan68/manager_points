@@ -12,6 +12,7 @@ import {
   ReportKpi,
   ChartDatum
 } from './report-types';
+import { AcademicRecordStudentGroup } from '@/api/academic-record-api';
 import { format } from 'date-fns';
 
 // Helper to safely extract ID from an entity which could be string or object
@@ -28,6 +29,51 @@ export function resolveStudent(studentIdField: any, studentsList: any[]): any {
   }
   const idStr = getEntityId(studentIdField);
   return studentsList.find(s => s._id === idStr);
+}
+
+export function mapAcademicRecordStudentGroup(
+  group: AcademicRecordStudentGroup,
+  studentsList: any[] = [],
+  classesList: any[] = [],
+  departmentsList: any[] = []
+) {
+  const latestRecord = group.latestRecord;
+  const student = resolveStudent(latestRecord?.student_id, studentsList) || {};
+  const classId = getEntityId(student.class_id);
+  const cls = classesList.find(item => item._id === classId);
+  const departmentId = getEntityId(cls?.dept_id);
+  const criterion = latestRecord?.criterion_id;
+  const effect = latestRecord?.points_effect ?? latestRecord?.effectivePoints ?? 0;
+  const title = latestRecord?.record_title || 'Ghi nhận rèn luyện';
+  const titleLower = title.toLowerCase();
+  const latestType: AcademicRecordReportRow['type'] =
+    criterion?.criterion_type ||
+    (titleLower.includes('kỷ luật') || titleLower.includes('vi phạm') || effect < 0
+      ? 'ky_luat'
+      : titleLower.includes('khen thưởng') || titleLower.includes('giải thưởng') || titleLower.includes('xuất sắc')
+        ? 'khen_thuong'
+        : effect > 0 ? 'cong_diem' : 'khac');
+  const recordedBy = latestRecord?.recorded_by;
+
+  return {
+    key: group.studentId,
+    _id: group.studentId,
+    student_code: student.student_code || 'Chưa xác định',
+    full_name: student.full_name || 'Chưa xác định',
+    class_name: cls?.class_name || student.class_id?.class_name || 'Chưa xác định',
+    department_name: departmentsList.find(item => item._id === departmentId)?.name || 'Chưa xác định',
+    record_count: group.recordCount,
+    reward_count: group.recordTypeCounts?.khen_thuong || 0,
+    bonus_count: group.recordTypeCounts?.cong_diem || 0,
+    discipline_count: group.recordTypeCounts?.ky_luat || 0,
+    total_points: group.totalPoints || 0,
+    latest_record_title: title,
+    latest_record_at: safeFormatDate(latestRecord?.recorded_at || latestRecord?.date_record || latestRecord?.createdAt),
+    latest_record_type: latestType,
+    latest_recorded_by: typeof recordedBy === 'object'
+      ? recordedBy?.full_name || recordedBy?.user_name || 'Quản trị viên'
+      : recordedBy ? String(recordedBy) : 'Hệ thống'
+  };
 }
 
 // Safely format date strings
@@ -106,7 +152,7 @@ export function processReportsData(
   dataset: ReportsDataset,
   filters: ReportFilterState
 ) {
-  const { students, classes, departments, semesters, summaries, evaluationDetails, categories, criteria, academicRecords, dailyReports, tasks, taskProgress, notifications, loginLogs } = dataset;
+  const { students, classes, departments, semesters, summaries, evaluationDetails, categories, criteria, academicRecords, academicRecordGroups = [], dailyReports, tasks, taskProgress, notifications, loginLogs } = dataset;
 
   // Helper maps for faster lookup
   const deptMap = new Map(departments.map(d => [d._id, d.name]));
@@ -355,6 +401,10 @@ export function processReportsData(
       status: translateStatus(rec.status || 'active')
     };
   });
+
+  const recordSummaryRows = academicRecordGroups
+    .map(group => mapAcademicRecordStudentGroup(group, students, classes, departments))
+    .sort((a, b) => b.record_count - a.record_count);
 
   // 5. FILTER ATTENDANCE REPORTS (Daily Class Reports)
   const filteredAttendance = dailyReports.filter(rep => {
@@ -662,6 +712,7 @@ export function processReportsData(
       scores: scoreRows,
       scoreDetails: scoreDetailRows,
       records: recordRows,
+      recordSummaries: recordSummaryRows,
       attendance: attendanceRows,
       tasks: taskRows,
       taskProgress: taskProgressRows,

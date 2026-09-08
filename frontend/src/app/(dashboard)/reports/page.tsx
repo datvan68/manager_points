@@ -94,6 +94,7 @@ export default function ReportsPage() {
     categories: [],
     criteria: [],
     academicRecords: [],
+    academicRecordGroups: [],
     dailyReports: [],
     tasks: [],
     taskProgress: [],
@@ -251,7 +252,9 @@ export default function ReportsPage() {
             limit: 10,
             semesterId: filters.semesterId,
             classId: filters.classId,
-            search: filters.searchQuery
+            search: filters.searchQuery,
+            startDate: filters.startDate,
+            endDate: filters.endDate
           }).catch(() => null),
           studentTaskApi.getTasks({ limit: 10 }).catch(() => ({ items: [], total: 0 }))
         ]);
@@ -351,9 +354,12 @@ export default function ReportsPage() {
         const recordsRes = await academicRecordApi.getAcademicRecords({
           page: recordPage,
           limit: recordLimit,
+          groupBy: 'student',
           semesterId: filters.semesterId,
           classId: filters.classId,
-          search: filters.searchQuery
+          search: filters.searchQuery,
+          startDate: filters.startDate,
+          endDate: filters.endDate
         }).catch(() => null);
 
         if (currentSeq !== requestSeqRef.current) return;
@@ -368,7 +374,7 @@ export default function ReportsPage() {
 
         setDataset(prev => ({
           ...prev,
-          academicRecords: recordsData
+          academicRecordGroups: recordsData
         }));
       }
 
@@ -616,6 +622,7 @@ export default function ReportsPage() {
     let fullSummaries = dataset.summaries;
     let fullDetails = dataset.evaluationDetails;
     let fullRecords = dataset.academicRecords;
+    let fullRecordGroups = dataset.academicRecordGroups;
     let fullDailyReports = dataset.dailyReports;
     let fullTasks = dataset.tasks;
     let fullProgress = dataset.taskProgress;
@@ -670,12 +677,30 @@ export default function ReportsPage() {
 
       if (target === 'record' || target === 'all') {
         toast.info('Đang tải đầy đủ dữ liệu ghi nhận...');
-        fullRecords = await fetchAllPagesForExport<any>(
+        if (target === 'all') {
+          fullRecords = await fetchAllPagesForExport<any>(
+            academicRecordApi.getAcademicRecords,
+            {
+              semesterId: filters.semesterId,
+              classId: filters.classId,
+              search: filters.searchQuery,
+              startDate: filters.startDate,
+              endDate: filters.endDate
+            },
+            EXPORT_PAGE_SIZE,
+            MAX_EXPORT_ROWS_PER_SHEET,
+            'Ghi nhận chi tiết'
+          );
+        }
+        fullRecordGroups = await fetchAllPagesForExport<any>(
           academicRecordApi.getAcademicRecords,
           {
+            groupBy: 'student',
             semesterId: filters.semesterId,
             classId: filters.classId,
-            search: filters.searchQuery
+            search: filters.searchQuery,
+            startDate: filters.startDate,
+            endDate: filters.endDate
           },
           EXPORT_PAGE_SIZE,
           MAX_EXPORT_ROWS_PER_SHEET,
@@ -770,6 +795,7 @@ export default function ReportsPage() {
         summaries: fullSummaries,
         evaluationDetails: fullDetails,
         academicRecords: fullRecords,
+        academicRecordGroups: fullRecordGroups,
         dailyReports: fullDailyReports,
         tasks: fullTasks,
         taskProgress: fullProgress,
@@ -875,17 +901,15 @@ export default function ReportsPage() {
   ];
 
   const recordCols: ColumnConfig[] = [
-    { key: 'recorded_at', header: 'Ngày ghi nhận', width: 15 },
     { key: 'student_code', header: 'Mã SV', width: 15 },
     { key: 'full_name', header: 'Họ tên', width: 25 },
     { key: 'class_name', header: 'Lớp', width: 15 },
     { key: 'department_name', header: 'Khoa', width: 20 },
-    { key: 'type', header: 'Loại ghi nhận', width: 15 },
-    { key: 'record_title', header: 'Tiêu đề', width: 30 },
-    { key: 'description', header: 'Chi tiết', width: 40 },
-    { key: 'points_effect', header: 'Điểm tác động', type: 'number', width: 15 },
-    { key: 'recorded_by', header: 'Người ghi nhận', width: 20 },
-    { key: 'status', header: 'Trạng thái', width: 15 }
+    { key: 'record_count', header: 'Số lượt', type: 'number', width: 12 },
+    { key: 'reward_count', header: 'Khen thưởng', type: 'number', width: 15 },
+    { key: 'bonus_count', header: 'Cộng điểm', type: 'number', width: 12 },
+    { key: 'discipline_count', header: 'Kỷ luật', type: 'number', width: 12 },
+    { key: 'total_points', header: 'Tổng điểm tác động', type: 'number', width: 18 }
   ];
 
   const attendanceCols: ColumnConfig[] = [
@@ -996,8 +1020,8 @@ export default function ReportsPage() {
       await reportExportHelper.appendJsonSheet(workbook, 'Chi tiết tiêu chí', exportProcessed.tables.scoreDetails, scoreDetailCols);
       await reportExportHelper.writeWorkbook(workbook, `Bao_cao_Chi_tiet_tieu_chi_${timestamp}.xlsx`);
     } else if (tab === 'record') {
-      if (exportProcessed.tables.records.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
-      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhận rèn luyện', exportProcessed.tables.records, recordCols);
+      if (exportProcessed.tables.recordSummaries.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
+      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhận rèn luyện', exportProcessed.tables.recordSummaries, recordCols);
       await reportExportHelper.writeWorkbook(workbook, `Bao_cao_Ghi_nhan_${timestamp}.xlsx`);
     } else if (tab === 'attendance') {
       if (exportProcessed.tables.attendance.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
@@ -1063,7 +1087,7 @@ export default function ReportsPage() {
       { 'Trường thông tin': 'Số dòng [Sinh viên]', 'Giá trị áp dụng': exportProcessed.tables.students.length.toString() },
       { 'Trường thông tin': 'Số dòng [Điểm rèn luyện]', 'Giá trị áp dụng': exportProcessed.tables.scores.length.toString() },
       { 'Trường thông tin': 'Số dòng [Chi tiết tiêu chí]', 'Giá trị áp dụng': exportProcessed.tables.scoreDetails.length.toString() },
-      { 'Trường thông tin': 'Số dòng [Ghi nhận]', 'Giá trị áp dụng': exportProcessed.tables.records.length.toString() },
+      { 'Trường thông tin': 'Số dòng [Ghi nhận]', 'Giá trị áp dụng': exportProcessed.tables.recordSummaries.length.toString() },
       { 'Trường thông tin': 'Số dòng [Chuyên cần]', 'Giá trị áp dụng': exportProcessed.tables.attendance.length.toString() },
       { 'Trường thông tin': 'Số dòng [Nhiệm vụ]', 'Giá trị áp dụng': exportProcessed.tables.tasks.length.toString() },
       { 'Trường thông tin': 'Số dòng [Tiến độ nhiệm vụ]', 'Giá trị áp dụng': exportProcessed.tables.taskProgress.length.toString() }
@@ -1105,8 +1129,8 @@ export default function ReportsPage() {
       await reportExportHelper.appendJsonSheet(workbook, 'Chi tiet tieu chi', exportProcessed.tables.scoreDetails, scoreDetailCols);
     }
     // 4. Record sheet
-    if (exportProcessed.tables.records.length > 0) {
-      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhan', exportProcessed.tables.records, recordCols);
+    if (exportProcessed.tables.recordSummaries.length > 0) {
+      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhan', exportProcessed.tables.recordSummaries, recordCols);
     }
     // 5. Attendance sheet
     if (exportProcessed.tables.attendance.length > 0) {
@@ -1274,7 +1298,7 @@ export default function ReportsPage() {
 
             {activeTab === 'record' && (
               <AcademicRecordReportTab
-                data={processed.tables.records}
+                data={processed.tables.recordSummaries}
                 isLoading={isTabLoading['record']}
                 onExport={() => handleExportSingleTab('record')}
                 serverSide={true}

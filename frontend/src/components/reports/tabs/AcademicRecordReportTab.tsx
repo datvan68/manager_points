@@ -2,10 +2,11 @@
 
 import React from 'react';
 import ReportTable, { TableColumn } from '../ReportTable';
-import { AcademicRecordReportRow } from '../report-types';
+import { AcademicRecordStudentSummaryRow } from '../report-types';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface AcademicRecordReportTabProps {
-  data: AcademicRecordReportRow[];
+  data: AcademicRecordStudentSummaryRow[];
   isLoading: boolean;
   onExport: () => void;
   serverSide?: boolean;
@@ -16,54 +17,44 @@ interface AcademicRecordReportTabProps {
   onPageSizeChange?: (size: number) => void;
 }
 
+function DetailCell({ row }: { row: AcademicRecordStudentSummaryRow }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="rounded-lg border border-[#1A73E8]/20 bg-[#1A73E8]/5 px-2.5 py-1 text-[11px] font-bold text-[#1A73E8] hover:bg-[#1A73E8]/10"
+        >
+          Chi tiết
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end" className="w-64 p-3 text-xs" showCloseButton>
+        <h4 className="mb-2 pr-5 font-bold text-[#1E293B]">Chi tiết ghi nhận</h4>
+        <div className="space-y-1.5 text-[#475569]">
+          <p><span className="font-semibold">Tổng lượt:</span> {row.record_count} lần</p>
+          <p><span className="font-semibold">Khen thưởng:</span> {row.reward_count}</p>
+          <p><span className="font-semibold">Cộng điểm:</span> {row.bonus_count}</p>
+          <p><span className="font-semibold">Kỷ luật:</span> {row.discipline_count}</p>
+          <p><span className="font-semibold">Tổng điểm:</span> {row.total_points}</p>
+          <p><span className="font-semibold">Gần nhất:</span> {row.latest_record_title}</p>
+          <p><span className="font-semibold">Ngày:</span> {row.latest_record_at}</p>
+          <p><span className="font-semibold">Người ghi:</span> {row.latest_recorded_by}</p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const columns: TableColumn[] = [
-  { key: 'recorded_at', header: 'Ngày ghi nhận' },
   { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
   { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
   { key: 'class_name', header: 'Lớp' },
-  { 
-    key: 'type', 
-    header: 'Phân loại',
-    render: (val: string) => {
-      const config: Record<string, { label: string; style: string }> = {
-        'ky_luat': { label: 'Kỷ luật', style: 'bg-rose-500/10 border border-rose-500/20 text-rose-700' },
-        'khen_thuong': { label: 'Khen thưởng', style: 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600' },
-        'cong_diem': { label: 'Cộng điểm', style: 'bg-blue-500/10 border border-blue-500/20 text-[#1A73E8]' },
-        'khac': { label: 'Khác', style: 'bg-white/50 border border-white/70 text-[#64748B]' }
-      };
-      const item = config[val] || config.khac;
-      return (
-        <span className={`inline-block px-2.5 py-0.5 rounded-xl text-[11px] font-bold ${item.style}`}>
-          {item.label}
-        </span>
-      );
-    }
-  },
-  { key: 'record_title', header: 'Tiêu đề ghi nhận', className: 'max-w-[200px] truncate' },
-  { key: 'description', header: 'Mô tả', className: 'max-w-[250px] truncate text-[#64748B] font-medium' },
-  { 
-    key: 'points_effect', 
-    header: 'Điểm RL',
-    className: 'text-center font-black text-[13px]',
-    render: (val: number) => {
-      if (val > 0) return <span className="text-[#1A73E8]">+{val}</span>;
-      if (val < 0) return <span className="text-rose-600">{val}</span>;
-      return <span className="text-[#64748B]">0</span>;
-    }
-  },
-  { key: 'recorded_by', header: 'Người ghi' },
-  { 
-    key: 'status', 
-    header: 'Trạng thái',
-    render: (val: string) => {
-      const isAct = val === 'Hoạt động';
-      return (
-        <span className={`font-black ${isAct ? 'text-emerald-600' : 'text-[#64748B]'}`}>
-          {val}
-        </span>
-      );
-    }
-  }
+  { key: 'record_count', header: 'Số lượt', className: 'text-[11px]', render: (val: number) => <span>{val} lần</span> },
+  { key: 'reward_count', header: 'Khen thưởng' },
+  { key: 'bonus_count', header: 'Cộng điểm' },
+  { key: 'discipline_count', header: 'Kỷ luật' },
+  { key: 'total_points', header: 'Tổng điểm', className: 'font-black' },
+  { key: 'detail', header: 'Chi tiết', render: (_value: unknown, row: AcademicRecordStudentSummaryRow) => <DetailCell row={row} /> }
 ];
 
 export default function AcademicRecordReportTab({
@@ -78,15 +69,15 @@ export default function AcademicRecordReportTab({
   onPageSizeChange
 }: AcademicRecordReportTabProps) {
   return (
-    <div className="p-6">
+    <div className="p-6 text-xs">
       <ReportTable
-        title="Danh sách Ghi nhận Rèn luyện"
+        title="Tổng hợp Ghi nhận sinh viên"
         columns={columns}
         data={data}
         isLoading={isLoading}
         onExportExcel={onExport}
-        label="ghi nhận"
-        emptyMessage="Không tìm thấy ghi nhận rèn luyện nào khớp với bộ lọc."
+        label="sinh viên"
+        emptyMessage="Không tìm thấy sinh viên có ghi nhận nào khớp với bộ lọc."
         serverSide={serverSide}
         totalItems={totalItems}
         currentPage={currentPage}
