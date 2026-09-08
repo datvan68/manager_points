@@ -3,8 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import AcademicRecordReportTab from './AcademicRecordReportTab';
 
 const getAcademicRecords = vi.fn();
+const markFollowUp = vi.fn();
 vi.mock('@/api/academic-record-api', () => ({
-  academicRecordApi: { getAcademicRecords: (...args: unknown[]) => getAcademicRecords(...args) },
+  academicRecordApi: {
+    getAcademicRecords: (...args: unknown[]) => getAcademicRecords(...args),
+    markFollowUp: (...args: unknown[]) => markFollowUp(...args),
+  },
 }));
 
 const row = {
@@ -12,6 +16,7 @@ const row = {
   class_name: 'K TP1', department_name: 'CNTT', record_count: 3, reward_count: 1,
   bonus_count: 1, discipline_count: 1, total_points: -1, latest_record_title: 'Cảnh cáo',
   latest_record_at: '07/09/2026', latest_record_type: 'ky_luat' as const,
+  follow_up_status: 'unhandled' as const, new_record_count: 0,
 };
 
 describe('AcademicRecordReportTab', () => {
@@ -58,5 +63,31 @@ describe('AcademicRecordReportTab', () => {
     expect(screen.queryByText('Không tìm thấy sinh viên có ghi nhận nào khớp với bộ lọc.')).not.toBeInTheDocument();
     rerender(<AcademicRecordReportTab data={[]} isLoading={false} onExport={vi.fn()} />);
     expect(screen.getAllByText(/Không tìm thấy sinh viên có ghi nhận nào khớp với bộ lọc/).length).toBeGreaterThan(0);
+  });
+
+  it('shows all follow-up states and refreshes only after a successful confirmation', async () => {
+    markFollowUp.mockResolvedValueOnce({ success: true });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { rerender } = render(
+      <AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />,
+    );
+    expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
+    rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'settled', new_record_count: 0 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
+    expect(screen.getAllByText('Đã xử lý').length).toBeGreaterThan(0);
+    rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'new', new_record_count: 1 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
+    expect(screen.getAllByText('Có ghi nhận mới').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Đã xử lý' }).at(-1)!);
+    await waitFor(() => expect(markFollowUp).toHaveBeenCalledWith('student-1', 'semester-1'));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('retains the row state and shows an error when handling fails', async () => {
+    markFollowUp.mockRejectedValueOnce(new Error('stale'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Đã xử lý' }).at(-1)!);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không thể cập nhật trạng thái xử lý');
+    expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
   });
 });

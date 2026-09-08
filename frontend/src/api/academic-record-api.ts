@@ -46,6 +46,9 @@ export interface AcademicRecordStudentGroup {
   recordTypeCounts: Record<'khen_thuong' | 'cong_diem' | 'ky_luat', number>;
   recordTypes: Array<'khen_thuong' | 'cong_diem' | 'ky_luat'>;
   totalPoints: number;
+  followUpStatus?: 'unhandled' | 'settled' | 'new';
+  newRecordCount?: number;
+  followUp?: { handledAt?: string; handledBy?: any };
 }
 
 export interface PaginatedAcademicRecordStudentGroups {
@@ -158,6 +161,7 @@ export const academicRecordApi = {
     creator?: string;
     departmentId?: string;
     status?: string;
+    followUpStatus?: 'unhandled' | 'settled' | 'new';
   }): Promise<
     | AcademicRecord[]
     | PaginatedAcademicRecords
@@ -289,6 +293,28 @@ export const academicRecordApi = {
       },
     });
     return handleResponse<AcademicRecord>(res);
+  },
+
+  async markFollowUp(studentId: string, semesterId: string, note?: string): Promise<any> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/follow-up/${studentId}?semesterId=${encodeURIComponent(semesterId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(note ? { note } : {}),
+    });
+    return handleResponse<any>(res);
+  },
+
+  async resetFollowUp(studentId: string, semesterId: string): Promise<any> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/follow-up/${studentId}?semesterId=${encodeURIComponent(semesterId)}`, {
+      method: 'DELETE',
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    return handleResponse<any>(res);
   },
 
   async bulkDeleteAcademicRecords(ids: string[]): Promise<BulkDeleteAcademicRecordsResult> {

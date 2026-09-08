@@ -117,6 +117,7 @@ export default function ReportsPage() {
   const [recordPage, setRecordPage] = useState(1);
   const [recordLimit, setRecordLimit] = useState(10);
   const [recordTotal, setRecordTotal] = useState(0);
+  const [followUpStatus, setFollowUpStatus] = useState<'all' | 'unhandled' | 'settled' | 'new'>('all');
 
   const [attendancePage, setAttendancePage] = useState(1);
   const [attendanceLimit, setAttendanceLimit] = useState(10);
@@ -272,7 +273,8 @@ export default function ReportsPage() {
             status: filters.status,
             search: filters.searchQuery,
             startDate: filters.startDate,
-            endDate: filters.endDate
+            endDate: filters.endDate,
+            followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus
           }).catch(() => null),
           studentTaskApi.getTasks({ limit: 10 }).catch(() => ({ items: [], total: 0 }))
         ]);
@@ -389,7 +391,8 @@ export default function ReportsPage() {
           status: filters.status,
           search: filters.searchQuery,
           startDate: filters.startDate,
-          endDate: filters.endDate
+          endDate: filters.endDate,
+          followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus
         }).catch(() => null);
 
         if (currentSeq !== requestSeqRef.current) return;
@@ -529,12 +532,14 @@ export default function ReportsPage() {
     filters.startDate,
     filters.endDate,
     filters.searchQuery,
-    filters.status
+    filters.status,
+    followUpStatus
   ]);
 
   const handleFiltersChange = (nextFilters: ReportFilterState) => {
     setStudentPage(1);
     setRecordPage(1);
+    setFollowUpStatus('all');
     setAttendancePage(1);
     setScorePage(1);
     setScoreDetailsPage(1);
@@ -1319,6 +1324,10 @@ export default function ReportsPage() {
                 pageSize={recordLimit}
                 onPageChange={setRecordPage}
                 onPageSizeChange={setRecordLimit}
+                followUpStatus={followUpStatus}
+                onFollowUpStatusChange={(status) => { setFollowUpStatus(status); setRecordPage(1); }}
+                semesterId={filters.semesterId}
+                onRefresh={() => loadTabSpecificData('record', true)}
                 detailQuery={{
                   semesterId: filters.semesterId,
                   classId: filters.classId,

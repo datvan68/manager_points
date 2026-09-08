@@ -16,6 +16,7 @@ import {
 import { IntentScoreDto } from './dto/intent-score.dto';
 import { Types } from 'mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AcademicRecordFollowUpService } from './academic-record-follow-up.service';
 
 const guardsFor = (method: string) =>
   (Reflect.getMetadata('__guards__', AcademicRecordController.prototype[method]) ||
@@ -37,6 +38,10 @@ describe('AcademicRecordController - Import Flow', () => {
     forceRemove: jest.fn(),
     previewBulkRemove: jest.fn(),
   };
+  const mockFollowUpService = {
+    markHandled: jest.fn(),
+    reset: jest.fn(),
+  };
 
   beforeEach(async () => {
     testingModule = await Test.createTestingModule({
@@ -45,6 +50,10 @@ describe('AcademicRecordController - Import Flow', () => {
         {
           provide: AcademicRecordService,
           useValue: mockAcademicRecordService,
+        },
+        {
+          provide: AcademicRecordFollowUpService,
+          useValue: mockFollowUpService,
         },
       ],
     }).compile();
@@ -59,6 +68,15 @@ describe('AcademicRecordController - Import Flow', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('forwards the guarded follow-up mark and reset requests with semester scope', async () => {
+    const req = { user: { userId: 'user-1' } };
+    const dto = { note: 'Đã kiểm tra' };
+    await controller.markFollowUp('student-1', 'semester-1', dto, req);
+    await controller.resetFollowUp('student-1', 'semester-1', req);
+    expect(mockFollowUpService.markHandled).toHaveBeenCalledWith('student-1', 'semester-1', dto, req.user);
+    expect(mockFollowUpService.reset).toHaveBeenCalledWith('student-1', 'semester-1', req.user);
   });
 
   describe('importPreview', () => {

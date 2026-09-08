@@ -68,6 +68,12 @@ export function mapAcademicRecordStudentGroup(
     latest_record_title: title,
     latest_record_at: safeFormatDate(latestRecord?.recorded_at || latestRecord?.date_record || latestRecord?.createdAt),
     latest_record_type: latestType,
+    follow_up_status: group.followUpStatus || 'unhandled',
+    new_record_count: group.newRecordCount || 0,
+    handled_at: group.followUp?.handledAt,
+    handled_by: typeof group.followUp?.handledBy === 'object'
+      ? (group.followUp.handledBy?.user_name || group.followUp.handledBy?.full_name || group.followUp.handledBy?.username)
+      : group.followUp?.handledBy,
   };
 }
 

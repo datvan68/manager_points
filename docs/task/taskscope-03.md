@@ -3,10 +3,10 @@ slot_id: "taskscope-03"
 generation: 1
 task_id: "20260908-161612-track-student-record-follow-up"
 scope_file: "docs/task/taskscope-03.md"
-status: ready
-scope_revision: 1
+status: blocked
+scope_revision: 2
 created_at: "2026-09-08T16:16:12+07:00"
-updated_at: "2026-09-08T16:16:12+07:00"
+updated_at: "2026-09-08T16:36:00+07:00"
 base_commit: "0196739d26562f88b284197ea904f0988b74e444"
 task: "Track follow-up status for students with academic records"
 pipeline: feature_development
@@ -19,13 +19,34 @@ coordination:
   warnings:
     - "docs/task/taskscope.md is an unmigrated zero-byte legacy file; slot 00 remains reserved and untouched."
     - "This adds persistent follow-up state and an additive API contract; independent persistence/API compatibility review is required before completion."
-completion:
+    - "Implementation and focused checks are complete, but no independent reviewer is available in this execution context; V-04 runtime verification is also pending until non-production frontend/API/database/queue/integration isolation is proven."
+  completion:
   completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
-  cleanup_pending: []
+  outcome: "partial: implementation and code verification complete; blocked by required independent review and runtime isolation evidence"
+  final_commit_or_state: "working tree contains the scoped uncommitted implementation; no commit or push performed"
+  changed_paths:
+    - "backend/src/academic-record/schemas/academic-record-follow-up.schema.ts"
+    - "backend/src/academic-record/dto/mark-academic-record-follow-up.dto.ts"
+    - "backend/src/academic-record/academic-record-follow-up.service.ts"
+    - "backend/src/academic-record/academic-record-follow-up.service.spec.ts"
+    - "backend/src/academic-record/academic-record.module.ts"
+    - "backend/src/academic-record/academic-record.controller.ts"
+    - "backend/src/academic-record/academic-record.controller.spec.ts"
+    - "backend/src/academic-record/academic-record.service.ts"
+    - "backend/src/academic-record/academic-record.service.spec.ts"
+    - "frontend/src/api/academic-record-api.ts"
+    - "frontend/src/components/reports/report-types.ts"
+    - "frontend/src/components/reports/report-helpers.ts"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.test.tsx"
+    - "frontend/src/app/(dashboard)/reports/page.tsx"
+  checks_passed:
+    - "V-01: focused backend follow-up/controller/service tests passed (3 suites, 119 passed, 2 todo)."
+    - "V-02: focused frontend report-helper/tab tests passed (2 suites, 6 passed)."
+    - "V-03: backend build and frontend typecheck passed."
+    - "V-05 partial: git diff --check passed; independent review and runtime evidence remain pending."
+  cleanup_pending:
+    - "V-04 dev UI/API scenario and any task-created dev data cleanup were not started because isolation evidence is unavailable."
 evidence:
   current_behavior: "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx renders only student identity, counts and points. backend/src/academic-record/academic-record.service.ts:findAll groups active records by student and returns latestRecord/recordCount, but neither layer stores or compares a staff handling checkpoint; latest_record_at is mapped but not displayed as workflow state."
   expected_behavior: "Each student-semester row has an explicit unhandled, handled-without-new-records, or handled-with-new-records state, backed by an auditable server-created checkpoint and filterable from the report."

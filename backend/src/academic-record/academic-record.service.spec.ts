@@ -18,6 +18,7 @@ import { normalizeObjectId } from './academic-record.utils';
 import { ScoreEngineService } from './score-engine.service';
 import { CountResolutionService } from './count-resolution.service';
 import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
+import { AcademicRecordFollowUp } from './schemas/academic-record-follow-up.schema';
 
 describe('AcademicRecordService - Import Flow', () => {
   let service: AcademicRecordService;
@@ -83,6 +84,9 @@ describe('AcademicRecordService - Import Flow', () => {
   const mockSemesterModel: any = {
     find: jest.fn(),
   };
+  const mockFollowUpModel: any = {
+    collection: { name: 'academicrecordfollowups' },
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -113,6 +117,10 @@ describe('AcademicRecordService - Import Flow', () => {
           useValue: mockEvaluationPeriodModel,
         },
         {
+          provide: getModelToken(AcademicRecordFollowUp.name),
+          useValue: mockFollowUpModel,
+        },
+        {
           provide: SummariesPointService,
           useValue: mockSummariesPointService,
         },
@@ -127,6 +135,12 @@ describe('AcademicRecordService - Import Flow', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('rejects unsupported grouped follow-up filters before querying records', async () => {
+    await expect(service.findAll({ groupBy: 'student', followUpStatus: 'pending' as any }))
+      .rejects.toThrow('followUpStatus không hợp lệ');
+    expect(mockAcademicRecordModel.aggregate).not.toHaveBeenCalled();
   });
 
   describe('previewBulkRemove', () => {
@@ -873,6 +887,8 @@ describe('AcademicRecordService - Import Flow', () => {
             studentId: studentId.toString(),
             latestRecord,
             recordCount: 3,
+            followUpStatus: 'unhandled',
+            newRecordCount: 0,
             recordTypeCounts: {
               khen_thuong: 1,
               cong_diem: 2,

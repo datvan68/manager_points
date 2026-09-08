@@ -23,6 +23,9 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
 import { Class, ClassSchema } from '../classes/schemas/class.schema';
 import { SummariesPointModule } from '../summaries-point/summaries-point.module';
 import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/schemas/evaluation-period.schema';
+import { Semester, SemesterSchema } from '../semesters/schemas/semester.schema';
+import { AcademicRecordFollowUp, AcademicRecordFollowUpSchema } from './schemas/academic-record-follow-up.schema';
+import { AcademicRecordFollowUpService } from './academic-record-follow-up.service';
 
 @Module({
   imports: [
@@ -34,6 +37,8 @@ import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/
       { name: Student.name, schema: StudentSchema },
       { name: Class.name, schema: ClassSchema },
       { name: EvaluationPeriod.name, schema: EvaluationPeriodSchema },
+      { name: Semester.name, schema: SemesterSchema },
+      { name: AcademicRecordFollowUp.name, schema: AcademicRecordFollowUpSchema },
     ]),
   ],
   controllers: [AcademicRecordController],
@@ -43,12 +48,14 @@ import { EvaluationPeriod, EvaluationPeriodSchema } from '../evaluation-periods/
     CountResolutionService,
     ProjectionService,
     ProjectionListener,
+    AcademicRecordFollowUpService,
   ],
   exports: [
     AcademicRecordService,
     ScoreEngineService,
     CountResolutionService,
     ProjectionService,
+    AcademicRecordFollowUpService,
   ],
 })
 export class AcademicRecordModule {}

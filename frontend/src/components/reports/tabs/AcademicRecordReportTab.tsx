@@ -25,6 +25,10 @@ interface AcademicRecordReportTabProps {
   pageSize?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
+  followUpStatus?: 'all' | 'unhandled' | 'settled' | 'new';
+  onFollowUpStatusChange?: (status: 'all' | 'unhandled' | 'settled' | 'new') => void;
+  semesterId?: string;
+  onRefresh?: () => Promise<void> | void;
   detailQuery?: {
     semesterId?: string;
     classId?: string;
@@ -72,11 +76,17 @@ export default function AcademicRecordReportTab({
   onPageChange,
   onPageSizeChange,
   detailQuery,
+  followUpStatus = 'all',
+  onFollowUpStatusChange,
+  semesterId,
+  onRefresh,
 }: AcademicRecordReportTabProps) {
   const [selection, setSelection] = useState<{ row: AcademicRecordStudentSummaryRow; category: RecordCategory } | null>(null);
   const [detailRecords, setDetailRecords] = useState<AcademicRecord[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [followUpError, setFollowUpError] = useState('');
+  const [handlingStudentId, setHandlingStudentId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const detailSemesterId = detailQuery?.semesterId;
   const detailClassId = detailQuery?.classId;
@@ -114,6 +124,27 @@ export default function AcademicRecordReportTab({
     setSelection({ row, category });
   };
 
+  const handleFollowUp = async (row: AcademicRecordStudentSummaryRow) => {
+    if (!semesterId || handlingStudentId) return;
+    if (!window.confirm(`Xác nhận đã xử lý ghi nhận của ${row.full_name}?`)) return;
+    setFollowUpError('');
+    setHandlingStudentId(row._id);
+    try {
+      await academicRecordApi.markFollowUp(row._id, semesterId);
+      await onRefresh?.();
+    } catch {
+      setFollowUpError('Không thể cập nhật trạng thái xử lý. Vui lòng thử lại.');
+    } finally {
+      setHandlingStudentId(null);
+    }
+  };
+
+  const followUpLabels = {
+    unhandled: 'Chưa xử lý',
+    settled: 'Đã xử lý',
+    new: 'Có ghi nhận mới',
+  } as const;
+
   const columns: TableColumn[] = [
     { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
     { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
@@ -123,11 +154,34 @@ export default function AcademicRecordReportTab({
     { key: 'bonus_count', header: 'Cộng điểm', render: (value: number, row: AcademicRecordStudentSummaryRow) => <CategoryButton label="Cộng điểm" count={value} onClick={() => openCategory(row, 'cong_diem')} /> },
     { key: 'discipline_count', header: 'Kỷ luật', render: (value: number, row: AcademicRecordStudentSummaryRow) => <CategoryButton label="Kỷ luật" count={value} onClick={() => openCategory(row, 'ky_luat')} /> },
     { key: 'total_points', header: 'Tổng điểm', className: 'font-black' },
+    {
+      key: 'follow_up_status', header: 'Theo dõi', render: (_value: string, row: AcademicRecordStudentSummaryRow) => (
+        <div className="flex min-w-40 flex-col gap-1">
+          <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-bold ${row.follow_up_status === 'new' ? 'bg-amber-100 text-amber-800' : row.follow_up_status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+            {followUpLabels[row.follow_up_status]}
+          </span>
+          {row.new_record_count > 0 && <span className="text-[11px] font-semibold text-amber-700">+{row.new_record_count} ghi nhận mới</span>}
+          {row.handled_at && <span className="text-[10px] text-slate-500">Xử lý {new Date(row.handled_at).toLocaleString('vi-VN')}</span>}
+          <button type="button" className="w-fit rounded border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={!semesterId || handlingStudentId === row._id || row.follow_up_status === 'settled'} onClick={() => void handleFollowUp(row)}>
+            {handlingStudentId === row._id ? 'Đang xử lý...' : 'Đã xử lý'}
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
     <>
       <div className="p-6 text-xs">
+        <div className="mb-3 flex flex-wrap items-center gap-2" aria-label="Lọc trạng thái xử lý">
+          <span className="font-bold text-slate-700">Trạng thái xử lý:</span>
+          {(['all', 'unhandled', 'settled', 'new'] as const).map(status => (
+            <button key={status} type="button" onClick={() => onFollowUpStatusChange?.(status)} className={`rounded-full border px-3 py-1 font-semibold ${followUpStatus === status ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
+              {status === 'all' ? 'Tất cả' : followUpLabels[status]}
+            </button>
+          ))}
+        </div>
+        {followUpError && <p role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-2 font-semibold text-red-700">{followUpError}</p>}
         <ReportTable
           title="Tổng hợp Ghi nhận sinh viên"
           columns={columns}

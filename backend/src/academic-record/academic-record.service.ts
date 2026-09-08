@@ -56,6 +56,10 @@ import {
 import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
+import {
+  AcademicRecordFollowUp,
+  AcademicRecordFollowUpDocument,
+} from './schemas/academic-record-follow-up.schema';
 
 export interface AcademicRecordFindAllQuery {
   page?: number;
@@ -71,6 +75,7 @@ export interface AcademicRecordFindAllQuery {
   creator?: string;
   departmentId?: string;
   status?: string;
+  followUpStatus?: 'unhandled' | 'settled' | 'new';
 }
 
 export interface AcademicRecordMutationOptions {
@@ -97,6 +102,8 @@ export class AcademicRecordService {
     private readonly summariesPointService: SummariesPointService,
     private readonly scoreEngineService: ScoreEngineService,
     private readonly countResolutionService: CountResolutionService,
+    @InjectModel(AcademicRecordFollowUp.name)
+    private readonly followUpModel: Model<AcademicRecordFollowUpDocument>,
   ) {}
 
   private importSessions = new Map<string, any>();
@@ -1889,6 +1896,7 @@ export class AcademicRecordService {
     let studentStatus: string | undefined;
     let groupBy: 'student' | undefined;
     let sortBy: 'recordCount' | undefined;
+    let followUpStatus: 'unhandled' | 'settled' | 'new' | undefined;
     let actualRequester = requester;
 
     if (
@@ -1910,6 +1918,11 @@ export class AcademicRecordService {
       studentId = query.studentId;
       departmentId = query.departmentId;
       studentStatus = query.status;
+      followUpStatus = query.followUpStatus;
+    }
+
+    if (followUpStatus && !['unhandled', 'settled', 'new'].includes(followUpStatus)) {
+      throw new BadRequestException('followUpStatus không hợp lệ');
     }
 
     const isGroupedByStudent = groupBy === 'student';
@@ -2187,6 +2200,10 @@ export class AcademicRecordService {
       const l = limit && limit > 0 ? limit : 10;
       const criterionCollection =
         (this.criterionModel as any).collection?.name || 'criteria';
+      const followUpCollection =
+        (this.followUpModel as any).collection?.name || 'academicrecordfollowups';
+      const academicRecordCollection =
+        (this.academicRecordModel as any).collection?.name || 'academicrecords';
       const groupedResult = await this.academicRecordModel
         .aggregate([
           { $match: filter },
@@ -2289,6 +2306,82 @@ export class AcademicRecordService {
             },
           },
           {
+            $lookup: {
+              from: followUpCollection,
+              let: { studentId: '$_id' },
+              pipeline: semesterId
+                ? [{
+                    $match: {
+                      $expr: {
+                        $and: [
+                          { $eq: ['$student_id', '$$studentId'] },
+                          { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
+                        ],
+                      },
+                    },
+                  }]
+                : [{ $match: { _id: { $exists: false } } }],
+              as: 'followUp',
+            },
+          },
+          {
+            $lookup: {
+              from: academicRecordCollection,
+              let: {
+                studentId: '$_id',
+                checkpointDate: { $arrayElemAt: ['$followUp.handled_through_created_at', 0] },
+                checkpointId: { $arrayElemAt: ['$followUp.handled_through_record_id', 0] },
+              },
+              pipeline: semesterId
+                ? [{
+                    $match: {
+                      $expr: {
+                        $and: [
+                          { $ne: ['$$checkpointDate', null] },
+                          { $eq: ['$student_id', '$$studentId'] },
+                          { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
+                          { $eq: ['$status', 'active'] },
+                          { $ne: ['$is_deleted', true] },
+                          {
+                            $or: [
+                              { $gt: ['$createdAt', '$$checkpointDate'] },
+                              {
+                                $and: [
+                                  { $eq: ['$createdAt', '$$checkpointDate'] },
+                                  { $gt: ['$_id', '$$checkpointId'] },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  }]
+                : [{ $match: { _id: { $exists: false } } }],
+              as: 'newRecords',
+            },
+          },
+          {
+            $set: {
+              followUpStatus: {
+                $cond: [
+                  { $eq: [{ $size: '$followUp' }, 0] },
+                  'unhandled',
+                  {
+                    $cond: [
+                      { $gt: [{ $size: '$newRecords' }, 0] },
+                      'new',
+                      'settled',
+                    ],
+                  },
+                ],
+              },
+              newRecordCount: { $size: '$newRecords' },
+              followUp: { $arrayElemAt: ['$followUp', 0] },
+            },
+          },
+          ...(followUpStatus ? [{ $match: { followUpStatus } }] : []),
+          {
             $sort: sortBy === 'recordCount'
               ? {
                   recordCount: -1,
@@ -2349,6 +2442,16 @@ export class AcademicRecordService {
             studentId: group._id.toString(),
             latestRecord,
             recordCount: group.recordCount,
+            followUpStatus: group.followUpStatus || 'unhandled',
+            newRecordCount: Number(group.newRecordCount || 0),
+            ...(group.followUp
+              ? {
+                  followUp: {
+                    handledAt: group.followUp.handled_at,
+                    handledBy: group.followUp.handled_by,
+                  },
+                }
+              : {}),
             recordTypeCounts: group.recordTypeCounts || {
               khen_thuong: 0,
               cong_diem: 0,

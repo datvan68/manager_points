@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Patch,
   Param,
@@ -35,6 +36,8 @@ import { isAdminUser, isStudent } from '../auth/utils/role.util';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 import { BulkDeleteAcademicRecordDto } from './dto/bulk-delete-academic-record.dto';
 import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
+import { AcademicRecordFollowUpService } from './academic-record-follow-up.service';
+import { MarkAcademicRecordFollowUpDto } from './dto/mark-academic-record-follow-up.dto';
 
 function checkAcademicRecordReadAccess(): Type<CanActivate> {
   @Injectable()
@@ -92,7 +95,33 @@ function checkAcademicRecordSelfServiceOrPermission(
 @ApiTags('Academic Records')
 @Controller('academic-records')
 export class AcademicRecordController {
-  constructor(private readonly academicRecordService: AcademicRecordService) {}
+  constructor(
+    private readonly academicRecordService: AcademicRecordService,
+    private readonly followUpService: AcademicRecordFollowUpService,
+  ) {}
+
+  @Put('follow-up/:studentId')
+  @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  markFollowUp(
+    @Param('studentId') studentId: string,
+    @Query('semesterId') semesterId: string,
+    @Body() dto: MarkAcademicRecordFollowUpDto,
+    @Request() req: any,
+  ) {
+    return this.followUpService.markHandled(studentId, semesterId, dto, req.user);
+  }
+
+  @Delete('follow-up/:studentId')
+  @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  resetFollowUp(
+    @Param('studentId') studentId: string,
+    @Query('semesterId') semesterId: string,
+    @Request() req: any,
+  ) {
+    return this.followUpService.reset(studentId, semesterId, req.user);
+  }
 
   @Post()
   @UseGuards(checkPermission('CREATE_STUDENT_RECORD'))
@@ -200,24 +229,29 @@ export class AcademicRecordController {
     @Query('status') status?: string,
     @Query('groupBy') groupBy?: string,
     @Query('sortBy') sortBy?: string,
+    @Query('followUpStatus') followUpStatus?: string,
   ) {
     const requester = req.user;
+    const legacyGroupBy = groupBy || (departmentId === 'student' ? 'student' : undefined);
+    const effectiveDepartmentId = departmentId === 'student' && !groupBy ? undefined : departmentId;
+    const query: any = {
+      ...(page ? { page: parseInt(page, 10) } : {}),
+      ...(limit ? { limit: parseInt(limit, 10) } : {}),
+      ...(legacyGroupBy === 'student' ? { groupBy: 'student' } : {}),
+      ...(sortBy === 'recordCount' ? { sortBy: 'recordCount' } : {}),
+      ...(followUpStatus ? { followUpStatus } : {}),
+      ...(search ? { search } : {}),
+      ...(classId ? { classId } : {}),
+      ...(semesterId ? { semesterId } : {}),
+      ...(studentId ? { studentId } : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(creator ? { creator } : {}),
+      ...(effectiveDepartmentId ? { departmentId: effectiveDepartmentId } : {}),
+      ...(status ? { status } : {}),
+    };
     return this.academicRecordService.findAll(
-      {
-        page: page ? parseInt(page, 10) : undefined,
-        limit: limit ? parseInt(limit, 10) : undefined,
-        groupBy: groupBy === 'student' ? 'student' : undefined,
-        sortBy: sortBy === 'recordCount' ? 'recordCount' : undefined,
-        search,
-        classId,
-        semesterId,
-        studentId,
-        startDate,
-        endDate,
-        creator,
-        departmentId,
-        status,
-      },
+      query,
       requester,
     );
   }

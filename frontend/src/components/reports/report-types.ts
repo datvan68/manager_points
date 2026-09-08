@@ -125,6 +125,10 @@ export interface AcademicRecordStudentSummaryRow {
   latest_record_title: string;
   latest_record_at: string;
   latest_record_type: 'khen_thuong' | 'cong_diem' | 'ky_luat' | 'khac';
+  follow_up_status: 'unhandled' | 'settled' | 'new';
+  new_record_count: number;
+  handled_at?: string;
+  handled_by?: string;
 }
 
 export interface AttendanceReportRow {
