@@ -59,6 +59,8 @@ export interface StudentPersonalSpotlight {
 
 export interface DashboardMetrics {
   roleScope: 'admin' | 'teacher' | 'student' | 'system' | 'unknown';
+  highlightMode: 'staff' | 'personal' | 'hidden';
+  canReadStudentHighlights: boolean;
   activeSemester: Semester | null;
   activePeriod: EvaluationPeriod | null;
   
@@ -204,6 +206,12 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
 
   const role = (user?.roleCode || user?.roleName || user?.role || '').toUpperCase();
   const isSysAdmin = role === 'ADMIN' || (user?.permissions || []).includes('ADMIN_FULL');
+  const canReadStudentHighlights = isSysAdmin ||
+    ((role.includes('TEACHER') || role.includes('ADVISOR') || role.includes('SUPERVISOR') || role.includes('QUAN SINH')) &&
+      (user?.permissions || []).includes('READ_STUDENT_RECORD'));
+  const highlightMode: DashboardMetrics['highlightMode'] = role.includes('STUDENT') || role.includes('SINH VIEN') || role.includes('HOC SINH')
+    ? 'personal'
+    : canReadStudentHighlights ? 'staff' : 'hidden';
   
   let roleScope: 'admin' | 'teacher' | 'student' | 'system' | 'unknown' = 'unknown';
   if (isSysAdmin) {
@@ -736,6 +744,8 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
 
   return {
     roleScope,
+    highlightMode,
+    canReadStudentHighlights,
     activeSemester: activeSem,
     activePeriod,
     kpis: {

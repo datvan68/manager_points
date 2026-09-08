@@ -62,7 +62,7 @@ function HighlightRow({ item, compact }: { item: StudentHighlightItem; compact?:
 }
 
 export default function StudentSpotlightPanel({ metrics, refreshKey = '' }: StudentSpotlightPanelProps) {
-  const { roleScope, studentHighlights } = metrics;
+  const { roleScope, highlightMode, studentHighlights } = metrics;
   const router = useRouter();
 
   // Handle navigation
@@ -90,12 +90,12 @@ export default function StudentSpotlightPanel({ metrics, refreshKey = '' }: Stud
   };
 
   const semesterId = metrics.activeSemester?._id || undefined;
-  const scopeKey = `${roleScope}:${semesterId || 'none'}:${refreshKey}`;
+  const scopeKey = `${highlightMode}:${roleScope}:${semesterId || 'none'}:${refreshKey}`;
   const [categories, setCategories] = useState<Record<CategoryId, CategoryState>>({ discipline: emptyCategory(), rewards: emptyCategory(), bonus: emptyCategory() });
   const requestsRef = useRef(new Map<CategoryId, Promise<void>>());
   const loadCategory = useCallback(async (id: CategoryId, reset = false) => {
     const current = categories[id];
-    if (!semesterId || roleScope === 'student' || (!reset && (!current.hasMore || current.loading))) return;
+    if (!semesterId || highlightMode !== 'staff' || (!reset && (!current.hasMore || current.loading))) return;
     const existing = requestsRef.current.get(id);
     if (existing) return existing;
     const page = reset ? 1 : current.page + 1;
@@ -109,22 +109,24 @@ export default function StudentSpotlightPanel({ metrics, refreshKey = '' }: Stud
     }).catch(() => setCategories(prev => ({ ...prev, [id]: { ...prev[id], loading: false, error: true } })));
     requestsRef.current.set(id, request);
     try { await request; } finally { requestsRef.current.delete(id); }
-  }, [categories, roleScope, semesterId]);
+  }, [categories, highlightMode, semesterId]);
 
   useEffect(() => {
-    if (roleScope === 'student') return;
+    if (highlightMode !== 'staff') return;
     setCategories({ discipline: emptyCategory(), rewards: emptyCategory(), bonus: emptyCategory() });
     requestsRef.current.clear();
-  }, [scopeKey, roleScope]);
+  }, [scopeKey, highlightMode]);
 
   useEffect(() => {
-    if (roleScope !== 'student' && semesterId) (['discipline', 'rewards', 'bonus'] as CategoryId[]).forEach(id => void loadCategory(id, true));
+    if (highlightMode === 'staff' && semesterId) (['discipline', 'rewards', 'bonus'] as CategoryId[]).forEach(id => void loadCategory(id, true));
   // Metrics identity represents refresh and semester changes; reset all three lists together.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey]);
 
   // Render Student Personal Spotlight
-  if (roleScope === 'student') {
+  if (highlightMode === 'hidden') return null;
+
+  if (highlightMode === 'personal') {
     const spotlight = studentHighlights.mySpotlight;
     if (!spotlight) {
       return (

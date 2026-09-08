@@ -64,7 +64,7 @@ export class SystemController {
   }
 
   @Get('student-highlights')
-  @Permissions()
+  @Permissions('READ_STUDENT_RECORD')
   getStudentHighlights(
     @Query() query: GetStudentHighlightsQueryDto,
     @Req() req: AuthenticatedRequest,

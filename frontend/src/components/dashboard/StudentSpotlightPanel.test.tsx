@@ -11,6 +11,8 @@ describe('Student spotlight pagination and virtualization contract', () => {
     expect(source).toContain('new Set(prior.map(item => item.studentId))');
     expect(source).toContain('hasMore');
     expect(source).toContain('category.error && category.items.length > 0');
+    expect(source).toContain("highlightMode !== 'staff'");
+    expect(source).toContain("if (highlightMode === 'hidden') return null;");
   });
 
   it('uses bounded variable-height virtualization for both layouts', () => {

@@ -76,6 +76,12 @@ describe('dashboard spotlight quantity aggregation', () => {
     expect(metrics.kpis.pendingMyReviewCount).toBe(0);
   });
 
+  it('separates staff highlight access from generic dashboard role scope', () => {
+    expect(buildDashboardOverview(makeConfig([], { id: 'sup', roleCode: 'SUPERVISOR', permissions: ['READ_STUDENT_RECORD'] })).highlightMode).toBe('staff');
+    expect(buildDashboardOverview(makeConfig([], { id: 'sup', roleCode: 'SUPERVISOR', permissions: [] })).highlightMode).toBe('hidden');
+    expect(buildDashboardOverview(makeConfig([], { id: 'unknown', roleCode: 'UNKNOWN', permissions: ['READ_STUDENT_RECORD'] })).highlightMode).toBe('hidden');
+  });
+
   it('keeps discipline first and exposes the requested table/KPI labels', () => {
     expect(panelSource).toContain('md:grid-cols-3');
     expect(panelSource).toContain('PopoverContent');

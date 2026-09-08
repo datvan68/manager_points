@@ -46,6 +46,7 @@ import {
   resolvePreviewSubject, 
   getPreviewPermissions, 
   buildSystemPreviewAccess,
+  buildStudentHighlightsPreview,
   getPagePreviewScope,
   type PreviewSubject,
   type PreviewPermissionItem,
@@ -2290,6 +2291,7 @@ function PermissionsPageContent() {
                   });
                   const previewPermissions = getPreviewPermissions(subject);
                   const access = buildSystemPreviewAccess(previewPermissions, subject.role);
+                  const studentHighlightsPreview = buildStudentHighlightsPreview(previewPermissions, subject.role);
 
                   const {
                     isPreviewAdmin,
@@ -2539,6 +2541,26 @@ function PermissionsPageContent() {
                                       <p className="p-2 bg-slate-50 rounded">📢 Hệ thống HOCSINHSINHVIEN nâng cấp tính năng Xem trước phân quyền thành công.</p>
                                       <p className="p-2 bg-slate-50 rounded">📢 Lịch sao lưu cơ sở dữ liệu định kỳ tự động chạy vào 0h hàng ngày.</p>
                                     </div>
+                                  </div>
+
+                                  <div className="border border-blue-100 rounded-xl p-4 space-y-3 bg-blue-50/30" data-testid="student-highlights-preview">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div>
+                                        <h5 className="text-[11px] font-bold text-slate-700">Ghi nhận sinh viên (mô phỏng)</h5>
+                                        <p className="text-[10px] text-slate-500 mt-1">Không tải dữ liệu sinh viên thật trong bản xem trước.</p>
+                                      </div>
+                                      <span className={`text-[9px] font-black px-2 py-1 rounded ${studentHighlightsPreview.allowed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                        {studentHighlightsPreview.allowed ? '✓ Cho phép' : '🔒 Bị khóa'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-600">Panel này liên kết với quyền <code className="font-mono font-bold">{studentHighlightsPreview.permissionCode}</code> — {studentHighlightsPreview.permissionName}.</p>
+                                    {studentHighlightsPreview.allowed ? (
+                                      <div className="grid grid-cols-3 gap-2">
+                                        {studentHighlightsPreview.categories.map(category => <div key={category.id} className="p-2 rounded-lg bg-white border border-blue-100 text-center"><span className="block text-[9px] font-bold text-slate-500">{category.label}</span><strong className="text-sm text-blue-700">{category.count}</strong></div>)}
+                                      </div>
+                                    ) : (
+                                      <p className="text-[10px] text-rose-700 font-semibold">Thiếu quyền {studentHighlightsPreview.permissionName}; panel staff và các yêu cầu danh sách sẽ không được hiển thị.</p>
+                                    )}
                                   </div>
                                 </div>
                               )}

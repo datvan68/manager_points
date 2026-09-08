@@ -3,6 +3,7 @@ import {
   resolvePreviewSubject, 
   getPreviewPermissions, 
   buildSystemPreviewAccess,
+  buildStudentHighlightsPreview,
   getPagePreviewScope
 } from './preview-permissions';
 
@@ -123,6 +124,14 @@ describe('Preview Permissions Helper Logic', () => {
       expect(access.showSystem).toBe(false);
       expect(access.showStudents).toBe(false);
       expect(access.previewCanReadLogs).toBe(false);
+      expect(access.previewCanReadStudentHighlights).toBe(false);
+    });
+
+    it('links staff highlights to READ_STUDENT_RECORD and preserves admin bypass', () => {
+      expect(buildStudentHighlightsPreview(['READ_STUDENT_RECORD'], mockRoles[1]).allowed).toBe(true);
+      expect(buildStudentHighlightsPreview([], mockRoles[1]).allowed).toBe(false);
+      expect(buildStudentHighlightsPreview([], mockRoles[0]).allowed).toBe(true);
+      expect(buildStudentHighlightsPreview([], mockRoles[1]).categories).toHaveLength(3);
     });
   });
 

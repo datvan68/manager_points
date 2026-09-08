@@ -281,6 +281,14 @@ describe('SystemService', () => {
     );
   });
 
+  it('rejects staff highlight reads without READ_STUDENT_RECORD before querying data', async () => {
+    const isolatedService = Object.create(SystemService.prototype) as SystemService;
+    await expect(isolatedService.getStudentHighlights(
+      { userId: mockUserId, roleName: 'Supervisor', permissions: [] },
+      { category: 'discipline', page: 1, limit: 20 } as any,
+    )).rejects.toThrow(ForbiddenException);
+  });
+
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, './system.service.ts'),

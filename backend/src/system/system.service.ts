@@ -2270,6 +2270,16 @@ export class SystemService {
       roleScope = 'system';
     }
 
+    const canReadStudentHighlights = isAdminUser(requester) || (
+      (isTeacher(requester) || isSupervisor(requester)) &&
+      (requester?.permissions || []).includes('READ_STUDENT_RECORD')
+    );
+    const highlightMode: 'staff' | 'personal' | 'hidden' = isStudent(requester)
+      ? 'personal'
+      : canReadStudentHighlights
+        ? 'staff'
+        : 'hidden';
+
     const semesters = (await semesterModel.find().lean().exec()) as any[];
     const activeSem =
       semesters.find((s) => s.status === 'active') ||
@@ -2700,7 +2710,7 @@ export class SystemService {
     let studentAttentionCount = 0;
     let mySpotlight: any = undefined;
 
-    if (targetSemesterId) {
+    if (targetSemesterId && (roleScope === 'student' || canReadStudentHighlights)) {
       if (roleScope === 'teacher') {
         recentAcademicRecords = await academicRecordModel.aggregate([
           {
@@ -3555,6 +3565,8 @@ export class SystemService {
 
     return {
       roleScope,
+      highlightMode,
+      canReadStudentHighlights,
       activeSemester: activeSem,
       activePeriod,
       systemData: {
@@ -3605,6 +3617,13 @@ export class SystemService {
   }
 
   async getStudentHighlights(requester: any, query: GetStudentHighlightsQueryDto) {
+    const canReadStaffHighlights = isAdminUser(requester) || (
+      (isTeacher(requester) || isSupervisor(requester)) &&
+      (requester?.permissions || []).includes('READ_STUDENT_RECORD')
+    );
+    if (!canReadStaffHighlights && !isStudent(requester)) {
+      throw new ForbiddenException('Bạn không có quyền xem ghi nhận sinh viên');
+    }
     const studentModel = this.connection.model('Student');
     const classModel = this.connection.model('Class');
     const semesterModel = this.connection.model('Semester');

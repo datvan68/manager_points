@@ -66,6 +66,7 @@ export function buildSystemPreviewAccess(permissions: string[], role: any) {
   const isPreviewAdmin = roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL');
   
   const hasPreviewPermission = (code: string) => isPreviewAdmin || permissions.includes(code);
+  const isStudentHighlightsStaff = roleCode === 'TEACHER' || roleCode === 'SUPERVISOR';
 
   return {
     isPreviewAdmin,
@@ -77,6 +78,7 @@ export function buildSystemPreviewAccess(permissions: string[], role: any) {
     ].some(code => permissions.includes(code)),
     showPermissions: hasPreviewPermission('admin') || hasPreviewPermission('ADMIN_FULL'),
     showReports: isPreviewAdmin || hasPreviewPermission('REPORTS_PAGE') || hasPreviewPermission('REPORTS_READ'),
+    previewCanReadStudentHighlights: isPreviewAdmin || (isStudentHighlightsStaff && hasPreviewPermission('READ_STUDENT_RECORD')),
     
     previewCanReadLogs: hasPreviewPermission("LOGIN_LOG_READ"),
     previewCanReadRequests: hasPreviewPermission("SYSTEM_REQUEST_READ"),
@@ -85,6 +87,20 @@ export function buildSystemPreviewAccess(permissions: string[], role: any) {
     previewCanCreateBackup: hasPreviewPermission("DATABASE_BACKUP_CREATE"),
     previewCanDownloadBackup: hasPreviewPermission("DATABASE_BACKUP_DOWNLOAD"),
     previewCanDeleteBackup: hasPreviewPermission("DATABASE_BACKUP_DELETE"),
+  };
+}
+
+export function buildStudentHighlightsPreview(permissions: string[], role: any) {
+  const access = buildSystemPreviewAccess(permissions, role);
+  return {
+    allowed: access.previewCanReadStudentHighlights,
+    permissionCode: 'READ_STUDENT_RECORD',
+    permissionName: 'Xem ghi nhận sinh viên',
+    categories: [
+      { id: 'discipline', label: 'Kỷ luật & Chú ý', count: 3 },
+      { id: 'rewards', label: 'Khen thưởng', count: 2 },
+      { id: 'bonus', label: 'Điểm cộng', count: 4 },
+    ],
   };
 }
 
