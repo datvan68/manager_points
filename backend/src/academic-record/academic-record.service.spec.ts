@@ -1268,6 +1268,86 @@ describe('AcademicRecordService - Import Flow', () => {
       const match = mockAcademicRecordModel.aggregate.mock.calls[0][0][0].$match;
       expect(match.student_id).toEqual({ $in: [studentId] });
     });
+
+    it('computes scoped discipline aggregates before pagination with a strict attention threshold', async () => {
+      const classId = new Types.ObjectId();
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const semesterId = new Types.ObjectId();
+      mockClassModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: classId }]),
+      });
+      mockStudentModel.find.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: studentId }]),
+      });
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([
+          {
+            data: [{ _id: studentId, latestRecordId, recordCount: 4 }],
+            meta: [{ total: 2 }],
+            aggregates: [{
+              totalStudents: 2,
+              disciplineOccurrences: 7,
+              attentionStudentCount: 1,
+            }],
+          },
+        ]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: latestRecordId }]),
+      });
+
+      const result = await service.findAll(
+        {
+          groupBy: 'student',
+          page: 2,
+          limit: 1,
+          semesterId: semesterId.toString(),
+          classId: classId.toString(),
+          status: 'Studying',
+        },
+        { roleName: 'Teacher', userId: new Types.ObjectId().toString() },
+      );
+
+      const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
+      expect(pipeline[0].$match).toEqual(expect.objectContaining({
+        status: 'active',
+        is_deleted: { $ne: true },
+        semester_id: semesterId,
+        student_id: { $in: [studentId] },
+      }));
+      const group = pipeline.find((stage: any) => stage.$group)?.$group;
+      expect(group.disciplineOccurrences).toEqual({
+        $sum: {
+          $cond: [
+            { $eq: ['$criterion.criterion_type', 'ky_luat'] },
+            { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } },
+            0,
+          ],
+        },
+      });
+      const facet = pipeline.find((stage: any) => stage.$facet)?.$facet;
+      expect(facet.data).toEqual([{ $skip: 1 }, { $limit: 1 }]);
+      expect(facet.aggregates).toEqual([{
+        $group: {
+          _id: null,
+          totalStudents: { $sum: 1 },
+          disciplineOccurrences: { $sum: '$disciplineOccurrences' },
+          attentionStudentCount: {
+            $sum: { $cond: [{ $gt: ['$disciplineOccurrences', 2] }, 1, 0] },
+          },
+        },
+      }]);
+      expect(result.meta).toEqual(expect.objectContaining({
+        total: 2,
+        totalStudents: 2,
+        disciplineOccurrences: 7,
+        attentionStudentCount: 1,
+      }));
+    });
   });
 
   describe('handleScoreIntent', () => {

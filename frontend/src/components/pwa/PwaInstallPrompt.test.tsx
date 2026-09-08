@@ -119,7 +119,7 @@ describe('PwaInstallPrompt', () => {
 
     render(<PwaInstallPrompt />)
 
-    expect(await screen.findByText(/Thêm vào Màn hình chính/)).toBeInTheDocument()
+    expect(await screen.findByRole('list', { name: 'Các bước cài đặt trên iOS' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cài đặt ứng dụng' })).not.toBeInTheDocument()
   })
 
@@ -130,7 +130,7 @@ describe('PwaInstallPrompt', () => {
     render(<PwaInstallPrompt />)
     fireEvent(window, new Event('hssv-pwa-install-request'))
 
-    expect(await screen.findByText(/Thêm vào Màn hình chính/)).toBeInTheDocument()
+    expect(await screen.findByRole('list', { name: 'Các bước cài đặt trên iOS' })).toBeInTheDocument()
   })
 
   it('does not show installation UI for a standalone application request', () => {
@@ -140,5 +140,62 @@ describe('PwaInstallPrompt', () => {
     fireEvent(window, new Event('hssv-pwa-install-request'))
 
     expect(screen.queryByLabelText('Cài đặt ứng dụng')).not.toBeInTheDocument()
+  })
+
+  it.each(['FBAV/500', 'Zalo/24', 'Instagram 300', 'TikTok/1', 'Android; wv)'])('guides unsupported in-app browser %s without a dead retry button', async (agent) => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(agent)
+    render(<PwaInstallPrompt />)
+    expect(await screen.findByText(/Nếu menu trong ứng dụng/)).toBeInTheDocument()
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+    expect(screen.getByRole('button', { name: 'Sao chép liên kết' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).not.toBeInTheDocument()
+  })
+
+  it('uses a real install prompt even in a browser identified as in-app', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone FBAV/500')
+    render(<PwaInstallPrompt />)
+    let installEvent: ReturnType<typeof dispatchInstallPrompt>
+    await act(async () => { installEvent = dispatchInstallPrompt() })
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+    await waitFor(() => expect(installEvent!.prompt).toHaveBeenCalledOnce())
+  })
+
+  it('keeps an unused install prompt available after closing the banner', async () => {
+    render(<PwaInstallPrompt />)
+    let installEvent: ReturnType<typeof dispatchInstallPrompt>
+    await act(async () => { installEvent = dispatchInstallPrompt() })
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng hướng dẫn cài đặt' }))
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+    await waitFor(() => expect(installEvent!.prompt).toHaveBeenCalledOnce())
+  })
+
+  it('recognizes an iPad using a desktop user agent', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 Macintosh Safari/605')
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, get: () => 0 })
+    vi.spyOn(navigator, 'maxTouchPoints', 'get').mockReturnValue(5)
+    render(<PwaInstallPrompt />)
+    expect(await screen.findByRole('list', { name: 'Các bước cài đặt trên iOS' })).toBeInTheDocument()
+  })
+
+  it('copies the public entry URL without private route parameters', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    window.history.replaceState({}, '', '/profile?token=example#private')
+    try {
+      render(<PwaInstallPrompt />)
+      fireEvent(window, new Event('hssv-pwa-install-request'))
+      fireEvent.click(screen.getByRole('button', { name: 'Sao chép liên kết' }))
+      expect(await screen.findByText('Đã sao chép liên kết.')).toBeInTheDocument()
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/`)
+    } finally { window.history.replaceState({}, '', '/') }
+  })
+
+  it('provides a selectable link when clipboard permission is denied', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } })
+    render(<PwaInstallPrompt />)
+    fireEvent(window, new Event('hssv-pwa-install-request'))
+    fireEvent.click(screen.getByRole('button', { name: 'Sao chép liên kết' }))
+    expect(await screen.findByRole('textbox', { name: 'Liên kết cài ứng dụng' })).toHaveValue(`${window.location.origin}/`)
   })
 })

@@ -623,7 +623,7 @@ export function processReportsData(
     {
       title: 'Cần xử lý',
       value: recordAggregates?.attentionStudentCount ?? 0,
-      description: 'Sinh viên có trên 3 lần kỷ luật',
+      description: 'Sinh viên có trên 2 lần kỷ luật',
       iconName: 'clipboard-check'
     }
   ];

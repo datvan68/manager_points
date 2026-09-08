@@ -1,20 +1,24 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Ellipsis, PlusSquare, Share } from 'lucide-react'
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-type InstallState = 'hidden' | 'ready' | 'requesting' | 'accepted' | 'ios' | 'dismissed' | 'error' | 'installed'
+type InstallState = 'hidden' | 'ready' | 'requesting' | 'accepted' | 'ios' | 'external' | 'dismissed' | 'error' | 'installed'
 const DISMISS_KEY = 'hssv-pwa-install-prompt-dismissed'
 
 function isStandalone() {
   const iosNavigator = navigator as Navigator & { standalone?: boolean }
   return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || iosNavigator.standalone)
 }
-function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) }
+function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) }
+// Detection is advisory: an actual install event always takes precedence.
+function isInAppBrowser() { return /FBAN|FBAV|Instagram|Zalo|TikTok|Bytedance|musical_ly|Line\/|; wv\)/i.test(navigator.userAgent) }
+function guidanceState(): InstallState { return isIOS() ? 'ios' : isInAppBrowser() ? 'external' : 'error' }
 function canRegisterServiceWorker() { return window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname) }
 
 export function PwaInstallPrompt() {
@@ -22,6 +26,8 @@ export function PwaInstallPrompt() {
   const installedRef = useRef(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [state, setState] = useState<InstallState>('hidden')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'manual'>('idle')
+  const [installUrl, setInstallUrl] = useState('')
 
   const clearTimeoutState = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -30,8 +36,10 @@ export function PwaInstallPrompt() {
 
   useEffect(() => {
     installedRef.current = isStandalone()
+    // Use the public entry point, without route parameters or fragments.
+    setInstallUrl(`${window.location.origin}/`)
     if (installedRef.current) setState('installed')
-    else if (window.localStorage.getItem(DISMISS_KEY) !== 'true' && isIOS()) setState('ios')
+    else if (window.localStorage.getItem(DISMISS_KEY) !== 'true' && (isIOS() || isInAppBrowser())) setState(guidanceState())
 
     if ('serviceWorker' in navigator && canRegisterServiceWorker()) {
       void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined)
@@ -50,9 +58,8 @@ export function PwaInstallPrompt() {
     }
     const onInstallRequest = () => {
       if (installedRef.current) return
-      if (isIOS()) { setState('ios'); return }
       const prompt = promptRef.current
-      if (!prompt) { setState('error'); return }
+      if (!prompt) { setState(guidanceState()); return }
       void install(prompt)
     }
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
@@ -68,13 +75,13 @@ export function PwaInstallPrompt() {
 
   const dismiss = () => {
     window.localStorage.setItem(DISMISS_KEY, 'true')
-    promptRef.current = null
     clearTimeoutState()
     setState('dismissed')
   }
 
   async function install(prompt = promptRef.current) {
-    if (!prompt) { setState('error'); return }
+    if (!prompt) { setState(guidanceState()); return }
+    promptRef.current = null
     try {
       setState('requesting')
       await prompt.prompt()
@@ -88,17 +95,27 @@ export function PwaInstallPrompt() {
     }
   }
 
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(installUrl)
+      setCopyState('copied')
+    } catch {
+      setCopyState('manual')
+    }
+  }
+
   if (state === 'hidden' || state === 'dismissed' || state === 'installed') return null
   const isIos = state === 'ios'
   const isBusy = state === 'requesting' || state === 'accepted'
   const copy = state === 'requesting' ? 'Đang mở hộp thoại cài đặt của trình duyệt…'
     : state === 'accepted' ? 'Đã xác nhận. Đang hoàn tất cài đặt; biểu tượng sẽ xuất hiện trên thiết bị.'
     : state === 'error' ? 'Chưa thể mở cài đặt. Hãy dùng menu của trình duyệt để cài ứng dụng.'
-    : isIos ? 'Trong Safari, nhấn Chia sẻ rồi chọn Thêm vào Màn hình chính.'
+    : state === 'external' ? 'Nếu menu trong ứng dụng không có mục cài đặt, hãy mở liên kết bằng Chrome hoặc trình duyệt ngoài có hỗ trợ cài ứng dụng.'
+    : isIos ? 'Nhấn Chia sẻ trong trình duyệt, rồi chọn Thêm vào Màn hình chính. Nếu không thấy mục này, hãy mở liên kết bằng Safari.'
     : 'Mở nhanh hơn từ biểu tượng ứng dụng trên màn hình chính hoặc máy tính.'
 
   return (
-    <aside aria-label="Cài đặt ứng dụng" className="fixed bottom-4 left-4 right-4 z-[70] mx-auto max-w-md rounded-2xl border border-white/70 bg-white/70 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
+    <aside aria-label="Cài đặt ứng dụng" className="fixed bottom-4 left-4 right-4 z-[70] mx-auto max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto rounded-2xl border border-white/70 bg-white/70 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[18px] font-semibold leading-6">Thêm HSSV vào thiết bị</p>
@@ -106,9 +123,26 @@ export function PwaInstallPrompt() {
         </div>
         {!isBusy && <button aria-label="Đóng hướng dẫn cài đặt" className="flex h-8 w-8 items-center justify-center rounded-xl text-lg text-[#64748B] transition-all duration-150 ease-out hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A73E8]" onClick={dismiss} type="button">×</button>}
       </div>
-      {!isIos && (
+      {isIos && (
+        <ol aria-label="Các bước cài đặt trên iOS" className="mt-3 space-y-2 text-sm">
+          <li className="flex items-center gap-2"><Share aria-hidden="true" className="h-5 w-5 shrink-0" />1. Mở menu trình duyệt và nhấn Chia sẻ.</li>
+          <li className="flex items-center gap-2"><PlusSquare aria-hidden="true" className="h-5 w-5 shrink-0" />2. Chọn Thêm vào Màn hình chính.</li>
+          <li className="flex items-center gap-2"><PlusSquare aria-hidden="true" className="h-5 w-5 shrink-0" />3. Bật Mở dưới dạng ứng dụng web nếu có, rồi nhấn Thêm.</li>
+        </ol>
+      )}
+      {(state === 'external' || isIos) && (
+        <p className="mt-3 text-sm"><Ellipsis aria-hidden="true" className="mr-1 inline h-5 w-5" />Nếu đang ở Facebook, Zalo hoặc ứng dụng khác: mở menu ⋯ → Mở bằng trình duyệt{isIos ? ' / Safari' : ''}. Nếu không có tùy chọn này, sao chép liên kết và dán vào {isIos ? 'Safari' : 'Chrome'}.</p>
+      )}
+      {(isIos || state === 'external' || state === 'error') && (
+        <div className="mt-3">
+          <button className="w-full rounded-xl border border-[#1A73E8] px-4 py-2.5 text-sm font-semibold text-[#1A73E8]" onClick={() => void copyLink()} type="button">Sao chép liên kết</button>
+          <p role="status" className="mt-1 text-sm">{copyState === 'copied' ? 'Đã sao chép liên kết.' : copyState === 'manual' ? 'Không thể sao chép tự động. Nhấn giữ hoặc chọn liên kết bên dưới để sao chép.' : ''}</p>
+          {copyState === 'manual' && <input aria-label="Liên kết cài ứng dụng" className="mt-1 w-full rounded border p-2 text-sm" readOnly value={installUrl} onFocus={(event) => event.currentTarget.select()} />}
+        </div>
+      )}
+      {(state === 'ready' || isBusy) && (
         <button className="mt-3 w-full rounded-xl bg-[#1A73E8] px-4 py-2.5 text-sm font-semibold text-white transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1A73E8] disabled:cursor-wait disabled:opacity-70" disabled={isBusy} onClick={() => void install()} type="button">
-          {state === 'error' ? 'Thử lại' : isBusy ? 'Đang cài đặt ứng dụng…' : 'Cài đặt ứng dụng'}
+          {isBusy ? 'Đang cài đặt ứng dụng…' : 'Cài đặt ứng dụng'}
         </button>
       )}
     </aside>

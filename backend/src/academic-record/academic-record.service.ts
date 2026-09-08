@@ -2315,7 +2315,7 @@ export class AcademicRecordService {
                   totalStudents: { $sum: 1 },
                   disciplineOccurrences: { $sum: '$disciplineOccurrences' },
                   attentionStudentCount: {
-                    $sum: { $cond: [{ $gt: ['$disciplineOccurrences', 3] }, 1, 0] },
+                    $sum: { $cond: [{ $gt: ['$disciplineOccurrences', 2] }, 1, 0] },
                   },
                 },
               }],
