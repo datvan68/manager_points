@@ -142,8 +142,31 @@ export default function AcademicRecordReportTab({
   const followUpLabels = {
     unhandled: 'Chưa xử lý',
     settled: 'Đã xử lý',
-    new: 'Có ghi nhận mới',
   } as const;
+
+  const renderFollowUpStatus = (row: AcademicRecordStudentSummaryRow) => (
+    <div className="flex min-w-32 flex-col gap-1">
+      <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-bold ${row.follow_up_status === 'new' ? 'bg-amber-100 text-amber-800' : row.follow_up_status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+        {row.follow_up_status === 'new' ? `${row.new_record_count} ghi nhận mới` : followUpLabels[row.follow_up_status]}
+      </span>
+      {row.handled_at && <span className="text-[10px] text-slate-500">Xử lý {new Date(row.handled_at).toLocaleString('vi-VN')}</span>}
+    </div>
+  );
+
+  const renderFollowUpAction = (row: AcademicRecordStudentSummaryRow) => {
+    const isPending = handlingStudentId === row._id;
+    const isDisabled = !semesterId || isPending || row.follow_up_status === 'settled';
+    return (
+      <button
+        type="button"
+        className="w-fit rounded border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-700 transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={isDisabled}
+        onClick={() => void handleFollowUp(row)}
+      >
+        {isPending ? 'Đang xử lý...' : 'Xử lý'}
+      </button>
+    );
+  };
 
   const columns: TableColumn[] = [
     { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
@@ -154,20 +177,8 @@ export default function AcademicRecordReportTab({
     { key: 'bonus_count', header: 'Cộng điểm', render: (value: number, row: AcademicRecordStudentSummaryRow) => <CategoryButton label="Cộng điểm" count={value} onClick={() => openCategory(row, 'cong_diem')} /> },
     { key: 'discipline_count', header: 'Kỷ luật', render: (value: number, row: AcademicRecordStudentSummaryRow) => <CategoryButton label="Kỷ luật" count={value} onClick={() => openCategory(row, 'ky_luat')} /> },
     { key: 'total_points', header: 'Tổng điểm', className: 'font-black' },
-    {
-      key: 'follow_up_status', header: 'Theo dõi', render: (_value: string, row: AcademicRecordStudentSummaryRow) => (
-        <div className="flex min-w-40 flex-col gap-1">
-          <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-bold ${row.follow_up_status === 'new' ? 'bg-amber-100 text-amber-800' : row.follow_up_status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-            {followUpLabels[row.follow_up_status]}
-          </span>
-          {row.new_record_count > 0 && <span className="text-[11px] font-semibold text-amber-700">+{row.new_record_count} ghi nhận mới</span>}
-          {row.handled_at && <span className="text-[10px] text-slate-500">Xử lý {new Date(row.handled_at).toLocaleString('vi-VN')}</span>}
-          <button type="button" className="w-fit rounded border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={!semesterId || handlingStudentId === row._id || row.follow_up_status === 'settled'} onClick={() => void handleFollowUp(row)}>
-            {handlingStudentId === row._id ? 'Đang xử lý...' : 'Đã xử lý'}
-          </button>
-        </div>
-      ),
-    },
+    { key: 'follow_up_status', header: 'Trạng thái', render: (_value: string, row: AcademicRecordStudentSummaryRow) => renderFollowUpStatus(row) },
+    { key: 'follow_up_action', header: 'Hành động', render: (_value: unknown, row: AcademicRecordStudentSummaryRow) => renderFollowUpAction(row) },
   ];
 
   return (
@@ -177,7 +188,7 @@ export default function AcademicRecordReportTab({
           <span className="font-bold text-slate-700">Trạng thái xử lý:</span>
           {(['all', 'unhandled', 'settled', 'new'] as const).map(status => (
             <button key={status} type="button" onClick={() => onFollowUpStatusChange?.(status)} className={`rounded-full border px-3 py-1 font-semibold ${followUpStatus === status ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
-              {status === 'all' ? 'Tất cả' : followUpLabels[status]}
+              {status === 'all' ? 'Tất cả' : status === 'new' ? 'Ghi nhận mới' : followUpLabels[status]}
             </button>
           ))}
         </div>

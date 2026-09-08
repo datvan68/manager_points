@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicRecordReportTab from './AcademicRecordReportTab';
 
 const getAcademicRecords = vi.fn();
@@ -20,6 +20,12 @@ const row = {
 };
 
 describe('AcademicRecordReportTab', () => {
+  beforeEach(() => {
+    getAcademicRecords.mockReset();
+    markFollowUp.mockReset();
+    vi.restoreAllMocks();
+  });
+
   it('opens category details from each count and removes the old detail column', async () => {
     getAcademicRecords.mockResolvedValueOnce([
       {
@@ -65,7 +71,35 @@ describe('AcademicRecordReportTab', () => {
     expect(screen.getAllByText(/Không tìm thấy sinh viên có ghi nhận nào khớp với bộ lọc/).length).toBeGreaterThan(0);
   });
 
-  it('shows all follow-up states and refreshes only after a successful confirmation', async () => {
+  it('renders separate status and action columns with exact follow-up states', () => {
+    render(
+      <AcademicRecordReportTab
+        data={[
+          row,
+          { ...row, key: 'student-2', _id: 'student-2', follow_up_status: 'settled', new_record_count: 0 },
+          { ...row, key: 'student-3', _id: 'student-3', follow_up_status: 'new', new_record_count: 1 },
+          { ...row, key: 'student-4', _id: 'student-4', follow_up_status: 'new', new_record_count: 3 },
+        ]}
+        isLoading={false}
+        onExport={vi.fn()}
+        semesterId="semester-1"
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: 'Trạng thái' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Hành động' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Theo dõi' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('Đã xử lý').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('1 ghi nhận mới').length).toBeGreaterThan(1);
+    expect(screen.getAllByText('3 ghi nhận mới').length).toBeGreaterThan(1);
+    expect(screen.getAllByRole('button', { name: 'Xử lý' })).toHaveLength(8);
+    const settledActions = screen.getAllByRole('button', { name: 'Xử lý' }).filter(button => button.hasAttribute('disabled'));
+    expect(settledActions.length).toBeGreaterThan(0);
+    expect(settledActions[0]).toHaveClass('disabled:opacity-50');
+  });
+
+  it('refreshes only after a successful confirmation and prevents duplicate handling', async () => {
     markFollowUp.mockResolvedValueOnce({ success: true });
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -76,9 +110,13 @@ describe('AcademicRecordReportTab', () => {
     rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'settled', new_record_count: 0 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
     expect(screen.getAllByText('Đã xử lý').length).toBeGreaterThan(0);
     rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'new', new_record_count: 1 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
-    expect(screen.getAllByText('Có ghi nhận mới').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Đã xử lý' }).at(-1)!);
+    expect(screen.getAllByText('1 ghi nhận mới').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
+    const pendingActions = screen.getAllByRole('button', { name: 'Đang xử lý...' });
+    expect(pendingActions[0]).toBeDisabled();
+    fireEvent.click(pendingActions[0]);
     await waitFor(() => expect(markFollowUp).toHaveBeenCalledWith('student-1', 'semester-1'));
+    expect(markFollowUp).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
   });
 
@@ -86,8 +124,19 @@ describe('AcademicRecordReportTab', () => {
     markFollowUp.mockRejectedValueOnce(new Error('stale'));
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" />);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Đã xử lý' }).at(-1)!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
     expect(await screen.findByRole('alert')).toHaveTextContent('Không thể cập nhật trạng thái xử lý');
     expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
+  });
+
+  it('does not submit or refresh when the action is cancelled', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onRefresh = vi.fn();
+    render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
+
+    expect(markFollowUp).not.toHaveBeenCalled();
+    expect(onRefresh).not.toHaveBeenCalled();
   });
 });
