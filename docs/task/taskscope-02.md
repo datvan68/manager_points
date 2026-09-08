@@ -3,9 +3,9 @@ generation: 3
 task_id: 20260907-140840-auth-session-reliability
 scope_file: docs/task/taskscope-02.md
 status: in_progress
-scope_revision: 2
+scope_revision: 3
 created_at: "2026-09-07T14:08:40+07:00"
-updated_at: "2026-09-07T07:24:31.225Z"
+updated_at: "2026-09-08T07:38:00+07:00"
 base_commit: f264f6e93b3d8f6b810ae86f004248e70de775aa
 task: Stabilize remembered sessions, device management and administrator quick-access sessions
 pipeline: feature_development
@@ -25,11 +25,19 @@ coordination:
       verification; do not modify its remaining source reservations.
 completion:
   completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
-  cleanup_pending: []
+  outcome: partial
+  final_commit_or_state: "HEAD 3103cb696004cf892eeb5e88d05b4f8f8411cb44; worktree has three scoped fixture/scope edits"
+  changed_paths:
+    - docs/task/taskscope-02.md
+    - frontend/src/api/auth-api.test.ts
+    - frontend/src/app/(dashboard)/permissions/impersonation-flow.test.tsx
+  checks_passed:
+    - "V-01: backend auth focused suite, 6 suites / 92 tests passed."
+    - "V-02: frontend auth/session/quick-access focused suite, 9 files / 68 tests passed."
+    - "V-03: frontend typecheck, backend build and git diff --check passed."
+  cleanup_pending:
+    - "V-04: verified-dev UI/API multi-context scenarios not run; dev service and target isolation were not established."
+    - "V-05: warm quick-access/refresh measurement and independent authentication review remain outstanding."
 evidence:
   current_behavior: >-
     AuthModule issues 15-minute JWTs; TokenService rolls remembered refresh expiry to 30 days and preserves
@@ -111,6 +119,7 @@ scope:
     - frontend/src/components/profile/ActiveSessionsSection.test.tsx
     - frontend/src/components/layout/Header.tsx
     - frontend/src/components/layout/Header.test.tsx
+    - frontend/src/app/(dashboard)/permissions/impersonation-flow.test.tsx
   preserve:
     - >-
       Existing roles, effective permissions, student/teacher routing, account validation, HttpOnly refresh cookies, API
@@ -229,6 +238,9 @@ execution:
     E-07 [AC-01..AC-10] Run verification below after reservations and dev targets are verified. Obtain independent
     review of session ownership, concurrent refresh, legacy compatibility and admin parent/child isolation; fix only
     scoped findings, rerun affected checks, retain the taskscope and report the final diff without commit/push.
+  - >-
+    E-08 [AC-07,AC-10] Keep the permissions quick-access regression fixture aligned with the existing
+    getPermissionPolicies API call so the complete frontend verification exercises the unchanged permissions surface.
 verification:
   - >-
     V-01 [AC-01,AC-04,AC-05,AC-06,AC-08,AC-09] npm --prefix backend test -- --runTestsByPath

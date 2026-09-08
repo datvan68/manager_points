@@ -9,6 +9,7 @@ const { apiMocks, authState, push, toastMocks } = vi.hoisted(() => ({
     getPermissionGroups: vi.fn(),
     getRoutePermissions: vi.fn(),
     getPagePermissionScopes: vi.fn(),
+    getPermissionPolicies: vi.fn(),
     createImpersonation: vi.fn(),
     cancelImpersonation: vi.fn(),
     terminateImpersonation: vi.fn(),
@@ -90,6 +91,7 @@ describe('permissions user impersonation action', () => {
     apiMocks.getPermissionGroups.mockResolvedValue([]);
     apiMocks.getRoutePermissions.mockResolvedValue([]);
     apiMocks.getPagePermissionScopes.mockResolvedValue([]);
+    apiMocks.getPermissionPolicies.mockResolvedValue([]);
     apiMocks.getClasses.mockResolvedValue([]);
     apiMocks.getAccessToken.mockReturnValue('admin-token');
     apiMocks.createImpersonation.mockResolvedValue({

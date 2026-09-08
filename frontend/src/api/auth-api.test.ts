@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { authApi, AuthApiError } from './auth-api';
+import { authApi, AuthApiError, tokenStorage } from './auth-api';
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
