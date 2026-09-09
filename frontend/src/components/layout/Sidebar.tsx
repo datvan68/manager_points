@@ -142,8 +142,10 @@ const Sidebar = () => {
     setIsCheckingDormitory(true);
     try {
       const response = await dormitoryApi.roster.getMine();
-      if (!response.has_dormitory_roster || !response.roster_entry) {
+      if (!response.has_dormitory_roster || !response.roster_entry?.room_id) {
         router.push('/access-denied');
+      } else {
+        router.push('/dormitory');
       }
     } catch (error: any) {
       console.error('Failed to resolve dormitory membership in sidebar:', error);
@@ -188,6 +190,7 @@ const Sidebar = () => {
 
           // KTX requires an explicit active route mapping for non-admin users.
           if (item.href === "/dormitory") {
+            if (isStudentUser) return true;
             const mapping = mappings.find(
               (m: any) =>
                 m.route_path === "/dormitory" &&

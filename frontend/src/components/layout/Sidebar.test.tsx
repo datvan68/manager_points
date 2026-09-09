@@ -248,7 +248,7 @@ describe('Sidebar Component', () => {
     render(<Sidebar />);
     await waitForSidebarItems();
 
-    expect(screen.queryByRole('link', { name: 'KTX' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'KTX' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'KTX' })).toBeInTheDocument();
   });
 
@@ -280,7 +280,7 @@ describe('Sidebar Component', () => {
       await Promise.resolve();
     });
 
-    expect(screen.queryByRole('link', { name: 'KTX' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'KTX' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'KTX' })).toBeInTheDocument();
 
     unmount();
@@ -475,9 +475,9 @@ describe('Sidebar Component', () => {
     expect(button).toBeDisabled();
     expect(dormitoryApi.roster.getMine).toHaveBeenCalledTimes(1);
 
-    resolveLookup({ has_dormitory_roster: true, roster_entry: { _id: 'roster-1' } });
+    resolveLookup({ has_dormitory_roster: true, roster_entry: { _id: 'roster-1', room_id: 'room-1' } });
     await waitForSidebarItems();
-    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerPush).toHaveBeenCalledWith('/dormitory');
     expect(button).not.toBeDisabled();
   });
 

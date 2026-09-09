@@ -301,6 +301,20 @@ export class InvoicesController {
     return this.invoicesService.getOverdueSummary();
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  findMine(@Query() query: any, @Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.invoicesService.findMine(req.user.userId, query);
+  }
+
+  @Get('me/:id')
+  @UseGuards(JwtAuthGuard)
+  findOneMine(@Param('id') id: string, @Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.invoicesService.findOneMine(id, req.user.userId);
+  }
+
   @Get(':id')
   @UseGuards(checkPermission('DORM_INVOICE_READ'))
   findOne(@Param('id') id: string) {

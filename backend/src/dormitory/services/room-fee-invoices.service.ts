@@ -559,6 +559,8 @@ export class RoomFeeInvoicesService {
     if (query.end_month) {
       filter.end_month = query.end_month;
     }
+    if ((query as any).roster_entry_id) filter.roster_entry_id = (query as any).roster_entry_id;
+    if ((query as any).student_id) filter.student_id = (query as any).student_id;
 
     if (query.status) {
       if (query.status === 'Chưa thu') {
@@ -644,6 +646,26 @@ export class RoomFeeInvoicesService {
       throw new NotFoundException(`Không tìm thấy hóa đơn phí phòng: ${id}`);
     }
 
+    return invoice;
+  }
+
+  private async resolveStudentRoster(userId: string): Promise<{ rosterId: string; studentId: string }> {
+    const entries: any[] = await this.rosterModel.find({ identity_state: 'LINKED', room_id: { $exists: true, $ne: null } })
+      .populate('student_id', '_id user_id status').sort({ createdAt: -1 }).exec();
+    const entry: any = entries.find((candidate: any) => String(candidate.student_id?.user_id || '') === String(userId) && candidate.student_id?.status === 'Studying');
+    if (!entry || !entry.student_id) throw new NotFoundException('Bạn chưa được xếp phòng KTX.');
+    return { rosterId: String(entry._id), studentId: String(entry.student_id._id) };
+  }
+
+  async findMine(userId: string, query: QueryRoomFeeInvoiceDto = {}) {
+    const identity = await this.resolveStudentRoster(userId);
+    return this.findAll({ ...query, room_id: undefined, search: undefined, roster_entry_id: identity.rosterId, student_id: identity.studentId } as any);
+  }
+
+  async findOneMine(id: string, userId: string) {
+    const identity = await this.resolveStudentRoster(userId);
+    const invoice: any = await this.findOne(id);
+    if (String(invoice.roster_entry_id?._id || invoice.roster_entry_id || '') !== identity.rosterId && String(invoice.student_id?._id || invoice.student_id || '') !== identity.studentId) throw new NotFoundException('Không tìm thấy hóa đơn.');
     return invoice;
   }
 

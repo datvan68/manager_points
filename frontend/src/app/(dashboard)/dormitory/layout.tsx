@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { RouteGuard } from '@/components/guards/RouteGuard';
@@ -16,7 +16,12 @@ const baseDormitoryTabs = [
 export default function DormitoryLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const isResidentStudent = user?.roleCode === 'STUDENT';
+
+  useEffect(() => {
+    if (isResidentStudent && pathname === '/dormitory/overview') router.replace('/dormitory/roster');
+  }, [isResidentStudent, pathname, router]);
 
   const canReadInvoices =
     hasPermission('DORM_INVOICE_READ') ||
@@ -24,6 +29,11 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
     hasPermission('ADMIN_FULL');
 
   const tabs = useMemo(() => {
+    if (isResidentStudent) return [
+      { id: 'registrations', href: '/dormitory/roster', label: 'Danh sách' },
+      { id: 'buildings', href: '/dormitory/buildings', label: 'Phòng' },
+      { id: 'invoices', href: '/dormitory/invoices', label: 'Hóa đơn' },
+    ];
     const list = [{ id: 'overview', href: '/dormitory/overview', label: 'Tổng quan' }];
     if (hasPermission('DORM_REG_READ')) {
       list.push({ id: 'registrations', href: '/dormitory/roster', label: 'Danh sách' });
@@ -38,7 +48,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
       list.push({ id: 'pdf-template', href: '/dormitory/pdf-template', label: 'PDF' });
     }
     return list;
-  }, [canReadInvoices, hasPermission]);
+  }, [canReadInvoices, hasPermission, isResidentStudent]);
 
   const activeTab = pathname?.startsWith('/dormitory/roster')
     ? 'registrations'
@@ -47,7 +57,7 @@ export default function DormitoryLayout({ children }: { children: React.ReactNod
     : tabs.find((tab) => pathname?.startsWith(tab.href))?.id || 'overview';
 
   return (
-    <RouteGuard requiredPermission="DORM_PAGE" fallbackPath="/">
+    <RouteGuard requiredPermission={isResidentStudent ? undefined : 'DORM_PAGE'} fallbackPath="/access-denied">
       <div className="flex-1 flex flex-col overflow-hidden">
       <TabNavigation
         tabs={tabs}

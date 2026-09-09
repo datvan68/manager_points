@@ -148,8 +148,10 @@ export function getDisplayStatus(status?: string, reviewStatus?: string): 'Chưa
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const isResidentStudent = user?.roleCode === 'STUDENT';
   const canReadInvoice =
+    isResidentStudent ||
     hasPermission('DORM_INVOICE_READ') ||
     hasPermission('admin') ||
     hasPermission('ADMIN_FULL');
@@ -219,6 +221,15 @@ export default function InvoicesPage() {
 
   // Sub-view: 'utility' (Thu điện nước) hoặc 'room_fee' (Thu phí phòng)
   const [activeSubView, setActiveSubView] = useState<'utility' | 'room_fee'>('utility');
+  const [residentRoomFees, setResidentRoomFees] = useState<any[]>([]);
+  const [residentRoomFeesError, setResidentRoomFeesError] = useState('');
+
+  useEffect(() => {
+    if (!isResidentStudent) return;
+    dormitoryApi.roomFeeInvoices.getMine()
+      .then((result) => setResidentRoomFees(result.data || []))
+      .catch((error: any) => setResidentRoomFeesError(error?.message || 'Không thể tải hóa đơn phí phòng.'));
+  }, [isResidentStudent]);
 
   // Mobile search expand state
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -492,7 +503,7 @@ export default function InvoicesPage() {
         if (filterMonth) params.billing_month = filterMonth;
         if (search) params.search = search;
 
-        const res = await dormitoryApi.invoices.getAll(params);
+        const res = isResidentStudent ? await dormitoryApi.invoices.getMine(params) : await dormitoryApi.invoices.getAll(params);
         if (invoiceRequestRef.current !== requestId) return;
         setInvoices(res.data || []);
         setMeta(res.meta);
@@ -513,13 +524,13 @@ export default function InvoicesPage() {
         }
       }
     },
-    [canReadInvoice, isCompact, filterStatus, filterMonth, search, page, pageSize],
+    [canReadInvoice, isCompact, filterStatus, filterMonth, search, page, pageSize, isResidentStudent],
   );
 
   // Realtime updates
   useDormitoryInvoicesRealtime({
     kind: 'utility',
-    enabled: canReadInvoice && activeSubView === 'utility',
+    enabled: canReadInvoice && !isResidentStudent && activeSubView === 'utility',
     onInvalidate: () => {
       void load(true);
     },
@@ -1175,6 +1186,19 @@ export default function InvoicesPage() {
       </button>
     </div>
   );
+
+  if (isResidentStudent) {
+    const rows = activeSubView === 'utility' ? invoices : residentRoomFees;
+    return <main className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        {(['utility', 'room_fee'] as const).map((view) => <button key={view} type="button" onClick={() => setActiveSubView(view)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${activeSubView === view ? 'bg-blue-600 text-white' : 'bg-white text-slate-600'}`}>{view === 'utility' ? 'Thu điện nước' : 'Thu phí phòng'}</button>)}
+      </div>
+      <section className="rounded-2xl bg-white/70 p-4 shadow-sm">
+        <h2 className="mb-3 text-base font-bold text-slate-800">{activeSubView === 'utility' ? 'Hóa đơn điện nước của phòng' : 'Hóa đơn phí phòng của bạn'}</h2>
+        {residentRoomFeesError && activeSubView === 'room_fee' ? <p className="text-sm text-red-600">{residentRoomFeesError}</p> : rows.length ? <div className="space-y-2">{rows.map((invoice: any) => <div key={invoice._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"><span className="font-semibold text-slate-700">{invoice.invoice_code}</span><span>{formatBillingMonth(invoice.billing_month, invoice.billing_period) || `${invoice.start_month || ''} - ${invoice.end_month || ''}`}</span><span>{formatMoney(invoice.total_amount)}</span><span>{getDisplayStatus(invoice.status, invoice.payment_review?.status)}</span></div>)}</div> : <p className="text-sm text-slate-500">Chưa có hóa đơn.</p>}
+      </section>
+    </main>;
+  }
 
   if (!canReadInvoice) {
     return (

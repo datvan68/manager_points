@@ -93,6 +93,8 @@ export interface SelfDormitoryRosterResponse {
   history: Array<Pick<DormitoryRosterEntry, '_id' | 'roster_entry_code' | 'semester' | 'academic_year' | 'createdAt'>>;
   editable_fields?: string[];
 }
+export interface ResidentRoomResponse { room: Room; beds: Bed[]; }
+export interface ResidentRoommate { _id: string; full_name: string; student_code?: string; bed_id?: Pick<Bed, '_id' | 'bed_code' | 'position' | 'status'> | null; is_room_leader?: boolean; }
 
 export interface CreateDormitoryRosterEntryInput {
   student_id?: string;
@@ -730,6 +732,10 @@ export const dormitoryApi = {
       const res = await httpClient(`${API_BASE}/dormitory/rooms${buildQuery(params)}`);
       return handleResponse(res);
     },
+    async getMine(): Promise<ResidentRoomResponse> {
+      const res = await httpClient(`${API_BASE}/dormitory/rooms/me`);
+      return handleResponse(res);
+    },
     async getOne(id: string): Promise<Room> {
       const res = await httpClient(`${API_BASE}/dormitory/rooms/${id}`);
       return handleResponse(res);
@@ -794,6 +800,10 @@ export const dormitoryApi = {
   roster: {
     async getMine(): Promise<SelfDormitoryRosterResponse> {
       const res = await httpClient(`${API_BASE}/dormitory/roster/me`);
+      return handleResponse(res);
+    },
+    async getMineRoommates(): Promise<{ data: ResidentRoommate[] }> {
+      const res = await httpClient(`${API_BASE}/dormitory/roster/me/roommates`);
       return handleResponse(res);
     },
     async getByStudent(studentId: string): Promise<SelfDormitoryRosterResponse> {
@@ -955,6 +965,14 @@ export const dormitoryApi = {
     },
     async getAll(params?: QueryParams): Promise<PaginatedResponse<DormInvoice>> {
       const res = await httpClient(`${API_BASE}/dormitory/invoices${buildQuery(params)}`);
+      return handleResponse(res);
+    },
+    async getMine(params?: QueryParams): Promise<PaginatedResponse<DormInvoice>> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/me${buildQuery(params)}`);
+      return handleResponse(res);
+    },
+    async getMineOne(id: string): Promise<DormInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/invoices/me/${id}`);
       return handleResponse(res);
     },
     async getOne(id: string): Promise<DormInvoice> {
@@ -1194,6 +1212,14 @@ export const dormitoryApi = {
       const res = await httpClient(
         `${API_BASE}/dormitory/room-fee-invoices${buildQuery(params)}`,
       );
+      return handleResponse(res);
+    },
+    async getMine(params?: QueryParams): Promise<PaginatedResponse<RoomFeeInvoice>> {
+      const res = await httpClient(`${API_BASE}/dormitory/room-fee-invoices/me${buildQuery(params)}`);
+      return handleResponse(res);
+    },
+    async getMineOne(id: string): Promise<RoomFeeInvoice> {
+      const res = await httpClient(`${API_BASE}/dormitory/room-fee-invoices/me/${id}`);
       return handleResponse(res);
     },
     async getOne(id: string): Promise<RoomFeeInvoice> {

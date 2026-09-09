@@ -688,6 +688,16 @@ export class DormitoryRosterService {
     return this.findByStudentId(String(student._id), { userId, roleCode: 'STUDENT' });
   }
 
+  async findMineRoommates(userId: string) {
+    const student: any = await this.studentModel.findOne({ user_id: userId, status: 'Studying' }).exec();
+    if (!student) throw new ForbiddenException('Không tìm thấy hồ sơ sinh viên liên kết');
+    const own: any = await this.rosterModel.findOne({ student_id: student._id, identity_state: 'LINKED', room_id: { $exists: true, $ne: null } }).sort({ createdAt: -1 }).exec();
+    if (!own) throw new NotFoundException('Bạn chưa được xếp phòng KTX.');
+    const rows: any[] = await this.rosterModel.find({ room_id: own.room_id, identity_state: 'LINKED', student_id: { $exists: true, $ne: null } })
+      .populate('student_id', 'student_code full_name').populate('bed_id', 'bed_code position status').sort({ createdAt: 1 }).exec();
+    return { data: rows.map((row: any) => ({ _id: row._id, full_name: row.student_id?.full_name || row.full_name, student_code: row.student_id?.student_code || row.student_code, bed_id: row.bed_id ? { _id: row.bed_id._id, bed_code: row.bed_id.bed_code, position: row.bed_id.position, status: row.bed_id.status } : null, is_room_leader: Boolean(row.is_room_leader) })) };
+  }
+
   async updateMine(userId: string, dto: Record<string, unknown>) {
     const own: any = await this.findMine(userId);
     if (!own.roster_entry) throw new NotFoundException('Chưa có mục Danh sách KTX.');

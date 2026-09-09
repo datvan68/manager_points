@@ -81,7 +81,8 @@ const mergeUnique = (current: Room[], incoming: Room[]) => {
 };
 
 export default function BuildingsPage() {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const isResidentStudent = user?.roleCode === 'STUDENT';
   const canCreateRoom = hasPermission('DORM_ROOM_CREATE');
   const canUpdateRoom = hasPermission('DORM_ROOM_UPDATE');
   const canDeleteRoom = hasPermission('DORM_ROOM_DELETE');
@@ -147,10 +148,9 @@ export default function BuildingsPage() {
     try {
       if (background) setRefreshing(true); else setLoading(true);
       setError('');
-      const [roomResult, buildingResult] = await Promise.all([
-        dormitoryApi.rooms.getAll({ search: search.trim() || undefined, page: requestedPage, limit: pageSize }),
-        dormitoryApi.buildings.getAll({ limit: 100 }),
-      ]);
+      const [roomResult, buildingResult] = isResidentStudent
+        ? [{ data: [(await dormitoryApi.rooms.getMine()).room], meta: { total: 1, totalPages: 1 } }, { data: [] }]
+        : await Promise.all([dormitoryApi.rooms.getAll({ search: search.trim() || undefined, page: requestedPage, limit: pageSize }), dormitoryApi.buildings.getAll({ limit: 100 })]);
       if (roomsRequestRef.current !== requestId) return;
       setRooms(roomResult.data);
       setMeta(roomResult.meta);
@@ -166,7 +166,7 @@ export default function BuildingsPage() {
     } finally {
       if (roomsRequestRef.current === requestId) { setLoading(false); setRefreshing(false); }
     }
-  }, [isCompact, page, pageSize, search]);
+  }, [isCompact, page, pageSize, search, isResidentStudent]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 200);

@@ -258,9 +258,10 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
 }
 
 export default function DormitoryRosterPage() {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const isResidentStudent = user?.roleCode === 'STUDENT';
   const canCreate = hasPermission('DORM_REG_CREATE');
-  const canView = hasPermission('DORM_REG_READ');
+  const canView = isResidentStudent || hasPermission('DORM_REG_READ');
   const canUpdate = hasPermission('DORM_REG_UPDATE');
   const canDelete = hasPermission('DORM_REG_DELETE');
   const canAssignRoom = hasPermission('DORM_REG_UPDATE') && hasPermission('DORM_ROOM_READ');
@@ -287,11 +288,11 @@ export default function DormitoryRosterPage() {
 
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
   useEffect(() => {
-    if (!canView) return;
+    if (!canView || isResidentStudent) return;
     let cancelled = false;
     void dormitoryApi.roster.getRoomOptions().then(options => { if (!cancelled) setRoomOptions(options); }).catch(() => { if (!cancelled) setRoomOptions([]); });
     return () => { cancelled = true; };
-  }, [canView]);
+  }, [canView, isResidentStudent]);
   const loadPdfPreview = async (targets: DormitoryRosterEntry[]) => {
     if (pdfLoading || !targets.length) return;
     if (pdfUrl) { URL.revokeObjectURL(pdfUrl); setPdfUrl(''); }
@@ -382,7 +383,9 @@ export default function DormitoryRosterPage() {
     const requested = isCompact ? 1 : requestedPage;
     try {
       background ? setRefreshing(true) : setLoading(true); setError('');
-      const res = await dormitoryApi.roster.getAll({ search: search.trim() || undefined, room_id: roomFilter || undefined, page: requested, limit: pageSize });
+      const res = isResidentStudent
+        ? { data: (await dormitoryApi.roster.getMineRoommates()).data as any, meta: { total: 0, totalPages: 1 } }
+        : await dormitoryApi.roster.getAll({ search: search.trim() || undefined, room_id: roomFilter || undefined, page: requested, limit: pageSize });
       if (rosterRequestRef.current !== requestId) return;
       setRegistrations(res.data); setMeta(res.meta); mobilePageRef.current = requested;
       const hasMore = isCompact && requested < res.meta.totalPages;
@@ -390,7 +393,7 @@ export default function DormitoryRosterPage() {
     } catch (err: any) {
       if (rosterRequestRef.current === requestId) { setError(err?.message || 'Không thể tải Danh sách KTX.'); toast.error(err?.message || 'Lỗi tải Danh sách KTX'); }
     } finally { if (rosterRequestRef.current === requestId) { setLoading(false); setRefreshing(false); } }
-  }, [isCompact, page, pageSize, search, roomFilter]);
+  }, [isCompact, page, pageSize, search, roomFilter, isResidentStudent]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 200); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => {
     queryGenerationRef.current += 1; mobilePageRef.current = 1; mobileHasMoreRef.current = true; setMobileHasMore(true); setMobileLoadError(false);

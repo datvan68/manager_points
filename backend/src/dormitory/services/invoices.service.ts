@@ -553,6 +553,25 @@ export class InvoicesService {
     return invoice;
   }
 
+  private async resolveStudentRoom(userId: string): Promise<string> {
+    const entries: any[] = await this.rosterModel.find({ identity_state: 'LINKED', room_id: { $exists: true, $ne: null } })
+      .populate('student_id', '_id user_id status').sort({ createdAt: -1 }).exec();
+    const entry: any = entries.find((candidate: any) => String(candidate.student_id?.user_id || '') === String(userId) && candidate.student_id?.status === 'Studying');
+    if (!entry || !entry.student_id) throw new NotFoundException('Bạn chưa được xếp phòng KTX.');
+    return String(entry.room_id?._id || entry.room_id);
+  }
+
+  async findMine(userId: string, query: any = {}) {
+    return this.findAll({ ...query, room_id: await this.resolveStudentRoom(userId), student_id: undefined, contract_id: undefined });
+  }
+
+  async findOneMine(id: string, userId: string) {
+    const roomId = await this.resolveStudentRoom(userId);
+    const invoice: any = await this.findOne(id);
+    if (String(invoice.room_id?._id || invoice.room_id || '') !== roomId) throw new NotFoundException('Không tìm thấy hóa đơn.');
+    return invoice;
+  }
+
   /**
    * UC08: Confirm payment with proof
    */

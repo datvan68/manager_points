@@ -63,6 +63,10 @@ export class DormitoryRosterController {
   @UseGuards(JwtAuthGuard)
   findMine(@Request() req: any) { if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên'); return this.rosterService.findMine(req.user.userId); }
 
+  @Get('me/roommates')
+  @UseGuards(JwtAuthGuard)
+  findMineRoommates(@Request() req: any) { if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên'); return this.rosterService.findMineRoommates(req.user.userId); }
+
   @Patch('me')
   @UseGuards(JwtAuthGuard)
   updateMine(@Body() dto: UpdateRosterEntryDto, @Request() req: any) { if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên'); return this.rosterService.updateMine(req.user.userId, dto as any); }

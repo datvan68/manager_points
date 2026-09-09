@@ -303,6 +303,17 @@ export class RoomsService {
     return this.projectRoom(room) as Promise<Room>;
   }
 
+  async findMine(userId: string) {
+    const entries: any[] = await this.rosterModel?.find({ identity_state: 'LINKED', room_id: { $exists: true, $ne: null } }).populate('student_id', '_id user_id status').sort({ createdAt: -1 }).exec() || [];
+    const own: any = entries.find((entry: any) => String(entry.student_id?.user_id || '') === String(userId) && entry.student_id?.status === 'Studying');
+    if (!own || !own.student_id) throw new NotFoundException('Bạn chưa được xếp phòng KTX.');
+    const room: any = await this.roomModel.findById(own.room_id).populate('building_id', 'building_code name address').exec();
+    if (!room) throw new NotFoundException('Không tìm thấy phòng KTX của bạn.');
+    const projected: any = await this.projectRoom(room);
+    const beds: any[] = await this.readRoomBeds(String(own.room_id));
+    return { room: projected, beds: beds.map((bed: any) => ({ _id: bed._id, bed_code: bed.bed_code, position: bed.position, status: bed.status })) };
+  }
+
   async findByQrId(qrId: string): Promise<Room> {
     const room = await this.roomModel.findOne({ qr_code: qrId }).populate('building_id', 'building_code name address').exec();
     if (!room) throw new NotFoundException(`Không tìm thấy phòng với mã QR: ${qrId}`);

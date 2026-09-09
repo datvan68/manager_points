@@ -213,6 +213,20 @@ export class RoomFeeInvoicesController {
     return this.roomFeeInvoicesService.findAll(query);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  findMine(@Query() query: QueryRoomFeeInvoiceDto, @Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.roomFeeInvoicesService.findMine(req.user.userId, query);
+  }
+
+  @Get('me/:id')
+  @UseGuards(JwtAuthGuard)
+  findOneMine(@Param('id') id: string, @Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.roomFeeInvoicesService.findOneMine(id, req.user.userId);
+  }
+
   @Get(':id')
   @UseGuards(checkPermission('DORM_INVOICE_READ'))
   @ApiOperation({ summary: 'Chi tiết hóa đơn phí phòng' })

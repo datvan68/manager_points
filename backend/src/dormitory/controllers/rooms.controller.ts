@@ -9,12 +9,14 @@ import {
   UseGuards,
   Request,
   Query,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { RoomsService } from '../services/rooms.service';
 import { CreateRoomDto } from '../dto/create-room.dto';
 import { UpdateRoomDto } from '../dto/update-room.dto';
 import { checkPermission } from '../../auth/guards/check-permission.guard';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('Dormitory - Rooms')
 @ApiBearerAuth()
@@ -46,6 +48,13 @@ export class RoomsController {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  findMine(@Request() req: any) {
+    if (req.user?.roleCode !== 'STUDENT') throw new ForbiddenException('Chức năng này chỉ dành cho sinh viên');
+    return this.roomsService.findMine(req.user.userId);
   }
 
   @Get(':id')
