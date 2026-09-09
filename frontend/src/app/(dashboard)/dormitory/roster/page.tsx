@@ -7,7 +7,7 @@ import { ApplicantProfile, Bed, CreateDormitoryRosterEntryInput, dormitoryApi, D
 import { studentApi, Student } from '@/api/student-api';
 import { semesterApi } from '@/api/semester-api';
 import { useAuth } from '@/providers/auth-provider';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
@@ -103,13 +103,14 @@ export const selectedPdfRosterEntries = (rows: DormitoryRosterEntry[], selectedI
 type RoomAssignmentPopoverProps = {
   row: DormitoryRosterEntry;
   onAssigned: (assignment: RoomAssignment) => void;
+  compact?: boolean;
 };
 
 const assignmentId = (value: Room | Bed | string | null | undefined) => (
   typeof value === 'object' && value !== null ? value._id : value
 );
 
-export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopoverProps) {
+export function RoomAssignmentPopover({ row, onAssigned, compact = false }: RoomAssignmentPopoverProps) {
   const [open, setOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -123,10 +124,24 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
   const currentRoomId = assignmentId(row.room_id);
   const currentBedId = assignmentId(row.bed_id);
 
+  useEffect(() => {
+    if (!open) return;
+    setOpen(false);
+    bedRequestRef.current += 1;
+    setSelectedRoom(null);
+    setBeds([]);
+    setBedsLoading(false);
+    setError('');
+  }, [compact]);
+
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
     if (!nextOpen) {
       bedRequestRef.current += 1;
+      setSelectedRoom(null);
+      setBeds([]);
+      setBedsLoading(false);
+      setError('');
       return;
     }
 
@@ -191,69 +206,80 @@ export function RoomAssignmentPopover({ row, onAssigned }: RoomAssignmentPopover
     } finally { setAssigning(false); }
   };
 
+  const renderRoomList = () => (
+    <div className="space-y-1">
+      {rooms.map(room => {
+        const isCurrentRoom = room._id === currentRoomId;
+        const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
+        return (
+          <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => compact ? void selectRoom(room) : selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
+            <span className="min-w-0">
+              <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
+              <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
+            </span>
+            <span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderBedList = () => (
+    <div className="space-y-1">
+      {beds.map(bed => {
+        const isCurrentBed = bed._id === currentBedId;
+        const selectable = !isCurrentBed && selectedRoom?.status === 'Trống' && isAvailableBed(bed);
+        return (
+          <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => selectedRoom && void assignBed(selectedRoom, bed)} className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60">
+            <span className="font-semibold text-slate-700">{bed.bed_code || bed._id}</span>
+            <span className={`text-[11px] ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderPickerBody = () => loading ? (
+    <p className="px-2 py-3 text-xs text-slate-500">Đang tải phòng...</p>
+  ) : error && !selectedRoom ? (
+    <p role="alert" className="px-2 py-3 text-xs text-red-600">{error}</p>
+  ) : rooms.length === 0 && !selectedRoom ? (
+    <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p>
+  ) : selectedRoom ? (
+    <div className="space-y-2">
+      {compact && <button type="button" onClick={() => { bedRequestRef.current += 1; setSelectedRoom(null); setBeds([]); setBedsLoading(false); setError(''); }} disabled={assigning} className="min-h-11 rounded-lg px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">← Quay lại danh sách phòng</button>}
+      <p className="px-2 text-xs font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
+      {bedsLoading ? <p className="px-2 py-2 text-xs text-slate-500">Đang tải giường...</p> : error ? <p role="alert" className="px-2 py-2 text-xs text-red-600">{error}</p> : beds.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Phòng chưa có giường.</p> : renderBedList()}
+    </div>
+  ) : renderRoomList();
+
+  const renderUnassign = () => currentBedId && (
+    <button type="button" disabled={assigning} onClick={() => setUnassignConfirmOpen(true)} className="mt-2 min-h-11 w-full rounded-lg border border-red-200 px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
+  );
+
+  const trigger = <button type="button" aria-label={`${currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} cho ${studentName(row)}`} title={currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50"><DoorOpen size={16} /></button>;
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <button type="button" aria-label={`${currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} cho ${studentName(row)}`} title={currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50">
-          <DoorOpen size={16} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={6} collisionPadding={8} className="z-[120] w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-        <div className="px-2 pb-2 text-xs font-semibold text-slate-700">Chọn phòng</div>
-        {loading ? (
-          <p className="px-2 py-3 text-xs text-slate-500">Đang tải phòng...</p>
-        ) : error ? (
-          <p role="alert" className="px-2 py-3 text-xs text-red-600">{error}</p>
-        ) : rooms.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p>
-        ) : (
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            <div className="space-y-1">
-              {rooms.map(room => {
-                const isCurrentRoom = room._id === currentRoomId;
-                const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
-                return (
-                  <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
-                      <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
-                    </span>
-                    <span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedRoom && (
-              <div className="border-t border-slate-200 pt-2">
-                <p className="px-2 pb-1 text-[11px] font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
-                {bedsLoading ? (
-                  <p className="px-2 py-2 text-xs text-slate-500">Đang tải giường...</p>
-                ) : beds.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-slate-500">Phòng chưa có giường.</p>
-                ) : (
-                  <div className="space-y-1">
-                    {beds.map(bed => {
-                      const isCurrentBed = bed._id === currentBedId;
-                      const selectable = !isCurrentBed && selectedRoom.status === 'Trống' && isAvailableBed(bed);
-                      return (
-                        <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => void assignBed(selectedRoom, bed)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60">
-                          <span className="font-semibold text-slate-700">{bed.bed_code || bed._id}</span>
-                          <span className={`text-[11px] ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-            {currentBedId && (
-              <button type="button" disabled={assigning} onClick={() => setUnassignConfirmOpen(true)} className="mt-2 w-full rounded-lg border border-red-200 px-2 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
-            )}
-          </div>
-        )}
-      </PopoverContent>
+    <>
+      {compact ? (
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogTrigger asChild>{trigger}</DialogTrigger>
+          <DialogContent showCloseButton className="!left-0 !top-0 !flex !h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 flex-col rounded-none border-0 p-4 sm:rounded-none">
+            <DialogHeader><DialogTitle>{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderPickerBody()}{renderUnassign()}</div>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+          <PopoverContent align="end" side="bottom" sideOffset={6} collisionPadding={8} className="z-[120] w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+            <div className="px-2 pb-2 text-xs font-semibold text-slate-700">Chọn phòng</div>
+            {renderPickerBody()}
+            {renderUnassign()}
+          </PopoverContent>
+        </Popover>
+      )}
       <ConfirmModal isOpen={unassignConfirmOpen} onClose={() => setUnassignConfirmOpen(false)} onConfirm={unassignRoom} title="Bỏ chọn phòng" message="Bạn có chắc muốn bỏ chọn phòng hiện tại? Giường sẽ được trả về trạng thái trống." confirmLabel="Bỏ chọn phòng" cancelLabel="Hủy" variant="warning" />
-    </Popover>
+    </>
   );
 }
 
@@ -520,7 +546,7 @@ export default function DormitoryRosterPage() {
     { key: 'student_code', header: 'Mã SV', priority: 'primary', render: (_, r) => studentCode(r) }, { key: 'student_name', header: 'Họ và tên', priority: 'secondary', render: (_, r) => studentName(r) },
     { key: 'room', header: 'Phòng', render: (_, r) => <div className="flex flex-wrap items-center gap-1.5"><span className={isUnassignedRoom(r) ? 'font-medium text-amber-600' : undefined}>{roomLabel(r)}</span>{r.is_room_leader && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800" aria-label="Trưởng phòng">Trưởng phòng</span>}</div> }, { key: 'identity', header: 'Định danh', render: (_, r) => <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${r.identity_state === 'LINKED' ? 'bg-emerald-100 text-emerald-700' : r.identity_state === 'CONFLICT' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.identity_state === 'LINKED' ? 'Đã liên kết' : r.identity_state === 'CONFLICT' ? 'Cần kiểm tra' : 'Chưa liên kết'}</span> },
     { key: 'created', header: 'Ngày tạo', render: (_, r) => createdDateLabel(r.createdAt) },
-    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && !operationPending && <RoomAssignmentPopover row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && r.bed_id && r.room_id && <button type="button" aria-label={`${r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} cho ${studentName(r)}`} title={r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} disabled={leaderSaving || operationPending} onClick={() => setLeaderRow(r)} className="rounded-xl p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50">{r.is_room_leader ? '★' : '☆'}</button>}{canUpdate && r.identity_state !== 'LINKED' && <button type="button" aria-label={`Liên kết sinh viên cho ${studentName(r)}`} title="Liên kết sinh viên" disabled={bulkDeleting || reconciling || importing || operationPending} onClick={event => openStudentLink(r, event)} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"><Link2 size={16} /></button>}{canUpdate && <button type="button" aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" disabled={importing || operationPending} onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50"><Pencil size={16} /></button>}{canDelete && <button type="button" aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" disabled={importing || operationPending} onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>}</div> },
+    { key: 'actions', header: 'Thao tác', priority: 'action', className: 'text-right', render: (_, r) => <div className="flex justify-end gap-1">{canAssignRoom && !operationPending && <RoomAssignmentPopover compact={isCompact} row={r} onAssigned={assignment => setRegistrations(current => current.map(item => item._id === r._id ? applyRoomAssignment(item, assignment) : item))} />}{canUpdate && r.bed_id && r.room_id && <button type="button" aria-label={`${r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} cho ${studentName(r)}`} title={r.is_room_leader ? 'Gỡ trưởng phòng' : 'Chọn trưởng phòng'} disabled={leaderSaving || operationPending} onClick={() => setLeaderRow(r)} className="rounded-xl p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50">{r.is_room_leader ? '★' : '☆'}</button>}{canUpdate && r.identity_state !== 'LINKED' && <button type="button" aria-label={`Liên kết sinh viên cho ${studentName(r)}`} title="Liên kết sinh viên" disabled={bulkDeleting || reconciling || importing || operationPending} onClick={event => openStudentLink(r, event)} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"><Link2 size={16} /></button>}{canUpdate && <button type="button" aria-label={`Sửa đơn ${studentName(r)}`} title="Sửa" disabled={importing || operationPending} onClick={() => openEdit(r)} className="rounded-xl p-1.5 text-blue-600 hover:bg-blue-50 disabled:opacity-50"><Pencil size={16} /></button>}{canDelete && <button type="button" aria-label={`Xóa đơn ${studentName(r)}`} title="Xóa" disabled={importing || operationPending} onClick={() => setDeleteRow(r)} className="rounded-xl p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={16} /></button>}</div> },
   ];
   return <main className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-transparent p-4 custom-scrollbar max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden sm:p-6">
     {mobileSearchOpen ? (

@@ -5,6 +5,7 @@ import {
   applyRoomAssignment,
   getPublicRegistrationUrl,
   isUnassignedRoom,
+  RoomAssignmentPopover,
   selectedPdfRosterEntries,
   selectedPdfRosterEntry,
   shouldShowRosterImport,
@@ -34,6 +35,8 @@ vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
 const entry1 = { _id: 'entry-1', roster_entry_code: 'DK-1', full_name: 'Nguyễn A', semester: 'HK1', academic_year: '2026-2027', identity_state: 'UNLINKED' as const };
 const entry2 = { _id: 'entry-2', roster_entry_code: 'DK-2', full_name: 'Trần B', semester: 'HK1', academic_year: '2026-2027', identity_state: 'LINKED' as const };
 const entry3 = { _id: 'entry-3', roster_entry_code: 'DK-3', full_name: 'Lê C', semester: 'HK1', academic_year: '2026-2027', identity_state: 'LINKED' as const };
+const roomA101 = { _id: 'room-1', room_code: 'A101', room_name: 'Phòng A101', room_type: 'Thường', bed_count: 2, max_students: 2, current_students: 0, available_bed_count: 2, room_price: 0, status: 'Trống' as const, amenities: [], qr_code: '', public_url: '' };
+const availableBed = { _id: 'bed-1', bed_code: 'A101-G1', room_id: roomA101._id, status: 'Trống' as const };
 
 describe('Danh sách KTX canonical page capabilities', () => {
   beforeEach(() => {
@@ -112,6 +115,61 @@ describe('Danh sách KTX canonical page capabilities', () => {
     const updated = applyRoomAssignment(entry1, { room: { _id: 'room-1', room_code: 'A101', building_id: 'building-1', room_type: 'Thường', bed_count: 1, max_students: 1, current_students: 0, available_bed_count: 1, room_price: 0, status: 'Trống', amenities: [], qr_code: '', public_url: '' }, bed: { _id: 'bed-1', bed_code: 'A101-G1', room_id: 'room-1', status: 'Đang sử dụng' } });
     expect(updated.room_id).toEqual(expect.objectContaining({ _id: 'room-1' }));
     expect(updated.bed_id).toEqual(expect.objectContaining({ _id: 'bed-1' }));
+  });
+
+  it('uses one full-screen mobile surface for the room and bed steps', async () => {
+    const suggestRooms = vi.spyOn(dormitoryApi.roster, 'suggestRooms').mockResolvedValue([roomA101]);
+    const getByRoom = vi.spyOn(dormitoryApi.beds, 'getByRoom').mockResolvedValue([availableBed]);
+    render(<RoomAssignmentPopover compact row={entry1} onAssigned={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm phòng cho Nguyễn A' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Chọn phòng' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
+    await waitFor(() => expect(getByRoom).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('heading', { name: 'Chọn giường' })).toBeInTheDocument();
+    expect(screen.getByText('A101-G1')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '← Quay lại danh sách phòng' }));
+    expect(screen.getByRole('heading', { name: 'Chọn phòng' })).toBeInTheDocument();
+    expect(getByRoom).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(suggestRooms).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps desktop assignment in the popover and preserves the API payload', async () => {
+    const suggestRooms = vi.spyOn(dormitoryApi.roster, 'suggestRooms').mockResolvedValue([roomA101]);
+    vi.spyOn(dormitoryApi.beds, 'getByRoom').mockResolvedValue([availableBed]);
+    const assignRoom = vi.spyOn(dormitoryApi.roster, 'assignRoom').mockResolvedValue({ room: roomA101, bed: availableBed });
+    const onAssigned = vi.fn();
+    render(<RoomAssignmentPopover row={entry1} onAssigned={onAssigned} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm phòng cho Nguyễn A' }));
+    expect(await screen.findByText('Chọn phòng')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /A101-G1/ }));
+    await waitFor(() => expect(assignRoom).toHaveBeenCalledWith({ roster_entry_id: 'entry-1', room_id: 'room-1', bed_id: 'bed-1' }));
+    expect(onAssigned).toHaveBeenCalledWith(expect.objectContaining({ room: roomA101, bed: availableBed }));
+    expect(suggestRooms).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the mobile bed step open on assignment failure and disables unavailable beds', async () => {
+    const unavailableRoom = { ...roomA101, _id: 'room-2', room_code: 'B202', room_name: 'Phòng B202', status: 'Đầy' as const, available_bed_count: 0 };
+    const currentBed = { ...availableBed, _id: 'bed-current', bed_code: 'B202-G1', room_id: unavailableRoom._id, status: 'Đang sử dụng' as const };
+    vi.spyOn(dormitoryApi.roster, 'suggestRooms').mockResolvedValue([unavailableRoom, roomA101]);
+    vi.spyOn(dormitoryApi.beds, 'getByRoom').mockResolvedValue([currentBed, availableBed]);
+    vi.spyOn(dormitoryApi.roster, 'assignRoom').mockRejectedValue(new Error('Không thể phân phòng.'));
+    render(<RoomAssignmentPopover compact row={{ ...entry1, room_id: 'room-current', bed_id: currentBed._id }} onAssigned={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Đổi phòng cho Nguyễn A' }));
+    const unavailableButton = await screen.findByRole('button', { name: /Phòng B202/ });
+    expect(unavailableButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /Phòng A101/ }));
+    const bedButton = await screen.findByRole('button', { name: /A101-G1/ });
+    fireEvent.click(bedButton);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Không thể phân phòng.'));
+    expect(screen.getByRole('heading', { name: 'Chọn giường' })).toBeInTheDocument();
   });
 
   it('uses compact page one and appends a unique next page after intersection', async () => {
