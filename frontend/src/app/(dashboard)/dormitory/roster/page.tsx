@@ -274,7 +274,7 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
           <DialogTrigger asChild>{trigger}</DialogTrigger>
           <DialogContent showCloseButton className="!flex !max-h-[calc(100dvh-2rem)] !w-[calc(100%-2rem)] !max-w-md flex-col overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-[#EBF2FA]/95 via-[#E7EEF8]/90 to-[#DCE6F1]/95 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
             <DialogHeader className="shrink-0 border-b border-white/60 pb-3 pr-8 text-left"><DialogTitle className="text-sm font-bold text-[#1E293B]">{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">{renderPickerBody()}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{renderPickerBody()}</div>
             <div className="shrink-0 border-t border-white/60 pt-2">{renderUnassign()}</div>
           </DialogContent>
         </Dialog>
@@ -283,7 +283,7 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
           <PopoverContent align="end" side="bottom" sideOffset={6} collisionPadding={8} className="z-[120] flex max-h-[min(32rem,calc(100dvh-1rem))] w-80 flex-col rounded-2xl border border-white/70 bg-gradient-to-br from-[#EBF2FA]/95 via-[#E7EEF8]/90 to-[#DCE6F1]/95 p-2 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
             <div className="shrink-0 border-b border-white/60 px-2 pb-2 text-xs font-semibold">Chọn phòng</div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">{renderPickerBody()}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{renderPickerBody()}</div>
             <div className="shrink-0 border-t border-white/60 pt-2">{renderUnassign()}</div>
           </PopoverContent>
         </Popover>

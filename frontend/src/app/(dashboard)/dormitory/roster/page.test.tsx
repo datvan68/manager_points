@@ -163,6 +163,8 @@ describe('Danh sách KTX canonical page capabilities', () => {
     expect(dialog.className).not.toContain('rounded-full');
     expect(dialog.className).not.toContain('rounded-none');
     expect(screen.getByRole('heading', { name: 'Chọn phòng' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Chọn phòng' }).parentElement?.nextElementSibling?.className).toContain('[scrollbar-width:none]');
+    expect(screen.getByRole('heading', { name: 'Chọn phòng' }).parentElement?.nextElementSibling?.className).toContain('[&::-webkit-scrollbar]:hidden');
     fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
     await waitFor(() => expect(getByRoom).toHaveBeenCalledTimes(1));
     expect(screen.getByRole('heading', { name: 'Chọn giường' })).toBeInTheDocument();
