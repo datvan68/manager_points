@@ -6,10 +6,12 @@ import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
 import { isStudentRole, isTeacherRole } from '@/utils/role.util';
 
+const routerPush = vi.hoisted(() => vi.fn());
+
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   usePathname: vi.fn(() => '/'),
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
+  useRouter: vi.fn(() => ({ push: routerPush })),
 }));
 
 // Mock @/providers/auth-provider
@@ -47,6 +49,14 @@ vi.mock('@/api/student-api', () => ({
   },
 }));
 
+vi.mock('@/api/dormitory-api', () => ({
+  dormitoryApi: {
+    roster: {
+      getMine: vi.fn(() => Promise.resolve({ has_dormitory_roster: true, roster_entry: { _id: 'roster-1' } })),
+    },
+  },
+}));
+
 // Mock sonner
 vi.mock('sonner', () => ({
   toast: {
@@ -79,6 +89,7 @@ describe('Sidebar Component', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.clearAllMocks();
+    routerPush.mockReset();
   });
 
   // Helper function to get the sidebar container
@@ -216,7 +227,7 @@ describe('Sidebar Component', () => {
     expect(sidebar?.classList.contains('w-20')).toBe(true);
   });
 
-  it('hides KTX for a non-admin without an active mapped permission', async () => {
+  it('keeps the student KTX action without an active mapped permission', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: 'student-id', roleCode: 'STUDENT' },
       isLoading: false,
@@ -237,7 +248,8 @@ describe('Sidebar Component', () => {
     render(<Sidebar />);
     await waitForSidebarItems();
 
-    expect(screen.queryByTitle('KTX')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'KTX' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'KTX' })).toBeInTheDocument();
   });
 
   it('shows KTX only when the non-admin satisfies its active mapping', async () => {
@@ -268,7 +280,8 @@ describe('Sidebar Component', () => {
       await Promise.resolve();
     });
 
-    expect(screen.queryByTitle('KTX')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'KTX' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'KTX' })).toBeInTheDocument();
 
     unmount();
     vi.mocked(useAuth).mockReturnValue({
@@ -418,5 +431,97 @@ describe('Sidebar Component', () => {
     await waitForSidebarItems();
     expect(screen.getByRole('button', { name: 'Quét QR điểm danh' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tìm kiếm sinh viên' })).not.toBeInTheDocument();
+  });
+
+  it('shows one student-only KTX action without the personal-profile action', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' }, isLoading: false,
+      hasPermission: vi.fn(() => true), hasAnyPermission: vi.fn(() => true), hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true, permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+
+    const mobileNav = within(document.querySelector('.mobile-bottom-nav') as HTMLElement);
+    expect(mobileNav.getAllByRole('button', { name: 'KTX' })).toHaveLength(1);
+    expect(mobileNav.queryByRole('button', { name: 'Mở hồ sơ cá nhân' })).not.toBeInTheDocument();
+    expect(mobileNav.getByRole('button', { name: 'KTX' }).querySelector('svg')).toBeTruthy();
+  });
+
+  it('checks student membership once, stays put for a linked student, and disables while loading', async () => {
+    const { dormitoryApi } = await import('@/api/dormitory-api');
+    let resolveLookup!: (value: any) => void;
+    vi.mocked(dormitoryApi.roster.getMine).mockImplementationOnce(() => new Promise((resolve) => {
+      resolveLookup = resolve;
+    }));
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' }, isLoading: false,
+      hasPermission: vi.fn(() => true), hasAnyPermission: vi.fn(() => true), hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true, permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+    const button = screen.getByRole('button', { name: 'KTX' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(dormitoryApi.roster.getMine).toHaveBeenCalledTimes(1);
+
+    resolveLookup({ has_dormitory_roster: true, roster_entry: { _id: 'roster-1' } });
+    await waitForSidebarItems();
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(button).not.toBeDisabled();
+  });
+
+  it('denies an unlinked student and does not navigate when membership lookup fails', async () => {
+    const { dormitoryApi } = await import('@/api/dormitory-api');
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'student-id', roleCode: 'STUDENT' }, isLoading: false,
+      hasPermission: vi.fn(() => true), hasAnyPermission: vi.fn(() => true), hasAllPermissions: vi.fn(() => true),
+      isAuthenticated: true, permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(true);
+    vi.mocked(isTeacherRole).mockReturnValue(false);
+
+    vi.mocked(dormitoryApi.roster.getMine).mockResolvedValueOnce({ has_dormitory_roster: false, roster_entry: null, history: [] });
+    const { unmount } = render(<Sidebar />);
+    await waitForSidebarItems();
+    fireEvent.click(screen.getByRole('button', { name: 'KTX' }));
+    await waitForSidebarItems();
+    expect(routerPush).toHaveBeenCalledWith('/access-denied');
+
+    unmount();
+    routerPush.mockReset();
+    vi.mocked(dormitoryApi.roster.getMine).mockRejectedValueOnce(new Error('KTX lookup failed'));
+    render(<Sidebar />);
+    await waitForSidebarItems();
+    fireEvent.click(screen.getByRole('button', { name: 'KTX' }));
+    await waitForSidebarItems();
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it('does not show the replacement KTX action for a non-student account', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'teacher-id', roleCode: 'TEACHER' }, isLoading: false,
+      hasPermission: vi.fn(() => false), hasAnyPermission: vi.fn(() => false), hasAllPermissions: vi.fn(() => false),
+      isAuthenticated: true, permissions: [], logout: vi.fn(), checkAuth: vi.fn(), forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(isAdminUser).mockReturnValue(false);
+    vi.mocked(isStudentRole).mockReturnValue(false);
+    vi.mocked(isTeacherRole).mockReturnValue(true);
+
+    render(<Sidebar />);
+    await waitForSidebarItems();
+    expect(screen.queryByRole('button', { name: 'KTX' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mở hồ sơ cá nhân' })).not.toBeInTheDocument();
   });
 });

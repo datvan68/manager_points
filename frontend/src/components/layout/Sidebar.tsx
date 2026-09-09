@@ -11,7 +11,6 @@ import {
   PanelLeftOpen,
   Settings,
   LayoutGrid,
-  User,
   Shield,
   Search,
 } from "lucide-react";
@@ -20,7 +19,7 @@ import StudentQrAttendance from "@/components/attendance/StudentQrAttendance";
 import { useAuth, isAdminUser } from "@/providers/auth-provider";
 import { isTeacherRole, isStudentRole } from "@/utils/role.util";
 import { authApi } from "@/api/auth-api";
-import { studentApi } from "@/api/student-api";
+import { dormitoryApi } from "@/api/dormitory-api";
 import { toast } from "sonner";
 import SubsystemPopup from "@/components/popups/SubsystemPopup";
 import { appIconUrl, useAppBranding } from "@/providers/app-branding-provider";
@@ -99,7 +98,7 @@ const Sidebar = () => {
   const isStudent = isStudentRole(user);
   const [visibleItems, setVisibleItems] = useState<typeof allMenuItems>([]);
   const [isSidebarLoading, setIsSidebarLoading] = useState(true);
-  const [isResolvingProfile, setIsResolvingProfile] = useState(false);
+  const [isCheckingDormitory, setIsCheckingDormitory] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -132,40 +131,25 @@ const Sidebar = () => {
     }
   }, []);
 
-  const handleProfileClick = async () => {
-    if (isResolvingProfile) return;
+  const handleDormitoryClick = async () => {
+    if (isCheckingDormitory) return;
     if (!user) {
       toast.error('Vui lòng đăng nhập.');
       router.push('/login');
       return;
     }
 
-    setIsResolvingProfile(true);
-
-    if (isStudentUser) {
-      try {
-        const student = await studentApi.getMyStudent();
-        const classId = typeof student.class_id === 'object'
-          ? (student.class_id as any)?._id
-          : student.class_id;
-        const studentId = student._id;
-
-        if (classId && studentId) {
-          router.push(`/students/${classId}/${studentId}`);
-        } else {
-          toast.error('Hồ sơ học sinh thiếu thông tin lớp học. Fallback về trang hồ sơ cá nhân.');
-          router.push('/profile');
-        }
-      } catch (error: any) {
-        console.error('Failed to resolve student profile in sidebar:', error);
-        toast.error(error.message || 'Không thể tải hồ sơ sinh viên. Fallback về trang hồ sơ cá nhân.');
-        router.push('/profile');
-      } finally {
-        setIsResolvingProfile(false);
+    setIsCheckingDormitory(true);
+    try {
+      const response = await dormitoryApi.roster.getMine();
+      if (!response.has_dormitory_roster || !response.roster_entry) {
+        router.push('/access-denied');
       }
-    } else {
-      setIsResolvingProfile(false);
-      router.push('/profile');
+    } catch (error: any) {
+      console.error('Failed to resolve dormitory membership in sidebar:', error);
+      toast.error(error?.message || 'Không thể tải thông tin KTX. Vui lòng thử lại.');
+    } finally {
+      setIsCheckingDormitory(false);
     }
   };
 
@@ -286,9 +270,11 @@ const Sidebar = () => {
     | { type: 'link'; key: string; item: (typeof allMenuItems)[0]; isActive: boolean; targetHref: string }
     | { type: 'search'; key: string }
     | { type: 'qr'; key: string }
-    | { type: 'profile'; key: string };
+    | { type: 'dormitory'; key: string };
 
-  const baseMobileItems: MobileNavItem[] = visibleItems.map((item, index) => {
+  const baseMobileItems: MobileNavItem[] = visibleItems
+    .filter((item) => !(isStudentUser && item.href === '/dormitory'))
+    .map((item, index) => {
     const targetHref = (item.href === "/students" && isStudent) ? "/students/tasks" : item.href;
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     return {
@@ -300,10 +286,10 @@ const Sidebar = () => {
     };
   });
 
-  if (!isAdminUser(user)) {
+  if (isStudentUser) {
     baseMobileItems.push({
-      type: 'profile' as const,
-      key: 'profile',
+      type: 'dormitory' as const,
+      key: 'dormitory',
     });
   }
 
@@ -457,23 +443,24 @@ const Sidebar = () => {
                 </button>
               );
             }
-            if (item.type === 'profile') {
+            if (item.type === 'dormitory') {
               return (
                 <button
-                  key="mobile-profile-btn"
-                  onClick={handleProfileClick}
-                  disabled={isResolvingProfile}
-                  aria-label="Mở hồ sơ cá nhân"
-                  title="Hồ sơ"
-                  className={`mobile-bottom-nav-item ${pathname === "/profile" || pathname.includes("/students/") && pathname.endsWith(user?.studentId || "none") ? "mobile-bottom-nav-item-active" : ""} ${isResolvingProfile ? "opacity-50" : ""}`}
+                  key="mobile-dormitory-btn"
+                  type="button"
+                  onClick={handleDormitoryClick}
+                  disabled={isCheckingDormitory}
+                  aria-label="KTX"
+                  title="KTX"
+                  className={`mobile-bottom-nav-item ${pathname.startsWith("/dormitory") ? "mobile-bottom-nav-item-active" : ""} ${isCheckingDormitory ? "opacity-50" : ""}`}
                 >
-                  {isResolvingProfile ? (
+                  {isCheckingDormitory ? (
                     <svg className="h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : (
-                    <User size={25} strokeWidth={2.25} aria-hidden="true" />
+                    <Building2 size={25} strokeWidth={2.25} aria-hidden="true" />
                   )}
                 </button>
               );
