@@ -569,10 +569,10 @@ export default function StudentTaskProgressTab({ showStats = false }: { showStat
                             </a>
                           )}
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 max-w-[180px] truncate" title={item.subject || ''}>{item.subject}</div>
+                        <div className="text-xs text-slate-400 mt-0.5 max-w-[180px] truncate" title={item.subject || ''}>Nội dung: {item.subject}</div>
                       </td>
                       <td className="px-4 py-3 text-xs capitalize text-slate-500 whitespace-nowrap">
-                        {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
+                        {item.taskType === 'activity' ? 'Hoạt động' : 'Thường xuyên'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {item.deadline ? new Date(item.deadline).toLocaleDateString('vi-VN') : '-'}
@@ -632,11 +632,10 @@ export default function StudentTaskProgressTab({ showStats = false }: { showStat
                   {/* Card Header: Category & Status */}
                   <div className="flex items-center justify-between gap-2">
                     <span className={`inline-flex px-2 py-0.5 text-[9px] font-bold rounded-xl border uppercase ${
-                      item.taskType === 'project' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
-                      item.taskType === 'assignment' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
-                      'text-purple-600 bg-purple-50 border-purple-100/60'
+                      item.taskType === 'activity' ? 'text-purple-600 bg-purple-50 border-purple-100/60' :
+                      'text-blue-600 bg-blue-50 border-blue-100/60'
                     }`}>
-                      {item.taskType === 'project' ? 'Dự án' : item.taskType === 'assignment' ? 'Bài tập' : 'Hoạt động'}
+                      {item.taskType === 'activity' ? 'Hoạt động' : 'Thường xuyên'}
                     </span>
                     {getStatusElement(item, true)}
                   </div>
@@ -649,7 +648,7 @@ export default function StudentTaskProgressTab({ showStats = false }: { showStat
                       </h4>
                       {item.subject && (
                         <p className="text-[11px] text-[#64748B] mt-1 line-clamp-1 font-medium" title={item.subject}>
-                          {item.subject}
+                          Nội dung: {item.subject}
                         </p>
                       )}
                     </div>

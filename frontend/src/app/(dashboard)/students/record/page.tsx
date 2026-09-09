@@ -79,8 +79,8 @@ import {
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { semesterApi } from "@/api/semester-api";
 import { RouteGuard, usePermission } from "@/components/guards/RouteGuard";
-import { useRouter, useSearchParams } from "next/navigation";
-import TabNavigation from "@/components/ui/TabNavigation";
+import { useSearchParams } from "next/navigation";
+import StudentSectionTabs from "@/components/students/StudentSectionTabs";
 import {
   Select,
   SelectContent,
@@ -5571,44 +5571,12 @@ function ClassReportDetailDialog({
 }
 
 function StudentRecordPageContent() {
-  const router = useRouter();
-  const { user, hasPermission = () => false } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<"class" | "student">("student");
-  const userRole = String(user?.role || '').toLowerCase();
-  const isStudent = userRole.includes('student') || userRole.includes('học sinh') || userRole.includes('sinh viên');
-
-  const ghiNhanAccess = usePermission({
-    viewClassRecord: "READ_CLASS_RECORD",
-  });
-  const canAccessClassTab = !isStudent && ghiNhanAccess.viewClassRecord;
-  const canAccessStudentList = !isStudent && !!hasPermission('STUDENT_PAGE');
-  const canAccessTasks = isStudent || !!hasPermission('READ_STUDENT_TASK');
 
   return (
     <>
       <HeaderCustomMappings mappings={{ record: "Ghi nhận" }} />
-        <TabNavigation
-          tabs={
-            isStudent
-              ? [
-                  { id: "Ghi nhận", label: "Ghi nhận" },
-                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ]
-              : [
-                  { id: "Ghi nhận", label: "Ghi nhận" },
-                  { id: "Danh sách", label: "Danh sách" },
-                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ].filter((tab) => tab.id === "Ghi nhận" || (tab.id === "Danh sách" ? canAccessStudentList : canAccessTasks))
-          }
-          activeTab="Ghi nhận"
-          onTabChange={(id) => {
-            if (id === "Danh sách") {
-              router.push("/students");
-            } else if (id === "Nhiệm vụ") {
-              router.push("/students/tasks");
-            }
-          }}
-        />
+        <StudentSectionTabs activeTab="Ghi nhận" />
         <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           <GhiNhanTab activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
         </main>

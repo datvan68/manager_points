@@ -87,4 +87,20 @@ describe('AddTaskModal auto fill deadline', () => {
       expect(studentTaskApi.getLinkedDeadline).toHaveBeenCalledWith('/grading/score');
     });
   });
+
+  it('shows only supported task types and uses the Nội dung label', async () => {
+    render(
+      <AddTaskModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Thường xuyên')).toBeInTheDocument();
+    expect(screen.getByText('Hoạt động')).toBeInTheDocument();
+    expect(screen.queryByText('Dự án')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bài tập')).not.toBeInTheDocument();
+    expect(screen.getByText('Nội dung')).toBeInTheDocument();
+  });
 });

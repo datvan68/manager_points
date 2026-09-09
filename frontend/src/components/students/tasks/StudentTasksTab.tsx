@@ -15,7 +15,6 @@ import { usePermission } from '@/components/guards/RouteGuard';
 import { toast } from 'sonner';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Button } from "@/components/ui/button";
-import { CustomPagination } from '@/components/ui/pagination';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmModal from '@/components/modals/ConfirmModal';
 
@@ -27,7 +26,7 @@ import { studentTaskApi, StudentTask as BackendTask, CreateTaskDto, UpdateTaskDt
 interface Task {
   id: string;
   title: string;
-  type: 'Dự án' | 'Bài tập' | 'Hoạt động';
+  type: 'Thường xuyên' | 'Hoạt động';
   subject: string;
   deadline: string;
   priority: 'High' | 'Medium' | 'Low';
@@ -45,10 +44,10 @@ interface Task {
   };
 }
 
-const mapBackendToClientTask = (t: BackendTask): Task => {
-  let type: Task['type'] = 'Bài tập';
-  if (t.type === 'project') type = 'Dự án';
-  else if (t.type === 'activity') type = 'Hoạt động';
+export const TASK_LIST_LIMIT = 100;
+
+export const mapBackendToClientTask = (t: BackendTask): Task => {
+  const type: Task['type'] = t.type === 'activity' ? 'Hoạt động' : 'Thường xuyên';
 
   let priority: Task['priority'] = 'Medium';
   if (t.priority === 'high') priority = 'High';
@@ -106,10 +105,9 @@ const mapBackendToClientTask = (t: BackendTask): Task => {
   };
 };
 
-const mapClientToBackendDto = (t: any): CreateTaskDto => {
+export const mapClientToBackendDto = (t: any): CreateTaskDto => {
   let type: CreateTaskDto['type'] = 'assignment';
-  if (t.type === 'Dự án') type = 'project';
-  else if (t.type === 'Hoạt động') type = 'activity';
+  if (t.type === 'Hoạt động') type = 'activity';
 
   let priority: CreateTaskDto['priority'] = 'medium';
   if (t.priority === 'High') priority = 'high';
@@ -204,7 +202,7 @@ const StudentTasksTab = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // States bộ lọc & phân trang
+  // States bộ lọc
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<'All' | 'High' | 'Medium' | 'Low'>('All');
@@ -215,10 +213,6 @@ const StudentTasksTab = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const itemsPerPage = 6; 
   const hasLoadedOnceRef = useRef(false);
   const fetchIdRef = useRef(0);
   const lastFetchedTimeRef = useRef(0);
@@ -227,7 +221,6 @@ const StudentTasksTab = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -251,8 +244,7 @@ const StudentTasksTab = () => {
       else if (targetFilter === 'Quản sinh') targetTypeQuery = 'supervisor';
 
       const response = await studentTaskApi.getTasks({
-        page: currentPage,
-        limit: itemsPerPage,
+        limit: TASK_LIST_LIMIT,
         status: 'all',
         priority: priorityQuery,
         targetType: targetTypeQuery,
@@ -267,8 +259,6 @@ const StudentTasksTab = () => {
 
       const mappedItems = (response.items || []).map(mapBackendToClientTask);
       setTasks(mappedItems);
-      setTotalPages(response.totalPages || 1);
-      setTotalCount(response.total || 0);
     } catch (err: any) {
       if (currentFetchId !== fetchIdRef.current) return;
       console.error(err);
@@ -279,7 +269,7 @@ const StudentTasksTab = () => {
         setIsLoading(false);
       }
     }
-  }, [priorityFilter, targetFilter, debouncedSearch, currentPage]);
+  }, [priorityFilter, targetFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchTasks();
@@ -424,17 +414,14 @@ const StudentTasksTab = () => {
     }
   };
 
-  const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const endItem = Math.min(currentPage * itemsPerPage, totalCount);
-
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
 
 
       {/* Filter and Grid Container */}
-      <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40 order-1 lg:order-2">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden order-1 lg:order-2">
         
-        <div className="p-4 border-b border-white/70 bg-white/20 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+        <div className="pb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
             {/* Lọc đối tượng áp dụng */}
             {canManageTasks && (
@@ -443,7 +430,6 @@ const StudentTasksTab = () => {
                   value={targetFilter}
                   onValueChange={(val: any) => {
                     setTargetFilter(val);
-                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
@@ -465,7 +451,6 @@ const StudentTasksTab = () => {
                 value={priorityFilter}
                 onValueChange={(val: any) => {
                   setPriorityFilter(val);
-                  setCurrentPage(1);
                 }}
               >
                 <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#64748B] bg-white/50 border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
@@ -501,9 +486,9 @@ const StudentTasksTab = () => {
                   setEditingTask(null);
                   setIsModalOpen(true);
                 }}
-                className="hidden lg:flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] shadow-sm shadow-blue-500/10 cursor-pointer h-8 shrink-0 w-auto"
+                className="hidden lg:flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
               >
-                <Plus size={14} />
+                <Plus size={13} />
                 <span>Thêm nhiệm vụ mới</span>
               </button>
             )}
@@ -563,10 +548,10 @@ const StudentTasksTab = () => {
                           setEditingTask(null);
                           setIsModalOpen(true);
                         }}
-                        className="flex items-center justify-center bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl h-8 w-10 text-white shrink-0 shadow-sm shadow-blue-500/10 cursor-pointer"
+                        className="flex items-center justify-center h-9 w-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out cursor-pointer focus:outline-none"
                         title="Thêm nhiệm vụ"
                       >
-                        <Plus size={14} />
+                        <Plus size={13} />
                       </button>
                     )}
                   </div>
@@ -577,7 +562,7 @@ const StudentTasksTab = () => {
         </div>
 
         {/* Task Cards Grid */}
-        <div className="flex-1 p-4 overflow-y-auto min-h-0 bg-white/10 flex flex-col">
+        <div className="flex-1 overflow-y-auto min-h-0 bg-white/10 flex flex-col">
           {isLoading && !hasLoadedOnceRef.current ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white/20 min-h-[300px]">
               <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
@@ -634,8 +619,7 @@ const StudentTasksTab = () => {
                       <div className="flex items-center gap-2">
                         {/* Category Type */}
                         <span className={`inline-flex px-2.5 py-1 text-[10px] font-bold rounded-xl border ${
-                          task.type === 'Dự án' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
-                          task.type === 'Bài tập' ? 'text-amber-600 bg-amber-50 border-amber-100/60' :
+                          task.type === 'Thường xuyên' ? 'text-blue-600 bg-blue-50 border-blue-100/60' :
                           'text-purple-600 bg-purple-50 border-purple-100/60'
                         }`}>
                           {task.type}
@@ -647,9 +631,9 @@ const StudentTasksTab = () => {
                         {task.title}
                       </h3>
                       
-                      {/* Subject/Description */}
-                      <span className="mt-1 block text-[11px] text-[#64748B] font-medium truncate">
-                        {task.subject}
+                       {/* Nội dung */}
+                       <span className="mt-1 block text-[11px] text-[#64748B] font-medium truncate">
+                         Nội dung: {task.subject}
                       </span>
 
                       {/* Target Audience Badge */}
@@ -790,17 +774,6 @@ const StudentTasksTab = () => {
 
         </div>
 
-        {/* Footer (Pagination) */}
-        <div className="hidden lg:block">
-          <CustomPagination
-            currentPage={currentPage}
-            pageSize={itemsPerPage}
-            totalItems={totalCount}
-            onPageChange={setCurrentPage}
-            label="nhiệm vụ"
-          />
-        </div>
-
       </div>
 
       {/* Add/Edit Modal */}
@@ -850,7 +823,6 @@ const StudentTasksTab = () => {
                   value={targetFilter}
                   onValueChange={(val: any) => {
                     setTargetFilter(val);
-                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="w-full h-9 py-1.5 text-xs font-bold text-[#64748B] bg-white/60 border border-white/80 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30">
@@ -873,7 +845,6 @@ const StudentTasksTab = () => {
                 value={priorityFilter}
                 onValueChange={(val: any) => {
                   setPriorityFilter(val);
-                  setCurrentPage(1);
                 }}
               >
                 <SelectTrigger className="w-full h-9 py-1.5 text-xs font-bold text-[#64748B] bg-white/60 border border-white/80 rounded-xl focus:ring-2 focus:ring-[#1A73E8]/30">
@@ -894,7 +865,6 @@ const StudentTasksTab = () => {
               onClick={() => {
                 setTargetFilter('All');
                 setPriorityFilter('All');
-                setCurrentPage(1);
               }}
               className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-[#64748B] hover:bg-slate-100 active:scale-[0.98] transition-all cursor-pointer border border-slate-200 bg-white"
             >

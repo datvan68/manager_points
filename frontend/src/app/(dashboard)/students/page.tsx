@@ -26,7 +26,7 @@ import { StudentAvatar } from "@/components/ui/StudentAvatar";
 import { Button } from "@/components/ui/button";
 import { Research } from "@/components/ui/Research";
 import { motion, AnimatePresence } from "framer-motion";
-import TabNavigation from "@/components/ui/TabNavigation";
+import StudentSectionTabs from "@/components/students/StudentSectionTabs";
 import Action from "@/components/ui/Action";
 import { departmentApi, Department } from "@/api/department-api";
 import { classApi, Class } from "@/api/class-api";
@@ -42,7 +42,7 @@ function StudentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const deptIdFromUrl = searchParams.get("deptId");
-  const { user, hasPermission = () => false } = useAuth();
+  const { user } = useAuth();
   
   const userRole = String(user?.role || "").toLowerCase();
   const isStudent = userRole.includes("student") || userRole.includes("học sinh") || userRole.includes("sinh viên");
@@ -375,28 +375,7 @@ function StudentsPageContent() {
   return (
     <>
       <HeaderCustomMappings mappings={{ students: "Danh sách sinh viên" }} />
-        <TabNavigation
-          tabs={
-            isStudent
-              ? [
-                  { id: "Ghi nhận", label: "Ghi nhận" },
-                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ]
-              : [
-                  { id: "Ghi nhận", label: "Ghi nhận" },
-                  { id: "Danh sách", label: "Danh sách" },
-                  { id: "Nhiệm vụ", label: "Nhiệm vụ" },
-                ].filter((tab) => tab.id === "Danh sách" || (tab.id === "Ghi nhận" ? hasPermission('READ_STUDENT_RECORD') : hasPermission('READ_STUDENT_TASK')))
-          }
-          activeTab="Danh sách"
-          onTabChange={(id) => {
-            if (id === "Ghi nhận") {
-              router.push("/students/record");
-            } else if (id === "Nhiệm vụ") {
-              router.push("/students/tasks");
-            }
-          }}
-        />
+        <StudentSectionTabs activeTab="Danh sách" />
         <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
           <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0 w-full overflow-y-auto xl:overflow-hidden">
             {/* Left Column: Departments */}

@@ -16,7 +16,7 @@ import { format } from 'date-fns';
 interface Task {
   id: string;
   title: string;
-  type: 'Dự án' | 'Bài tập' | 'Hoạt động';
+  type: 'Thường xuyên' | 'Hoạt động';
   subject: string;
   deadline: string;
   priority: 'High' | 'Medium' | 'Low';
@@ -49,7 +49,7 @@ const PRESET_PAGES = [
 
 const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, editingTask, isSaving }) => {
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<'Dự án' | 'Bài tập' | 'Hoạt động'>('Bài tập');
+  const [type, setType] = useState<'Thường xuyên' | 'Hoạt động'>('Thường xuyên');
   const [subject, setSubject] = useState('');
   const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
@@ -83,7 +83,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
   useEffect(() => {
     if (editingTask) {
       setTitle(editingTask.title);
-      setType(editingTask.type);
+      setType(editingTask.type === 'Hoạt động' ? 'Hoạt động' : 'Thường xuyên');
       setSubject(editingTask.subject);
       
       // Format deadline to yyyy-MM-dd (hỗ trợ cả ISO string và dd/MM/yyyy)
@@ -133,7 +133,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
       setSelectedTeacherIds(editingTask.targetTeacherIds || []);
     } else {
       setTitle('');
-      setType('Bài tập');
+      setType('Thường xuyên');
       setSubject('');
       
       const today = new Date().toISOString().split('T')[0];
@@ -384,8 +384,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                         <SelectValue placeholder="Chọn loại nhiệm vụ" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Bài tập">Bài tập</SelectItem>
-                        <SelectItem value="Dự án">Dự án</SelectItem>
+                        <SelectItem value="Thường xuyên">Thường xuyên</SelectItem>
                         <SelectItem value="Hoạt động">Hoạt động</SelectItem>
                       </SelectContent>
                     </Select>
@@ -407,9 +406,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave, ed
                   </div>
                 </div>
 
-                {/* Môn học / Lĩnh vực */}
+                {/* Nội dung */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-[#64748B] block">Môn học / Lĩnh vực</label>
+                  <label className="text-xs font-semibold text-[#64748B] block">Nội dung</label>
                   <input 
                     type="text"
                     required
