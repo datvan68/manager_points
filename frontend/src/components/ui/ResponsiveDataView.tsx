@@ -15,6 +15,16 @@ export interface ResponsiveColumn<T = any> {
   hideOnMobile?: boolean;
 }
 
+export interface ResponsiveSelection<T> {
+  selectedKeys: string[];
+  onSelectRow: (key: string, checked: boolean) => void;
+  onSelectAll?: (checked: boolean) => void;
+  allSelected?: boolean;
+  isRowSelectable?: (row: T) => boolean;
+  mobileControl?: 'checkbox' | 'toggle';
+  getMobileSelectionLabel?: (row: T, checked: boolean) => string;
+}
+
 interface ResponsiveDataViewProps<T> {
   data: T[];
   columns: ResponsiveColumn<T>[];
@@ -27,14 +37,7 @@ interface ResponsiveDataViewProps<T> {
   renderCard?: (row: T, index: number) => React.ReactNode;
   
   // Checkbox/Selection support
-  selection?: {
-    selectedKeys: string[];
-    onSelectRow: (key: string, checked: boolean) => void;
-    onSelectAll?: (checked: boolean) => void;
-    allSelected?: boolean;
-    mobileControl?: 'checkbox' | 'toggle';
-    getMobileSelectionLabel?: (row: T, checked: boolean) => string;
-  };
+  selection?: ResponsiveSelection<T>;
   
   // Pagination node to display at the bottom
   pagination?: React.ReactNode;
@@ -119,9 +122,12 @@ export default function ResponsiveDataView<T>({
     }
   };
 
+  const selectableRows = selection ? data.filter(row => selection.isRowSelectable?.(row) ?? true) : [];
+
   const renderDefaultCard = (row: T, index: number) => {
     const key = keyExtractor(row, index);
     const isChecked = selection?.selectedKeys.includes(key) || false;
+    const isSelectable = selection?.isRowSelectable?.(row) ?? true;
     
     return (
       <div 
@@ -138,8 +144,9 @@ export default function ResponsiveDataView<T>({
                   type="button"
                   aria-label={selection.getMobileSelectionLabel?.(row, isChecked) || `${isChecked ? 'Bỏ chọn' : 'Chọn'} mục`}
                   aria-pressed={isChecked}
+                  disabled={!isSelectable}
                   onClick={(e) => { e.stopPropagation(); selection.onSelectRow(key, !isChecked); }}
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isChecked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/70 text-transparent hover:border-blue-400'}`}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 ${isChecked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white/70 text-transparent hover:border-blue-400'}`}
                 >
                   <Check size={15} aria-hidden="true" />
                 </button>
@@ -148,9 +155,10 @@ export default function ResponsiveDataView<T>({
                   type="checkbox"
                   aria-label={selection.getMobileSelectionLabel?.(row, isChecked)}
                   checked={isChecked}
+                  disabled={!isSelectable}
                   onChange={(e) => selection.onSelectRow(key, e.target.checked)}
                   onClick={(e) => e.stopPropagation()}
-                  className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0"
+                  className="rounded-md border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               )
             )}
@@ -259,7 +267,8 @@ export default function ResponsiveDataView<T>({
                   {selection.onSelectAll && (
                     <input
                       type="checkbox"
-                      checked={selection.allSelected || (data.length > 0 && data.every(row => selection.selectedKeys.includes(keyExtractor(row, 0))))}
+                      checked={selection.allSelected || (selectableRows.length > 0 && selectableRows.every(row => selection.selectedKeys.includes(keyExtractor(row, data.indexOf(row)))))}
+                      disabled={selectableRows.length === 0}
                       onChange={(e) => handleSelectAllChange(e.target.checked)}
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                     />
@@ -303,6 +312,7 @@ export default function ResponsiveDataView<T>({
               data.map((row, idx) => {
                 const key = keyExtractor(row, idx);
                 const isSelected = selection?.selectedKeys.includes(key) || false;
+                const isSelectable = selection?.isRowSelectable?.(row) ?? true;
                 const rClassName = typeof rowClassName === 'function' ? rowClassName(row) : rowClassName;
                 return (
                   <tr 
@@ -315,8 +325,9 @@ export default function ResponsiveDataView<T>({
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={!isSelectable}
                           onChange={(e) => selection.onSelectRow(key, e.target.checked)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                         />
                       </td>
                     )}

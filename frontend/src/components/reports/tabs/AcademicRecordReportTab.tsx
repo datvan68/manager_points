@@ -6,6 +6,8 @@ import { AcademicRecord, academicRecordApi } from '@/api/academic-record-api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ReportTable, { TableColumn } from '../ReportTable';
 import { AcademicRecordStudentSummaryRow } from '../report-types';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import ConfirmModal from '@/components/modals/ConfirmModal';
 
 type RecordCategory = 'khen_thuong' | 'cong_diem' | 'ky_luat';
 
@@ -87,6 +89,11 @@ export default function AcademicRecordReportTab({
   const [detailError, setDetailError] = useState('');
   const [followUpError, setFollowUpError] = useState('');
   const [handlingStudentId, setHandlingStudentId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmIds, setConfirmIds] = useState<string[]>([]);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [singleConfirmRow, setSingleConfirmRow] = useState<AcademicRecordStudentSummaryRow | null>(null);
   const requestIdRef = useRef(0);
   const detailSemesterId = detailQuery?.semesterId;
   const detailClassId = detailQuery?.classId;
@@ -126,7 +133,6 @@ export default function AcademicRecordReportTab({
 
   const handleFollowUp = async (row: AcademicRecordStudentSummaryRow) => {
     if (!semesterId || handlingStudentId) return;
-    if (!window.confirm(`Xác nhận đã xử lý ghi nhận của ${row.full_name}?`)) return;
     setFollowUpError('');
     setHandlingStudentId(row._id);
     try {
@@ -138,6 +144,33 @@ export default function AcademicRecordReportTab({
       setHandlingStudentId(null);
     }
   };
+
+  const isRowSelectable = (row: AcademicRecordStudentSummaryRow) => Boolean(semesterId && row.follow_up_status !== 'settled');
+  const selectAll = (checked: boolean) => {
+    setSelectedIds(checked ? data.filter(isRowSelectable).map(row => row._id) : []);
+  };
+  const openBulkConfirm = () => {
+    if (!selectedIds.length || bulkSubmitting) return;
+    setConfirmIds([...selectedIds]);
+    setBulkConfirmOpen(true);
+  };
+  const confirmBulkFollowUp = async () => {
+    if (bulkSubmitting || !semesterId || !confirmIds.length) return;
+    setBulkSubmitting(true);
+    setFollowUpError('');
+    const results = await Promise.allSettled(confirmIds.map(studentId => academicRecordApi.markFollowUp(studentId, semesterId)));
+    const failedIds = confirmIds.filter((_, index) => results[index].status === 'rejected');
+    const successfulCount = confirmIds.length - failedIds.length;
+    if (successfulCount > 0) await onRefresh?.();
+    setSelectedIds(failedIds);
+    if (failedIds.length > 0) setFollowUpError('Không thể cập nhật trạng thái xử lý cho một số sinh viên. Vui lòng thử lại.');
+    setBulkSubmitting(false);
+    setConfirmIds([]);
+  };
+
+  useEffect(() => {
+    setSelectedIds(ids => ids.filter(id => data.some(row => row._id === id && isRowSelectable(row))));
+  }, [data, semesterId, followUpStatus, currentPage, pageSize]);
 
   const followUpLabels = {
     unhandled: 'Chưa xử lý',
@@ -161,7 +194,7 @@ export default function AcademicRecordReportTab({
         type="button"
         className="w-fit rounded border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-700 transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isDisabled}
-        onClick={() => void handleFollowUp(row)}
+        onClick={() => setSingleConfirmRow(row)}
       >
         {isPending ? 'Đang xử lý...' : 'Xử lý'}
       </button>
@@ -207,8 +240,45 @@ export default function AcademicRecordReportTab({
           pageSize={pageSize}
           onPageChange={onPageChange}
           onPageSizeChange={onPageSizeChange}
+          selection={{
+            selectedKeys: selectedIds,
+            onSelectRow: (key, checked) => setSelectedIds(ids => checked ? [...new Set([...ids, key])] : ids.filter(id => id !== key)),
+            onSelectAll: selectAll,
+            allSelected: data.filter(isRowSelectable).length > 0 && data.filter(isRowSelectable).every(row => selectedIds.includes(row._id)),
+            isRowSelectable,
+            getMobileSelectionLabel: (row, checked) => `${checked ? 'Bỏ chọn' : 'Chọn'} ${row.full_name}`,
+          }}
         />
       </div>
+
+      <FloatingActionBar
+        selectedCount={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        itemLabel="sinh viên"
+        actions={<button type="button" aria-label="Xử lý đã chọn" onClick={openBulkConfirm} disabled={bulkSubmitting} className="inline-flex items-center rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Xử lý</button>}
+      />
+      <ConfirmModal
+        isOpen={bulkConfirmOpen}
+        onClose={() => { if (!bulkSubmitting) { setBulkConfirmOpen(false); setConfirmIds([]); } }}
+        onConfirm={confirmBulkFollowUp}
+        title="Xử lý ghi nhận hàng loạt"
+        message={`Xác nhận đã xử lý ghi nhận của ${confirmIds.length} sinh viên đã chọn?`}
+        confirmLabel="Xử lý"
+        cancelLabel="Hủy"
+        variant="success"
+        disabled={bulkSubmitting}
+      />
+      <ConfirmModal
+        isOpen={Boolean(singleConfirmRow)}
+        onClose={() => { if (!handlingStudentId) setSingleConfirmRow(null); }}
+        onConfirm={() => singleConfirmRow ? handleFollowUp(singleConfirmRow) : undefined}
+        title="Xử lý ghi nhận"
+        message={singleConfirmRow ? `Xác nhận đã xử lý ghi nhận của ${singleConfirmRow.full_name}?` : null}
+        confirmLabel="OK"
+        cancelLabel="Hủy"
+        variant="success"
+        disabled={Boolean(handlingStudentId)}
+      />
 
       <Dialog open={Boolean(selection)} onOpenChange={open => {
         if (!open) {

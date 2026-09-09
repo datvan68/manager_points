@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Download } from 'lucide-react';
 import { CustomPagination } from '@/components/ui/pagination';
 import ReportEmptyState from './ReportEmptyState';
-import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
+import ResponsiveDataView, { ResponsiveColumn, ResponsiveSelection } from '@/components/ui/ResponsiveDataView';
 
 export interface TableColumn {
   key: string;
@@ -29,6 +29,7 @@ interface ReportTableProps {
   pageSize?: number;
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
+  selection?: ResponsiveSelection<any>;
 }
 
 export default function ReportTable({
@@ -44,7 +45,8 @@ export default function ReportTable({
   currentPage,
   pageSize,
   onPageChange,
-  onPageSizeChange
+  onPageSizeChange,
+  selection
 }: ReportTableProps) {
   const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(10);
@@ -155,6 +157,7 @@ export default function ReportTable({
             </div>
           }
           keyExtractor={(row, idx) => row.key || row._id || row.id || String(idx)}
+          selection={selection}
           pagination={paginationNode}
         />
       </div>

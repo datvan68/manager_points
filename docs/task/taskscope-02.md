@@ -3,27 +3,34 @@ slot_id: "taskscope-02"
 generation: 1
 task_id: "20260909-073821-bulk-academic-record-follow-up"
 scope_file: "docs/task/taskscope-02.md"
-status: blocked
-scope_revision: 1
+status: completed
+scope_revision: 3
 created_at: "2026-09-09T07:38:21+07:00"
-updated_at: "2026-09-09T07:38:21+07:00"
-base_commit: "e13e686ca5b210dc16e9a68e4d371c9020f1630d"
+updated_at: "2026-09-09T07:50:00+07:00"
+base_commit: "f374196f7da78903741524f2baee8daa23ab1537"
 task: "Add bulk follow-up handling to the academic-record report"
 pipeline: feature_development
 profile: Full
 objective: "In Reports > Ghi nhận SV > Dữ liệu, allow users to select actionable student rows, open a FloatingActionBar, and confirm one bulk Xử lý action in ConfirmModal before marking the selected follow-ups handled."
 coordination:
-  depends_on:
-    - "docs/task/taskscope-01.md generation 1 must complete or release its AcademicRecordReportTab paths before this scope starts."
+  depends_on: []
   warnings:
-    - "TASKSCOPE_CONFLICT: taskscope-01 is in_progress and reserves AcademicRecordReportTab.tsx plus AcademicRecordReportTab.test.tsx."
+    - "The taskscope-01 dependency was completed in commit e13e686c and its reservation artifact was removed in f374196f; the baseline was refreshed before marking this scope ready."
     - "Bulk processing reuses the existing per-student markFollowUp API; no backend bulk contract is introduced."
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-09-09T07:50:00+07:00"
+  outcome: "Implemented bulk follow-up selection and confirmation for the academic-record report."
+  final_commit_or_state: "Working tree changes on main; uncommitted."
+  changed_paths:
+    - "frontend/src/components/ui/ResponsiveDataView.tsx"
+    - "frontend/src/components/ui/ResponsiveDataView.test.tsx"
+    - "frontend/src/components/reports/ReportTable.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx"
+    - "frontend/src/components/reports/tabs/AcademicRecordReportTab.test.tsx"
+  checks_passed:
+    - "V-01: npm --prefix frontend test -- \"src/components/reports/tabs/AcademicRecordReportTab.test.tsx\" \"src/components/ui/ResponsiveDataView.test.tsx\" (13 tests passed)."
+    - "V-02: npm --prefix frontend run typecheck (passed)."
+    - "git diff --check on all scoped changed files (passed)."
   cleanup_pending: []
 evidence:
   current_behavior: "frontend/src/components/reports/tabs/AcademicRecordReportTab.tsx renders per-row Xử lý and calls window.confirm before one academicRecordApi.markFollowUp request; ReportTable does not expose ResponsiveDataView selection, although ResponsiveDataView already supports controlled checkboxes and the shared FloatingActionBar/ConfirmModal components exist."
@@ -78,7 +85,6 @@ risks:
   - "Four frontend write paths and responsive selection behavior exceed the Quick file limit, so this scope uses Full."
   - "Client-side fan-out can partially succeed; the UI must freeze the submitted set and retain failed IDs rather than replay successful requests."
 stop_conditions:
-  - "Stop until taskscope-01 completes/cancels or otherwise releases the overlapping AcademicRecordReportTab paths."
   - "Stop with TASKSCOPE_CONFLICT if any write path is reserved by another active scope or becomes dirty from unknown work before execution."
   - "Stop runtime mutations if the effective services cannot be proven to use development data isolated from production."
 ---

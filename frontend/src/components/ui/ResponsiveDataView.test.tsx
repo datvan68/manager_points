@@ -82,4 +82,21 @@ describe('ResponsiveDataView', () => {
     expect(screen.queryByRole('button', { name: /Chọn Student 1/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0);
   });
+
+  it('disables non-selectable rows on mobile and desktop and excludes them from select all', () => {
+    const onSelectAll = vi.fn();
+    render(
+      <ResponsiveDataView
+        data={mockData}
+        columns={mockColumns}
+        keyExtractor={(row) => row.id}
+        selection={{ selectedKeys: [], onSelectRow: vi.fn(), onSelectAll, isRowSelectable: row => row.id === '1' }}
+      />
+    );
+
+    expect(screen.getAllByRole('checkbox').filter(input => (input as HTMLInputElement).disabled)).toHaveLength(2);
+    const header = screen.getAllByRole('checkbox').find(input => input.closest('th'));
+    fireEvent.click(header!);
+    expect(onSelectAll).toHaveBeenCalledWith(true);
+  });
 });

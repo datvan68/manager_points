@@ -102,7 +102,6 @@ describe('AcademicRecordReportTab', () => {
   it('refreshes only after a successful confirmation and prevents duplicate handling', async () => {
     markFollowUp.mockResolvedValueOnce({ success: true });
     const onRefresh = vi.fn().mockResolvedValue(undefined);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const { rerender } = render(
       <AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />,
     );
@@ -112,6 +111,7 @@ describe('AcademicRecordReportTab', () => {
     rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'new', new_record_count: 1 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
     expect(screen.getAllByText('1 ghi nhận mới').length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
+    fireEvent.click(await screen.findByRole('button', { name: 'OK', exact: true }));
     const pendingActions = screen.getAllByRole('button', { name: 'Đang xử lý...' });
     expect(pendingActions[0]).toBeDisabled();
     fireEvent.click(pendingActions[0]);
@@ -122,21 +122,58 @@ describe('AcademicRecordReportTab', () => {
 
   it('retains the row state and shows an error when handling fails', async () => {
     markFollowUp.mockRejectedValueOnce(new Error('stale'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
+    fireEvent.click(await screen.findByRole('button', { name: 'OK', exact: true }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Không thể cập nhật trạng thái xử lý');
     expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
   });
 
-  it('does not submit or refresh when the action is cancelled', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does not submit or refresh when the action is cancelled', async () => {
     const onRefresh = vi.fn();
     render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy', exact: true }));
 
     expect(markFollowUp).not.toHaveBeenCalled();
     expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it('selects only actionable rows, opens a frozen bulk confirmation, and prevents duplicate submit', async () => {
+    markFollowUp.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ success: true }), 10)));
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    render(<AcademicRecordReportTab data={[row, { ...row, key: 'student-2', _id: 'student-2', follow_up_status: 'settled', new_record_count: 0 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
+
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes.find(input => !(input as HTMLInputElement).disabled && input !== checkboxes[0])!);
+    expect(screen.getByRole('button', { name: 'Xử lý đã chọn' })).toBeInTheDocument();
+    expect(screen.getAllByText(/1/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Xử lý đã chọn' }));
+    expect(await screen.findByText('Xác nhận đã xử lý ghi nhận của 1 sinh viên đã chọn?')).toBeInTheDocument();
+
+    const confirm = screen.getAllByRole('button', { name: 'Xử lý', exact: true }).at(-1)!;
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(markFollowUp).toHaveBeenCalledTimes(1));
+    expect(markFollowUp).toHaveBeenCalledWith('student-1', 'semester-1');
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it('refreshes successful rows once and retains failed rows for retry', async () => {
+    markFollowUp.mockImplementation((studentId: string) => studentId === 'student-2' ? Promise.reject(new Error('stale')) : Promise.resolve({ success: true }));
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    render(<AcademicRecordReportTab data={[row, { ...row, key: 'student-2', _id: 'student-2' }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
+
+    const rowCheckboxes = screen.getAllByRole('checkbox').filter(input => !(input as HTMLInputElement).disabled);
+    fireEvent.click(rowCheckboxes[1]);
+    fireEvent.click(rowCheckboxes[2]);
+    fireEvent.click(screen.getByRole('button', { name: 'Xử lý đã chọn' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Xử lý', exact: true })).at(-1)!);
+
+    await waitFor(() => expect(markFollowUp).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent('một số sinh viên');
+    expect(screen.getByRole('button', { name: 'Xử lý đã chọn' })).toBeInTheDocument();
   });
 });
