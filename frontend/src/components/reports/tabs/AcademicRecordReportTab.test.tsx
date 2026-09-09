@@ -52,7 +52,9 @@ describe('AcademicRecordReportTab', () => {
       />,
     );
 
-    expect(screen.getByText('Tổng hợp Ghi nhận sinh viên')).toBeInTheDocument();
+    expect(screen.queryByText('Tổng hợp Ghi nhận sinh viên')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tổng cộng:/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Lọc trạng thái xử lý')).toBeInTheDocument();
     expect(screen.getAllByText('3 lần').length).toBeGreaterThan(0);
     expect(screen.getByText(/trên tổng số 12 sinh viên/)).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Chi tiết' })).not.toBeInTheDocument();

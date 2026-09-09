@@ -217,17 +217,19 @@ export default function AcademicRecordReportTab({
   return (
     <>
       <div className="p-6 text-xs">
-        <div className="mb-3 flex flex-wrap items-center gap-2" aria-label="Lọc trạng thái xử lý">
-          <span className="font-bold text-slate-700">Trạng thái xử lý:</span>
-          {(['all', 'unhandled', 'settled', 'new'] as const).map(status => (
-            <button key={status} type="button" onClick={() => onFollowUpStatusChange?.(status)} className={`rounded-full border px-3 py-1 font-semibold ${followUpStatus === status ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
-              {status === 'all' ? 'Tất cả' : status === 'new' ? 'Ghi nhận mới' : followUpLabels[status]}
-            </button>
-          ))}
-        </div>
         {followUpError && <p role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-2 font-semibold text-red-700">{followUpError}</p>}
         <ReportTable
           title="Tổng hợp Ghi nhận sinh viên"
+          hideHeaderInfo
+          pageSizeOptions={[40, 80, 120, 200, 500]}
+          headerContent={<div className="flex flex-wrap items-center gap-2" aria-label="Lọc trạng thái xử lý">
+            <span className="font-bold text-slate-700">Trạng thái xử lý:</span>
+            {(['all', 'unhandled', 'settled', 'new'] as const).map(status => (
+              <button key={status} type="button" onClick={() => onFollowUpStatusChange?.(status)} className={`rounded-full border px-3 py-1 font-semibold ${followUpStatus === status ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
+                {status === 'all' ? 'Tất cả' : status === 'new' ? 'Ghi nhận mới' : followUpLabels[status]}
+              </button>
+            ))}
+          </div>}
           columns={columns}
           data={data}
           isLoading={isLoading}

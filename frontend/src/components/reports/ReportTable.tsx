@@ -30,6 +30,9 @@ interface ReportTableProps {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   selection?: ResponsiveSelection<any>;
+  headerContent?: React.ReactNode;
+  hideHeaderInfo?: boolean;
+  pageSizeOptions?: number[];
 }
 
 export default function ReportTable({
@@ -46,7 +49,10 @@ export default function ReportTable({
   pageSize,
   onPageChange,
   onPageSizeChange,
-  selection
+  selection,
+  headerContent,
+  hideHeaderInfo = false,
+  pageSizeOptions = [10, 20, 40]
 }: ReportTableProps) {
   const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(10);
@@ -70,7 +76,7 @@ export default function ReportTable({
   };
 
   const handlePageSizeChange = (size: number) => {
-    const normalizedSize = [10, 20, 40].includes(size) ? size : 10;
+    const normalizedSize = pageSizeOptions.includes(size) ? size : pageSizeOptions[0];
     if (serverSide && onPageSizeChange) {
       onPageChange?.(1);
       onPageSizeChange(normalizedSize);
@@ -114,7 +120,7 @@ export default function ReportTable({
         currentPage={activeCurrentPage}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
-        pageSizeOptions={[10, 20, 40]}
+        pageSizeOptions={pageSizeOptions}
         label={label}
         className="shadow-none border-none rounded-none bg-transparent"
       />
@@ -124,12 +130,17 @@ export default function ReportTable({
   return (
     <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       {/* Header of Table */}
-      <div className="px-6 py-4 border-b border-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40">
-        <div>
-          <h3 className="font-bold text-[#1E293B] text-[15px]">{title}</h3>
-          <span className="text-[11px] text-[#64748B] font-semibold">
-            Tổng cộng: {totalCount} bản ghi
-          </span>
+      <div className="px-4 py-3 border-b border-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/40">
+        <div className="min-w-0 flex-1">
+          {headerContent}
+          {!hideHeaderInfo && (
+            <>
+              <h3 className="font-bold text-[#1E293B] text-[15px]">{title}</h3>
+              <span className="text-[11px] text-[#64748B] font-semibold">
+                Tổng cộng: {totalCount} bản ghi
+              </span>
+            </>
+          )}
         </div>
         <button
           onClick={onExportExcel}

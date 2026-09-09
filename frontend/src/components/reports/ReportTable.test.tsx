@@ -35,6 +35,32 @@ describe('ReportTable report pagination contract', () => {
     expect(onPageSizeChange).toHaveBeenCalledWith(40);
   });
 
+  it('supports a custom page-size range up to 500 rows', () => {
+    const onPageSizeChange = vi.fn();
+    render(
+      <ReportTable
+        title="Báo cáo"
+        columns={[{ key: 'name', header: 'Tên' }]}
+        data={[{ id: '1', name: 'Một' }]}
+        isLoading={false}
+        onExportExcel={vi.fn()}
+        serverSide
+        totalItems={500}
+        currentPage={1}
+        pageSize={40}
+        onPageSizeChange={onPageSizeChange}
+        pageSizeOptions={[40, 80, 120, 200, 500]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('combobox'));
+    expect(screen.getByText('40')).toBeInTheDocument();
+    expect(screen.getByText('500')).toBeInTheDocument();
+    expect(screen.queryByText('1000')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('500'));
+    expect(onPageSizeChange).toHaveBeenCalledWith(500);
+  });
+
   it('keeps existing rows visible during a background load', () => {
     render(
       <ReportTable

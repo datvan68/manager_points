@@ -115,7 +115,7 @@ export default function ReportsPage() {
   const [studentTotal, setStudentTotal] = useState(0);
 
   const [recordPage, setRecordPage] = useState(1);
-  const [recordLimit, setRecordLimit] = useState(10);
+  const [recordLimit, setRecordLimit] = useState(40);
   const [recordTotal, setRecordTotal] = useState(0);
   const [followUpStatus, setFollowUpStatus] = useState<'all' | 'unhandled' | 'settled' | 'new'>('all');
 
