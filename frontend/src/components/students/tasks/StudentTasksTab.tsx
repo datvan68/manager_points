@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, Plus, Filter, Play, Check, AlertCircle, 
   Calendar, ChevronLeft, ChevronRight, 
-  CheckCircle2, Clock, ExternalLink, Users, UserCheck, ShieldAlert, X
+  ExternalLink, Users, UserCheck, ShieldAlert, X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
@@ -176,7 +176,7 @@ const getLinkedPageName = (url: string): string => {
   return LINKED_PAGE_NAMES[normalizedPath] || url;
 };
 
-const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
+const StudentTasksTab = () => {
   const router = useRouter();
   const { user } = useAuth();
   const taskAccess = usePermission({
@@ -200,11 +200,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
 
   // States từ API
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [summary, setSummary] = useState({
-    totalTasks: 0,
-    urgentTasks: 0,
-    completedTasks: 0,
-  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +207,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
   // States bộ lọc & phân trang
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeTabFilter, setActiveTabFilter] = useState<'Mới nhất' | 'Hoàn thành' | 'Đang làm' | 'Chưa bắt đầu'>('Mới nhất');
   const [priorityFilter, setPriorityFilter] = useState<'All' | 'High' | 'Medium' | 'Low'>('All');
   const [targetFilter, setTargetFilter] = useState<'All' | 'HSSV' | 'Giáo viên' | 'Quản sinh'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -246,11 +240,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
     }
     setError(null);
     try {
-      let statusQuery = 'all';
-      if (activeTabFilter === 'Hoàn thành') statusQuery = 'completed';
-      else if (activeTabFilter === 'Đang làm') statusQuery = 'in_progress';
-      else if (activeTabFilter === 'Chưa bắt đầu') statusQuery = 'not_started';
-
       let priorityQuery = 'all';
       if (priorityFilter === 'High') priorityQuery = 'high';
       else if (priorityFilter === 'Medium') priorityQuery = 'medium';
@@ -264,7 +253,7 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
       const response = await studentTaskApi.getTasks({
         page: currentPage,
         limit: itemsPerPage,
-        status: statusQuery,
+        status: 'all',
         priority: priorityQuery,
         targetType: targetTypeQuery,
         search: debouncedSearch,
@@ -278,9 +267,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
 
       const mappedItems = (response.items || []).map(mapBackendToClientTask);
       setTasks(mappedItems);
-      if (response.summary) {
-        setSummary(response.summary);
-      }
       setTotalPages(response.totalPages || 1);
       setTotalCount(response.total || 0);
     } catch (err: any) {
@@ -293,7 +279,7 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
         setIsLoading(false);
       }
     }
-  }, [activeTabFilter, priorityFilter, targetFilter, debouncedSearch, currentPage]);
+  }, [priorityFilter, targetFilter, debouncedSearch, currentPage]);
 
   useEffect(() => {
     fetchTasks();
@@ -438,112 +424,17 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
     }
   };
 
-  // Tính toán KPI lấy trực tiếp từ state summary cập nhật từ API
-  const totalTasks = summary.totalTasks;
-  const urgentTasks = summary.urgentTasks;
-  const completedTasks = summary.completedTasks;
-
   const startItem = totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, totalCount);
-
-
-
-
-
-  const renderKPICards = (isMobile: boolean) => {
-    if (!canManageTasks) return null;
-    return (
-      <div 
-        className={`grid gap-3 shrink-0 ${
-          isMobile 
-            ? "grid-cols-1 md:grid-cols-3 mt-6 pt-4 border-t border-white/30 lg:hidden" 
-            : "hidden lg:grid lg:grid-cols-3 order-2 lg:order-1"
-        }`}
-      >
-        {/* KPI Card 1: Total */}
-        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">TỔNG NHIỆM VỤ</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-[#1E293B]">{totalTasks}</span>
-              <span className="inline-flex items-center text-[9px] font-semibold text-[#1A73E8] bg-blue-50/70 border border-blue-100/60 px-1.5 py-0.5 rounded-xl">
-                +3 tuần này
-              </span>
-            </div>
-          </div>
-          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-[#1A73E8] shrink-0 border border-blue-100/30">
-            <Clock size={16} />
-          </div>
-        </div>
-
-        {/* KPI Card 2: Urgent */}
-        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">SẮP HẾT HẠN</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-red-600">
-                {String(urgentTasks).padStart(2, '0')}
-              </span>
-              <span className="inline-flex items-center text-[9px] font-semibold text-red-600 bg-red-50/70 border border-red-100/60 px-1.5 py-0.5 rounded-xl">
-                Cần xử lý ngay
-              </span>
-            </div>
-          </div>
-          <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0 border border-red-100/30">
-            <AlertCircle size={16} />
-          </div>
-        </div>
-
-        {/* KPI Card 3: Completed */}
-        <div className="bg-white/40 backdrop-blur-md border border-white/70 rounded-xl p-2.5 shadow-sm shadow-slate-300/40 hover:bg-white/60 hover:scale-[1.01] transition-all duration-150 ease-out flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold text-[#64748B] tracking-wider uppercase">HOÀN THÀNH</span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-bold text-emerald-600">{completedTasks}</span>
-              <span className="inline-flex items-center text-[9px] font-semibold text-emerald-600 bg-emerald-50/70 border border-emerald-100/60 px-1.5 py-0.5 rounded-xl">
-                Hoàn thành
-              </span>
-            </div>
-          </div>
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0 border border-emerald-100/30">
-            <CheckCircle2 size={16} />
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="flex-1 flex flex-col gap-4 overflow-hidden min-h-0 bg-transparent">
 
 
-      {/* KPI Cards Grid */}
-      {showStats && renderKPICards(false)}
-
       {/* Filter and Grid Container */}
       <div className="flex-1 bg-white/40 backdrop-blur-md border border-white/70 rounded-2xl flex flex-col min-h-0 overflow-hidden shadow-sm shadow-slate-300/40 order-1 lg:order-2">
         
         <div className="p-4 border-b border-white/70 bg-white/20 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-          {/* Lọc Trạng thái (Tab phẳng) */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-white/30 p-1 rounded-xl w-full lg:w-fit border border-white/70 backdrop-blur-sm shadow-sm shrink-0 overflow-x-auto scrollbar-none">
-            {(['Mới nhất', 'Đang làm', 'Hoàn thành', 'Chưa bắt đầu'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => {
-                  setActiveTabFilter(tab);
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ease-out hover:scale-[1.01] cursor-pointer flex-1 lg:flex-none text-center outline-none focus:outline-none focus-visible:outline-none select-none border ${
-                  activeTabFilter === tab 
-                    ? 'bg-[#E6E8EB] border-white/70 text-[#1E293B]' 
-                    : 'border-transparent text-[#64748B] hover:text-[#1E293B]'
-                }`}
-              >
-                {tab === 'Mới nhất' ? 'Tất cả' : tab}
-              </button>
-            ))}
-          </div>
-
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto mt-2 lg:mt-0">
             {/* Lọc đối tượng áp dụng */}
             {canManageTasks && (
@@ -617,7 +508,7 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
               </button>
             )}
 
-            {/* Mobile/Tablet Actions Row (Search, Filter, Add Task, Status Select) */}
+            {/* Mobile/Tablet Actions Row */}
             <div className="lg:hidden flex items-center gap-2 w-full">
               {isSearchExpanded ? (
                 <div className="flex items-center gap-1.5 w-full">
@@ -646,27 +537,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2 w-full">
-                  {/* Status Select Dropdown (Mobile only) */}
-                  <div className="relative flex-1 min-w-[120px]">
-                    <Select
-                      value={activeTabFilter}
-                      onValueChange={(val: any) => {
-                        setActiveTabFilter(val);
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <SelectTrigger className="h-8 py-1.5 text-xs font-bold text-[#1A73E8] bg-white border border-white/70 rounded-xl shadow-none focus:ring-2 focus:ring-[#1A73E8]/30">
-                        <SelectValue placeholder="Trạng thái" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Mới nhất">Tất cả</SelectItem>
-                        <SelectItem value="Chưa bắt đầu">Chưa bắt đầu</SelectItem>
-                        <SelectItem value="Đang làm">Đang làm</SelectItem>
-                        <SelectItem value="Hoàn thành">Hoàn thành</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <div className="flex items-center gap-2 shrink-0">
                     {/* Search Icon Button */}
                     <button
@@ -918,7 +788,6 @@ const StudentTasksTab = ({ showStats = false }: { showStats?: boolean }) => {
             </div>
           )}
 
-          {renderKPICards(true)}
         </div>
 
         {/* Footer (Pagination) */}
