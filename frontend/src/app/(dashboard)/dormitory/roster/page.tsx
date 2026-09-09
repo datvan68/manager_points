@@ -222,11 +222,11 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
         const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
         return (
           <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => compact ? void selectRoom(room) : selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex min-h-11 w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-left text-xs transition-all duration-150 ease-out hover:border-white/70 hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'border-blue-500/20 bg-blue-500/10' : ''}`}>
-            <span className="min-w-0">
-              <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
-              <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
+          <span className="min-w-0">
+              <span className="block truncate font-semibold text-sm text-slate-700">{room.room_name || room.room_code}</span>
+              <span className="block text-xs text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
             </span>
-            <span className="ml-2 shrink-0 text-[11px] text-slate-500">{roomStatusLabel(room.status)}</span>
+            <span className="ml-2 shrink-0 text-xs text-slate-500">{roomStatusLabel(room.status)}</span>
           </button>
         );
       })}
@@ -240,8 +240,8 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
         const selectable = !isCurrentBed && selectedRoom?.status === 'Trống' && isAvailableBed(bed);
         return (
           <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => selectedRoom && void assignBed(selectedRoom, bed)} className="flex min-h-11 w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-left text-xs transition-all duration-150 ease-out hover:border-white/70 hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-60">
-            <span className="font-semibold text-slate-700">{bed.bed_code || bed._id}</span>
-            <span className={`text-[11px] ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
+            <span className="font-semibold text-sm text-slate-700">{bed.bed_code || bed._id}</span>
+            <span className={`text-xs ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
           </button>
         );
       })}
@@ -249,16 +249,16 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
   );
 
   const renderPickerBody = () => loading ? (
-    <p className="px-2 py-3 text-xs text-slate-500">Đang tải phòng...</p>
+    <p className="px-2 py-3 text-sm text-slate-500">Đang tải phòng...</p>
   ) : error && !selectedRoom ? (
-    <p role="alert" className="px-2 py-3 text-xs text-red-600">{error}</p>
+    <p role="alert" className="px-2 py-3 text-sm text-red-600">{error}</p>
   ) : rooms.length === 0 && !selectedRoom ? (
-    <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p>
+    <p className="px-2 py-3 text-sm text-slate-500">Không có phòng phù hợp.</p>
   ) : selectedRoom ? (
     <div className="space-y-2">
       {compact && <button type="button" onClick={() => { bedRequestRef.current += 1; setSelectedRoom(null); setBeds([]); setBedsLoading(false); setError(''); }} disabled={assigning} className="min-h-11 rounded-xl px-2 text-xs font-semibold text-slate-600 transition-all duration-150 ease-out hover:bg-white/60">← Quay lại danh sách phòng</button>}
-      <p className="px-2 text-xs font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
-      {bedsLoading ? <p className="px-2 py-2 text-xs text-slate-500">Đang tải giường...</p> : error ? <p role="alert" className="px-2 py-2 text-xs text-red-600">{error}</p> : beds.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Phòng chưa có giường.</p> : renderBedList()}
+      <p className="px-2 text-sm font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
+      {bedsLoading ? <p className="px-2 py-2 text-sm text-slate-500">Đang tải giường...</p> : error ? <p role="alert" className="px-2 py-2 text-sm text-red-600">{error}</p> : beds.length === 0 ? <p className="px-2 py-2 text-sm text-slate-500">Phòng chưa có giường.</p> : renderBedList()}
     </div>
   ) : renderRoomList();
 
@@ -273,7 +273,7 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>{trigger}</DialogTrigger>
           <DialogContent showCloseButton className="!flex !max-h-[calc(100dvh-2rem)] !w-[calc(100%-2rem)] !max-w-md flex-col overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-[#EBF2FA]/95 via-[#E7EEF8]/90 to-[#DCE6F1]/95 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
-            <DialogHeader className="shrink-0 border-b border-white/60 pb-3 pr-8 text-left"><DialogTitle className="text-sm font-bold text-[#1E293B]">{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
+            <DialogHeader className="shrink-0 border-b border-white/60 pb-3 pr-8 text-left"><DialogTitle className="text-base font-bold text-[#1E293B]">{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{renderPickerBody()}</div>
             <div className="shrink-0 border-t border-white/60 pt-2">{renderUnassign()}</div>
           </DialogContent>
