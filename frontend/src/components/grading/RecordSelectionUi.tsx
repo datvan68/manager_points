@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -216,6 +217,156 @@ export interface StudentOptionItem {
   class_id?: any;
 }
 
+interface VirtualizedStudentGridProps<T extends StudentOptionItem> {
+  students: T[];
+  selectedStudentIds: string[];
+  onToggle: (student: T) => void;
+  loading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  disabled?: boolean;
+  emptyMessage?: string;
+  mobile?: boolean;
+  className?: string;
+}
+
+function useStudentGridColumnCount(mobile: boolean): number {
+  const [columnCount, setColumnCount] = useState(1);
+
+  useEffect(() => {
+    if (mobile || typeof window === 'undefined') {
+      setColumnCount(1);
+      return;
+    }
+
+    const smallGrid = window.matchMedia('(min-width: 640px)');
+    const largeGrid = window.matchMedia('(min-width: 1280px)');
+    const updateColumnCount = () => setColumnCount(largeGrid.matches ? 3 : smallGrid.matches ? 2 : 1);
+    updateColumnCount();
+    smallGrid.addEventListener?.('change', updateColumnCount);
+    largeGrid.addEventListener?.('change', updateColumnCount);
+    return () => {
+      smallGrid.removeEventListener?.('change', updateColumnCount);
+      largeGrid.removeEventListener?.('change', updateColumnCount);
+    };
+  }, [mobile]);
+
+  return columnCount;
+}
+
+export function VirtualizedStudentGrid<T extends StudentOptionItem>({
+  students,
+  selectedStudentIds,
+  onToggle,
+  loading = false,
+  hasMore = false,
+  onLoadMore,
+  disabled = false,
+  emptyMessage = 'Không tìm thấy sinh viên.',
+  mobile = false,
+  className = '',
+}: VirtualizedStudentGridProps<T>) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastRequestedCountRef = useRef<number | null>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  const selectedIds = useMemo(() => new Set(selectedStudentIds), [selectedStudentIds]);
+  const columnCount = useStudentGridColumnCount(mobile);
+  const rowCount = Math.ceil(students.length / columnCount);
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => mobile ? 58 : 64,
+    overscan: 3,
+    measureElement: element => element.getBoundingClientRect().height,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  useEffect(() => {
+    if (!hasMore || loading || students.length === 0 || virtualRows.length === 0) return;
+    const lastVisibleRow = virtualRows[virtualRows.length - 1];
+    if (lastVisibleRow.index < rowCount - 2 || lastRequestedCountRef.current === students.length) return;
+    lastRequestedCountRef.current = students.length;
+    onLoadMoreRef.current?.();
+  }, [hasMore, loading, rowCount, students.length, virtualRows]);
+
+  return (
+    <div
+      ref={scrollRef}
+      className={`overflow-x-hidden overflow-y-auto overscroll-contain ${className}`}
+      role="listbox"
+      aria-label="Danh sách sinh viên"
+    >
+      <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+        {virtualRows.map(virtualRow => {
+          const rowStudents = students.slice(
+            virtualRow.index * columnCount,
+            (virtualRow.index + 1) * columnCount,
+          );
+          return (
+            <div
+              key={virtualRow.key}
+              ref={rowVirtualizer.measureElement}
+              data-index={virtualRow.index}
+              className={`absolute left-0 top-0 grid w-full gap-1.5 pb-1.5 sm:gap-2 sm:pb-2 ${
+                mobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+              }`}
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
+              {rowStudents.map(student => {
+                const isSelected = selectedIds.has(student._id);
+                return (
+                  <button
+                    key={student._id}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    disabled={disabled}
+                    onClick={() => onToggle(student)}
+                    className={`flex w-full items-center justify-between rounded-xl border text-left font-semibold transition-colors ${
+                      mobile
+                        ? 'min-h-[48px] px-3.5 py-3 text-sm'
+                        : 'h-full min-h-[52px] p-3 text-sm sm:min-h-[56px] sm:p-3.5 lg:min-h-[52px] lg:px-2.5 lg:py-2'
+                    } ${
+                      isSelected
+                        ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
+                        : mobile
+                          ? 'border-slate-100 bg-white text-slate-800 hover:bg-slate-50'
+                          : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className={`block font-bold leading-tight ${mobile ? 'truncate text-sm' : 'break-words text-sm md:text-[13.5px] lg:text-xs'}`}>{student.full_name}</span>
+                      <span className={`block font-mono leading-tight text-slate-500 ${mobile ? 'text-xs' : 'text-xs lg:text-[10.5px]'}`}>MSSV: {student.student_code}</span>
+                    </div>
+                    {isSelected ? (
+                      <span className="ml-2 shrink-0 rounded border border-red-200/80 bg-red-100/90 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+                        Đã chọn
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 p-3 text-xs text-slate-400" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Đang tải...
+        </div>
+      ) : null}
+      {!loading && students.length === 0 ? (
+        <div className="py-8 text-center text-sm italic text-slate-400">{emptyMessage}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export interface MobileStudentSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -279,63 +430,16 @@ export function MobileStudentSelectionDialog({
             <DialogDescription>{description}</DialogDescription>
           </div>
 
-          <div
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2"
-            role="listbox"
-            aria-label="Danh sách sinh viên"
-          >
-            <div className="flex flex-col gap-1.5">
-              {students.map(student => {
-                const isSelected = draftSelectedIds.includes(student._id);
-                return (
-                  <button
-                    key={student._id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => toggleStudent(student._id)}
-                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-3 text-left font-semibold transition-colors min-h-[48px] text-sm ${
-                      isSelected
-                        ? 'border border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
-                        : 'border border-slate-100 bg-white hover:bg-slate-50 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="truncate text-sm font-bold leading-tight">{student.full_name}</span>
-                      <span className="text-xs text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      {isSelected && (
-                        <span className="text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
-                          Đã chọn
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-              {!loading && students.length === 0 && (
-                <div className="py-8 text-center text-sm text-slate-400 italic">Không tìm thấy sinh viên.</div>
-              )}
-              {loading && (
-                <div className="flex items-center justify-center gap-2 p-4 text-xs text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang tải...
-                </div>
-              )}
-              {hasMore && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onLoadMore}
-                  disabled={loading}
-                  className="mx-auto mt-2 flex h-11 min-h-[44px] border-white/70 bg-blue-50/70 px-5 text-sm font-bold text-blue-700 shadow-sm backdrop-blur-sm hover:border-white/90 hover:bg-blue-100/80 focus-visible:ring-2 focus-visible:ring-blue-400/30 disabled:opacity-60"
-                >
-                  Tải thêm sinh viên
-                </Button>
-              )}
-            </div>
-          </div>
+          <VirtualizedStudentGrid
+            students={students}
+            selectedStudentIds={draftSelectedIds}
+            onToggle={student => toggleStudent(student._id)}
+            loading={loading}
+            hasMore={hasMore}
+            onLoadMore={onLoadMore}
+            mobile
+            className="min-h-0 flex-1 rounded-2xl border border-slate-200 bg-white p-2"
+          />
 
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
             <Button

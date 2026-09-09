@@ -20,7 +20,7 @@ import { semesterApi } from '@/api/semester-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-api';
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
-import { RecordSelectionDialog, quickGridClass, toggleSelectionValue, MobileStudentSelectionDialog } from './RecordSelectionUi';
+import { RecordSelectionDialog, toggleSelectionValue, MobileStudentSelectionDialog, VirtualizedStudentGrid } from './RecordSelectionUi';
 import { useRecordDraft } from '@/hooks/useRecordDraft';
 
 const getDisplayClassName = (className?: string) =>
@@ -485,7 +485,11 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
         append ? prev : prev.filter(student => getIdValue(student.class_id) !== classId),
         newStudents,
       ]));
-      setHasMoreStudents(prev => ({ ...prev, [classId]: newStudents.length >= limit }));
+      const totalPages = !Array.isArray(res) ? res?.meta?.totalPages : undefined;
+      setHasMoreStudents(prev => ({
+        ...prev,
+        [classId]: typeof totalPages === 'number' ? page < totalPages : newStudents.length >= limit,
+      }));
     } catch (err) {
       console.warn('Lỗi nạp sinh viên lớp:', err);
       if (!append) {
@@ -506,7 +510,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     classIdsRef.current = classIds;
     setStudentsSearch("");
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
-    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
+    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, false])));
     setClassStudentTotals({});
     setTotalStudentsCount(0);
     setClassStudents(prev => prev.filter(student => classIds.includes(getIdValue(student.class_id))));
@@ -536,7 +540,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const handleStudentSearch = (query: string) => {
     setStudentsSearch(query);
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
-    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, true])));
+    setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, false])));
     
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -1082,54 +1086,17 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     </div>
                   </div>
 
-                  {/* Student Card Grid */}
-                  <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5 sm:gap-2 md:flex-1 md:min-h-0 md:!max-h-none ${quickGridClass(classStudents.length)}`} aria-label="Danh sách sinh viên">
-                    {classStudents.map(student => {
-                      const selected = addedViolations.some(v => v.student_id === student._id && v.criterion_id === selectedCriterionId);
-                      return (
-                        <button
-                          key={student._id}
-                          type="button"
-                          role="option"
-                          aria-selected={selected}
-                          disabled={!selectedCriterionId}
-                          onClick={() => handleToggleQuickStudent(student)}
-                          className={`h-full text-left rounded-xl border min-h-[52px] sm:min-h-[56px] lg:min-h-[52px] p-3 sm:p-3.5 lg:px-2.5 lg:py-2 transition-all duration-150 ease-out flex items-center justify-between gap-2 ${
-                            selected
-                              ? 'border-rose-400/90 bg-rose-50/90 text-rose-900 shadow-2xs'
-                              : 'border-blue-200 bg-blue-50/70 text-slate-800 shadow-sm hover:border-blue-400 hover:bg-blue-100/80'
-                          } disabled:cursor-not-allowed disabled:opacity-60`}
-                        >
-                          <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-                            <span className="block text-sm md:text-[13.5px] lg:text-xs font-bold leading-tight break-words">{student.full_name}</span>
-                            <span className="block text-xs md:text-xs lg:text-[10.5px] text-slate-500 font-mono leading-tight">MSSV: {student.student_code}</span>
-                          </div>
-                          {selected && (
-                            <span className="shrink-0 text-[10px] font-bold text-red-600 bg-red-100/90 border border-red-200/80 px-1.5 py-0.5 rounded">
-                              Đã chọn
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                    {!isStudentsLoading && classStudents.length === 0 && (
-                      <div className="col-span-full py-5 text-center text-sm md:text-xs text-slate-400 italic">
-                        {classIds.length === 0 ? 'Vui lòng chọn lớp học để xem danh sách sinh viên.' : 'Không tìm thấy sinh viên.'}
-                      </div>
-                    )}
-                  </div>
-
-                  {classIds.some(id => hasMoreStudents[id]) && classStudents.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleLoadMoreStudents}
-                      disabled={isStudentsLoading}
-                      className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl border-white/70 !bg-blue-50/70 text-sm font-bold !text-blue-700 shadow-sm backdrop-blur-sm hover:border-white/90 hover:!bg-blue-100/80 focus-visible:ring-2 focus-visible:ring-blue-400/30 transition-all duration-150 ease-out"
-                    >
-                      Tải thêm sinh viên
-                    </Button>
-                  )}
+                  <VirtualizedStudentGrid
+                    students={classStudents}
+                    selectedStudentIds={addedViolations.filter(v => v.criterion_id === selectedCriterionId).map(v => v.student_id)}
+                    onToggle={handleToggleQuickStudent}
+                    disabled={!selectedCriterionId}
+                    loading={isStudentsLoading}
+                    hasMore={classIds.some(id => hasMoreStudents[id])}
+                    onLoadMore={handleLoadMoreStudents}
+                    emptyMessage={classIds.length === 0 ? 'Vui lòng chọn lớp học để xem danh sách sinh viên.' : 'Không tìm thấy sinh viên.'}
+                    className="min-h-0 flex-1 pr-2"
+                  />
                   <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                 </div>
               </div>

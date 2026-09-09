@@ -1,6 +1,18 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RecordOptionRow, RecordSelectionDialog, quickGridClass, toggleSelectionValue, MobileStudentSelectionDialog } from './RecordSelectionUi';
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({
+      index,
+      key: index,
+      start: index * 64,
+    })),
+    getTotalSize: () => count * 64,
+    measureElement: () => undefined,
+  }),
+}));
 
 describe('RecordSelectionUi', () => {
   it('keeps a single selection as draft until confirmation and rolls back on cancel', () => {
@@ -144,7 +156,7 @@ describe('RecordSelectionUi', () => {
     expect(description.className).toContain('sr-only');
   });
 
-  it('handles mobile student selection with draft state, cancel and confirm', () => {
+  it('handles mobile student selection with draft state, infinite loading, cancel and confirm', async () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
     const onLoadMore = vi.fn();
@@ -177,10 +189,8 @@ describe('RecordSelectionUi', () => {
     fireEvent.click(optionB);
     expect(optionB).toHaveAttribute('aria-selected', 'true');
 
-    // Click load more
-    const loadMoreBtn = screen.getByRole('button', { name: /Tải thêm sinh viên/i });
-    fireEvent.click(loadMoreBtn);
-    expect(onLoadMore).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onLoadMore).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: /Tải thêm sinh viên/i })).not.toBeInTheDocument();
 
     // Cancel flow
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
