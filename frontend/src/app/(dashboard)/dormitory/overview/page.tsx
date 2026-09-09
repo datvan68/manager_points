@@ -533,13 +533,13 @@ export default function DormitoryOverviewPage() {
           if (!open) setSelectedRoom(null);
         }}
       >
-        <DialogContent className="max-w-md bg-white/95 backdrop-blur-xl border border-white/80 p-5 rounded-2xl shadow-xl">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/80 bg-white/95 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-xl sm:p-5">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Users size={18} className="text-blue-600" />
+            <DialogTitle className="flex items-center gap-1.5 pr-6 text-sm font-bold leading-5 text-slate-900 sm:gap-2 sm:text-base">
+              <Users size={16} className="shrink-0 text-blue-600 sm:h-[18px] sm:w-[18px]" />
               Thành viên phòng {selectedRoom?.room_code}
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
+            <DialogDescription className="text-[11px] leading-4 text-slate-500 sm:text-xs">
               {selectedRoom?.room_name ? `${selectedRoom.room_name} · ` : ''}
               {selectedRoom?.building_name || ''}
             </DialogDescription>
@@ -547,29 +547,29 @@ export default function DormitoryOverviewPage() {
 
           <div className="mt-2 max-h-80 overflow-y-auto">
             {selectedRoom?.members && selectedRoom.members.length > 0 ? (
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-[11px] sm:text-xs">
                 <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">Họ tên</th>
-                    <th className="px-3 py-2">Lớp</th>
+                    <th className="px-2.5 py-2 sm:px-3">Họ tên</th>
+                    <th className="px-2.5 py-2 sm:px-3">Lớp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {selectedRoom.members.map((member, index) => (
                     <tr key={index} className="hover:bg-slate-50/50">
-                      <td className="px-3 py-2.5 font-medium text-slate-800">
+                      <td className="px-2.5 py-2.5 font-medium text-slate-800 sm:px-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span>{member.full_name}</span>
                           {member.is_room_leader && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800" aria-label="Trưởng phòng">Trưởng phòng</span>}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600">{member.class_name || 'Chưa cập nhật'}</td>
+                      <td className="px-2.5 py-2.5 text-slate-600 sm:px-3">{member.class_name || 'Chưa cập nhật'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <div className="py-8 text-center text-xs text-slate-500">
+              <div className="px-2 py-8 text-center text-[11px] leading-4 text-slate-500 sm:text-xs">
                 Chưa có thành viên nào trong phòng này.
               </div>
             )}
@@ -579,7 +579,7 @@ export default function DormitoryOverviewPage() {
             <button
               type="button"
               onClick={() => setSelectedRoom(null)}
-              className="rounded-xl border border-slate-200/80 bg-slate-100/80 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors"
+              className="h-9 w-full rounded-xl border border-slate-200/80 bg-slate-100/80 px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 sm:w-auto"
             >
               Đóng
             </button>
