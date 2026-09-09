@@ -1110,7 +1110,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                         variant="outline"
                         onClick={handleLoadMoreStudents}
                         disabled={isStudentsLoading}
-                        className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl text-sm md:text-xs border-white/70 bg-white/40 backdrop-blur-sm hover:bg-white/60 transition-all duration-150 ease-out"
+                        className="self-center min-h-[44px] md:min-h-0 h-11 md:h-7.5 px-4 md:px-3 rounded-xl border-white/70 !bg-blue-50/70 text-sm font-bold !text-blue-700 shadow-sm backdrop-blur-sm hover:border-white/90 hover:!bg-blue-100/80 focus-visible:ring-2 focus-visible:ring-blue-400/30 transition-all duration-150 ease-out"
                       >
                         Tải thêm sinh viên
                       </Button>

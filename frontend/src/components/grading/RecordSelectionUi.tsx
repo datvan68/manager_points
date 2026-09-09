@@ -329,7 +329,7 @@ export function MobileStudentSelectionDialog({
                   variant="outline"
                   onClick={onLoadMore}
                   disabled={loading}
-                  className="mx-auto mt-2 flex h-11 min-h-[44px] text-sm"
+                  className="mx-auto mt-2 flex h-11 min-h-[44px] border-white/70 bg-blue-50/70 px-5 text-sm font-bold text-blue-700 shadow-sm backdrop-blur-sm hover:border-white/90 hover:bg-blue-100/80 focus-visible:ring-2 focus-visible:ring-blue-400/30 disabled:opacity-60"
                 >
                   Tải thêm sinh viên
                 </Button>
