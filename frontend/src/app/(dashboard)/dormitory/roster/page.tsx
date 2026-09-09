@@ -56,6 +56,15 @@ export const applyRoomAssignment = (row: DormitoryRosterEntry, assignment: RoomA
   assigned_room_name: assignment.room ? assignment.room.room_name || assignment.room.room_code : undefined,
   active_contract_id: assignment.active_contract_id || assignment.roster_entry?.active_contract_id || row.active_contract_id,
 });
+export const applyRoomUnassignment = (row: DormitoryRosterEntry, response: Awaited<ReturnType<typeof dormitoryApi.roster.unassignRoom>>): DormitoryRosterEntry => ({
+  ...row,
+  ...(response.roster_entry || {}),
+  room_id: undefined,
+  bed_id: undefined,
+  assigned_room_name: undefined,
+  active_contract_id: undefined,
+  active_contract: null,
+});
 export const createdDateLabel = (value?: string) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -212,7 +221,7 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
         const isCurrentRoom = room._id === currentRoomId;
         const selectable = isCurrentRoom || (room.status === 'Trống' && room.available_bed_count > 0);
         return (
-          <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => compact ? void selectRoom(room) : selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'bg-slate-100' : ''}`}>
+          <button type="button" key={room._id} disabled={!selectable || assigning} onClick={() => compact ? void selectRoom(room) : selectedRoom?._id === room._id ? (setSelectedRoom(null), setBeds([])) : void selectRoom(room)} className={`flex min-h-11 w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-left text-xs transition-all duration-150 ease-out hover:border-white/70 hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRoom?._id === room._id ? 'border-blue-500/20 bg-blue-500/10' : ''}`}>
             <span className="min-w-0">
               <span className="block truncate font-semibold text-slate-700">{room.room_name || room.room_code}</span>
               <span className="block text-[11px] text-slate-500">{roomQuantityLabel(room)}{isCurrentRoom ? ' · Phòng hiện tại' : ''}</span>
@@ -230,7 +239,7 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
         const isCurrentBed = bed._id === currentBedId;
         const selectable = !isCurrentBed && selectedRoom?.status === 'Trống' && isAvailableBed(bed);
         return (
-          <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => selectedRoom && void assignBed(selectedRoom, bed)} className="flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" key={bed._id} disabled={!selectable || assigning} onClick={() => selectedRoom && void assignBed(selectedRoom, bed)} className="flex min-h-11 w-full items-center justify-between rounded-xl border border-transparent px-3 py-2 text-left text-xs transition-all duration-150 ease-out hover:border-white/70 hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-60">
             <span className="font-semibold text-slate-700">{bed.bed_code || bed._id}</span>
             <span className={`text-[11px] ${isCurrentBed ? 'font-semibold text-emerald-700' : 'text-slate-500'}`}>{isCurrentBed ? 'Đang chọn' : bed.status}</span>
           </button>
@@ -247,14 +256,14 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
     <p className="px-2 py-3 text-xs text-slate-500">Không có phòng phù hợp.</p>
   ) : selectedRoom ? (
     <div className="space-y-2">
-      {compact && <button type="button" onClick={() => { bedRequestRef.current += 1; setSelectedRoom(null); setBeds([]); setBedsLoading(false); setError(''); }} disabled={assigning} className="min-h-11 rounded-lg px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">← Quay lại danh sách phòng</button>}
+      {compact && <button type="button" onClick={() => { bedRequestRef.current += 1; setSelectedRoom(null); setBeds([]); setBedsLoading(false); setError(''); }} disabled={assigning} className="min-h-11 rounded-xl px-2 text-xs font-semibold text-slate-600 transition-all duration-150 ease-out hover:bg-white/60">← Quay lại danh sách phòng</button>}
       <p className="px-2 text-xs font-semibold text-slate-600">Giường trong {selectedRoom.room_name || selectedRoom.room_code}</p>
       {bedsLoading ? <p className="px-2 py-2 text-xs text-slate-500">Đang tải giường...</p> : error ? <p role="alert" className="px-2 py-2 text-xs text-red-600">{error}</p> : beds.length === 0 ? <p className="px-2 py-2 text-xs text-slate-500">Phòng chưa có giường.</p> : renderBedList()}
     </div>
   ) : renderRoomList();
 
   const renderUnassign = () => currentBedId && (
-    <button type="button" disabled={assigning} onClick={() => setUnassignConfirmOpen(true)} className="mt-2 min-h-11 w-full rounded-lg border border-red-200 px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Bỏ chọn phòng</button>
+    <button type="button" disabled={assigning} onClick={() => setUnassignConfirmOpen(true)} className="mt-2 min-h-11 w-full rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-left text-xs font-semibold text-rose-700 transition-all duration-150 ease-out hover:bg-rose-500/15 disabled:opacity-50">Bỏ chọn phòng</button>
   );
 
   const trigger = <button type="button" aria-label={`${currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} cho ${studentName(row)}`} title={currentRoomId ? 'Đổi phòng' : 'Thêm phòng'} className="rounded-xl p-1.5 text-emerald-600 hover:bg-emerald-50"><DoorOpen size={16} /></button>;
@@ -263,18 +272,19 @@ export function RoomAssignmentPopover({ row, onAssigned, compact = false }: Room
       {compact ? (
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>{trigger}</DialogTrigger>
-          <DialogContent showCloseButton className="!left-0 !top-0 !flex !h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 flex-col rounded-none border-0 p-4 sm:rounded-none">
-            <DialogHeader><DialogTitle>{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto">{renderPickerBody()}{renderUnassign()}</div>
+          <DialogContent showCloseButton className="!flex !max-h-[calc(100dvh-2rem)] !w-[calc(100%-2rem)] !max-w-md flex-col overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br from-[#EBF2FA]/95 via-[#E7EEF8]/90 to-[#DCE6F1]/95 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
+            <DialogHeader className="shrink-0 border-b border-white/60 pb-3 pr-8 text-left"><DialogTitle className="text-sm font-bold text-[#1E293B]">{selectedRoom ? 'Chọn giường' : 'Chọn phòng'}</DialogTitle></DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">{renderPickerBody()}</div>
+            <div className="shrink-0 border-t border-white/60 pt-2">{renderUnassign()}</div>
           </DialogContent>
         </Dialog>
       ) : (
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-          <PopoverContent align="end" side="bottom" sideOffset={6} collisionPadding={8} className="z-[120] w-80 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-            <div className="px-2 pb-2 text-xs font-semibold text-slate-700">Chọn phòng</div>
-            {renderPickerBody()}
-            {renderUnassign()}
+          <PopoverContent align="end" side="bottom" sideOffset={6} collisionPadding={8} className="z-[120] flex max-h-[min(32rem,calc(100dvh-1rem))] w-80 flex-col rounded-2xl border border-white/70 bg-gradient-to-br from-[#EBF2FA]/95 via-[#E7EEF8]/90 to-[#DCE6F1]/95 p-2 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md">
+            <div className="shrink-0 border-b border-white/60 px-2 pb-2 text-xs font-semibold">Chọn phòng</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">{renderPickerBody()}</div>
+            <div className="shrink-0 border-t border-white/60 pt-2">{renderUnassign()}</div>
           </PopoverContent>
         </Popover>
       )}
@@ -311,6 +321,7 @@ export default function DormitoryRosterPage() {
   const [linkRow, setLinkRow] = useState<DormitoryRosterEntry | null>(null); const linkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [pdfRows, setPdfRows] = useState<DormitoryRosterEntry[]>([]); const [pdfUrl, setPdfUrl] = useState(''); const [pdfLoading, setPdfLoading] = useState(false); const [pdfError, setPdfError] = useState('');
   const [leaderRow, setLeaderRow] = useState<DormitoryRosterEntry | null>(null); const [leaderSaving, setLeaderSaving] = useState(false);
+  const [bulkUnassignOpen, setBulkUnassignOpen] = useState(false); const [bulkUnassigning, setBulkUnassigning] = useState(false);
 
   useEffect(() => () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); }, [pdfUrl]);
   useEffect(() => {
@@ -489,6 +500,55 @@ export default function DormitoryRosterPage() {
       setOperationPending(false);
     }
   };
+  type BulkUnassignOutcome = {
+    id: string;
+    ok: boolean;
+    response?: Awaited<ReturnType<typeof dormitoryApi.roster.unassignRoom>>;
+    error?: unknown;
+  };
+  const eligibleSelectedRows = registrations.filter(row => selected.includes(row._id) && Boolean(row.room_id && row.bed_id));
+  const openBulkUnassign = () => {
+    if (!canAssignRoom || operationPending || !eligibleSelectedRows.length) return;
+    if (eligibleSelectedRows.length > 100) {
+      toast.error('Tối đa 100 mục có phòng mỗi lần bỏ chọn phòng.');
+      return;
+    }
+    setBulkUnassignOpen(true);
+  };
+  const unassignSelected = async () => {
+    if (bulkUnassigning || operationPending) return;
+    const frozen = [...new Set(eligibleSelectedRows.map(row => row._id))].slice(0, 100);
+    if (!frozen.length) { setBulkUnassignOpen(false); return; }
+    setBulkUnassigning(true);
+    setBulkUnassignOpen(false);
+    setOperationPending(true);
+    try {
+      const run = await runRosterBatches<string, BulkUnassignOutcome[]>(frozen, 10, async batch => {
+        const outcomes = await Promise.all(batch.map(async id => {
+          try { return { id, ok: true, response: await dormitoryApi.roster.unassignRoom(id) }; }
+          catch (error) { return { id, ok: false, error }; }
+        }));
+        return outcomes;
+      });
+      const outcomes = run.acknowledged.flat();
+      const successful = new Set(outcomes.filter(item => item.ok).map(item => item.id));
+      const failed = frozen.length - successful.size;
+      const responses = new Map(outcomes.filter(item => item.ok && item.response).map(item => [item.id, item.response!]));
+      setRegistrations(current => current.map(row => {
+        const response = responses.get(row._id);
+        return successful.has(row._id) && response ? applyRoomUnassignment(row, response) : row;
+      }));
+      setSelected(current => current.filter(id => !successful.has(id)));
+      if (!failed) toast.success(`Đã bỏ chọn phòng cho ${successful.size} mục`);
+      else if (successful.size) toast.warning(`Đã bỏ chọn phòng cho ${successful.size} mục; ${failed} mục chưa thay đổi`);
+      else toast.error('Không thể bỏ chọn phòng cho các mục đã chọn.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể bỏ chọn phòng cho các mục đã chọn.');
+    } finally {
+      setBulkUnassigning(false);
+      setOperationPending(false);
+    }
+  };
   const openSelectedPdfPreview = () => {
     const targets = selectedPdfRosterEntries(registrations, selected);
     if (!targets.length) {
@@ -569,7 +629,8 @@ export default function DormitoryRosterPage() {
     </div>
     {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="flex min-h-0 flex-1 overflow-hidden bg-transparent lg:rounded-2xl lg:border lg:border-white/70 lg:bg-white/45 lg:shadow-sm lg:shadow-slate-300/40 lg:backdrop-blur-md"><ResponsiveDataView data={registrations} columns={columns} isLoading={loading} breakpoint="lg" keyExtractor={r => r._id} tableClassName={REGISTRATION_TABLE_CLASS_NAME} mobileScrollRef={mobileScrollRef} mobileVirtualization mobileClassName="px-0 py-4" hideMobileSelection hidePaginationOnMobile mobileFooter={<div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-center text-xs text-slate-500">{mobileLoadingMore ? 'Đang tải thêm...' : mobileLoadError ? <button type="button" className="text-blue-600 underline" onClick={() => void loadMoreMobile()}>Thử lại</button> : !mobileHasMore && registrations.length ? 'Đã hiển thị tất cả bản ghi.' : null}</div>} selection={{ selectedKeys: selected, onSelectRow: (key, checked) => setSelected(ids => checked ? [...ids, key] : ids.filter(id => id !== key)), onSelectAll: toggleAll, allSelected }} emptyState={<div className="p-8 text-center text-sm text-slate-500">Chưa có mục Danh sách KTX nào</div>} pagination={<CustomPagination totalItems={meta?.total || 0} pageSize={pageSize} currentPage={page} onPageChange={p => { setPage(p); setSelected([]); }} onPageSizeChange={s => { setPage(1); setPageSize(s); setSelected([]); }} pageSizeOptions={pageSizeOptions} isLoading={loading} label="mục Danh sách KTX" />} /></div>
-    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting || reconciling} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" disabled={pdfLoading || bulkDeleting || reconciling} onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Xuất PDF</button>}</>} />
+    <FloatingActionBar selectedCount={selected.length} onClear={() => setSelected([])} itemLabel="đơn" actions={<>{canAssignRoom && eligibleSelectedRows.length > 0 && <button type="button" aria-label="Bỏ chọn phòng" disabled={operationPending || bulkUnassigning} onClick={openBulkUnassign} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-150 ease-out hover:bg-amber-700 disabled:opacity-50"><DoorOpen size={14} /> Bỏ chọn phòng</button>}{canDelete && <button type="button" aria-label="Xóa đơn đã chọn" disabled={bulkDeleting || reconciling || operationPending} onClick={() => setBulkDeleteOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"><Trash2 size={14} /> Xóa</button>}{canView && <button type="button" aria-label="Xuất PDF đã chọn" disabled={pdfLoading || bulkDeleting || reconciling || operationPending} onClick={openSelectedPdfPreview} className="inline-flex items-center rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">Xuất PDF</button>}</>} />
+    <ConfirmModal isOpen={bulkUnassignOpen} onClose={() => !bulkUnassigning && setBulkUnassignOpen(false)} onConfirm={unassignSelected} title="Bỏ chọn phòng hàng loạt" message={`Bạn có chắc muốn bỏ chọn phòng cho ${eligibleSelectedRows.length} mục đã chọn? Các mục chưa được xếp phòng sẽ không bị thay đổi.`} confirmLabel="Bỏ chọn phòng" cancelLabel="Hủy" variant="warning" disabled={bulkUnassigning || operationPending} />
     <Dialog open={pdfRows.length > 0} onOpenChange={open => { if (!open) { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); } }}>
       <DialogContent className="flex h-[90vh] max-w-5xl flex-col"><DialogHeader><DialogTitle>{pdfRows.length > 1 ? `Xem trước đơn KTX (${pdfRows.length} sinh viên)` : 'Xem trước đơn KTX'}</DialogTitle></DialogHeader>{pdfLoading ? <div className="flex flex-1 items-center justify-center text-sm"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang tạo PDF...</div> : pdfError ? <div className="space-y-3 py-8 text-center"><p role="alert" className="text-sm text-red-600">{pdfError}</p><Button onClick={() => pdfRows.length > 0 && void loadPdfPreview(pdfRows)}>Thử lại</Button></div> : pdfUrl ? <iframe title="Xem trước đơn KTX" src={pdfUrl} className="min-h-0 flex-1 rounded border" /> : null}<DialogFooter><Button variant="outline" onClick={() => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(''); setPdfRows([]); setPdfError(''); }}>Đóng</Button>{pdfRows.length > 0 && <Button disabled={pdfLoading || Boolean(pdfError)} onClick={() => void downloadPdf(pdfRows)}>Xuất PDF</Button>}</DialogFooter></DialogContent>
     </Dialog>

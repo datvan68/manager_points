@@ -103,6 +103,38 @@ describe('Danh sách KTX canonical page capabilities', () => {
     expect(document.querySelectorAll('tbody input[type="checkbox"]')[1]).toBeChecked();
   });
 
+  it('confirms bulk room unassignment, calls each eligible row once, and retains failures', async () => {
+    const assigned1 = { ...entry1, room_id: 'room-1', bed_id: 'bed-1' };
+    const assigned2 = { ...entry2, room_id: 'room-2', bed_id: 'bed-2' };
+    const unassigned = { ...entry3 };
+    const getAll = vi.spyOn(dormitoryApi.roster, 'getAll').mockResolvedValue({ data: [assigned1, assigned2, unassigned], meta: { total: 3, page: 1, limit: 40, totalPages: 1 } } as any);
+    const unassignRoom = vi.spyOn(dormitoryApi.roster, 'unassignRoom').mockImplementation(async id => {
+      if (id === assigned2._id) throw new Error('Không thể bỏ chọn phòng.');
+      return { roster_entry: { ...assigned1, room_id: undefined, bed_id: undefined } } as any;
+    });
+    const { default: DormitoryRosterPage } = await import('./page');
+    render(<DormitoryRosterPage />);
+    await waitFor(() => expect(getAll).toHaveBeenCalled());
+    const rowCheckboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+    fireEvent.click(rowCheckboxes[0]);
+    fireEvent.click(rowCheckboxes[1]);
+    fireEvent.click(rowCheckboxes[2]);
+
+    const bulkButton = screen.getByRole('button', { name: 'Bỏ chọn phòng' });
+    fireEvent.click(bulkButton);
+    expect(unassignRoom).not.toHaveBeenCalled();
+    expect(await screen.findByText(/2 mục đã chọn/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Bỏ chọn phòng' }).at(-1)!);
+
+    await waitFor(() => expect(unassignRoom).toHaveBeenCalledTimes(2));
+    expect(unassignRoom).toHaveBeenNthCalledWith(1, assigned1._id);
+    expect(unassignRoom).toHaveBeenNthCalledWith(2, assigned2._id);
+    expect(document.querySelectorAll('tbody input[type="checkbox"]')[0]).not.toBeChecked();
+    expect(document.querySelectorAll('tbody input[type="checkbox"]')[1]).toBeChecked();
+    expect(document.querySelectorAll('tbody input[type="checkbox"]')[2]).toBeChecked();
+    expect(toastMock.warning).toHaveBeenCalledWith('Đã bỏ chọn phòng cho 1 mục; 1 mục chưa thay đổi');
+  });
+
   it('filters selected PDF roster entries in deterministic table order', () => {
     const rows = [entry1, entry2, entry3];
     expect(selectedPdfRosterEntries(rows, [])).toEqual([]);
@@ -123,7 +155,13 @@ describe('Danh sách KTX canonical page capabilities', () => {
     render(<RoomAssignmentPopover compact row={entry1} onAssigned={vi.fn()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Thêm phòng cho Nguyễn A' }));
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.className).toContain('max-h-[calc(100dvh-2rem)]');
+    expect(dialog.className).toContain('rounded-2xl');
+    expect(dialog.className).toContain('from-[#EBF2FA]/95');
+    expect(dialog.className).not.toContain('rounded-full');
+    expect(dialog.className).not.toContain('rounded-none');
     expect(screen.getByRole('heading', { name: 'Chọn phòng' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /Phòng A101/ }));
     await waitFor(() => expect(getByRoom).toHaveBeenCalledTimes(1));
