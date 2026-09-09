@@ -2449,6 +2449,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
               </div>
 
               {/* Mobile View: Search expands to full width beside the create action */}
+              {!isStudent && (
               <div className="lg:hidden w-full">
                 {isMobileSearchOpen ? (
                   <div className="flex items-center gap-2 h-10 px-3 bg-white/70 border border-[#1A73E8]/30 rounded-xl shadow-sm">
@@ -2487,6 +2488,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
                   </div>
                 )}
               </div>
+              )}
             </>
           ) : (
             <>

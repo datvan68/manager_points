@@ -9,6 +9,7 @@ import { semesterApi } from '@/api/semester-api';
 
 let mockRecordPermissions: Record<string, boolean> = {};
 let mockRealtimeOptions: any = null;
+let mockAuthUser = { id: 'user1', role: 'teacher', permissions: [] };
 const mockXlsx = vi.hoisted(() => ({
   utils: {
     json_to_sheet: vi.fn((data: unknown[]) => data),
@@ -92,7 +93,7 @@ vi.mock('@/api/semester-api', () => ({
 
 vi.mock('@/providers/auth-provider', () => ({
   useAuth: vi.fn(() => ({
-    user: { id: 'user1', role: 'teacher', permissions: [] },
+    user: mockAuthUser,
   })),
 }));
 
@@ -221,6 +222,7 @@ describe('StudentRecordPage Infinite Scroll', () => {
     resolveFirstFetch = null;
     resolveSecondFetch = null;
     mockRecordPermissions = {};
+    mockAuthUser = { id: 'user1', role: 'teacher', permissions: [] };
     mockRealtimeOptions = null;
     mockXlsx.utils.json_to_sheet.mockClear();
     mockXlsx.utils.book_new.mockClear();
@@ -247,6 +249,21 @@ describe('StudentRecordPage Infinite Scroll', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Tìm HSSV hoặc lớp...')).toBeInTheDocument();
     });
+  });
+
+  it('hides the mobile search trigger for student accounts', async () => {
+    mockAuthUser = { id: 'student-user', role: 'student', permissions: [] };
+    (academicRecordApi.getAcademicRecords as any).mockResolvedValue({
+      data: [],
+      meta: { total: 0 },
+    });
+
+    render(<StudentRecordPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Ghi nhận rèn luyện cá nhân')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Tìm kiếm' })).not.toBeInTheDocument();
   });
 
   it('loads student records only for the active semester', async () => {
