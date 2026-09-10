@@ -303,6 +303,8 @@ describe('SystemService', () => {
     expect(highlightsSource).toContain("'unhandled'");
     expect(highlightsSource).toContain("'settled'");
     expect(highlightsSource).toContain("'new'");
+    expect(highlightsSource).toContain('impactMagnitude');
+    expect(highlightsSource).toContain('recordCount: -1, impactMagnitude: -1');
     expect(highlightsSource.indexOf('followUpStatus'))
       .toBeLessThan(highlightsSource.indexOf('$facet'));
   });

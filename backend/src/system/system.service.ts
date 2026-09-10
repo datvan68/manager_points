@@ -3737,7 +3737,7 @@ export class SystemService {
             '$latestRecord',
           ] },
         } },
-        { $set: { latestRecordAt: { $ifNull: ['$latestRecordForDisplay.recorded_at', { $ifNull: ['$latestRecordForDisplay.createdAt', '$latestRecord.createdAt'] }] } } },
+        { $set: { impactMagnitude: { $abs: '$impactScore' } } },
         { $match: { $expr: { $or: [
           { $and: [{ $eq: ['$followUpStatus', 'unhandled'] }, { $gte: ['$recordCount', 3] }] },
           { $eq: ['$followUpStatus', 'new'] },
@@ -3747,7 +3747,7 @@ export class SystemService {
         { $match: { $expr: eligibility } },
       ]),
       { $sort: isDiscipline
-        ? { followUpPriority: -1, latestRecordAt: -1, recordCount: -1, impactScore: 1, _id: 1 }
+        ? { followUpPriority: -1, recordCount: -1, impactMagnitude: -1, _id: 1 }
         : query.category === 'bonus'
           ? { impactScore: -1, recordCount: -1, _id: 1 }
           : { recordCount: -1, impactScore: -1, _id: 1 } },

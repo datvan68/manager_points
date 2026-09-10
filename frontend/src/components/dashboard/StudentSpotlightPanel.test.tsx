@@ -26,9 +26,12 @@ describe('Student spotlight pagination and virtualization contract', () => {
   it('renders actionable discipline status and delta fields', () => {
     expect(source).toContain('Kỷ luật cần xử lý');
     expect(source).toContain('followUpStatus === \'new\'');
-    expect(source).toContain('newRecordCount');
-    expect(source).toContain('newImpactScore');
-    expect(source).toContain('Chưa xử lý');
-    expect(source).toContain('Tổng học kỳ');
+    expect(source).toContain('followUpStatus');
+    expect(source).toContain('Ghi nhận mới');
+    expect(source).toContain('Số lần ghi nhận:');
+    expect(source).toContain('Điểm trừ:');
+    expect(source).not.toContain('Điểm trừ mới:');
+    expect(source).not.toContain('Chưa xử lý');
+    expect(source).not.toContain('Tổng học kỳ');
   });
 });
