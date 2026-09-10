@@ -3658,8 +3658,13 @@ export class SystemService {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const semesters = (await semesterModel.find().lean().exec()) as any[];
-    const active = semesters.find((s) => s.status === 'active') || semesters.find((s) => s.status === 'upcoming');
-    const semesterId = query.semesterId ? new Types.ObjectId(query.semesterId) : active?._id;
+    const requestedSemesterId = query.semesterId
+      ? new Types.ObjectId(query.semesterId).toString()
+      : null;
+    const active = query.semesterId
+      ? semesters.find((s) => s.status === 'active' && s._id.toString() === requestedSemesterId)
+      : semesters.find((s) => s.status === 'active');
+    const semesterId = active?._id;
     if (!semesterId) return { items: [], total: 0, page, limit, hasMore: false, semesterId: null };
 
     const isSystemOperator = isAdminUser(requester) || isSupervisor(requester) ||
@@ -3693,8 +3698,9 @@ export class SystemService {
       { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
       { $unwind: '$criterion' },
       { $match: { 'criterion.criterion_type': criterionType } },
+      { $set: { normalizedQuantity: { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } } } },
       { $sort: { recorded_at: -1, createdAt: -1, _id: -1 } },
-      { $group: { _id: '$student_id', recordCount: { $sum: 1 }, impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } }, latestRecord: { $first: '$$ROOT' }, groupedRecords: { $push: '$criterion.criterion_name' } } },
+      { $group: { _id: '$student_id', recordCount: { $sum: '$normalizedQuantity' }, impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } }, latestRecord: { $first: '$$ROOT' }, groupedRecords: { $push: '$criterion.criterion_name' } } },
       ...(isDiscipline ? [
         { $lookup: {
           from: followUpCollection,
@@ -3733,10 +3739,11 @@ export class SystemService {
             { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
             { $unwind: '$criterion' },
             { $match: { 'criterion.criterion_type': 'ky_luat' } },
+            { $set: { normalizedQuantity: { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } } } },
             { $sort: { createdAt: -1, _id: -1 } },
             { $group: {
               _id: null,
-              count: { $sum: 1 },
+              count: { $sum: '$normalizedQuantity' },
               impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } },
               latestRecord: { $first: '$$ROOT' },
             } },
@@ -3761,9 +3768,9 @@ export class SystemService {
           ] },
         } },
         { $set: { impactMagnitude: { $abs: '$impactScore' } } },
-        { $match: { $expr: { $or: [
-          { $and: [{ $eq: ['$followUpStatus', 'unhandled'] }, { $gte: ['$recordCount', 3] }] },
-          { $eq: ['$followUpStatus', 'new'] },
+        { $match: { $expr: { $and: [
+          { $gte: ['$recordCount', 3] },
+          { $in: ['$followUpStatus', ['unhandled', 'new']] },
         ] } } },
         { $set: { followUpPriority: { $cond: [{ $eq: ['$followUpStatus', 'new'] }, 1, 0] } } },
       ] : [

@@ -309,6 +309,76 @@ describe('SystemService', () => {
       .toBeLessThan(highlightsSource.indexOf('$facet'));
   });
 
+  function makeStudentHighlightsService(semesters: any[], aggregateResult: any = { items: [], count: [] }) {
+    const aggregate = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue([aggregateResult]),
+    });
+    const collections: Record<string, any> = {
+      Semester: {
+        find: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(semesters) }),
+        }),
+      },
+      Student: { collection: { name: 'students' }, findOne: jest.fn() },
+      Class: { collection: { name: 'classes' }, find: jest.fn() },
+      Criterion: { collection: { name: 'criteria' } },
+      SummaryPoint: { collection: { name: 'summary_points' } },
+      AcademicRecord: { collection: { name: 'academic_records' }, aggregate },
+      AcademicRecordFollowUp: { collection: { name: 'academic_record_follow_ups' } },
+    };
+    const isolatedService = Object.create(SystemService.prototype) as SystemService;
+    (isolatedService as any).connection = { model: jest.fn((name: string) => collections[name]) };
+    return { isolatedService, aggregate };
+  }
+
+  it('returns an empty page for a missing or non-active requested semester', async () => {
+    const inactiveId = new Types.ObjectId();
+    const { isolatedService, aggregate } = makeStudentHighlightsService([
+      { _id: inactiveId, status: 'upcoming' },
+    ]);
+
+    await expect(isolatedService.getStudentHighlights(
+      { roleCode: 'ADMIN', userId: mockUserId },
+      { category: 'discipline', semesterId: inactiveId.toString(), page: 2, limit: 5 } as any,
+    )).resolves.toEqual({ items: [], total: 0, page: 2, limit: 5, hasMore: false, semesterId: null });
+    expect(aggregate).not.toHaveBeenCalled();
+  });
+
+  it('captures normalized quantity eligibility, deltas, and new-first ordering in the discipline pipeline', async () => {
+    const activeId = new Types.ObjectId();
+    const { isolatedService, aggregate } = makeStudentHighlightsService(
+      [{ _id: activeId, status: 'active' }],
+      {
+        items: [
+          { studentId: 'new-student', recordCount: 3, impactScore: -1, newRecordCount: 1, newImpactScore: -1, followUpStatus: 'new' },
+          { studentId: 'unhandled-student', recordCount: 5, impactScore: -9, newRecordCount: 0, newImpactScore: 0, followUpStatus: 'unhandled' },
+        ],
+        count: [{ total: 2 }],
+      },
+    );
+
+    const response = await isolatedService.getStudentHighlights(
+      { roleCode: 'ADMIN', userId: mockUserId },
+      { category: 'discipline', semesterId: activeId.toString(), page: 1, limit: 1 } as any,
+    );
+    const pipeline = aggregate.mock.calls[0][0];
+    const group = pipeline.find((stage: any) => stage.$group?.recordCount)?.$group;
+    const newGroup = pipeline
+      .flatMap((stage: any) => stage.$lookup?.pipeline || [])
+      .find((stage: any) => stage.$group?.count)?.$group;
+    const eligibility = pipeline.find((stage: any) => stage.$match?.$expr?.$and)?.$match.$expr.$and;
+
+    expect(group.recordCount).toEqual({ $sum: '$normalizedQuantity' });
+    expect(newGroup.count).toEqual({ $sum: '$normalizedQuantity' });
+    expect(pipeline).toContainEqual({ $set: { normalizedQuantity: { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } } } });
+    expect(eligibility).toEqual(expect.arrayContaining([
+      { $gte: ['$recordCount', 3] },
+      { $in: ['$followUpStatus', ['unhandled', 'new']] },
+    ]));
+    expect(pipeline).toContainEqual({ $sort: { followUpPriority: -1, recordCount: -1, impactMagnitude: -1, _id: 1 } });
+    expect(response).toEqual(expect.objectContaining({ total: 2, page: 1, limit: 1, hasMore: true }));
+  });
+
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, './system.service.ts'),
