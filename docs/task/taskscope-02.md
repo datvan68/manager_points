@@ -2,10 +2,10 @@ slot_id: "taskscope-02"
 generation: 1
 task_id: "20260910-dashboard-today-academic-records"
 scope_file: "docs/task/taskscope-02.md"
-status: blocked
-scope_revision: 1
+status: completed
+scope_revision: 3
 created_at: "2026-09-10T14:57:58.3000520+07:00"
-updated_at: "2026-09-10T14:57:58.3000520+07:00"
+updated_at: "2026-09-10T15:22:00+07:00"
 base_commit: "0f15a1b4022bfa3c0d4a6a767c65bd6fead8a120"
 task: "Show today's academic records on the dashboard"
 pipeline: feature_development
@@ -14,14 +14,23 @@ objective: "Make the dashboard academic-record panel show at most five active re
 coordination:
   depends_on:
     - "docs/task/taskscope-01.md generation 1 must release backend/src/system/system.service.ts and backend/src/system/system.service.spec.ts by reaching completed or cancelled status."
-  warnings:
-    - "TASKSCOPE_CONFLICT: taskscope-01 generation 1 is ready and reserves backend/src/system/system.service.ts and backend/src/system/system.service.spec.ts."
+  warnings: []
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-09-10T15:22:00+07:00"
+  outcome: "completed"
+  final_commit_or_state: "HEAD 8e273e9394f529ebd30a89d00063ef270282a17; scoped changes remain uncommitted in the working tree"
+  changed_paths:
+    - "backend/src/system/system.service.ts"
+    - "backend/src/system/system.service.spec.ts"
+    - "frontend/src/components/dashboard/AttendanceRecordPanel.tsx"
+    - "frontend/src/components/dashboard/AttendanceRecordPanel.test.tsx"
+    - "docs/task/taskscope-02.md"
+  checks_passed:
+    - "V-01: npm --prefix backend test -- --runTestsByPath src/system/system.service.spec.ts --runInBand (63 tests passed)"
+    - "V-02: npm --prefix frontend test -- src/components/dashboard/AttendanceRecordPanel.test.tsx (2 tests passed)"
+    - "V-03: npm --prefix frontend run typecheck (passed)"
+    - "V-03: npm --prefix backend run build (passed)"
+    - "git diff --check (passed)"
   cleanup_pending: []
 evidence:
   current_behavior: "backend/src/system/system.service.ts:getDashboardMetrics filters recentAcademicRecords by semester, active status, deletion state, and requester scope, then sorts by recorded_at/createdAt and limits to five without a day boundary; frontend/src/components/dashboard/AttendanceRecordPanel.tsx labels the list as recent records and renders recorded_at as a date."

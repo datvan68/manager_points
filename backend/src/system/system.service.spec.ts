@@ -7,7 +7,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { SystemService } from './system.service';
+import { getVietnamTodayUtcBounds, SystemService } from './system.service';
 import { SystemRequest } from './schemas/system-request.schema';
 import { DatabaseBackupJob } from './schemas/database-backup-job.schema';
 import { DatabaseRestoreJob } from './schemas/database-restore-job.schema';
@@ -346,6 +346,29 @@ describe('SystemService', () => {
     expect(highlightPipelinesSource).not.toContain("points_effect: { $gt: 0 }");
     expect(highlightPipelinesSource).not.toContain("points_effect: { $lt: 0 }");
     expect(recentListsSource).toContain('{ $limit: 5 }');
+    expect(recentListsSource).toContain('.limit(5)');
+  });
+
+  it('uses Vietnam calendar boundaries for both recent academic record branches', () => {
+    const { start, end } = getVietnamTodayUtcBounds(
+      new Date('2026-09-10T00:00:00.000Z'),
+    );
+    expect(start).toEqual(new Date('2026-09-09T17:00:00.000Z'));
+    expect(end).toEqual(new Date('2026-09-10T17:00:00.000Z'));
+
+    const source = fs.readFileSync(
+      path.resolve(__dirname, './system.service.ts'),
+      'utf8',
+    );
+    const recentListsSource = source.slice(
+      source.indexOf('// ─── RECENT LISTS & HIGHLIGHTS'),
+      source.indexOf('// Top Scores'),
+    );
+    expect(recentListsSource.match(/recorded_at: \{ \$gte: todayStart, \$lt: tomorrowStart \}/g))
+      .toHaveLength(2);
+    expect(recentListsSource).toContain("'student_id.class_id': { $in: teacherClassIds }");
+    expect(recentListsSource).toContain('academicRecordFilter.student_id = { $in: studentIds }');
+    expect(recentListsSource).toContain('{ $sort: { recorded_at: -1, createdAt: -1 } }');
     expect(recentListsSource).toContain('.limit(5)');
   });
 

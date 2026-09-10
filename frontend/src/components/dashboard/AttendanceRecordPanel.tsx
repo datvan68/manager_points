@@ -42,7 +42,7 @@ export default function AttendanceRecordPanel({ metrics }: AttendanceRecordPanel
     <div className="bg-white/45 backdrop-blur-md border border-white/75 rounded-2xl p-5 shadow-sm shadow-slate-300/40 h-full flex flex-col justify-between transition-all duration-150 ease-out">
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="font-bold text-[#1E293B] text-sm">Ghi nhận học vụ gần đây</h2>
+          <h2 className="font-bold text-[#1E293B] text-sm">Ghi nhận học vụ hôm nay</h2>
           <button 
             onClick={() => handleNav('/students/record')}
             className="text-[#1A73E8] text-xs font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -56,7 +56,7 @@ export default function AttendanceRecordPanel({ metrics }: AttendanceRecordPanel
         <div className="space-y-4">
           <div>
             {recentAcademicRecords.length === 0 ? (
-              <p className="text-xs text-[#64748B] italic text-center py-8">Không có ghi nhận học vụ mới nào</p>
+              <p className="text-xs text-[#64748B] italic text-center py-8">Hôm nay chưa có ghi nhận học vụ</p>
             ) : (
               <div className="space-y-2 max-h-[280px] overflow-y-auto scrollbar-hover pr-1">
                 {recentAcademicRecords.map((rec, i) => {

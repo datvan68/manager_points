@@ -75,6 +75,26 @@ const MODULE_MAINTENANCE_SETTING_KEY = 'SYSTEM_MODULE_MAINTENANCE';
 const APP_BRANDING_SETTING_KEY = 'APP_BRANDING';
 const BRANDING_ICON_SIZES = ['180', '192', '512', 'maskable-512'] as const;
 
+export function getVietnamTodayUtcBounds(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  const vietnamMidnightUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+  ) - 7 * 60 * 60 * 1000;
+
+  return {
+    start: new Date(vietnamMidnightUtc),
+    end: new Date(vietnamMidnightUtc + 24 * 60 * 60 * 1000),
+  };
+}
+
 export interface AppBranding {
   name: string;
   shortName: string;
@@ -2712,6 +2732,7 @@ export class SystemService {
     let mySpotlight: any = undefined;
 
     if (targetSemesterId && (roleScope === 'student' || canReadStudentHighlights)) {
+      const { start: todayStart, end: tomorrowStart } = getVietnamTodayUtcBounds();
       if (roleScope === 'teacher') {
         recentAcademicRecords = await academicRecordModel.aggregate([
           {
@@ -2728,6 +2749,7 @@ export class SystemService {
               semester_id: targetSemesterId,
               status: 'active',
               is_deleted: { $ne: true },
+              recorded_at: { $gte: todayStart, $lt: tomorrowStart },
               'student_id.class_id': { $in: teacherClassIds },
             },
           },
@@ -2753,6 +2775,7 @@ export class SystemService {
           semester_id: targetSemesterId,
           status: 'active',
           is_deleted: { $ne: true },
+          recorded_at: { $gte: todayStart, $lt: tomorrowStart },
         };
         if (roleScope === 'student') {
           academicRecordFilter.student_id = { $in: studentIds };
