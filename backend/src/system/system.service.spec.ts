@@ -289,6 +289,24 @@ describe('SystemService', () => {
     )).rejects.toThrow(ForbiddenException);
   });
 
+  it('builds actionable discipline highlights from the follow-up checkpoint', () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, './system.service.ts'),
+      'utf8',
+    );
+    const highlightsSource = source.slice(source.indexOf('async getStudentHighlights'));
+
+    expect(highlightsSource).toContain("this.connection.model('AcademicRecordFollowUp')");
+    expect(highlightsSource).toContain("{ $gt: ['$createdAt', '$$checkpointDate'] }");
+    expect(highlightsSource).toContain("{ $gt: ['$_id', '$$checkpointId'] }");
+    expect(highlightsSource).toContain('newRecordCount');
+    expect(highlightsSource).toContain("'unhandled'");
+    expect(highlightsSource).toContain("'settled'");
+    expect(highlightsSource).toContain("'new'");
+    expect(highlightsSource.indexOf('followUpStatus'))
+      .toBeLessThan(highlightsSource.indexOf('$facet'));
+  });
+
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, './system.service.ts'),

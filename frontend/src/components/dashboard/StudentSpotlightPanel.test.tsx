@@ -22,4 +22,13 @@ describe('Student spotlight pagination and virtualization contract', () => {
     expect(source).toContain('VirtualHighlightList');
     expect(source).toContain('categories[category.id].total');
   });
+
+  it('renders actionable discipline status and delta fields', () => {
+    expect(source).toContain('Kỷ luật cần xử lý');
+    expect(source).toContain('followUpStatus === \'new\'');
+    expect(source).toContain('newRecordCount');
+    expect(source).toContain('newImpactScore');
+    expect(source).toContain('Chưa xử lý');
+    expect(source).toContain('Tổng học kỳ');
+  });
 });

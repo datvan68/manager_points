@@ -34,6 +34,9 @@ export interface StudentHighlightItem {
   grading?: string | null;
   recordCount: number;
   impactScore: number;
+  followUpStatus?: 'unhandled' | 'settled' | 'new';
+  newRecordCount?: number;
+  newImpactScore?: number;
   latestRecordTitle?: string;
   latestRecordAt?: string;
   dominantCriterionName?: string;

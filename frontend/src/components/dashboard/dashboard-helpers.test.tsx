@@ -92,4 +92,11 @@ describe('dashboard spotlight quantity aggregation', () => {
     expect(panelSource).not.toContain('grid-cols-[minmax(0,1.4fr)');
     expect(kpiSource).toContain('isTeacher ? "Hồ sơ chờ phê duyệt" : "Sinh viên cần xử lý"');
   });
+
+  it('keeps the discipline follow-up response fields available to the dashboard', () => {
+    const discipline = buildDashboardOverview(makeConfig([record('s1', 3)])).studentHighlights.topDiscipline[0];
+    expect(discipline.recordCount).toBe(3);
+    expect(panelSource).toContain('newImpactScore');
+    expect(panelSource).toContain('Tổng học kỳ');
+  });
 });

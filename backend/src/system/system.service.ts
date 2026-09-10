@@ -3661,7 +3661,9 @@ export class SystemService {
       scopeStages = [{ $match: { student_id: own?._id || null } }];
     }
     const criterionType = query.category === 'discipline' ? 'ky_luat' : query.category === 'rewards' ? 'khen_thuong' : 'cong_diem';
+    const isDiscipline = query.category === 'discipline';
     const eligibility = query.category === 'discipline' ? { $gte: ['$recordCount', 3] } : { $gte: ['$recordCount', 1] };
+    const followUpCollection = this.connection.model('AcademicRecordFollowUp').collection.name;
     const pipeline: any[] = [
       { $match: { semester_id: semesterId, status: 'active', is_deleted: { $ne: true } } },
       ...scopeStages,
@@ -3670,15 +3672,124 @@ export class SystemService {
       { $match: { 'criterion.criterion_type': criterionType } },
       { $sort: { recorded_at: -1, createdAt: -1, _id: -1 } },
       { $group: { _id: '$student_id', recordCount: { $sum: 1 }, impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } }, latestRecord: { $first: '$$ROOT' }, groupedRecords: { $push: '$criterion.criterion_name' } } },
-      { $match: { $expr: eligibility } },
-      { $sort: query.category === 'bonus' ? { impactScore: -1, recordCount: -1, _id: 1 } : query.category === 'discipline' ? { recordCount: -1, impactScore: 1, _id: 1 } : { recordCount: -1, impactScore: -1, _id: 1 } },
+      ...(isDiscipline ? [
+        { $lookup: {
+          from: followUpCollection,
+          let: { studentId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $eq: ['$student_id', '$$studentId'] },
+              { $eq: ['$semester_id', semesterId] },
+            ] } } },
+            { $limit: 1 },
+          ],
+          as: 'followUp',
+        } },
+        { $set: {
+          checkpointDate: { $arrayElemAt: ['$followUp.handled_through_created_at', 0] },
+          checkpointId: { $arrayElemAt: ['$followUp.handled_through_record_id', 0] },
+        } },
+        { $lookup: {
+          from: academicRecordModel.collection.name,
+          let: { studentId: '$_id', checkpointDate: '$checkpointDate', checkpointId: '$checkpointId' },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $ne: ['$$checkpointDate', null] },
+              { $eq: ['$student_id', '$$studentId'] },
+              { $eq: ['$semester_id', semesterId] },
+              { $eq: ['$status', 'active'] },
+              { $ne: ['$is_deleted', true] },
+              { $or: [
+                { $gt: ['$createdAt', '$$checkpointDate'] },
+                { $and: [
+                  { $eq: ['$createdAt', '$$checkpointDate'] },
+                  { $gt: ['$_id', '$$checkpointId'] },
+                ] },
+              ] },
+            ] } } },
+            { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
+            { $unwind: '$criterion' },
+            { $match: { 'criterion.criterion_type': 'ky_luat' } },
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $group: {
+              _id: null,
+              count: { $sum: 1 },
+              impactScore: { $sum: { $ifNull: ['$points_effect', '$criterion.score_per_unit'] } },
+              latestRecord: { $first: '$$ROOT' },
+            } },
+          ],
+          as: 'newRecords',
+        } },
+        { $set: {
+          newRecordCount: { $ifNull: [{ $arrayElemAt: ['$newRecords.count', 0] }, 0] },
+          newImpactScore: { $ifNull: [{ $arrayElemAt: ['$newRecords.impactScore', 0] }, 0] },
+          newLatestRecord: { $arrayElemAt: ['$newRecords.latestRecord', 0] },
+        } },
+        { $set: {
+          followUpStatus: { $cond: [
+            { $eq: [{ $arrayElemAt: ['$followUp.handled_through_record_id', 0] }, null] },
+            'unhandled',
+            { $cond: [{ $gt: ['$newRecordCount', 0] }, 'new', 'settled'] },
+          ] },
+          latestRecordForDisplay: { $cond: [
+            { $gt: ['$newRecordCount', 0] },
+            '$newLatestRecord',
+            '$latestRecord',
+          ] },
+        } },
+        { $set: { latestRecordAt: { $ifNull: ['$latestRecordForDisplay.recorded_at', { $ifNull: ['$latestRecordForDisplay.createdAt', '$latestRecord.createdAt'] }] } } },
+        { $match: { $expr: { $or: [
+          { $and: [{ $eq: ['$followUpStatus', 'unhandled'] }, { $gte: ['$recordCount', 3] }] },
+          { $eq: ['$followUpStatus', 'new'] },
+        ] } } },
+        { $set: { followUpPriority: { $cond: [{ $eq: ['$followUpStatus', 'new'] }, 1, 0] } } },
+      ] : [
+        { $match: { $expr: eligibility } },
+      ]),
+      { $sort: isDiscipline
+        ? { followUpPriority: -1, latestRecordAt: -1, recordCount: -1, impactScore: 1, _id: 1 }
+        : query.category === 'bonus'
+          ? { impactScore: -1, recordCount: -1, _id: 1 }
+          : { recordCount: -1, impactScore: -1, _id: 1 } },
       { $facet: {
         items: [
           { $skip: (page - 1) * limit }, { $limit: limit },
           { $lookup: { from: studentModel.collection.name, localField: '_id', foreignField: '_id', as: 'student' } }, { $unwind: '$student' },
           { $lookup: { from: classModel.collection.name, localField: 'student.class_id', foreignField: '_id', as: 'class' } }, { $unwind: { path: '$class', preserveNullAndEmptyArrays: true } },
           { $lookup: { from: summaryPointModel.collection.name, let: { sid: '$_id' }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ['$student_id', '$$sid'] }, { $eq: ['$semester_id', semesterId] }, { $eq: ['$period_id', null] }] } } }], as: 'summary' } }, { $unwind: { path: '$summary', preserveNullAndEmptyArrays: true } },
-          { $project: { _id: 0, studentId: '$_id', classId: '$student.class_id', studentName: '$student.full_name', studentCode: '$student.student_code', className: { $ifNull: ['$class.class_name', ''] }, currentScore: { $ifNull: ['$summary.total_score', null] }, grading: { $ifNull: ['$summary.grading', null] }, recordCount: 1, impactScore: 1, latestRecordTitle: { $ifNull: ['$latestRecord.selected_option_label', { $ifNull: ['$latestRecord.record_title', '$latestRecord.criterion.criterion_name'] }] }, latestRecordAt: { $ifNull: ['$latestRecord.recorded_at', '$latestRecord.createdAt'] }, dominantCriterionName: '$latestRecord.criterion.criterion_name', groupedRecords: { $map: { input: { $setUnion: ['$groupedRecords', []] }, as: 'label', in: { label: '$$label', count: { $size: { $filter: { input: '$groupedRecords', as: 'item', cond: { $eq: ['$$item', '$$label'] } } } } } } }, type: { $literal: criterionType } } },
+          { $set: { latestRecordAt: { $ifNull: ['$latestRecordForDisplay.recorded_at', { $ifNull: ['$latestRecord.recorded_at', { $ifNull: ['$latestRecordForDisplay.createdAt', '$latestRecord.createdAt'] }] }] } } },
+          { $project: {
+            _id: 0,
+            studentId: '$_id',
+            classId: '$student.class_id',
+            studentName: '$student.full_name',
+            studentCode: '$student.student_code',
+            className: { $ifNull: ['$class.class_name', ''] },
+            currentScore: { $ifNull: ['$summary.total_score', null] },
+            grading: { $ifNull: ['$summary.grading', null] },
+            recordCount: 1,
+            impactScore: 1,
+            followUpStatus: 1,
+            newRecordCount: { $ifNull: ['$newRecordCount', 0] },
+            newImpactScore: { $ifNull: ['$newImpactScore', 0] },
+            latestRecordTitle: { $ifNull: [
+              '$latestRecordForDisplay.selected_option_label',
+              { $ifNull: [
+                '$latestRecordForDisplay.record_title',
+                { $ifNull: [
+                  '$latestRecordForDisplay.criterion.criterion_name',
+                  { $ifNull: [
+                    '$latestRecord.selected_option_label',
+                    { $ifNull: ['$latestRecord.record_title', '$latestRecord.criterion.criterion_name'] },
+                  ] },
+                ] },
+              ] },
+            ] },
+            latestRecordAt: 1,
+            dominantCriterionName: { $ifNull: ['$latestRecordForDisplay.criterion.criterion_name', '$latestRecord.criterion.criterion_name'] },
+            groupedRecords: { $map: { input: { $setUnion: ['$groupedRecords', []] }, as: 'label', in: { label: '$$label', count: { $size: { $filter: { input: '$groupedRecords', as: 'item', cond: { $eq: ['$$item', '$$label'] } } } } } } },
+            type: { $literal: criterionType },
+          } },
         ],
         count: [{ $count: 'total' }],
       } },
