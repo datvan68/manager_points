@@ -480,7 +480,11 @@ describe('SystemService', () => {
     const dashboardSource = source.slice(source.indexOf('async getDashboardMetrics'));
     expect(dashboardSource).toContain('studentAttentionCount');
     expect(dashboardSource).toContain("$ifNull: ['$quantity', 1]");
-    expect(dashboardSource).toContain('totalOccurrences: { $gt: 3 }');
+    expect(dashboardSource).toContain('totalOccurrences: { $gte: 3 }');
+    expect(dashboardSource).toContain("this.connection.model('AcademicRecordFollowUp')");
+    expect(dashboardSource).toContain("as: 'newDisciplineRecords'");
+    expect(dashboardSource).toContain("{ $eq: [{ $size: '$followUp' }, 0] }");
+    expect(dashboardSource).toContain("{ $gt: [{ $size: '$newDisciplineRecords' }, 0] }");
     expect(dashboardSource).toContain("studentAttentionCount,\n        urgentTasksCount");
   });
 

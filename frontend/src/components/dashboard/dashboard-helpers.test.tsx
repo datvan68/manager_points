@@ -48,10 +48,10 @@ describe('dashboard spotlight quantity aggregation', () => {
     expect(metrics.studentHighlights.topDiscipline[0].groupedRecords).toEqual([{ label: 'Đi muộn', count: 6 }]);
   });
 
-  it('ranks discipline students by total quantity and excludes exactly three from KPI', () => {
+  it('ranks discipline students by total quantity and includes exactly three in KPI', () => {
     const metrics = buildDashboardOverview(makeConfig([record('s1', 3), record('s2', 4)]));
     expect(metrics.studentHighlights.topDiscipline.map(item => item.studentId)).toEqual(['s2', 's1']);
-    expect(metrics.kpis.studentAttentionCount).toBe(1);
+    expect(metrics.kpis.studentAttentionCount).toBe(2);
   });
 
   it('ranks bonus students by quantity before points', () => {
@@ -91,6 +91,7 @@ describe('dashboard spotlight quantity aggregation', () => {
     expect(panelSource).not.toContain('Ghi nhận:');
     expect(panelSource).not.toContain('grid-cols-[minmax(0,1.4fr)');
     expect(kpiSource).toContain('isTeacher ? "Hồ sơ chờ phê duyệt" : "Sinh viên cần xử lý"');
+    expect(kpiSource).toContain('sinh viên có từ 3 lượt');
   });
 
   it('keeps the discipline follow-up response fields available to the dashboard', () => {

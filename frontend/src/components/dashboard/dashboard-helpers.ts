@@ -760,7 +760,7 @@ export function buildDashboardOverview(config: BuildDashboardOverviewConfig): Da
       totalDepartments: departments.length,
       averageScore: avgScore,
       pendingMyReviewCount,
-      studentAttentionCount: topDiscipline.filter(item => item.recordCount > 3).length,
+      studentAttentionCount: topDiscipline.filter(item => item.recordCount >= 3).length,
       urgentTasksCount: urgentTasks.length,
       unreadNotificationsCount: unreadCount,
       

@@ -2263,6 +2263,7 @@ export class SystemService {
     const evaluationPeriodModel = this.connection.model('EvaluationPeriod');
     const summaryPointModel = this.connection.model('SummaryPoint');
     const academicRecordModel = this.connection.model('AcademicRecord');
+    const academicRecordFollowUpCollection = this.connection.model('AcademicRecordFollowUp').collection.name;
     const studentTaskModel = this.connection.model('StudentTask');
     const notificationModel = this.connection.model('Notification');
     const criterionModel = this.connection.model('Criterion');
@@ -2986,7 +2987,124 @@ export class SystemService {
             },
           },
         },
-        { $match: { totalOccurrences: { $gt: 3 } } },
+        {
+          $lookup: {
+            from: academicRecordFollowUpCollection,
+            let: { studentId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$student_id', '$$studentId'] },
+                      { $eq: ['$semester_id', targetSemesterId] },
+                    ],
+                  },
+                },
+              },
+              {
+                $lookup: {
+                  from: academicRecordModel.collection.name,
+                  let: {
+                    checkpointId: '$handled_through_record_id',
+                    checkpointStudentId: '$student_id',
+                    checkpointSemesterId: '$semester_id',
+                  },
+                  pipeline: [
+                    {
+                      $match: {
+                        $expr: {
+                          $and: [
+                            { $eq: ['$_id', '$$checkpointId'] },
+                            { $eq: ['$student_id', '$$checkpointStudentId'] },
+                            { $eq: ['$semester_id', '$$checkpointSemesterId'] },
+                            { $eq: ['$status', 'active'] },
+                            { $ne: ['$is_deleted', true] },
+                          ],
+                        },
+                      },
+                    },
+                    {
+                      $lookup: {
+                        from: criterionModel.collection.name,
+                        localField: 'criterion_id',
+                        foreignField: '_id',
+                        as: 'criterion',
+                      },
+                    },
+                    { $unwind: '$criterion' },
+                    { $match: { 'criterion.criterion_type': 'ky_luat' } },
+                    { $limit: 1 },
+                  ],
+                  as: 'handledRecord',
+                },
+              },
+              { $match: { $expr: { $gt: [{ $size: '$handledRecord' }, 0] } } },
+              { $unwind: '$handledRecord' },
+              { $limit: 1 },
+            ],
+            as: 'followUp',
+          },
+        },
+        {
+          $lookup: {
+            from: academicRecordModel.collection.name,
+            let: {
+              studentId: '$_id',
+              checkpointDate: { $arrayElemAt: ['$followUp.handledRecord.createdAt', 0] },
+              checkpointId: { $arrayElemAt: ['$followUp.handledRecord._id', 0] },
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $ne: ['$$checkpointDate', null] },
+                      { $eq: ['$student_id', '$$studentId'] },
+                      { $eq: ['$semester_id', targetSemesterId] },
+                      { $eq: ['$status', 'active'] },
+                      { $ne: ['$is_deleted', true] },
+                      {
+                        $or: [
+                          { $gt: ['$createdAt', '$$checkpointDate'] },
+                          {
+                            $and: [
+                              { $eq: ['$createdAt', '$$checkpointDate'] },
+                              { $gt: ['$_id', '$$checkpointId'] },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                $lookup: {
+                  from: criterionModel.collection.name,
+                  localField: 'criterion_id',
+                  foreignField: '_id',
+                  as: 'criterion',
+                },
+              },
+              { $unwind: '$criterion' },
+              { $match: { 'criterion.criterion_type': 'ky_luat' } },
+              { $limit: 1 },
+            ],
+            as: 'newDisciplineRecords',
+          },
+        },
+        { $match: { totalOccurrences: { $gte: 3 } } },
+        {
+          $match: {
+            $expr: {
+              $or: [
+                { $eq: [{ $size: '$followUp' }, 0] },
+                { $gt: [{ $size: '$newDisciplineRecords' }, 0] },
+              ],
+            },
+          },
+        },
         { $count: 'count' },
       ]);
       studentAttentionCount = attentionAgg[0]?.count || 0;
