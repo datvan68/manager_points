@@ -3710,13 +3710,36 @@ export class SystemService {
               { $eq: ['$student_id', '$$studentId'] },
               { $eq: ['$semester_id', semesterId] },
             ] } } },
+            { $lookup: {
+              from: academicRecordModel.collection.name,
+              let: {
+                checkpointId: '$handled_through_record_id',
+                checkpointStudentId: '$student_id',
+                checkpointSemesterId: '$semester_id',
+              },
+              pipeline: [
+                { $match: { $expr: { $and: [
+                  { $eq: ['$_id', '$$checkpointId'] },
+                  { $eq: ['$student_id', '$$checkpointStudentId'] },
+                  { $eq: ['$semester_id', '$$checkpointSemesterId'] },
+                  { $eq: ['$status', 'active'] },
+                  { $ne: ['$is_deleted', true] },
+                ] } } },
+                { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
+                { $unwind: '$criterion' },
+                { $match: { 'criterion.criterion_type': 'ky_luat' } },
+                { $limit: 1 },
+              ],
+              as: 'handledRecord',
+            } },
+            { $match: { $expr: { $gt: [{ $size: '$handledRecord' }, 0] } } },
             { $limit: 1 },
           ],
           as: 'followUp',
         } },
         { $set: {
-          checkpointDate: { $arrayElemAt: ['$followUp.handled_through_created_at', 0] },
-          checkpointId: { $arrayElemAt: ['$followUp.handled_through_record_id', 0] },
+          checkpointDate: { $arrayElemAt: ['$followUp.handledRecord.createdAt', 0] },
+          checkpointId: { $arrayElemAt: ['$followUp.handledRecord._id', 0] },
         } },
         { $lookup: {
           from: academicRecordModel.collection.name,
@@ -3757,7 +3780,7 @@ export class SystemService {
         } },
         { $set: {
           followUpStatus: { $cond: [
-            { $eq: [{ $arrayElemAt: ['$followUp.handled_through_record_id', 0] }, null] },
+            { $eq: [{ $size: '$followUp' }, 0] },
             'unhandled',
             { $cond: [{ $gt: ['$newRecordCount', 0] }, 'new', 'settled'] },
           ] },

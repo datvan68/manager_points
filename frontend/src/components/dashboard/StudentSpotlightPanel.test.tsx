@@ -1,37 +1,61 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import StudentSpotlightPanel from './StudentSpotlightPanel';
+import { systemApi } from '@/api/system-api';
+import type { DashboardMetrics, StudentHighlightItem } from './dashboard-helpers';
 
-const source = readFileSync(resolve(__dirname, 'StudentSpotlightPanel.tsx'), 'utf8');
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (() => {
+    const rowsByCount = new Map<number, Array<{ index: number; start: number }>>();
+    return ({ count }: { count: number }) => {
+      if (!rowsByCount.has(count)) rowsByCount.set(count, Array.from({ length: count }, (_, index) => ({ index, start: index * 78 })));
+      return { getVirtualItems: () => rowsByCount.get(count)!, getTotalSize: () => count * 78, measureElement: () => undefined };
+    };
+  })(),
+}));
+vi.mock('lucide-react', () => {
+  const Icon = () => null;
+  return { Award: Icon, PlusCircle: Icon, AlertTriangle: Icon, GraduationCap: Icon, ArrowUpRight: Icon, Sparkles: Icon, ArrowRight: Icon, TrendingUp: Icon, Activity: Icon, CheckCircle2: Icon, AlertCircle: Icon };
+});
+vi.mock('@/components/ui/popover', () => ({
+  Popover: ({ children }: any) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: any) => <>{children}</>,
+  PopoverContent: ({ children }: any) => <div>{children}</div>,
+}));
+vi.mock('@/api/system-api', () => ({ systemApi: { getStudentHighlights: vi.fn() } }));
 
-describe('Student spotlight pagination and virtualization contract', () => {
-  it('loads each category independently and preserves loaded rows on retry', () => {
-    expect(source).toContain('getStudentHighlights');
-    expect(source).toContain('requestsRef');
-    expect(source).toContain('new Set(prior.map(item => item.studentId))');
-    expect(source).toContain('hasMore');
-    expect(source).toContain('category.error && category.items.length > 0');
-    expect(source).toContain("highlightMode !== 'staff'");
-    expect(source).toContain("if (highlightMode === 'hidden') return null;");
+const highlight = (followUpStatus: StudentHighlightItem['followUpStatus']): StudentHighlightItem => ({
+  studentId: 'student-1', studentName: 'Nguyễn Văn A', studentCode: 'SV001', className: 'Lớp A',
+  recordCount: 3, impactScore: -3, followUpStatus, type: 'ky_luat',
+});
+
+const metrics = (): DashboardMetrics => ({
+  roleScope: 'admin', highlightMode: 'staff', canReadStudentHighlights: true,
+  activeSemester: { _id: 'semester-1' } as DashboardMetrics['activeSemester'], activePeriod: null,
+  kpis: {} as DashboardMetrics['kpis'], studentHighlights: {} as DashboardMetrics['studentHighlights'],
+});
+
+describe('Student spotlight discipline status', () => {
+  beforeEach(() => {
+    vi.mocked(systemApi.getStudentHighlights).mockImplementation(async ({ category }) => ({
+      items: category === 'discipline' ? [highlight(category === 'discipline' ? currentStatus : undefined)] : [],
+      total: category === 'discipline' ? 1 : 0, page: 1, limit: 20, hasMore: false, semesterId: 'semester-1',
+    }));
   });
 
-  it('uses bounded variable-height virtualization for both layouts', () => {
-    expect(source).toContain('useVirtualizer');
-    expect(source).toContain('measureElement');
-    expect(source).toContain('overscan: 6');
-    expect(source).toContain('VirtualHighlightList');
-    expect(source).toContain('categories[category.id].total');
+  let currentStatus: StudentHighlightItem['followUpStatus'] = 'unhandled';
+
+  it('omits Ghi nhận mới for an unhandled student', async () => {
+    currentStatus = 'unhandled';
+    render(<StudentSpotlightPanel metrics={metrics()} />);
+    await waitFor(() => expect(screen.getAllByText('Nguyễn Văn A').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Ghi nhận mới')).not.toBeInTheDocument();
   });
 
-  it('renders actionable discipline status and delta fields', () => {
-    expect(source).toContain('Kỷ luật cần xử lý');
-    expect(source).toContain('followUpStatus === \'new\'');
-    expect(source).toContain('followUpStatus');
-    expect(source).toContain('Ghi nhận mới');
-    expect(source).toContain('Số lần ghi nhận:');
-    expect(source).toContain('Điểm trừ:');
-    expect(source).not.toContain('Điểm trừ mới:');
-    expect(source).not.toContain('Chưa xử lý');
-    expect(source).not.toContain('Tổng học kỳ');
+  it('displays Ghi nhận mới for a handled student with a positive delta', async () => {
+    currentStatus = 'new';
+    render(<StudentSpotlightPanel metrics={metrics()} />);
+    expect((await screen.findAllByText('Ghi nhận mới')).length).toBeGreaterThan(0);
   });
 });

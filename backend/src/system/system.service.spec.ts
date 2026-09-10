@@ -379,6 +379,32 @@ describe('SystemService', () => {
     expect(response).toEqual(expect.objectContaining({ total: 2, page: 1, limit: 1, hasMore: true }));
   });
 
+  it.each([
+    ['missing handled record', { $eq: ['$_id', '$$checkpointId'] }],
+    ['wrong student or semester', { $eq: ['$student_id', '$$checkpointStudentId'] }],
+    ['inactive or deleted handled record', { $eq: ['$status', 'active'] }],
+  ])('validates %s before exposing a discipline checkpoint', async (_case, expectedClause) => {
+    const activeId = new Types.ObjectId();
+    const { isolatedService, aggregate } = makeStudentHighlightsService(
+      [{ _id: activeId, status: 'active' }],
+      { items: [], count: [] },
+    );
+
+    await isolatedService.getStudentHighlights(
+      { roleCode: 'ADMIN', userId: mockUserId },
+      { category: 'discipline', semesterId: activeId.toString(), page: 1, limit: 20 } as any,
+    );
+
+    const pipeline = aggregate.mock.calls[0][0];
+    const followUpLookup = pipeline.find((stage: any) => stage.$lookup?.as === 'followUp').$lookup;
+    const handledRecordLookup = followUpLookup.pipeline
+      .find((stage: any) => stage.$lookup?.as === 'handledRecord').$lookup;
+    const handledMatch = handledRecordLookup.pipeline.find((stage: any) => stage.$match)?.$match.$expr.$and;
+    expect(handledMatch).toEqual(expect.arrayContaining([expectedClause]));
+    expect(handledRecordLookup.pipeline).toContainEqual({ $match: { 'criterion.criterion_type': 'ky_luat' } });
+    expect(followUpLookup.pipeline).toContainEqual({ $match: { $expr: { $gt: [{ $size: '$handledRecord' }, 0] } } });
+  });
+
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, './system.service.ts'),
