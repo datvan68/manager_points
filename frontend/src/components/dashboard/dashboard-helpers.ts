@@ -10,6 +10,7 @@ import { StudentTask } from '@/api/task-api';
 import { NotificationItem } from '@/api/notification-api';
 import { Criterion } from '@/api/criteria-api';
 import { Category } from '@/api/category-api';
+import type { ClassRecordSummary } from '@/api/system-api';
 
 export interface UserInfo {
   id: string;
@@ -121,6 +122,8 @@ export interface DashboardMetrics {
     mySpotlight?: StudentPersonalSpotlight;
   };
 }
+
+export type DashboardClassRecordSummary = ClassRecordSummary;
 
 export function getActiveSemester(semesters: Semester[]): Semester | null {
   if (!Array.isArray(semesters)) return null;

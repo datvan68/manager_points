@@ -106,6 +106,8 @@ describe('Dashboard loading contract', () => {
     expect(deferredSource).toContain('<QuickActionsPanel');
     expect(deferredSource).toContain('<AttendanceRecordPanel');
     expect(deferredSource).toContain('<EvaluationProgressPanel');
+    expect(deferredSource).toContain('<ClassRecordPanel');
+    expect(deferredSource).toContain('selectedSemesterId');
     expect(deferredSource).toContain('<ScoreDistributionChart');
     expect(deferredSource).toContain('<AcademicOverviewPanel');
     expect(deferredSource).toContain('<TaskPanel');

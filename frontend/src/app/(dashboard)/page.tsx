@@ -366,6 +366,7 @@ export default function DashboardPage() {
             showSystemPanel={showSystemPanel}
             systemRequests={systemRequests}
             backups={backups}
+            selectedSemesterId={selectedSemesterId}
           />
         ) : (
           <DeferredPanelsPlaceholder />

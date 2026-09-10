@@ -39,6 +39,7 @@ import {
   SendTestMailDto,
   UpdateModuleMaintenanceDto,
   GetStudentHighlightsQueryDto,
+  GetClassRecordSummariesQueryDto,
 } from './dto/system.dto';
 
 export interface AuthenticatedRequest extends Request {
@@ -70,6 +71,15 @@ export class SystemController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.systemService.getStudentHighlights(req.user, query);
+  }
+
+  @Get('class-record-summaries')
+  @Permissions('READ_STUDENT_RECORD')
+  getClassRecordSummaries(
+    @Query() query: GetClassRecordSummariesQueryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.systemService.getClassRecordSummaries(req.user, query);
   }
 
   // ─── LOGIN LOGS ─────────────────────────────────────────────────────────────

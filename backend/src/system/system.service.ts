@@ -46,6 +46,7 @@ import {
   UpdateMailSettingsDto,
   UpdateModuleMaintenanceDto,
   GetStudentHighlightsQueryDto,
+  GetClassRecordSummariesQueryDto,
 } from './dto/system.dto';
 import {
   getRequesterRoleName,
@@ -3564,6 +3565,7 @@ export class SystemService {
     }
 
     return {
+      semesters,
       roleScope,
       highlightMode,
       canReadStudentHighlights,
@@ -3681,6 +3683,78 @@ export class SystemService {
         count: [{ $count: 'total' }],
       } },
     ];
+    const [result] = await academicRecordModel.aggregate(pipeline).exec();
+    const items = result?.items || [];
+    const total = result?.count?.[0]?.total || 0;
+    return { items, total, page, limit, hasMore: page * limit < total, semesterId: semesterId.toString() };
+  }
+
+  async getClassRecordSummaries(
+    requester: any,
+    query: GetClassRecordSummariesQueryDto,
+  ) {
+    const canReadStaffRecords = isAdminUser(requester) || (
+      (isTeacher(requester) || isSupervisor(requester)) &&
+      (requester?.permissions || []).includes('READ_STUDENT_RECORD')
+    );
+    if (!canReadStaffRecords) {
+      throw new ForbiddenException('Bạn không có quyền xem ghi nhận sinh viên');
+    }
+
+    const classModel = this.connection.model('Class');
+    const semesterModel = this.connection.model('Semester');
+    const studentModel = this.connection.model('Student');
+    const criterionModel = this.connection.model('Criterion');
+    const academicRecordModel = this.connection.model('AcademicRecord');
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    const semesters = (await semesterModel.find().lean().exec()) as any[];
+    const active = semesters.find((s) => s.status === 'active') || semesters.find((s) => s.status === 'upcoming');
+    const semesterId = query.semesterId ? new Types.ObjectId(query.semesterId) : active?._id;
+    if (!semesterId) return { items: [], total: 0, page, limit, hasMore: false, semesterId: null };
+
+    const pipeline: any[] = [
+      { $match: { semester_id: semesterId, status: 'active', is_deleted: { $ne: true } } },
+      { $lookup: { from: studentModel.collection.name, localField: 'student_id', foreignField: '_id', as: 'student' } },
+      { $unwind: '$student' },
+    ];
+    if (isTeacher(requester)) {
+      const classes = await classModel.find({ advisor_id: new Types.ObjectId(requester.userId) }).select('_id').lean().exec();
+      pipeline.push({ $match: { 'student.class_id': { $in: classes.map((item: any) => item._id) } } });
+    }
+    pipeline.push(
+      { $lookup: { from: classModel.collection.name, localField: 'student.class_id', foreignField: '_id', as: 'class' } },
+      { $unwind: { path: '$class', preserveNullAndEmptyArrays: false } },
+      { $lookup: { from: criterionModel.collection.name, localField: 'criterion_id', foreignField: '_id', as: 'criterion' } },
+      { $unwind: { path: '$criterion', preserveNullAndEmptyArrays: true } },
+      { $set: {
+        normalizedQuantity: { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } },
+        effectiveRecordedAt: { $ifNull: ['$recorded_at', '$createdAt'] },
+        previewContent: { $ifNull: ['$selected_option_label', { $ifNull: ['$record_title', { $ifNull: ['$description', '$criterion.criterion_name'] }] }] },
+      } },
+      { $sort: { effectiveRecordedAt: -1, createdAt: -1, _id: -1 } },
+      { $group: {
+        _id: '$student.class_id',
+        className: { $first: '$class.class_name' },
+        recordCount: { $sum: '$normalizedQuantity' },
+        records: { $push: {
+          recordId: '$_id',
+          studentId: '$student._id',
+          studentName: '$student.full_name',
+          classId: '$student.class_id',
+          className: '$class.class_name',
+          content: '$previewContent',
+          recordedAt: '$effectiveRecordedAt',
+        } },
+      } },
+      { $project: { _id: 0, classId: '$_id', className: 1, recordCount: 1, records: { $slice: ['$records', 8] } } },
+      { $sort: { className: 1, classId: 1 } },
+      { $facet: {
+        items: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+        count: [{ $count: 'total' }],
+      } },
+    );
+
     const [result] = await academicRecordModel.aggregate(pipeline).exec();
     const items = result?.items || [];
     const total = result?.count?.[0]?.total || 0;

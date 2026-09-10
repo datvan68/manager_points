@@ -3,6 +3,7 @@
 import AcademicOverviewPanel from '@/components/dashboard/AcademicOverviewPanel';
 import AttendanceRecordPanel from '@/components/dashboard/AttendanceRecordPanel';
 import EvaluationProgressPanel from '@/components/dashboard/EvaluationProgressPanel';
+import ClassRecordPanel from '@/components/dashboard/ClassRecordPanel';
 import QuickActionsPanel from '@/components/dashboard/QuickActionsPanel';
 import ScoreDistributionChart from '@/components/dashboard/ScoreDistributionChart';
 import SystemOperationsPanel from '@/components/dashboard/SystemOperationsPanel';
@@ -14,6 +15,7 @@ interface DashboardDeferredPanelsProps {
   showSystemPanel: boolean;
   systemRequests: any[];
   backups: any[];
+  selectedSemesterId?: string | null;
 }
 
 export default function DashboardDeferredPanels({
@@ -21,6 +23,7 @@ export default function DashboardDeferredPanels({
   showSystemPanel,
   systemRequests,
   backups,
+  selectedSemesterId,
 }: DashboardDeferredPanelsProps) {
   return (
     <>
@@ -31,7 +34,11 @@ export default function DashboardDeferredPanels({
           {metrics.roleScope !== 'system' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AttendanceRecordPanel metrics={metrics} />
-              <EvaluationProgressPanel metrics={metrics} />
+              {metrics.highlightMode === 'staff' && metrics.canReadStudentHighlights ? (
+                <ClassRecordPanel semesterId={selectedSemesterId} />
+              ) : (
+                <EvaluationProgressPanel metrics={metrics} />
+              )}
             </div>
           )}
 

@@ -236,6 +236,23 @@ export interface ModuleMaintenanceResponse {
   updatedAt?: string | null;
 }
 
+export interface ClassRecordPreview {
+  recordId: string;
+  studentId: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  content: string;
+  recordedAt?: string;
+}
+
+export interface ClassRecordSummary {
+  classId: string;
+  className: string;
+  recordCount: number;
+  records: ClassRecordPreview[];
+}
+
 export const systemApi = {
   async getStudentHighlights(query: { category: 'discipline' | 'rewards' | 'bonus'; semesterId?: string; page?: number; limit?: number }): Promise<{ items: import('@/components/dashboard/dashboard-helpers').StudentHighlightItem[]; total: number; page: number; limit: number; hasMore: boolean; semesterId: string | null }> {
     const params = new URLSearchParams({ category: query.category });
@@ -243,6 +260,14 @@ export const systemApi = {
     if (query.page !== undefined) params.set('page', String(query.page));
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     const res = await httpClient(`${API_BASE}/system/student-highlights?${params.toString()}`);
+    return handleResponse(res);
+  },
+  async getClassRecordSummaries(query: { semesterId?: string; page?: number; limit?: number }, signal?: AbortSignal): Promise<{ items: ClassRecordSummary[]; total: number; page: number; limit: number; hasMore: boolean; semesterId: string | null }> {
+    const params = new URLSearchParams();
+    if (query.semesterId) params.set('semesterId', query.semesterId);
+    if (query.page !== undefined) params.set('page', String(query.page));
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    const res = await httpClient(`${API_BASE}/system/class-record-summaries?${params.toString()}`, { signal });
     return handleResponse(res);
   },
   async getModuleMaintenanceStates(): Promise<ModuleMaintenanceResponse> {

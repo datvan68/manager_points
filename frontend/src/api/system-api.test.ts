@@ -25,6 +25,19 @@ describe('systemApi', () => {
     expect(url).toContain('limit=20');
   });
 
+  it('requests class record summaries with semester pagination', async () => {
+    const mockResponse = { ok: true, json: vi.fn() };
+    (httpClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+    (handleResponse as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0, page: 2, limit: 10, hasMore: false, semesterId: 'sem-1' });
+    await systemApi.getClassRecordSummaries({ semesterId: 'sem-1', page: 2, limit: 10 });
+    const [url, options] = vi.mocked(httpClient).mock.calls[0];
+    expect(url).toContain('/api/system/class-record-summaries');
+    expect(url).toContain('semesterId=sem-1');
+    expect(url).toContain('page=2');
+    expect(url).toContain('limit=10');
+    expect(options?.signal).toBeUndefined();
+  });
+
   describe('getDashboardMetrics', () => {
     it('should correctly call httpClient with exact url without duplicated /api/api/', async () => {
       const mockResponse = { ok: true, json: vi.fn().mockResolvedValue({}) };
