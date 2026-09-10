@@ -145,7 +145,8 @@ export default function AcademicRecordReportTab({
     }
   };
 
-  const isRowSelectable = (row: AcademicRecordStudentSummaryRow) => Boolean(semesterId && row.follow_up_status !== 'settled');
+  const isFollowUpApplicable = (row: AcademicRecordStudentSummaryRow) => row.discipline_count > 0;
+  const isRowSelectable = (row: AcademicRecordStudentSummaryRow) => Boolean(semesterId && isFollowUpApplicable(row) && row.follow_up_status !== 'settled');
   const selectAll = (checked: boolean) => {
     setSelectedIds(checked ? data.filter(isRowSelectable).map(row => row._id) : []);
   };
@@ -179,8 +180,8 @@ export default function AcademicRecordReportTab({
 
   const renderFollowUpStatus = (row: AcademicRecordStudentSummaryRow) => (
     <div className="flex min-w-32 flex-col gap-1">
-      <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-bold ${row.follow_up_status === 'new' ? 'bg-amber-100 text-amber-800' : row.follow_up_status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-        {row.follow_up_status === 'new' ? `${row.new_record_count} ghi nhận mới` : followUpLabels[row.follow_up_status]}
+      <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-bold ${!isFollowUpApplicable(row) ? 'bg-slate-100 text-slate-500' : row.follow_up_status === 'new' ? 'bg-amber-100 text-amber-800' : row.follow_up_status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+        {!isFollowUpApplicable(row) ? 'Không cần xử lý' : row.follow_up_status === 'new' ? `${row.new_record_count} ghi nhận mới` : followUpLabels[row.follow_up_status]}
       </span>
       {row.handled_at && <span className="text-[10px] text-slate-500">Xử lý {new Date(row.handled_at).toLocaleString('vi-VN')}</span>}
     </div>
@@ -188,7 +189,7 @@ export default function AcademicRecordReportTab({
 
   const renderFollowUpAction = (row: AcademicRecordStudentSummaryRow) => {
     const isPending = handlingStudentId === row._id;
-    const isDisabled = !semesterId || isPending || row.follow_up_status === 'settled';
+    const isDisabled = !semesterId || !isFollowUpApplicable(row) || isPending || row.follow_up_status === 'settled';
     return (
       <button
         type="button"

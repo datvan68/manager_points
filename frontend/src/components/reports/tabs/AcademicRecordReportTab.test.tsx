@@ -101,6 +101,18 @@ describe('AcademicRecordReportTab', () => {
     expect(settledActions[0]).toHaveClass('disabled:opacity-50');
   });
 
+  it('does not expose follow-up state or selection for reward-only and bonus-only rows', () => {
+    const rewardOnly = { ...row, _id: 'reward-only', key: 'reward-only', reward_count: 1, bonus_count: 0, discipline_count: 0 };
+    const bonusOnly = { ...row, _id: 'bonus-only', key: 'bonus-only', reward_count: 0, bonus_count: 2, discipline_count: 0 };
+    render(<AcademicRecordReportTab data={[rewardOnly, bonusOnly]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" />);
+
+    expect(screen.getAllByText('Không cần xử lý')).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: 'Xử lý' }).every(button => button.hasAttribute('disabled'))).toBe(true);
+    const rowCheckboxes = screen.getAllByRole('checkbox');
+    expect(rowCheckboxes.slice(1).every(input => (input as HTMLInputElement).disabled)).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Xử lý đã chọn' })).not.toBeInTheDocument();
+  });
+
   it('refreshes only after a successful confirmation and prevents duplicate handling', async () => {
     markFollowUp.mockResolvedValueOnce({ success: true });
     const onRefresh = vi.fn().mockResolvedValue(undefined);

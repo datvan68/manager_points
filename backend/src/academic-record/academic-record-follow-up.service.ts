@@ -8,6 +8,7 @@ import {
 } from './schemas/academic-record-follow-up.schema';
 import { Student } from '../students/schemas/student.schema';
 import { Class } from '../classes/schemas/class.schema';
+import { Criterion } from '../criteria/schemas/criterion.schema';
 import { assertCanAccessStudent } from '../auth/utils/grading-access.util';
 import { MarkAcademicRecordFollowUpDto } from './dto/mark-academic-record-follow-up.dto';
 
@@ -18,6 +19,8 @@ export class AcademicRecordFollowUpService {
     private readonly followUpModel: Model<any>,
     @InjectModel(AcademicRecord.name)
     private readonly academicRecordModel: Model<any>,
+    @InjectModel(Criterion.name)
+    private readonly criterionModel: Model<any>,
     @InjectModel(Student.name) private readonly studentModel: Model<any>,
     @InjectModel(Class.name) private readonly classModel: Model<any>,
   ) {}
@@ -36,10 +39,16 @@ export class AcademicRecordFollowUpService {
   ) {
     this.validateIds(studentId, semesterId);
     await assertCanAccessStudent(requester, studentId, this.classModel, this.studentModel);
+    const disciplineCriteria = await this.criterionModel
+      .find({ criterion_type: 'ky_luat' })
+      .select('_id')
+      .exec();
+    const disciplineCriterionIds = disciplineCriteria.map((criterion: any) => criterion._id);
     const latest = await this.academicRecordModel
       .find({
         student_id: new Types.ObjectId(studentId),
         semester_id: new Types.ObjectId(semesterId),
+        criterion_id: { $in: disciplineCriterionIds },
         status: 'active',
         is_deleted: { $ne: true },
       })
@@ -60,6 +69,7 @@ export class AcademicRecordFollowUpService {
           handled_record_count: await this.academicRecordModel.countDocuments({
             student_id: new Types.ObjectId(studentId),
             semester_id: new Types.ObjectId(semesterId),
+            criterion_id: { $in: disciplineCriterionIds },
             status: 'active',
             is_deleted: { $ne: true },
           }).exec(),

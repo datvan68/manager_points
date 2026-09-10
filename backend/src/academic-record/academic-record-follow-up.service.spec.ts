@@ -18,6 +18,12 @@ describe('AcademicRecordFollowUpService', () => {
     }),
     countDocuments: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(2) }),
   };
+  const criterionModel: any = {
+    find: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([{ _id: new Types.ObjectId() }]),
+    }),
+  };
   const checkpoint = { student_id: studentId, semester_id: semesterId, handled_through_record_id: recordId };
   const followUpModel: any = {
     findOneAndUpdate: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue(checkpoint) }),
@@ -30,13 +36,15 @@ describe('AcademicRecordFollowUpService', () => {
     const service = new AcademicRecordFollowUpService(
       followUpModel,
       academicRecordModel,
+      criterionModel,
       {},
       {},
     );
     const result = await service.markHandled(studentId, semesterId, {}, requester);
     expect(result).toEqual({ success: true, followUp: checkpoint });
     expect(academicRecordModel.find).toHaveBeenCalledWith(expect.objectContaining({
-      student_id: expect.any(Types.ObjectId), semester_id: expect.any(Types.ObjectId), status: 'active',
+      student_id: expect.any(Types.ObjectId), semester_id: expect.any(Types.ObjectId),
+      criterion_id: { $in: expect.any(Array) }, status: 'active',
     }));
     expect(academicRecordModel.find.mock.results[0].value.sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
     expect(followUpModel.findOneAndUpdate).toHaveBeenCalledWith(
@@ -50,14 +58,46 @@ describe('AcademicRecordFollowUpService', () => {
     academicRecordModel.find.mockReturnValueOnce({
       sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), lean: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue([]),
     });
-    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, {}, {});
+    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, criterionModel, {}, {});
     await expect(service.markHandled(studentId, semesterId, {}, requester)).rejects.toBeInstanceOf(NotFoundException);
     expect(followUpModel.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
+  it('returns a domain not-found error when the semester has only reward or bonus records', async () => {
+    const disciplineCriterionId = new Types.ObjectId();
+    criterionModel.find.mockReturnValueOnce({
+      select: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([{ _id: disciplineCriterionId }]),
+    });
+    academicRecordModel.find.mockReturnValueOnce({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    });
+
+    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, criterionModel, {}, {});
+    await expect(service.markHandled(studentId, semesterId, {}, requester)).rejects.toBeInstanceOf(NotFoundException);
+    expect(academicRecordModel.find).toHaveBeenCalledWith(expect.objectContaining({
+      criterion_id: { $in: [disciplineCriterionId] },
+    }));
+    expect(followUpModel.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
   it('resets only the exact student-semester checkpoint', async () => {
-    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, {}, {});
+    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, criterionModel, {}, {});
     await expect(service.reset(studentId, semesterId, requester)).resolves.toEqual({ success: true, deleted: true });
     expect(followUpModel.deleteOne).toHaveBeenCalledWith({ student_id: expect.any(Types.ObjectId), semester_id: expect.any(Types.ObjectId) });
+  });
+
+  it('counts only active discipline records when saving the checkpoint', async () => {
+    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, criterionModel, {}, {});
+    await service.markHandled(studentId, semesterId, {}, requester);
+
+    expect(criterionModel.find).toHaveBeenCalledWith({ criterion_type: 'ky_luat' });
+    expect(academicRecordModel.countDocuments).toHaveBeenCalledWith(expect.objectContaining({
+      criterion_id: { $in: expect.any(Array) },
+      status: 'active',
+    }));
   });
 });

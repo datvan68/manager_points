@@ -933,6 +933,61 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockAcademicRecordModel.find).toHaveBeenCalledWith({
         _id: { $in: [latestRecordId] },
       });
+
+      const followUpLookup = pipeline.find((stage: any) => stage.$lookup?.as === 'followUp').$lookup;
+      expect(followUpLookup.pipeline).toEqual(expect.arrayContaining([
+        { $match: { 'handledCriterion.criterion_type': 'ky_luat' } },
+      ]));
+      const newRecordsLookup = pipeline.find((stage: any) => stage.$lookup?.as === 'newRecords').$lookup;
+      expect(newRecordsLookup.pipeline).toEqual(expect.arrayContaining([
+        { $match: { 'criterion.criterion_type': 'ky_luat' } },
+      ]));
+    });
+
+    it('restricts follow-up status filters to students with discipline records', async () => {
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ data: [], meta: [] }]),
+      });
+
+      await service.findAll({ groupBy: 'student', followUpStatus: 'settled' });
+
+      const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
+      expect(pipeline).toContainEqual({
+        $match: { followUpStatus: 'settled', kyLuatCount: { $gt: 0 } },
+      });
+    });
+
+    it('keeps reward-only students in all results but reports no follow-up records', async () => {
+      const studentId = new Types.ObjectId();
+      const latestRecordId = new Types.ObjectId();
+      const latestRecord = { _id: latestRecordId, student_id: studentId };
+      mockAcademicRecordModel.aggregate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{
+          data: [{
+            _id: studentId,
+            latestRecordId,
+            recordCount: 2,
+            recordTypeCounts: { khen_thuong: 2, cong_diem: 0, ky_luat: 0 },
+            recordTypes: ['khen_thuong'],
+            followUpStatus: 'unhandled',
+            newRecordCount: 0,
+            scoreRecords: [],
+          }],
+          meta: [{ total: 1 }],
+        }]),
+      });
+      mockAcademicRecordModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([latestRecord]),
+      });
+
+      const result = await service.findAll({ groupBy: 'student' });
+
+      expect(result.data[0]).toEqual(expect.objectContaining({
+        recordTypeCounts: { khen_thuong: 2, cong_diem: 0, ky_luat: 0 },
+        followUpStatus: 'unhandled',
+        newRecordCount: 0,
+      }));
     });
 
     it('sorts grouped students by record count before pagination when requested', async () => {

@@ -50,6 +50,12 @@ export function resolveLatestSummaryState(summary: any, error: string | null) {
   return "empty" as const;
 }
 
+const profileTabs = [
+  { id: "Thông tin cá nhân", label: "Thông tin cá nhân" },
+  { id: "Thiết bị đăng nhập", label: "Thiết bị đăng nhập" },
+  { id: "Vai trò & Quyền hạn", label: "Vai trò & Quyền hạn" },
+];
+
 export default function ProfilePage() {
   const router = useRouter();
   const { checkAuth, logout } = useAuth();
@@ -245,10 +251,7 @@ export default function ProfilePage() {
     return (
       <>
         <TabNavigation
-          tabs={[
-            { id: "Thông tin cá nhân", label: "Thông tin cá nhân" },
-            { id: "Vai trò & Quyền hạn", label: "Vai trò & Quyền hạn" },
-          ]}
+          tabs={profileTabs}
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
         />
@@ -272,10 +275,7 @@ export default function ProfilePage() {
     return (
       <>
         <TabNavigation
-          tabs={[
-            { id: "Thông tin cá nhân", label: "Thông tin cá nhân" },
-            { id: "Vai trò & Quyền hạn", label: "Vai trò & Quyền hạn" },
-          ]}
+          tabs={profileTabs}
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
         />
@@ -309,16 +309,12 @@ export default function ProfilePage() {
   return (
     <>
         <TabNavigation
-          tabs={[
-            { id: "Thông tin cá nhân", label: "Thông tin cá nhân" },
-            { id: "Vai trò & Quyền hạn", label: "Vai trò & Quyền hạn" },
-          ]}
+          tabs={profileTabs}
           activeTab={activeTab}
           onTabChange={(id) => setActiveTab(id)}
         />
         <main className="flex-1 p-3 md:p-4 overflow-y-auto bg-transparent scrollbar-hide">
           <div className="max-w-[1280px] mx-auto space-y-6">
-            <ActiveSessionsSection />
             {/* Header Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -405,7 +401,9 @@ export default function ProfilePage() {
             </motion.div>
 
             {/* Content Tabs */}
-            {activeTab === "Thông tin cá nhân" ? (
+            {activeTab === "Thiết bị đăng nhập" ? (
+              <ActiveSessionsSection />
+            ) : activeTab === "Thông tin cá nhân" ? (
               <>
               <div className="grid grid-cols-12 gap-6">
                 {/* Form chỉnh sửa */}

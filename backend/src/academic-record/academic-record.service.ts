@@ -2310,16 +2310,38 @@ export class AcademicRecordService {
               from: followUpCollection,
               let: { studentId: '$_id' },
               pipeline: semesterId
-                ? [{
-                    $match: {
-                      $expr: {
-                        $and: [
-                          { $eq: ['$student_id', '$$studentId'] },
-                          { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
-                        ],
+                ? [
+                    {
+                      $match: {
+                        $expr: {
+                          $and: [
+                            { $eq: ['$student_id', '$$studentId'] },
+                            { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
+                          ],
+                        },
                       },
                     },
-                  }]
+                    {
+                      $lookup: {
+                        from: academicRecordCollection,
+                        localField: 'handled_through_record_id',
+                        foreignField: '_id',
+                        as: 'handledRecord',
+                      },
+                    },
+                    { $unwind: '$handledRecord' },
+                    {
+                      $lookup: {
+                        from: criterionCollection,
+                        localField: 'handledRecord.criterion_id',
+                        foreignField: '_id',
+                        as: 'handledCriterion',
+                      },
+                    },
+                    { $unwind: '$handledCriterion' },
+                    { $match: { 'handledCriterion.criterion_type': 'ky_luat' } },
+                    { $project: { handledRecord: 0, handledCriterion: 0 } },
+                  ]
                 : [{ $match: { _id: { $exists: false } } }],
               as: 'followUp',
             },
@@ -2333,30 +2355,42 @@ export class AcademicRecordService {
                 checkpointId: { $arrayElemAt: ['$followUp.handled_through_record_id', 0] },
               },
               pipeline: semesterId
-                ? [{
-                    $match: {
-                      $expr: {
-                        $and: [
-                          { $ne: ['$$checkpointDate', null] },
-                          { $eq: ['$student_id', '$$studentId'] },
-                          { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
-                          { $eq: ['$status', 'active'] },
-                          { $ne: ['$is_deleted', true] },
-                          {
-                            $or: [
-                              { $gt: ['$createdAt', '$$checkpointDate'] },
-                              {
-                                $and: [
-                                  { $eq: ['$createdAt', '$$checkpointDate'] },
-                                  { $gt: ['$_id', '$$checkpointId'] },
-                                ],
-                              },
-                            ],
-                          },
-                        ],
+                ? [
+                    {
+                      $match: {
+                        $expr: {
+                          $and: [
+                            { $ne: ['$$checkpointDate', null] },
+                            { $eq: ['$student_id', '$$studentId'] },
+                            { $eq: ['$semester_id', new Types.ObjectId(semesterId)] },
+                            { $eq: ['$status', 'active'] },
+                            { $ne: ['$is_deleted', true] },
+                            {
+                              $or: [
+                                { $gt: ['$createdAt', '$$checkpointDate'] },
+                                {
+                                  $and: [
+                                    { $eq: ['$createdAt', '$$checkpointDate'] },
+                                    { $gt: ['$_id', '$$checkpointId'] },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
                       },
                     },
-                  }]
+                    {
+                      $lookup: {
+                        from: criterionCollection,
+                        localField: 'criterion_id',
+                        foreignField: '_id',
+                        as: 'criterion',
+                      },
+                    },
+                    { $unwind: '$criterion' },
+                    { $match: { 'criterion.criterion_type': 'ky_luat' } },
+                  ]
                 : [{ $match: { _id: { $exists: false } } }],
               as: 'newRecords',
             },
@@ -2380,7 +2414,7 @@ export class AcademicRecordService {
               followUp: { $arrayElemAt: ['$followUp', 0] },
             },
           },
-          ...(followUpStatus ? [{ $match: { followUpStatus } }] : []),
+          ...(followUpStatus ? [{ $match: { followUpStatus, kyLuatCount: { $gt: 0 } } }] : []),
           {
             $sort: sortBy === 'recordCount'
               ? {
