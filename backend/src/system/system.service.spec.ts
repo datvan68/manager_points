@@ -366,14 +366,17 @@ describe('SystemService', () => {
     const newGroup = pipeline
       .flatMap((stage: any) => stage.$lookup?.pipeline || [])
       .find((stage: any) => stage.$group?.count)?.$group;
-    const eligibility = pipeline.find((stage: any) => stage.$match?.$expr?.$and)?.$match.$expr.$and;
+    const eligibility = pipeline.find((stage: any) => stage.$match?.$expr?.$or)?.$match.$expr.$or;
 
     expect(group.recordCount).toEqual({ $sum: '$normalizedQuantity' });
     expect(newGroup.count).toEqual({ $sum: '$normalizedQuantity' });
     expect(pipeline).toContainEqual({ $set: { normalizedQuantity: { $convert: { input: '$quantity', to: 'double', onError: 1, onNull: 1 } } } });
     expect(eligibility).toEqual(expect.arrayContaining([
-      { $gte: ['$recordCount', 3] },
-      { $in: ['$followUpStatus', ['unhandled', 'new']] },
+      { $and: [
+        { $eq: ['$followUpStatus', 'unhandled'] },
+        { $gte: ['$recordCount', 3] },
+      ] },
+      { $eq: ['$followUpStatus', 'new'] },
     ]));
     expect(pipeline).toContainEqual({ $sort: { followUpPriority: -1, recordCount: -1, impactMagnitude: -1, _id: 1 } });
     expect(response).toEqual(expect.objectContaining({ total: 2, page: 1, limit: 1, hasMore: true }));
@@ -403,6 +406,7 @@ describe('SystemService', () => {
     expect(handledMatch).toEqual(expect.arrayContaining([expectedClause]));
     expect(handledRecordLookup.pipeline).toContainEqual({ $match: { 'criterion.criterion_type': 'ky_luat' } });
     expect(followUpLookup.pipeline).toContainEqual({ $match: { $expr: { $gt: [{ $size: '$handledRecord' }, 0] } } });
+    expect(followUpLookup.pipeline).toContainEqual({ $unwind: '$handledRecord' });
   });
 
   it('keeps dashboard leaderboards capped at ten without changing recent lists', () => {

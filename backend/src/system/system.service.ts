@@ -3733,6 +3733,7 @@ export class SystemService {
               as: 'handledRecord',
             } },
             { $match: { $expr: { $gt: [{ $size: '$handledRecord' }, 0] } } },
+            { $unwind: '$handledRecord' },
             { $limit: 1 },
           ],
           as: 'followUp',
@@ -3791,9 +3792,12 @@ export class SystemService {
           ] },
         } },
         { $set: { impactMagnitude: { $abs: '$impactScore' } } },
-        { $match: { $expr: { $and: [
-          { $gte: ['$recordCount', 3] },
-          { $in: ['$followUpStatus', ['unhandled', 'new']] },
+        { $match: { $expr: { $or: [
+          { $and: [
+            { $eq: ['$followUpStatus', 'unhandled'] },
+            { $gte: ['$recordCount', 3] },
+          ] },
+          { $eq: ['$followUpStatus', 'new'] },
         ] } } },
         { $set: { followUpPriority: { $cond: [{ $eq: ['$followUpStatus', 'new'] }, 1, 0] } } },
       ] : [
