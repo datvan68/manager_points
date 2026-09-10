@@ -246,14 +246,14 @@ describe('RoomFeeCollection Component', () => {
     });
   });
 
-  it('renders "Kiểm tra" button in actions column for paid invoice', async () => {
+  it('renders "Xem ngay" button in actions column for paid invoice', async () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
       expect(screen.getAllByText('Nguyễn Văn A').length).toBeGreaterThanOrEqual(1);
     });
 
-    expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThanOrEqual(1);
   });
 
   it('opens unified modal for unpaid invoice and submits transfer proof', async () => {
@@ -270,10 +270,10 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[0]);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
@@ -307,10 +307,10 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[1]);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Hóa đơn' })).toBeDefined();
@@ -468,10 +468,10 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[1]);
 
     const rejectBtn = await screen.findByRole('button', { name: 'Không duyệt' });
     fireEvent.click(rejectBtn);
@@ -498,10 +498,10 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[1]);
 
     await waitFor(() => {
       expect(screen.getByText('Ảnh chứng từ hiện tại')).toBeDefined();
@@ -551,11 +551,11 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    // Click Kiểm tra on second invoice (rfi-pending which has proof)
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+    // Click Xem ngay on second invoice (rfi-pending which has proof)
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[1]);
 
     await waitFor(() => {
       expect(dormitoryApi.roomFeeInvoices.getProofBlob).toHaveBeenCalledWith('rfi-pending');
@@ -582,11 +582,11 @@ describe('RoomFeeCollection Component', () => {
     render(<RoomFeeCollection />);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /Kiểm tra/i }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('button', { name: /Xem ngay/i }).length).toBeGreaterThan(0);
     });
 
-    // Click Kiểm tra on second invoice (rfi-pending)
-    fireEvent.click(screen.getAllByRole('button', { name: /Kiểm tra/i })[1]);
+    // Click Xem ngay on second invoice (rfi-pending)
+    fireEvent.click(screen.getAllByRole('button', { name: /Xem ngay/i })[1]);
 
     await waitFor(() => {
       expect(screen.getByText('Không tìm thấy ảnh chứng từ thanh toán.')).toBeInTheDocument();

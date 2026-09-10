@@ -974,12 +974,12 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
               {canConfirmInvoice && (
                 <button
                   type="button"
-                  aria-label="Kiểm tra"
+                  aria-label="Xem ngay"
                   onClick={() => openPayModal(inv)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/80 bg-white/50 backdrop-blur-sm text-xs font-semibold text-slate-700 hover:bg-white/80 hover:text-[#1A73E8] hover:scale-[1.01] transition-all duration-150 shadow-2xs cursor-pointer"
-                  title="Kiểm tra hóa đơn & chứng từ thanh toán"
+                  title="Xem ngay hóa đơn & chứng từ thanh toán"
                 >
-                  <Eye size={14} /> Kiểm tra
+                  <Eye size={14} /> Xem ngay
                 </button>
               )}
             </div>
@@ -1224,7 +1224,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       )}
 
       {/* Table & Cards View */}
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/70 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
+      <div className="flex min-h-0 flex-1 overflow-hidden bg-transparent lg:rounded-2xl lg:border lg:border-white/70 lg:bg-white/45 lg:shadow-sm lg:shadow-slate-300/40 lg:backdrop-blur-md [&_table]:text-xs [&_th]:px-4 [&_th]:py-3 [&_td]:px-4 [&_td]:py-2.5">
         <ResponsiveDataView
           data={invoices}
           columns={columns}
@@ -1233,6 +1233,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
           keyExtractor={(inv) => inv._id}
           mobileScrollRef={mobileScrollRef}
           mobileVirtualization
+          mobileClassName="px-0 py-4"
           hidePaginationOnMobile
           mobileFooter={
             <div ref={mobileSentinelRef} className="flex min-h-12 items-center justify-center py-3 text-center text-xs text-slate-500">
@@ -1302,7 +1303,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {/* MODAL LẬP ĐỢT THU PHÍ PHÒNG CÁ NHÂN */}
       {/* ========================================================================= */}
       <Dialog open={individualModalOpen} onOpenChange={setIndividualModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-h-[90vh] w-[calc(100%-2rem)] sm:w-full max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 sm:p-6 shadow-2xl max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           <DialogHeader className="border-b border-white/50 pb-3">
             <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
               <User size={20} className="text-[#1A73E8]" />
@@ -1601,7 +1602,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {/* MODAL CẤU HÌNH ĐƠN GIÁ & QR THU PHÍ PHÒNG */}
       {/* ========================================================================= */}
       <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-h-[90vh] w-[calc(100%-2rem)] sm:w-full max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 sm:p-6 shadow-2xl max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           <DialogHeader className="border-b border-white/50 pb-3">
             <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
               <SlidersHorizontal size={20} className="text-[#1A73E8]" />
@@ -1753,7 +1754,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {/* MODAL LẬP ĐỢT THU PHÍ PHÒNG KÈM XEM TRƯỚC */}
       {/* ========================================================================= */}
       <Dialog open={createPeriodModalOpen} onOpenChange={setCreatePeriodModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-h-[90vh] w-[calc(100%-2rem)] sm:w-full max-w-xl overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 sm:p-6 shadow-2xl max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           <DialogHeader className="border-b border-white/50 pb-3">
             <DialogTitle className="text-lg font-bold text-[#1E293B] flex items-center gap-2">
               <Plus size={20} className="text-[#1A73E8]" />
@@ -1931,7 +1932,7 @@ export default function RoomFeeCollection({ subViewSwitcher }: RoomFeeCollection
       {/* MODAL HÓA ĐƠN THANH TOÁN (Dùng chung cho Nộp chứng từ & Kiểm tra / Duyệt) */}
       {/* ========================================================================= */}
       <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
-        <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-6 shadow-2xl backdrop-blur-md">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] sm:max-h-[92vh] w-[calc(100%-2rem)] sm:w-full max-w-lg overflow-y-auto rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 sm:p-6 shadow-2xl backdrop-blur-md max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden">
           {payingInvoice && (() => {
             const isApproved =
               payingInvoice.status === 'Đã thu' ||

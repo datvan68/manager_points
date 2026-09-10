@@ -244,10 +244,10 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Xem ngay/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Kiểm tra/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Xem ngay/i }));
 
     await waitFor(() => {
       expect(dormitoryApi.invoices.getProofBlob).toHaveBeenCalledWith('inv-util-1');
@@ -294,10 +294,10 @@ describe('InvoicesPage - Room Specific Utility Tariffs & Modal Configuration', (
     render(<InvoicesPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Kiểm tra/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Xem ngay/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Kiểm tra/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Xem ngay/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Không tìm thấy ảnh chứng từ thanh toán.')).toBeInTheDocument();
