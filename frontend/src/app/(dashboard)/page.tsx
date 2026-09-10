@@ -84,7 +84,9 @@ export default function DashboardPage() {
   // Filtering & State
   const [semestersList, setSemestersList] = useState<Semester[]>(() => initialSnapshot?.semesters || []);
   const semestersRef = useRef<Semester[]>([]);
-  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(() => initialSnapshot?.selectedSemesterId || null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(() =>
+    initialSnapshot?.semesters?.find((semester) => semester.status === 'active')?._id || initialSnapshot?.selectedSemesterId || null,
+  );
   const selectedSemesterRef = useRef<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(() => initialSnapshot?.metrics || null);
   const [isLoading, setIsLoading] = useState(() => !initialSnapshot);
@@ -109,8 +111,10 @@ export default function DashboardPage() {
     setMetrics(snapshot?.metrics || null);
     setSemestersList(snapshot?.semesters || []);
     semestersRef.current = snapshot?.semesters || [];
-    setSelectedSemesterId(snapshot?.selectedSemesterId || null);
-    selectedSemesterRef.current = snapshot?.selectedSemesterId || null;
+    const activeSemesterId = snapshot?.semesters?.find((semester) => semester.status === 'active')?._id;
+    const defaultSemesterId = activeSemesterId || snapshot?.selectedSemesterId || null;
+    setSelectedSemesterId(defaultSemesterId);
+    selectedSemesterRef.current = defaultSemesterId;
     setSystemRequests(snapshot?.systemRequests || []);
     setBackups(snapshot?.backups || []);
     setLastUpdated(snapshot?.lastUpdated || new Date());
@@ -237,12 +241,6 @@ export default function DashboardPage() {
     loadData(true);
   };
 
-  const handleSemesterChange = (semesterId: string) => {
-    selectedSemesterRef.current = semesterId;
-    setSelectedSemesterId(semesterId);
-    loadData(true, semesterId);
-  };
-
   // Compute Attention Warnings (memoized to avoid recalculation on every render)
   const attentionItems = useMemo(() => {
     if (!metrics) return [];
@@ -329,9 +327,6 @@ export default function DashboardPage() {
           lastUpdated={lastUpdated}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
-          semesters={semestersList}
-          selectedSemesterId={selectedSemesterId}
-          onSemesterChange={handleSemesterChange}
         />
 
         {/* Student Spotlight & Leaderboards */}

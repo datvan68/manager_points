@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Calendar, Shield } from 'lucide-react';
+import { RefreshCw, Shield } from 'lucide-react';
 import { Semester } from '@/api/semester-api';
 
 interface DashboardHeaderProps {
@@ -10,9 +10,6 @@ interface DashboardHeaderProps {
   lastUpdated: Date;
   onRefresh: () => void;
   isRefreshing: boolean;
-  semesters: Semester[];
-  selectedSemesterId: string | null;
-  onSemesterChange: (semesterId: string) => void;
 }
 
 export default function DashboardHeader({
@@ -23,9 +20,6 @@ export default function DashboardHeader({
   lastUpdated,
   onRefresh,
   isRefreshing,
-  semesters,
-  selectedSemesterId,
-  onSemesterChange,
 }: DashboardHeaderProps) {
   
   const getRoleDisplayName = () => {
@@ -66,25 +60,6 @@ export default function DashboardHeader({
       </div>
 
       <div className="contents md:flex md:w-auto md:flex-wrap md:items-center md:gap-3">
-        {/* Semester Selector */}
-        {semesters.length > 0 && (
-          <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-2 bg-white/50 border border-white/70 rounded-xl px-3 py-1 shadow-sm text-xs font-semibold text-[#1E293B] md:flex-initial">
-            <Calendar size={14} className="text-[#64748B]" />
-            <select
-              value={selectedSemesterId || ''}
-              aria-label="Chọn học kỳ"
-              onChange={(e) => onSemesterChange(e.target.value)}
-              className="bg-transparent border-none py-1.5 focus:ring-0 outline-none text-[#1E293B] font-bold cursor-pointer"
-            >
-              {semesters.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.semester_name} {s.status === 'active' ? '(Hiện tại)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="col-start-2 row-start-1 flex items-center justify-end gap-2 md:col-auto md:row-auto">
           <button
             type="button"
