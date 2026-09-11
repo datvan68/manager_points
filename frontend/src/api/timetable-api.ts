@@ -8,7 +8,25 @@ export interface TimetableLesson { classLabel?: string; sessionLabel?: string; d
 export interface TimetableResult { filters: TimetableFilters; classLabel?: string; sessionLabel?: string; periods: string[]; lessons: TimetableLesson[]; isEmpty: boolean }
 
 const query = (values: Partial<TimetableFilters>) => new URLSearchParams(Object.entries(values).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, value as string])).toString();
+async function request<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('Nguồn thời khóa biểu phản hồi quá lâu. Vui lòng thử lại.'));
+      controller.abort();
+    }, 45000);
+  });
+  try {
+    return await Promise.race([
+      httpClient(url, { signal: controller.signal }).then(handleResponse<T>),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
 export const timetableApi = {
-  async getOptions(filters: Partial<TimetableFilters> = {}) { return handleResponse<TimetableOptions>(await httpClient(`${API_BASE}/timetable/options?${query(filters)}`)); },
-  async getTimetable(filters: TimetableFilters) { return handleResponse<TimetableResult>(await httpClient(`${API_BASE}/timetable?${query(filters)}`)); },
+  async getOptions(filters: Partial<TimetableFilters> = {}) { return request<TimetableOptions>(`${API_BASE}/timetable/options?${query(filters)}`); },
+  async getTimetable(filters: TimetableFilters) { return request<TimetableResult>(`${API_BASE}/timetable?${query(filters)}`); },
 };

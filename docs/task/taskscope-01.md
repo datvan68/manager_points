@@ -4,9 +4,9 @@ generation: 2
 task_id: "20260911-094028-school-timetable-page"
 scope_file: "docs/task/taskscope-01.md"
 status: blocked
-scope_revision: 6
+scope_revision: 7
 created_at: "2026-09-11T09:40:28+07:00"
-updated_at: "2026-09-11T10:49:00+07:00"
+updated_at: "2026-09-11T13:26:25+07:00"
 base_commit: "2119f64d1f831456a8423c6775bb3a71e933c6b0"
 task: "Build the school timetable lookup page"
 pipeline: feature_development
@@ -18,13 +18,17 @@ coordination:
     - "Slot 00 is an empty legacy file and remains untouched. Slot 01 generation 1 has valid completion evidence and is reused. No active write reservations or dirty paths were found at planning baseline."
     - "Execution started from the exact user-pinned ready scope; implementation and verification are in progress."
   decisions:
-    - "User confirmed HSSV viewers and one dedicated backend school account able to query all timetables. Plan read-only lookup of all source classes for authenticated HSSV; no mapping to assigned local classes or per-user school login."
+    - "The originating planning task applied the explicitly authorized role expansion after verifying the implementation task was idle and its dirty timetable files matched its recorded implementation. Only timetable.controller.ts, its spec and this scope were changed; unrelated work was preserved."
+    - "User confirmed HSSV viewers and one dedicated backend school account able to query all timetables. User subsequently authorized Admin and Teacher access alongside HSSV. Plan read-only lookup of all source classes for these three authenticated roles; no mapping to assigned local classes or per-user school login."
   blockers:
     - "V-04 source/API verification passed, but final authenticated browser interaction and desktop/mobile rendered-grid verification are blocked by Chrome reporting another extension UI open on the local timetable tab; no password was entered or automated."
     - "Mandatory V-05 independent review was dispatched after the latest fixes but did not return within bounded waits; completion cannot claim fresh review evidence."
   runtime_prerequisites:
     - "The operator must securely supply TIMETABLE_SOURCE_USERNAME and TIMETABLE_SOURCE_PASSWORD to the backend process before real login testing. No credentials were requested, read, exported or provisioned in this planning task."
     - "Successful backend login, automatic reauthentication and populated end-to-end UI/API verification remain mandatory implementation checks. The browser session proves access only, not the dedicated backend account contract."
+  access_expansion:
+    outcome: "TimetableAccessGuard now admits STUDENT, ADMIN and TEACHER after JWT authentication. Focused controller suite passed 15 tests, including legacy HSSV, other-role denial and JWT failure. No credentials or persistent data changed."
+    runtime: "Authenticated browser retest remains unverified: browser connection could not be restored after user continuation. This amendment does not claim completion of the original implementation scope or V-04/V-05."
   readiness_basis: "The fixed-origin unauthenticated redirect/login form and populated timetable DOM now establish an implementable adapter/parser contract. Missing runtime credentials block dependent live checks, not synthetic implementation work; runtime prerequisites cannot be marked passed from browser access or mocks."
 completion:
   completed_at: null
@@ -96,14 +100,14 @@ scope:
     - "Automatic matching of school classes to Manager Point classes by display name."
     - "Runtime secret files and deployment configuration remain outside writes; only the named backend package manifests and timetable.config.ts may change for this adapter."
 acceptance_criteria:
-  - "AC-01: Authenticated HSSV can load the page, option lists and timetable for all source classes; direct API calls enforce the HSSV access policy, reject unauthenticated/non-HSSV requests and never return source secrets. Do not add other viewer roles without an explicit scope decision."
+  - "AC-01: Authenticated STUDENT, ADMIN and TEACHER viewers can load the page, options and timetable for all source classes. JWT authentication remains mandatory; nonempty roleCode takes precedence and other role codes remain denied. Preserve legacy HSSV role-name fallback; never return source secrets."
   - "AC-02: UI provides Niên học, Học kỳ, Tuần, Khoa, Khóa, Lớp and Tìm kiếm. Options use source label/value pairs; changing a parent resets/reloads affected descendants. Stale responses cannot overwrite newer selections."
   - "AC-03: Adapter follows verified Web Forms state/postbacks, retains the correct cookie context, validates filter values, bounds request time/concurrency/retries and distinguishes session expiry, timeout, invalid selection and changed source markup from a valid empty result."
   - "AC-04: Typed JSON preserves source class/week labels and values and normalized lessons with day, start/end periods, subject display text, optional subject code, teacher, room or safe online URL, plus source time/duration display text. Do not invent subject codes or equate display duration with rowSpan. Populated source data matches the parsed result; no fixed offset is inferred from week labels."
   - "AC-05: Grid shows Lớp học, Buổi, Tiết and Monday through Sunday, including evening periods through 18, with merged lesson cells based on an occupancy grid that accounts for rowSpan/colSpan and skips repeated headers, all lessons retained, legible desktop layout and horizontal mobile scrolling. Empty, loading and failure states are distinct; results always identify the filters that produced them."
   - "AC-06: Short-lived bounded caching is isolated by effective source access context and full query; concurrent requests cannot cross-contaminate Web Forms state or expose results across users. Upstream errors are not cached as empty schedules."
 execution:
-  - "E-00 [AC-01,AC-03,AC-04] Retain the resolved HSSV/all-source-classes policy and use the live_inspection contract. New timetable.config.ts reads TIMETABLE_SOURCE_USERNAME and TIMETABLE_SOURCE_PASSWORD through ConfigService at runtime; never include real values or NEXT_PUBLIC settings. Use a fixed HTTPS school origin, 15-second request timeout, at most one reauthentication/replay, a 60-second result cache and at most 100 cache entries. New domain files follow existing backend/src and frontend/src parents; no provisioning is performed by code changes."
+  - "E-00 [AC-01,AC-03,AC-04] Retain the resolved HSSV/Admin/Teacher all-source-classes policy and use the live_inspection contract. New timetable.config.ts reads TIMETABLE_SOURCE_USERNAME and TIMETABLE_SOURCE_PASSWORD through ConfigService at runtime; never include real values or NEXT_PUBLIC settings. Use a fixed HTTPS school origin, 15-second request timeout, at most one reauthentication/replay, a 60-second result cache and at most 100 cache entries. New domain files follow existing backend/src and frontend/src parents; no provisioning is performed by code changes."
   - "E-01 [AC-01,AC-02,AC-04] New timetable.types.ts and dto/query-timetable.dto.ts define opaque option values and validated query/response contracts. Proposed internal routes are GET /timetable/options with parent filters and GET /timetable with the selected filters; confirm global API prefix in main.ts. New controller/module/service plus app.module.ts registration enforce the resolved access policy and return typed results using existing Nest conventions."
   - "E-02 [AC-03,AC-04,AC-06] New school-timetable.adapter.ts GETs the observed login form, POSTs its current hidden fields and named credential controls server-side, retains cookies and verifies access by GETting the timetable page. Restrict redirects to the fixed origin and detect returned login forms as session expiry. Use native fetch with manual redirect handling and tough-cookie for the cookie jar; add cheerio for HTML parsing in the named backend manifests after confirming package/runtime compatibility. Serialize each complete form workflow and bound its queue; cache only successful normalized results after access checks. timetable.parser.ts reconstructs logical cell occupancy from rowSpan/colSpan, skips repeated headers, preserves period labels and source display lines, and distinguishes valid empty tables from missing/changed markup. Do not use browser automation or browser-cookie extraction as the production adapter."
   - "E-03 [AC-01,AC-03,AC-04,AC-06] New backend spec files cover actual parsed synthetic HTML, refreshed token submission, expiry/redirect/timeout/markup failures, input validation, denied direct access, cache isolation and concurrent requests. Include multi-period cells, blank cells, multiple lessons and label/value mismatch; do not merely assert implementation structure."
