@@ -19,6 +19,8 @@ export interface TimetableOptions {
   faculties: TimetableOption[];
   courses: TimetableOption[];
   classes: TimetableOption[];
+  syncedAt?: string;
+  coverage?: string[];
 }
 
 export interface TimetableLesson {
@@ -42,6 +44,8 @@ export interface TimetableResult {
   periods: string[];
   lessons: TimetableLesson[];
   isEmpty: boolean;
+  syncedAt?: string;
+  coverageKey?: string;
 }
 
 export interface TimetableSourcePage {
