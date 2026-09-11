@@ -4020,10 +4020,14 @@ export class SystemService {
       } },
       { $sort: { effectiveRecordedAt: -1, createdAt: -1, _id: -1 } },
       { $group: {
-        _id: '$student.class_id',
+        _id: {
+          classId: '$student.class_id',
+          studentId: '$student._id',
+          criterionId: '$criterion_id',
+        },
         className: { $first: '$class.class_name' },
-        recordCount: { $sum: '$normalizedQuantity' },
-        records: { $push: {
+        count: { $sum: '$normalizedQuantity' },
+        record: { $first: {
           recordId: '$_id',
           studentId: '$student._id',
           studentName: '$student.full_name',
@@ -4032,6 +4036,13 @@ export class SystemService {
           content: '$previewContent',
           recordedAt: '$effectiveRecordedAt',
         } },
+      } },
+      { $sort: { 'record.recordedAt': -1, 'record.recordId': -1 } },
+      { $group: {
+        _id: '$_id.classId',
+        className: { $first: '$className' },
+        recordCount: { $sum: '$count' },
+        records: { $push: { $mergeObjects: ['$record', { count: '$count' }] } },
       } },
       { $project: { _id: 0, classId: '$_id', className: 1, recordCount: 1, records: { $slice: ['$records', 8] } } },
       { $sort: { className: 1, classId: 1 } },

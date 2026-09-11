@@ -243,6 +243,7 @@ export interface ClassRecordPreview {
   classId: string;
   className: string;
   content: string;
+  count: number;
   recordedAt?: string;
 }
 

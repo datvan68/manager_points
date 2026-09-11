@@ -69,7 +69,7 @@ export default function ClassRecordPanel({ semesterId }: ClassRecordPanelProps) 
                   {item.records.map((record) => (
                     <div key={record.recordId} className="rounded-lg border border-slate-100 bg-slate-50/80 p-2.5">
                       <p className="text-[11px] font-bold text-[#1E293B]">{record.studentName} - {record.className}</p>
-                      <p className="mt-0.5 text-[11px] leading-relaxed text-[#64748B]">{record.content || 'Ghi nhận học vụ'}</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-[#64748B]">{record.content || 'Ghi nhận học vụ'}{record.count > 1 ? ` (${record.count} lần)` : ''}</p>
                     </div>
                   ))}
                 </div>

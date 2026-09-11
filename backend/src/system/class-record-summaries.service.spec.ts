@@ -19,7 +19,7 @@ describe('SystemService class record summaries', () => {
     )).rejects.toThrow(ForbiddenException);
   });
 
-  it('builds a scoped, quantity-normalized, newest-eight aggregation', async () => {
+  it('groups previews by student and criterion while preserving class totals and newest-eight order', async () => {
     const semesterId = new Types.ObjectId();
     const aggregate = jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue([{
@@ -48,6 +48,17 @@ describe('SystemService class record summaries', () => {
     const pipeline = aggregate.mock.calls[0][0];
     expect(pipeline[0]).toEqual(expect.objectContaining({ $match: expect.objectContaining({ status: 'active', is_deleted: { $ne: true } }) }));
     expect(pipeline.find((stage: any) => stage.$set)?.$set.normalizedQuantity.$convert).toEqual(expect.objectContaining({ onNull: 1, onError: 1 }));
+    const groups = pipeline.filter((stage: any) => stage.$group);
+    expect(groups[0].$group._id).toEqual({
+      classId: '$student.class_id',
+      studentId: '$student._id',
+      criterionId: '$criterion_id',
+    });
+    expect(groups[0].$group.count).toEqual({ $sum: '$normalizedQuantity' });
+    expect(groups[1].$group._id).toBe('$_id.classId');
+    expect(groups[1].$group.recordCount).toEqual({ $sum: '$count' });
+    expect(groups[1].$group.records.$push.$mergeObjects).toEqual(['$record', { count: '$count' }]);
+    expect(pipeline).toContainEqual({ $sort: { 'record.recordedAt': -1, 'record.recordId': -1 } });
     expect(pipeline.find((stage: any) => stage.$project)?.$project.records).toEqual({ $slice: ['$records', 8] });
   });
 });

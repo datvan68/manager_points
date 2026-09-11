@@ -13,15 +13,20 @@ describe('ClassRecordPanel', () => {
 
   it('renders class totals and the two-line record popover', async () => {
     vi.mocked(systemApi.getClassRecordSummaries).mockResolvedValue({
-      items: [{ classId: 'class-1', className: '10A1', recordCount: 3, records: [{ recordId: 'record-1', studentId: 'student-1', studentName: 'Nguyễn An', classId: 'class-1', className: '10A1', content: 'Tuyên dương' }] }],
+      items: [{ classId: 'class-1', className: '10A1', recordCount: 4, records: [
+        { recordId: 'record-1', studentId: 'student-1', studentName: 'Nguyễn An', classId: 'class-1', className: '10A1', content: 'Tuyên dương', count: 3 },
+        { recordId: 'record-2', studentId: 'student-2', studentName: 'Trần Bình', classId: 'class-1', className: '10A1', content: 'Đi học đúng giờ', count: 1 },
+      ] }],
       total: 1, page: 1, limit: 20, hasMore: false, semesterId: 'sem-1',
     });
     render(<ClassRecordPanel semesterId="sem-1" />);
 
-    await waitFor(() => expect(screen.getByText('Lớp 10A1 - 3 ghi nhận')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Lớp 10A1 - 4 ghi nhận')).toBeDefined());
     fireEvent.click(screen.getByRole('button', { name: /Lớp 10A1/ }));
     expect(await screen.findByText('Nguyễn An - 10A1')).toBeDefined();
-    expect(screen.getByText('Tuyên dương')).toBeDefined();
+    expect(screen.getByText('Tuyên dương (3 lần)')).toBeDefined();
+    expect(screen.getByText('Đi học đúng giờ')).toBeDefined();
+    expect(screen.queryByText('Đi học đúng giờ (1 lần)')).toBeNull();
     expect(systemApi.getClassRecordSummaries).toHaveBeenCalledWith({ semesterId: 'sem-1', page: 1, limit: 20 }, expect.any(AbortSignal));
   });
 
