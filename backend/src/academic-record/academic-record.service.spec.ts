@@ -862,11 +862,20 @@ describe('AcademicRecordService - Import Flow', () => {
                   cong_diem: 2,
                   ky_luat: 0,
                 },
+                criterionEntries: [
+                  { id: new Types.ObjectId('507f1f77bcf86cd799439011') },
+                  { id: new Types.ObjectId('507f1f77bcf86cd799439011') },
+                  { id: new Types.ObjectId('507f1f77bcf86cd799439012') },
+                ],
                 recordTypes: ['khen_thuong', 'cong_diem'],
                 totalPoints: 12,
               },
             ],
             meta: [{ total: 6 }],
+            activeCriteria: [
+              { id: '507f1f77bcf86cd799439011', code: 'A-01', name: 'Tiêu chí A', type: 'khen_thuong' },
+              { id: '507f1f77bcf86cd799439012', code: 'B-01', name: 'Tiêu chí B', type: 'cong_diem' },
+            ],
           },
         ]),
       });
@@ -887,6 +896,10 @@ describe('AcademicRecordService - Import Flow', () => {
             studentId: studentId.toString(),
             latestRecord,
             recordCount: 3,
+            criterionCounts: {
+              '507f1f77bcf86cd799439011': 2,
+              '507f1f77bcf86cd799439012': 1,
+            },
             followUpStatus: 'unhandled',
             newRecordCount: 0,
             recordTypeCounts: {
@@ -898,7 +911,17 @@ describe('AcademicRecordService - Import Flow', () => {
             totalPoints: 12,
           },
         ],
-        meta: { total: 6, page: 2, limit: 5, totalPages: 2, has_more: false },
+        meta: {
+          total: 6,
+          page: 2,
+          limit: 5,
+          totalPages: 2,
+          has_more: false,
+          activeCriteria: [
+            { id: '507f1f77bcf86cd799439011', code: 'A-01', name: 'Tiêu chí A', type: 'khen_thuong' },
+            { id: '507f1f77bcf86cd799439012', code: 'B-01', name: 'Tiêu chí B', type: 'cong_diem' },
+          ],
+        },
       });
       const pipeline = mockAcademicRecordModel.aggregate.mock.calls[0][0];
       expect(pipeline[0]).toEqual({

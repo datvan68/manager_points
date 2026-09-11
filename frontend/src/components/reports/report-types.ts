@@ -5,7 +5,7 @@ import { Semester } from '@/api/semester-api';
 import { EvaluationPeriod } from '@/api/evaluation-period-api';
 import { SummaryPoint } from '@/api/summaries-point-api';
 import { EvaluationDetail } from '@/api/evaluation-detail-api';
-import { AcademicRecord, AcademicRecordStudentGroup } from '@/api/academic-record-api';
+import { AcademicRecord, AcademicRecordCriterion, AcademicRecordStudentGroup } from '@/api/academic-record-api';
 import { DailyClassReport } from '@/api/daily-class-report-api';
 import { StudentTask, StudentTaskProgress } from '@/api/task-api';
 import { NotificationItem } from '@/api/notification-api';
@@ -32,6 +32,7 @@ export interface ReportsDataset {
     disciplineOccurrences: number;
     attentionStudentCount: number;
   };
+  activeCriteria: AcademicRecordCriterion[];
   classes: Class[];
   departments: Department[];
   semesters: Semester[];
@@ -122,6 +123,7 @@ export interface AcademicRecordStudentSummaryRow {
   bonus_count: number;
   discipline_count: number;
   total_points: number;
+  criterion_counts: Record<string, number>;
   latest_record_title: string;
   latest_record_at: string;
   latest_record_type: 'khen_thuong' | 'cong_diem' | 'ky_luat' | 'khac';

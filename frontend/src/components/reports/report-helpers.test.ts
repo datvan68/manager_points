@@ -17,6 +17,7 @@ describe('mapAcademicRecordStudentGroup', () => {
         },
         recordCount: 3,
         recordTypeCounts: { khen_thuong: 1, cong_diem: 1, ky_luat: 1 },
+        criterionCounts: { 'criterion-1': 2 },
         recordTypes: ['khen_thuong', 'cong_diem', 'ky_luat'],
         totalPoints: -1
       },
@@ -38,6 +39,7 @@ describe('mapAcademicRecordStudentGroup', () => {
       latest_record_title: 'Cảnh cáo'
     });
     expect(row).not.toHaveProperty('latest_recorded_by');
+    expect(row.criterion_counts).toEqual({ 'criterion-1': 2 });
   });
 });
 

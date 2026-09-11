@@ -73,6 +73,26 @@ describe('AcademicRecordReportTab', () => {
     expect(screen.getAllByText(/Không tìm thấy sinh viên có ghi nhận nào khớp với bộ lọc/).length).toBeGreaterThan(0);
   });
 
+  it('switches to criterion view with stable duplicate-name columns and zero dashes', () => {
+    render(
+      <AcademicRecordReportTab
+        data={[{ ...row, criterion_counts: { 'criterion-1': 2, 'criterion-2': 0 } }]}
+        activeCriteria={[
+          { id: 'criterion-1', code: 'A-01', name: 'Hoạt động', type: 'cong_diem' },
+          { id: 'criterion-2', code: 'B-01', name: 'Hoạt động', type: 'khen_thuong' },
+        ]}
+        isLoading={false}
+        onExport={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Theo tiêu chí' }));
+    expect(screen.getAllByRole('columnheader', { name: 'Hoạt động' })).toHaveLength(2);
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('columnheader', { name: 'Khen thưởng' })).not.toBeInTheDocument();
+  });
+
   it('renders separate status and action columns with exact follow-up states', () => {
     render(
       <AcademicRecordReportTab

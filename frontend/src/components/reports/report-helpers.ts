@@ -61,6 +61,7 @@ export function mapAcademicRecordStudentGroup(
     class_name: cls?.class_name || student.class_id?.class_name || 'Chưa xác định',
     department_name: departmentsList.find(item => item._id === departmentId)?.name || 'Chưa xác định',
     record_count: group.recordCount,
+    criterion_counts: group.criterionCounts || {},
     reward_count: group.recordTypeCounts?.khen_thuong || 0,
     bonus_count: group.recordTypeCounts?.cong_diem || 0,
     discipline_count: group.recordTypeCounts?.ky_luat || 0,

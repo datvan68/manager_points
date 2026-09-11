@@ -44,6 +44,7 @@ export interface AcademicRecordStudentGroup {
   latestRecord: AcademicRecord;
   recordCount: number;
   recordTypeCounts: Record<'khen_thuong' | 'cong_diem' | 'ky_luat', number>;
+  criterionCounts?: Record<string, number>;
   recordTypes: Array<'khen_thuong' | 'cong_diem' | 'ky_luat'>;
   totalPoints: number;
   followUpStatus?: 'unhandled' | 'settled' | 'new';
@@ -62,7 +63,15 @@ export interface PaginatedAcademicRecordStudentGroups {
     totalStudents?: number;
     disciplineOccurrences?: number;
     attentionStudentCount?: number;
+    activeCriteria?: AcademicRecordCriterion[];
   };
+}
+
+export interface AcademicRecordCriterion {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
 }
 
 export interface CreateAcademicRecordDto {

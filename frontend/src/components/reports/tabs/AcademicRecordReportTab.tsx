@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { AcademicRecord, academicRecordApi } from '@/api/academic-record-api';
+import { AcademicRecord, AcademicRecordCriterion, academicRecordApi } from '@/api/academic-record-api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ReportTable, { TableColumn } from '../ReportTable';
 import { AcademicRecordStudentSummaryRow } from '../report-types';
@@ -31,6 +31,7 @@ interface AcademicRecordReportTabProps {
   onFollowUpStatusChange?: (status: 'all' | 'unhandled' | 'settled' | 'new') => void;
   semesterId?: string;
   onRefresh?: () => Promise<void> | void;
+  activeCriteria?: AcademicRecordCriterion[];
   detailQuery?: {
     semesterId?: string;
     classId?: string;
@@ -82,7 +83,9 @@ export default function AcademicRecordReportTab({
   onFollowUpStatusChange,
   semesterId,
   onRefresh,
+  activeCriteria = [],
 }: AcademicRecordReportTabProps) {
+  const [view, setView] = useState<'summary' | 'criterion'>('summary');
   const [selection, setSelection] = useState<{ row: AcademicRecordStudentSummaryRow; category: RecordCategory } | null>(null);
   const [detailRecords, setDetailRecords] = useState<AcademicRecord[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -215,6 +218,23 @@ export default function AcademicRecordReportTab({
     { key: 'follow_up_action', header: 'Hành động', render: (_value: unknown, row: AcademicRecordStudentSummaryRow) => renderFollowUpAction(row) },
   ];
 
+  const criterionColumns: TableColumn[] = [
+    { key: 'student_code', header: 'Mã HSSV', className: 'font-bold text-[#1E293B]' },
+    { key: 'full_name', header: 'Họ tên', className: 'font-bold text-[#1E293B]' },
+    { key: 'class_name', header: 'Lớp' },
+    { key: 'record_count', header: 'Số lượt', className: 'text-[11px]', render: (value: number) => <span>{value} lần</span> },
+    ...activeCriteria.map(criterion => ({
+      key: `criterion_${criterion.id}`,
+      header: criterion.name,
+      className: 'text-center min-w-28',
+      render: (_value: unknown, row: AcademicRecordStudentSummaryRow) => {
+        const count = row.criterion_counts?.[criterion.id] || 0;
+        return <span>{count > 0 ? count : '—'}</span>;
+      },
+    })),
+    ...columns.slice(-2),
+  ];
+
   return (
     <>
       <div className="p-6 text-xs">
@@ -224,14 +244,20 @@ export default function AcademicRecordReportTab({
           hideHeaderInfo
           pageSizeOptions={[40, 80, 120, 200, 500]}
           headerContent={<div className="flex flex-wrap items-center gap-2" aria-label="Lọc trạng thái xử lý">
-            <span className="font-bold text-slate-700">Trạng thái xử lý:</span>
+            <span className="font-bold text-slate-700">Hiển thị:</span>
+            {(['summary', 'criterion'] as const).map(nextView => (
+              <button key={nextView} type="button" onClick={() => setView(nextView)} className={`rounded-full border px-3 py-1 font-semibold ${view === nextView ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
+                {nextView === 'summary' ? 'Tổng hợp' : 'Theo tiêu chí'}
+              </button>
+            ))}
+            <span className="ml-2 font-bold text-slate-700">Trạng thái xử lý:</span>
             {(['all', 'unhandled', 'settled', 'new'] as const).map(status => (
               <button key={status} type="button" onClick={() => onFollowUpStatusChange?.(status)} className={`rounded-full border px-3 py-1 font-semibold ${followUpStatus === status ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600'}`}>
                 {status === 'all' ? 'Tất cả' : status === 'new' ? 'Ghi nhận mới' : followUpLabels[status]}
               </button>
             ))}
           </div>}
-          columns={columns}
+          columns={view === 'criterion' ? criterionColumns : columns}
           data={data}
           isLoading={isLoading}
           onExportExcel={onExport}

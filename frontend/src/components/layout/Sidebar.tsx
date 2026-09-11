@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Shield,
   Search,
+  CalendarDays,
 } from "lucide-react";
 import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
 import StudentQrAttendance from "@/components/attendance/StudentQrAttendance";
@@ -54,6 +55,7 @@ const allMenuItems = [
   { icon: Users, label: "Học sinh sinh viên", href: "/students/record" },
   { icon: Building2, label: "KTX", href: "/dormitory" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
+  { icon: CalendarDays, label: "Thời khóa biểu", href: "/timetable" },
 ];
 
 // Global variables to persist sidebar state across client-side page transitions

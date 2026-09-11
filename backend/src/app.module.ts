@@ -34,6 +34,7 @@ import { ActivityAttendanceConfigModule } from './activity-attendance-config/act
 import { AttendanceSessionsModule } from './attendance-sessions/attendance-sessions.module';
 import { DormitoryModule } from './dormitory/dormitory.module';
 import { RateLimitModule } from './core/rate-limit/rate-limit.module';
+import { TimetableModule } from './timetable/timetable.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { RateLimitModule } from './core/rate-limit/rate-limit.module';
       isGlobal: true,
     }),
     RateLimitModule.register(),
+    TimetableModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 5, // seconds

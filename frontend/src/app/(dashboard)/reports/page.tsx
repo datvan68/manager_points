@@ -86,6 +86,7 @@ export default function ReportsPage() {
   const [dataset, setDataset] = useState<ReportsDataset>({
     students: [],
     academicRecordAggregates: undefined,
+    activeCriteria: [],
     classes: [],
     departments: [],
     semesters: [],
@@ -304,6 +305,7 @@ export default function ReportsPage() {
             disciplineOccurrences: Number(recordMeta.disciplineOccurrences ?? 0),
             attentionStudentCount: Number(recordMeta.attentionStudentCount ?? 0),
           } : prev.academicRecordAggregates,
+          activeCriteria: recordMeta?.activeCriteria || [],
           tasks: tasksRes.items || []
         }));
       }
@@ -412,7 +414,8 @@ export default function ReportsPage() {
             totalStudents: Number((recordsRes as any).meta?.totalStudents ?? 0),
             disciplineOccurrences: Number((recordsRes as any).meta?.disciplineOccurrences ?? 0),
             attentionStudentCount: Number((recordsRes as any).meta?.attentionStudentCount ?? 0),
-          } : prev.academicRecordAggregates
+          } : prev.academicRecordAggregates,
+          activeCriteria: recordsRes && 'meta' in recordsRes ? ((recordsRes as any).meta?.activeCriteria || []) : [],
         }));
       }
 
@@ -556,6 +559,7 @@ export default function ReportsPage() {
       task: false,
       system: false
     });
+    setDataset(prev => ({ ...prev, activeCriteria: [], academicRecordGroups: [] }));
     setFilters(nextFilters);
   };
 
@@ -571,7 +575,8 @@ export default function ReportsPage() {
     baseQuery: any,
     pageSize: number = 500,
     maxRows: number = 5000,
-    tableName: string = 'Dữ liệu'
+    tableName: string = 'Dữ liệu',
+    onFirstMeta?: (meta: any) => void
   ): Promise<T[]> {
     let allItems: T[] = [];
     let currentPage = 1;
@@ -599,6 +604,7 @@ export default function ReportsPage() {
 
     // Fetch the first page to determine items and total count
     const firstRes = await endpointFetcher({ ...baseQuery, page: currentPage, limit: pageSize });
+    onFirstMeta?.(firstRes?.meta);
     const extracted = extractResponse(firstRes);
     allItems = [...extracted.items];
     const total = extracted.total;
@@ -635,6 +641,7 @@ export default function ReportsPage() {
     let fullDetails = dataset.evaluationDetails;
     let fullRecords = dataset.academicRecords;
     let fullRecordGroups = dataset.academicRecordGroups;
+    let fullActiveCriteria = dataset.activeCriteria;
     let fullDailyReports = dataset.dailyReports;
     let fullTasks = dataset.tasks;
     let fullProgress = dataset.taskProgress;
@@ -697,7 +704,10 @@ export default function ReportsPage() {
               classId: filters.classId,
               search: filters.searchQuery,
               startDate: filters.startDate,
-              endDate: filters.endDate
+              endDate: filters.endDate,
+              departmentId: filters.departmentId,
+              status: filters.status,
+              followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus
             },
             EXPORT_PAGE_SIZE,
             MAX_EXPORT_ROWS_PER_SHEET,
@@ -713,11 +723,15 @@ export default function ReportsPage() {
             classId: filters.classId,
             search: filters.searchQuery,
             startDate: filters.startDate,
-            endDate: filters.endDate
+            endDate: filters.endDate,
+            departmentId: filters.departmentId,
+            status: filters.status,
+            followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus
           },
           EXPORT_PAGE_SIZE,
           MAX_EXPORT_ROWS_PER_SHEET,
-          'Ghi nhận'
+          'Ghi nhận',
+          meta => { fullActiveCriteria = meta?.activeCriteria || []; }
         );
       }
 
@@ -809,6 +823,7 @@ export default function ReportsPage() {
         evaluationDetails: fullDetails,
         academicRecords: fullRecords,
         academicRecordGroups: fullRecordGroups,
+        activeCriteria: fullActiveCriteria,
         dailyReports: fullDailyReports,
         tasks: fullTasks,
         taskProgress: fullProgress,
@@ -925,6 +940,23 @@ export default function ReportsPage() {
     { key: 'total_points', header: 'Tổng điểm tác động', type: 'number', width: 18 }
   ];
 
+  const buildCriterionExport = (rows: any[], criteria: Array<{ id: string; name: string }>) => ({
+    rows: rows.map(row => Object.fromEntries([
+      ['student_code', row.student_code],
+      ['full_name', row.full_name],
+      ['class_name', row.class_name],
+      ['record_count', row.record_count],
+      ...criteria.map(criterion => [criterion.id, row.criterion_counts?.[criterion.id] || 0]),
+    ])),
+    columns: [
+      { key: 'student_code', header: 'Mã HSSV', width: 15 },
+      { key: 'full_name', header: 'Họ tên', width: 25 },
+      { key: 'class_name', header: 'Lớp', width: 15 },
+      { key: 'record_count', header: 'Số lượt', type: 'number', width: 12 },
+      ...criteria.map(criterion => ({ key: criterion.id, header: criterion.name, type: 'number', width: 22 })),
+    ] as ColumnConfig[],
+  });
+
   const attendanceCols: ColumnConfig[] = [
     { key: 'report_date', header: 'Ngày báo cáo', width: 15 },
     { key: 'class_name', header: 'Lớp học', width: 15 },
@@ -1035,6 +1067,10 @@ export default function ReportsPage() {
     } else if (tab === 'record') {
       if (exportProcessed.tables.recordSummaries.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
       await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhận rèn luyện', exportProcessed.tables.recordSummaries, recordCols);
+      const criterionExport = buildCriterionExport(exportProcessed.tables.recordSummaries, exportDataset.activeCriteria);
+      if (criterionExport.rows.length > 0 && criterionExport.columns.length > 4) {
+        await reportExportHelper.appendJsonSheet(workbook, 'Theo tiêu chí', criterionExport.rows, criterionExport.columns);
+      }
       await reportExportHelper.writeWorkbook(workbook, `Bao_cao_Ghi_nhan_${timestamp}.xlsx`);
     } else if (tab === 'attendance') {
       if (exportProcessed.tables.attendance.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
@@ -1144,6 +1180,10 @@ export default function ReportsPage() {
     // 4. Record sheet
     if (exportProcessed.tables.recordSummaries.length > 0) {
       await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhan', exportProcessed.tables.recordSummaries, recordCols);
+      const criterionExport = buildCriterionExport(exportProcessed.tables.recordSummaries, exportDataset.activeCriteria);
+      if (criterionExport.rows.length > 0 && criterionExport.columns.length > 4) {
+        await reportExportHelper.appendJsonSheet(workbook, 'Theo tieu chi', criterionExport.rows, criterionExport.columns);
+      }
     }
     // 5. Attendance sheet
     if (exportProcessed.tables.attendance.length > 0) {
@@ -1316,6 +1356,7 @@ export default function ReportsPage() {
             {activeTab === 'record' && (
               <AcademicRecordReportTab
                 data={processed.tables.recordSummaries}
+                activeCriteria={dataset.activeCriteria}
                 isLoading={isTabLoading['record']}
                 onExport={() => handleExportSingleTab('record')}
                 serverSide={true}

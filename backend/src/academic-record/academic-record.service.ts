@@ -1947,7 +1947,7 @@ export class AcademicRecordService {
                   page: page || 1,
                   limit: limit || 10,
                   totalPages: 0,
-                  ...(isGroupedByStudent ? { has_more: false } : {}),
+                  ...(isGroupedByStudent ? { has_more: false, activeCriteria: [] } : {}),
                 },
               }
             : [];
@@ -2004,7 +2004,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
-                    ...(isGroupedByStudent ? { has_more: false } : {}),
+                    ...(isGroupedByStudent ? { has_more: false, activeCriteria: [] } : {}),
                   },
                 }
               : [];
@@ -2032,7 +2032,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
-                    ...(isGroupedByStudent ? { has_more: false } : {}),
+                    ...(isGroupedByStudent ? { has_more: false, activeCriteria: [] } : {}),
                   },
                 }
               : [];
@@ -2047,7 +2047,7 @@ export class AcademicRecordService {
                     page: page || 1,
                     limit: limit || 10,
                     totalPages: 0,
-                    ...(isGroupedByStudent ? { has_more: false } : {}),
+                    ...(isGroupedByStudent ? { has_more: false, activeCriteria: [] } : {}),
                   },
                 }
               : [];
@@ -2272,6 +2272,14 @@ export class AcademicRecordService {
                 },
               },
               recordTypes: { $addToSet: '$criterion.criterion_type' },
+              criterionEntries: {
+                $push: {
+                  id: '$criterion._id',
+                  code: '$criterion.criterion_code',
+                  name: '$criterion.criterion_name',
+                  type: '$criterion.criterion_type',
+                },
+              },
               // Keep only the score inputs needed to reuse ScoreEngineService
               // after pagination, without returning the full history payload.
               scoreRecords: {
@@ -2446,6 +2454,28 @@ export class AcademicRecordService {
                   },
                 },
               }],
+              activeCriteria: [
+                { $unwind: '$criterionEntries' },
+                { $match: { 'criterionEntries.id': { $ne: null } } },
+                {
+                  $group: {
+                    _id: '$criterionEntries.id',
+                    code: { $first: '$criterionEntries.code' },
+                    name: { $first: '$criterionEntries.name' },
+                    type: { $first: '$criterionEntries.type' },
+                  },
+                },
+                {
+                  $project: {
+                    _id: 0,
+                    id: { $toString: '$_id' },
+                    code: 1,
+                    name: 1,
+                    type: 1,
+                  },
+                },
+                { $sort: { code: 1, name: 1, id: 1 } },
+              ],
             },
           },
         ])
@@ -2472,10 +2502,21 @@ export class AcademicRecordService {
         .map((group: any) => {
           const latestRecord = recordsById.get(group.latestRecordId.toString());
           if (!latestRecord) return null;
+          const criterionCounts = (group.criterionEntries || []).reduce(
+            (counts: Record<string, number>, entry: any) => {
+              if (entry?.id) {
+                const criterionId = entry.id.toString();
+                counts[criterionId] = (counts[criterionId] || 0) + 1;
+              }
+              return counts;
+            },
+            {},
+          );
           return {
             studentId: group._id.toString(),
             latestRecord,
             recordCount: group.recordCount,
+            criterionCounts,
             followUpStatus: group.followUpStatus || 'unhandled',
             newRecordCount: Number(group.newRecordCount || 0),
             ...(group.followUp
@@ -2523,6 +2564,12 @@ export class AcademicRecordService {
             disciplineOccurrences: Number(aggregates.disciplineOccurrences || 0),
             attentionStudentCount: Number(aggregates.attentionStudentCount || 0),
           } : {}),
+          activeCriteria: (pageResult.activeCriteria || []).map((criterion: any) => ({
+            id: criterion.id,
+            code: criterion.code || '',
+            name: criterion.name || '',
+            type: criterion.type || '',
+          })),
         },
       };
     }

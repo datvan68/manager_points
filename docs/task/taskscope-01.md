@@ -1,89 +1,141 @@
 ---
 slot_id: "taskscope-01"
-generation: 1
-task_id: "20260911-073847-class-record-repeat-count"
+generation: 2
+task_id: "20260911-094028-school-timetable-page"
 scope_file: "docs/task/taskscope-01.md"
-status: completed
-scope_revision: 1
-created_at: "2026-09-11T07:38:47+07:00"
-updated_at: "2026-09-11T08:02:30+07:00"
-base_commit: "9a6cae97729f161768afbc9100883c9528de890d"
-task: "Hiển thị số lần lặp trong ghi nhận theo lớp"
+status: blocked
+scope_revision: 6
+created_at: "2026-09-11T09:40:28+07:00"
+updated_at: "2026-09-11T10:49:00+07:00"
+base_commit: "2119f64d1f831456a8423c6775bb3a71e933c6b0"
+task: "Build the school timetable lookup page"
 pipeline: feature_development
 profile: Full
-objective: "Trong popup Ghi nhận theo lớp, mỗi sinh viên chỉ xuất hiện một dòng cho cùng một tiêu chí và dòng đó hiển thị tổng số lần được ghi nhận."
+objective: "Provide a Vietnamese /timetable page in Manager Point that submits school lookup filters to a NestJS adapter and displays normalized weekly timetable results in a class/session/period/day grid."
 coordination:
   depends_on: []
   warnings:
-    - "docs/task/taskscope.md là tệp legacy rỗng nên slot 00 được giữ nguyên và không tái sử dụng."
+    - "Slot 00 is an empty legacy file and remains untouched. Slot 01 generation 1 has valid completion evidence and is reused. No active write reservations or dirty paths were found at planning baseline."
+    - "Execution started from the exact user-pinned ready scope; implementation and verification are in progress."
+  decisions:
+    - "User confirmed HSSV viewers and one dedicated backend school account able to query all timetables. Plan read-only lookup of all source classes for authenticated HSSV; no mapping to assigned local classes or per-user school login."
+  blockers:
+    - "V-04 source/API verification passed, but final authenticated browser interaction and desktop/mobile rendered-grid verification are blocked by Chrome reporting another extension UI open on the local timetable tab; no password was entered or automated."
+    - "Mandatory V-05 independent review was dispatched after the latest fixes but did not return within bounded waits; completion cannot claim fresh review evidence."
+  runtime_prerequisites:
+    - "The operator must securely supply TIMETABLE_SOURCE_USERNAME and TIMETABLE_SOURCE_PASSWORD to the backend process before real login testing. No credentials were requested, read, exported or provisioned in this planning task."
+    - "Successful backend login, automatic reauthentication and populated end-to-end UI/API verification remain mandatory implementation checks. The browser session proves access only, not the dedicated backend account contract."
+  readiness_basis: "The fixed-origin unauthenticated redirect/login form and populated timetable DOM now establish an implementable adapter/parser contract. Missing runtime credentials block dependent live checks, not synthetic implementation work; runtime prerequisites cannot be marked passed from browser access or mocks."
 completion:
-  completed_at: "2026-09-11T08:02:30+07:00"
-  outcome: "success"
-  final_commit_or_state: "Working tree dirty with only scoped implementation/test changes and this taskscope; no commit created."
-  changed_paths:
-    - "backend/src/system/system.service.ts"
-    - "backend/src/system/class-record-summaries.service.spec.ts"
-    - "frontend/src/api/system-api.ts"
-    - "frontend/src/components/dashboard/ClassRecordPanel.tsx"
-    - "frontend/src/components/dashboard/ClassRecordPanel.test.tsx"
-  checks_passed:
-    - "V-01: backend class-record-summaries.service.spec.ts passed, 2 tests."
-    - "V-02: frontend ClassRecordPanel.test.tsx passed, 3 tests."
-    - "V-03: backend build and frontend typecheck exited 0."
-    - "V-04: dev dashboard/API read-only verification passed with class TC26-THUD1-VH26-4K10; total 18, grouped previews showed (2 lần)/(3 lần), single-count previews had no suffix."
-    - "git diff --check passed."
-  cleanup_pending: []
+  completed_at: null
+  outcome: null
+  final_commit_or_state: null
+  changed_paths: ["backend/package.json", "backend/package-lock.json", "backend/src/app.module.ts", "backend/src/timetable/", "frontend/src/api/timetable-api.ts", "frontend/src/api/timetable-api.test.ts", "frontend/src/app/(dashboard)/timetable/page.tsx", "frontend/src/components/timetable/", "frontend/src/components/layout/Sidebar.tsx", "frontend/src/components/layout/Sidebar.test.tsx"]
+  checks_passed: ["V-01 backend focused tests: 3 suites / 10 tests passed after guard and HTTP error mapping fixes", "V-02 frontend focused tests: 4 suites / 22 tests passed", "V-03 backend build, frontend typecheck and git diff --check passed", "V-04 source adapter populated query returned 10 lessons across days 1-5 and periods 13-18; valid empty class/week returned isEmpty=true; invalid week returned SOURCE_INVALID_SELECTION; cache identity was isolated and reused; unauthenticated dev API returned 401"]
+  cleanup_pending: ["V-04 browser rendered-grid and mobile verification after Chrome extension UI is dismissed", "V-05 fresh independent review result after latest fixes"]
 evidence:
-  current_behavior: "backend/src/system/system.service.ts:getClassRecordSummaries cộng quantity vào recordCount của lớp nhưng records vẫn chứa từng bản ghi riêng; frontend/src/components/dashboard/ClassRecordPanel.tsx chỉ hiển thị tên sinh viên và nội dung, không có số lần."
-  expected_behavior: "Danh sách mới nhất được nhóm ổn định theo sinh viên và tiêu chí, tổng số lần dùng quantity đã chuẩn hóa, và UI hiển thị '(N lần)' khi nhóm có từ hai lượt trở lên."
-  root_cause: "The class-level aggregation grouped directly by class after sorting, so repeated student/criterion records remained separate preview rows even though recordCount already summed normalized quantity."
+  current_behavior: "At the recorded commit, targeted searches of backend/src and frontend/src found no pmdt/ScheduleOfClass/timetable integration. backend/src/app.module.ts registers domain modules and global config/cache. backend/src/classes/classes.controller.ts uses JwtAuthGuard and requester-scoped class reads; this is not authority to expose all external classes."
+  expected_behavior: "A dedicated source adapter returns typed options and timetable data to the existing frontend HTTP client; users see filters and a weekly grid with explicit loading, empty, access-denied and upstream-error states."
+  root_cause: null
+  reference: "codex://threads/01a08e44-8f1b-72e0-b9e5-03404ce87cb2 reports POST Web Forms at https://pmdt.namsaigon.edu.vn/Pages/Sims/ScheduleOfClass.aspx?pt=4, dynamic hidden state and dependent dropdown postbacks. Its observed lookup was empty; conclusions are prior observations, not fresh verification."
+  live_inspection:
+    - "2026-09-11: no school tab was initially listed; reopening the exact timetable URL in the in-app browser reused an effective authenticated session. A separate credential-free HTTP GET redirected to https://pmdt.namsaigon.edu.vn/dang-nhap.html."
+    - "Login form method POST, action ./dang-nhap.html. Username field ctl00$cphMain1$MainLogin1$DemoLogin1$txtUserName; password field ctl00$cphMain1$MainLogin1$DemoLogin1$txtPassword; visible submit ctl00$cphMain1$MainLogin1$DemoLogin1$btnLogin; alternate btnActionLogin also exists. Read current hidden inputs including __VIEWSTATE, __VIEWSTATEGENERATOR, __EVENTVALIDATION, __EVENTTARGET and __EVENTARGUMENT for each form. Field names were inspected without values; no login was submitted."
+    - "Selected year value 2025, semester 2, week label 55/value 54. Year/semester/faculty/course have onchange postbacks; week/class do not. Blank faculty/course/class with search returned two classes, each with evening periods 13-18 and five lesson cells spanning periods 13-16, Monday-Friday. A single sample class at weeks 55 and 50 returned an authentic header-only empty table."
+    - "Result table within [id$=udpContent] uses ten logical columns, repeated header rows, rowSpan=6 for class and evening session, rowSpan=4 for populated lessons and blank nonbreaking-space cells. Lesson lines are separated by br: subject display name, room, teacher, source time/duration text. The source displays 06:00-09:15 (4h) in evening rows; preserve this string without guessing a 24-hour conversion or equating h with periods."
+  patterns:
+    - "frontend/src/api/class-api.ts: httpClient, handleResponse and API_BASE convention."
+    - "frontend/src/app/(dashboard)/tasks/page.tsx: dashboard main/scroll container; frontend/src/components/layout/Sidebar.tsx: allMenuItems and dynamic visibility."
+    - "backend/src/classes/test/classes.controller.spec.ts: Nest testing convention; frontend/src/api/daily-class-report-api.test.ts: Vitest HTTP mocks."
 scope:
   inspect:
-    - "backend/src/academic-record/schemas/academic-record.schema.ts"
-    - "backend/src/system/system.controller.ts"
+    - "backend/src/classes/"
+    - "backend/src/auth/guards/"
+    - "backend/src/core/rate-limit/"
+    - "backend/src/main.ts"
+    - "backend/package.json"
+    - "frontend/package.json"
+    - "frontend/src/api/http-client.ts"
+    - "frontend/src/components/guards/RouteGuard.tsx"
+    - "frontend/src/providers/auth-provider.tsx"
+    - "frontend/src/components/ui/"
+    - "scripts/dev-host.sh"
+    - "docker-compose.dev-infra.yml"
+    - "https://pmdt.namsaigon.edu.vn/Pages/Sims/ScheduleOfClass.aspx?pt=4"
   write:
-    - "backend/src/system/system.service.ts"
-    - "backend/src/system/class-record-summaries.service.spec.ts"
-    - "frontend/src/api/system-api.ts"
-    - "frontend/src/components/dashboard/ClassRecordPanel.tsx"
-    - "frontend/src/components/dashboard/ClassRecordPanel.test.tsx"
+    - "backend/package.json"
+    - "backend/package-lock.json"
+    - "backend/src/timetable/timetable.config.ts"
+    - "backend/src/app.module.ts"
+    - "backend/src/timetable/timetable.module.ts"
+    - "backend/src/timetable/timetable.controller.ts"
+    - "backend/src/timetable/timetable.service.ts"
+    - "backend/src/timetable/school-timetable.adapter.ts"
+    - "backend/src/timetable/timetable.parser.ts"
+    - "backend/src/timetable/timetable.types.ts"
+    - "backend/src/timetable/dto/query-timetable.dto.ts"
+    - "backend/src/timetable/timetable.controller.spec.ts"
+    - "backend/src/timetable/school-timetable.adapter.spec.ts"
+    - "backend/src/timetable/timetable.parser.spec.ts"
+    - "frontend/src/api/timetable-api.ts"
+    - "frontend/src/api/timetable-api.test.ts"
+    - "frontend/src/app/(dashboard)/timetable/page.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.tsx"
+    - "frontend/src/components/timetable/TimetableGrid.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.test.tsx"
+    - "frontend/src/components/timetable/TimetableGrid.test.tsx"
+    - "frontend/src/components/layout/Sidebar.tsx"
+    - "frontend/src/components/layout/Sidebar.test.tsx"
   preserve:
-    - "Giữ nguyên RBAC và bộ lọc học kỳ, trạng thái active, is_deleted của endpoint class-record-summaries."
-    - "Giữ recordCount cấp lớp là tổng quantity của toàn bộ ghi nhận hợp lệ, không phải số nhóm hiển thị."
-    - "Giữ tối đa tám nhóm mới nhất trong popup và thứ tự lớp hiện tại."
-    - "Không thay đổi schema MongoDB, dữ liệu lưu trữ hoặc endpoint URL; thay đổi response chỉ mang tính bổ sung."
+    - "Existing authentication, requester scoping and dynamic route permissions; UI visibility never replaces backend authorization."
+    - "Existing API endpoints, MongoDB schemas/data, classes and activity-schedules behavior. External IDs remain opaque strings distinct from MongoDB IDs."
+    - "Credentials, cookies, hidden form tokens and raw source HTML remain server-side and absent from logs, client responses and committed fixtures."
   out:
-    - "Các bảng xếp hạng/StudentSpotlightPanel và màn hình ghi nhận ngoài dashboard."
-    - "Migration hoặc gộp/chỉnh sửa các AcademicRecord đã lưu."
+    - "Production deployment, commit/push, credential provisioning, permission database mutations and migrations."
+    - "Editing the school timetable, scheduled synchronization, persistent timetable storage, Excel/PDF export and public unauthenticated access."
+    - "Automatic matching of school classes to Manager Point classes by display name."
+    - "Runtime secret files and deployment configuration remain outside writes; only the named backend package manifests and timetable.config.ts may change for this adapter."
 acceptance_criteria:
-  - "AC-01: Hai hoặc nhiều ghi nhận active cùng semester, cùng student_id và cùng criterion_id tạo đúng một preview, với count bằng tổng quantity đã chuẩn hóa."
-  - "AC-02: Các sinh viên khác nhau hoặc các criterion_id khác nhau vẫn tạo các preview riêng; bản ghi thiếu quantity hoặc quantity không chuyển đổi được được tính là một lượt theo quy tắc hiện tại."
-  - "AC-03: Preview của nhóm dùng nội dung và thời điểm từ ghi nhận mới nhất, các nhóm được xếp theo thời điểm mới nhất giảm dần và chỉ trả tối đa tám nhóm cho mỗi lớp."
-  - "AC-04: Popup hiển thị '(N lần)' cạnh nội dung khi count lớn hơn 1 và không thêm hậu tố khi count bằng 1; tổng 'N ghi nhận' ở hàng lớp không thay đổi ý nghĩa."
+  - "AC-01: Authenticated HSSV can load the page, option lists and timetable for all source classes; direct API calls enforce the HSSV access policy, reject unauthenticated/non-HSSV requests and never return source secrets. Do not add other viewer roles without an explicit scope decision."
+  - "AC-02: UI provides Niên học, Học kỳ, Tuần, Khoa, Khóa, Lớp and Tìm kiếm. Options use source label/value pairs; changing a parent resets/reloads affected descendants. Stale responses cannot overwrite newer selections."
+  - "AC-03: Adapter follows verified Web Forms state/postbacks, retains the correct cookie context, validates filter values, bounds request time/concurrency/retries and distinguishes session expiry, timeout, invalid selection and changed source markup from a valid empty result."
+  - "AC-04: Typed JSON preserves source class/week labels and values and normalized lessons with day, start/end periods, subject display text, optional subject code, teacher, room or safe online URL, plus source time/duration display text. Do not invent subject codes or equate display duration with rowSpan. Populated source data matches the parsed result; no fixed offset is inferred from week labels."
+  - "AC-05: Grid shows Lớp học, Buổi, Tiết and Monday through Sunday, including evening periods through 18, with merged lesson cells based on an occupancy grid that accounts for rowSpan/colSpan and skips repeated headers, all lessons retained, legible desktop layout and horizontal mobile scrolling. Empty, loading and failure states are distinct; results always identify the filters that produced them."
+  - "AC-06: Short-lived bounded caching is isolated by effective source access context and full query; concurrent requests cannot cross-contaminate Web Forms state or expose results across users. Upstream errors are not cached as empty schedules."
 execution:
-  - "E-01 [AC-01,AC-02,AC-03] backend/src/system/system.service.ts:getClassRecordSummaries -> thêm khóa nhóm student_id + criterion_id sau khi sắp xếp mới nhất, cộng normalizedQuantity thành count, giữ dữ liệu preview từ bản ghi mới nhất, sau đó nhóm theo lớp và cắt tám nhóm mới nhất."
-  - "E-02 [AC-01,AC-02,AC-03] backend/src/system/class-record-summaries.service.spec.ts -> kiểm tra pipeline nhóm theo sinh viên/tiêu chí, cộng quantity, giữ thứ tự mới nhất và slice tám nhóm mà không đổi bộ lọc/RBAC."
-  - "E-03 [AC-04] frontend/src/api/system-api.ts:ClassRecordPreview và frontend/src/components/dashboard/ClassRecordPanel.tsx -> bổ sung count vào contract và render hậu tố số lần có điều kiện."
-  - "E-04 [AC-04] frontend/src/components/dashboard/ClassRecordPanel.test.tsx -> thêm trường hợp count=3 hiển thị '(3 lần)' và count=1 không hiển thị hậu tố."
+  - "E-00 [AC-01,AC-03,AC-04] Retain the resolved HSSV/all-source-classes policy and use the live_inspection contract. New timetable.config.ts reads TIMETABLE_SOURCE_USERNAME and TIMETABLE_SOURCE_PASSWORD through ConfigService at runtime; never include real values or NEXT_PUBLIC settings. Use a fixed HTTPS school origin, 15-second request timeout, at most one reauthentication/replay, a 60-second result cache and at most 100 cache entries. New domain files follow existing backend/src and frontend/src parents; no provisioning is performed by code changes."
+  - "E-01 [AC-01,AC-02,AC-04] New timetable.types.ts and dto/query-timetable.dto.ts define opaque option values and validated query/response contracts. Proposed internal routes are GET /timetable/options with parent filters and GET /timetable with the selected filters; confirm global API prefix in main.ts. New controller/module/service plus app.module.ts registration enforce the resolved access policy and return typed results using existing Nest conventions."
+  - "E-02 [AC-03,AC-04,AC-06] New school-timetable.adapter.ts GETs the observed login form, POSTs its current hidden fields and named credential controls server-side, retains cookies and verifies access by GETting the timetable page. Restrict redirects to the fixed origin and detect returned login forms as session expiry. Use native fetch with manual redirect handling and tough-cookie for the cookie jar; add cheerio for HTML parsing in the named backend manifests after confirming package/runtime compatibility. Serialize each complete form workflow and bound its queue; cache only successful normalized results after access checks. timetable.parser.ts reconstructs logical cell occupancy from rowSpan/colSpan, skips repeated headers, preserves period labels and source display lines, and distinguishes valid empty tables from missing/changed markup. Do not use browser automation or browser-cookie extraction as the production adapter."
+  - "E-03 [AC-01,AC-03,AC-04,AC-06] New backend spec files cover actual parsed synthetic HTML, refreshed token submission, expiry/redirect/timeout/markup failures, input validation, denied direct access, cache isolation and concurrent requests. Include multi-period cells, blank cells, multiple lessons and label/value mismatch; do not merely assert implementation structure."
+  - "E-04 [AC-01,AC-02,AC-05] New timetable-api.ts uses existing httpClient/handleResponse; new page.tsx, TimetableLookup.tsx and TimetableGrid.tsx build controlled filters and the weekly table. Reuse existing controls and RouteGuard under the resolved policy. Add the Vietnamese timetable navigation item in Sidebar.tsx with matching visibility. Render source text as text and allow only safe link schemes."
+  - "E-05 [AC-01,AC-02,AC-05] New frontend tests and Sidebar.test.tsx cover dependent option reset, opaque values, out-of-order requests, loading/empty/error states, lesson merge geometry and navigation access. Run affected checks and dev UI/API scenarios, then obtain the required independent review before declaring implementation complete."
 verification:
-  - "V-01 [AC-01,AC-02,AC-03] npm --prefix backend test -- --runTestsByPath src/system/class-record-summaries.service.spec.ts --runInBand -> suite pass và assertions xác nhận pipeline nhóm/cộng/sắp xếp/slice."
-  - "V-02 [AC-04] npm --prefix frontend test -- \"src/components/dashboard/ClassRecordPanel.test.tsx\" -> suite pass với cả trường hợp một lượt và nhiều lượt."
-  - "V-03 [AC-01,AC-04] npm --prefix backend run build; npm --prefix frontend run typecheck -> cả hai lệnh thoát mã 0, xác nhận response bổ sung đồng bộ kiểu dữ liệu."
-  - "V-04 [AC-01,AC-03,AC-04] Kiểm tra dashboard dev với một sinh viên có nhiều ghi nhận cùng tiêu chí và một tiêu chí khác -> tổng lớp giữ nguyên tổng lượt, popup có đúng một dòng '(N lần)' cho nhóm lặp và các nhóm còn lại tách riêng."
+  - "V-01 [AC-01,AC-03,AC-04,AC-06] npm --prefix backend test -- --runTestsByPath src/timetable/timetable.controller.spec.ts src/timetable/school-timetable.adapter.spec.ts src/timetable/timetable.parser.spec.ts --runInBand -> all meaningful success/failure/isolation assertions pass."
+  - "V-02 [AC-01,AC-02,AC-05] npm --prefix frontend test -- src/api/timetable-api.test.ts src/components/timetable/TimetableLookup.test.tsx src/components/timetable/TimetableGrid.test.tsx src/components/layout/Sidebar.test.tsx -> suites pass including stale-response and denial cases."
+  - "V-03 [AC-01,AC-04,AC-05] npm --prefix backend run build and npm --prefix frontend run typecheck -> both exit 0. git diff --check -> no whitespace errors."
+  - "V-04 [AC-01,AC-02,AC-03,AC-04,AC-05,AC-06] On verified dev, query an authorized populated class/week and compare every rendered lesson with source; change parents rapidly, test valid empty week and controlled expired-session/upstream failure, then direct denied API access. Inspect desktop and 390px mobile layout and repeated-query cache behavior. No mock-only substitute for populated-source verification."
+  - "V-05 [AC-01,AC-03,AC-06] Independent reviewer inspects scoped diff and evidence for auth enforcement, secret handling, redirect destination restrictions, concurrency and cache isolation; resolve material findings and rerun affected checks."
 runtime_test:
-  targets: "Xác minh frontend, API, MongoDB và các dịch vụ liên quan là môi trường dev tách production trước khi kiểm thử tương tác."
-  resources: "Chỉ đọc các ghi nhận dev hiện có phù hợp; nếu không có dữ liệu tái hiện thì tạo bản ghi thử có nhãn nhận diện qua API/UI hiện hành."
-  scenarios: "Một sinh viên/cùng tiêu chí nhiều lượt; cùng sinh viên/khác tiêu chí; khác sinh viên/cùng tiêu chí."
-  pass_signal: "Tổng lớp bằng tổng lượt, preview nhóm đúng khóa và hậu tố số lần đúng điều kiện."
-  cleanup: "Xóa chỉ các bản ghi dùng thử do task tạo bằng luồng ứng dụng sau khi xác nhận; không sửa hoặc xóa dữ liệu dev có sẵn."
+  targets: "At test start verify effective dev frontend/API and data-service isolation using non-secret metadata. School origin is an external read-only integration, not a local dev data service; use only the authorized access context."
+  resources: "Read selected school classes/weeks and existing dev viewer accounts. No school writes, local DB mutations, raw-cookie exports or bulk scraping."
+  scenarios: "Populated and empty results; dependent filters; denied access; session expiry; upstream failure; repeated and concurrent queries; desktop/mobile grid."
+  pass_signal: "Source and rendered lessons agree, correct error states appear, access/context isolation holds and source secrets never reach the browser."
+  cleanup: "Discard task-created session/cache state and temporary source captures; retain only synthetic test fixtures, never real source data."
+review:
+  required: true
+  trigger: "New external-session secret handling, authorization boundary and concurrent/cache state."
+  availability: "A bounded independent reviewer subagent is available through collaboration tools; pipeline.md explicitly authorizes this required review during execution. No agent is needed for this planning deliverable."
 temporary_artifacts:
   create: []
   cleanup: []
   retain:
     - "docs/task/taskscope-01.md: user-requested reusable taskscope slot"
 risks:
-  - "Thay đổi cấu trúc aggregation và response API bổ sung trường count, nên cần kiểm tra đồng bộ backend/frontend và hành vi với quantity legacy."
+  - "The populated DOM and unauthenticated login form are verified; successful dedicated-account login and expiry recovery are not yet tested. Source variants beyond the observed evening table require focused checks during implementation."
+  - "The dedicated account supports all-class lookup for HSSV. Keep server-side session mutation serialized or isolated and keep all upstream credentials inaccessible to viewers."
 stop_conditions:
-  - "Dừng nếu criterion_id có thể rỗng trong dữ liệu hợp lệ và việc gộp tất cả bản ghi thiếu tiêu chí của một sinh viên làm thay đổi nghiệp vụ; cần chốt khóa fallback trước khi sửa."
-  - "Dừng runtime test nếu không xác minh được đích frontend/API/database là dev tách production."
+  - "Implementation starts only when the user pins this exact ready scope for execution; the current request authorizes inspection and scope update only."
+  - "Stop dependent work if source login requires an unapproved credential operation, CAPTCHA bypass, unverified destination or unsupported authentication flow."
+  - "Stop and amend scope if resolved access policy needs additional permission/mapping/configuration/dependency files or persistent data changes."
+  - "Stop runtime actions if dev isolation or authorized source access cannot be verified; do not mark live ACs passed from mocks."
 ---

@@ -1,0 +1,51 @@
+import { BadGatewayException, BadRequestException, CanActivate, Controller, ExecutionContext, ForbiddenException, GatewayTimeoutException, Get, Injectable, Query, Req, ServiceUnavailableException, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { QueryTimetableDto } from './dto/query-timetable.dto';
+import { TimetableService } from './timetable.service';
+import { TimetableSourceError } from './timetable.types';
+
+@Injectable()
+export class TimetableAccessGuard extends JwtAuthGuard implements CanActivate {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const authenticated = await super.canActivate(context);
+    if (!authenticated) return false;
+    const user = context.switchToHttp().getRequest().user;
+    const roleCode = String(user?.roleCode || '').toUpperCase();
+    const roleName = String(user?.roleName || '').toLowerCase();
+    if (roleCode) {
+      if (['STUDENT', 'ADMIN', 'TEACHER'].includes(roleCode)) return true;
+    } else if (
+      ['student', 'sinh viên', 'sinh vien', 'học sinh', 'hoc sinh', 'hssv'].some((value) => roleName.includes(value)) ||
+      ['admin', 'teacher', 'giáo viên', 'giao vien', 'giảng viên', 'giang vien'].includes(roleName.trim())
+    ) {
+      return true;
+    }
+    throw new ForbiddenException('Chỉ tài khoản HSSV, Admin hoặc Giáo viên được tra cứu thời khóa biểu.');
+  }
+}
+
+function mapTimetableSourceError(error: unknown): never {
+  if (!(error instanceof TimetableSourceError)) throw error;
+  const response = { reasonCode: error.code, message: error.message };
+  switch (error.code) {
+    case 'SOURCE_INVALID_SELECTION': throw new BadRequestException(response);
+    case 'SOURCE_SESSION_EXPIRED': throw new UnauthorizedException(response);
+    case 'SOURCE_TIMEOUT': throw new GatewayTimeoutException(response);
+    case 'SOURCE_MARKUP_CHANGED': throw new BadGatewayException(response);
+    case 'SOURCE_NOT_CONFIGURED':
+    case 'SOURCE_UNAVAILABLE':
+    default: throw new ServiceUnavailableException(response);
+  }
+}
+
+@Controller('timetable')
+@UseGuards(TimetableAccessGuard)
+export class TimetableController {
+  constructor(private readonly service: TimetableService) {}
+  @Get('options') async getOptions(@Req() req: any, @Query() query: Partial<QueryTimetableDto>) {
+    try { return await this.service.getOptions(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
+  }
+  @Get() async getTimetable(@Req() req: any, @Query() query: QueryTimetableDto) {
+    try { return await this.service.getTimetable(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
+  }
+}

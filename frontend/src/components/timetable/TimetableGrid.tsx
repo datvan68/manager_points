@@ -1,0 +1,15 @@
+'use client';
+import type { TimetableResult } from '@/api/timetable-api';
+
+const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+
+export default function TimetableGrid({ result }: { result: TimetableResult }) {
+  const periods = result.periods.length ? result.periods.map(Number) : Array.from({ length: 18 }, (_, index) => index + 1);
+  const groups = Array.from(new Set(result.lessons.map((lesson) => `${lesson.classLabel || result.classLabel || 'Tất cả lớp'}\u0000${lesson.sessionLabel || result.sessionLabel || ''}`)));
+  if (!groups.length) groups.push(`${result.classLabel || 'Tất cả lớp'}\u0000${result.sessionLabel || ''}`);
+  const lessonsByGroup = (key: string) => result.lessons.filter((lesson) => `${lesson.classLabel || result.classLabel || 'Tất cả lớp'}\u0000${lesson.sessionLabel || result.sessionLabel || ''}` === key);
+  return <div className="overflow-x-auto rounded-2xl border border-white/80 bg-white/65 shadow-sm" data-testid="timetable-grid">
+    <table className="min-w-[1120px] w-full border-collapse text-xs"><thead><tr className="bg-slate-100/80"><th className="min-w-28 border p-2 text-left">Lớp học</th><th className="min-w-20 border p-2 text-left">Buổi</th><th className="min-w-20 border p-2 text-left">Tiết</th>{days.map((day) => <th key={day} className="min-w-32 border p-2 text-center">{day}</th>)}</tr></thead>
+      <tbody>{groups.flatMap((groupKey) => { const [classLabel, sessionLabel] = groupKey.split('\u0000'); const lessons = lessonsByGroup(groupKey); const occupied = new Set<string>(); return periods.map((period, periodIndex) => { const cells: React.ReactNode[] = []; if (periodIndex === 0) { cells.push(<th key="class" rowSpan={periods.length} className="border bg-white/90 p-2 text-left align-top font-bold">{classLabel}</th>); cells.push(<th key="session" rowSpan={periods.length} className="border bg-white/90 p-2 text-left align-top">{sessionLabel || '—'}</th>); } cells.push(<th key="period" className="border bg-white/90 p-2 text-left font-bold">Tiết {period}</th>); days.forEach((_, dayIndex) => { const occupancyKey = `${dayIndex + 1}:${period}`; if (occupied.has(occupancyKey)) return; const lesson = lessons.find((item) => item.day === dayIndex + 1 && item.startPeriod <= period && item.endPeriod >= period); if (!lesson) { cells.push(<td key={dayIndex} className="border bg-white/35 p-2 align-top" />); return; } const span = Math.max(1, lesson.endPeriod - period + 1); for (let next = period; next < period + span; next += 1) occupied.add(`${dayIndex + 1}:${next}`); cells.push(<td key={dayIndex} rowSpan={span} className="border bg-blue-50/80 p-2 align-top"><div className="space-y-1"><div className="font-bold text-blue-900">{lesson.subject}</div>{lesson.subjectCode && <div>Mã: {lesson.subjectCode}</div>}{lesson.teacher && <div>GV: {lesson.teacher}</div>}{lesson.room && <div>Phòng: {lesson.room}</div>}{lesson.sourceTime && <div className="text-slate-500">{lesson.sourceTime}</div>}</div></td>); }); return <tr key={`${groupKey}-${period}`}>{cells}</tr>; }); })}</tbody></table>
+  </div>;
+}
