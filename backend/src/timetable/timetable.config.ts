@@ -10,6 +10,8 @@ export interface TimetableConfig {
   timeoutMs: number;
   cacheTtlMs: number;
   maxCacheEntries: number;
+  sessionIdleTtlMs: number;
+  maxSessionContexts: number;
 }
 
 export function getTimetableConfig(config: ConfigService): TimetableConfig {
@@ -20,5 +22,7 @@ export function getTimetableConfig(config: ConfigService): TimetableConfig {
     timeoutMs: 15_000,
     cacheTtlMs: 60_000,
     maxCacheEntries: 100,
+    sessionIdleTtlMs: 5 * 60_000,
+    maxSessionContexts: 100,
   };
 }
