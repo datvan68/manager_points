@@ -1,20 +1,49 @@
 import { NotFoundException } from '@nestjs/common';
 import { TimetableService } from './timetable.service';
+import { timetableKey } from './timetable-selection';
 
 const chain = (value: any) => ({ lean: () => ({ exec: async () => value }) });
+const coverage = [
+  { year: 'y', semester: 's', week: 'w1', faculty: '', course: '', className: '' },
+  { year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c', className: 'a' },
+  { year: 'other', semester: 'other-s', week: 'other-w', faculty: '', course: '', className: '' },
+];
+const catalog = { years: [{ value: 'y', label: '2026' }], semesters: [], weeks: [], faculties: [{ value: 'f', label: 'Khoa A' }], courses: [], classes: [{ value: 'a', label: 'Lớp A' }] };
+const setup = (rows = coverage, savedCatalog: any = catalog) => {
+  const snapshots = { find: jest.fn(() => chain(rows)), findOne: jest.fn(() => chain(null)) };
+  const states = { findOne: jest.fn(() => chain({ catalog: savedCatalog })) };
+  return { service: new TimetableService(snapshots as any, states as any), snapshots };
+};
+
 describe('TimetableService', () => {
-  it('reads options and results only from local models', async () => {
-    const catalog = { years: [{ value: '2025', label: '2025' }], semesters: [], weeks: [], faculties: [], courses: [], classes: [] };
-    const result = { filters: { year: '2025', semester: '1', week: '1' }, periods: [], lessons: [], isEmpty: true };
-    const states = { findOne: jest.fn(() => chain({ catalog })) };
-    const snapshots = { findOne: jest.fn(() => chain({ result, syncedAt: new Date(), coverageKey: 'x' })) };
-    const service = new TimetableService(snapshots as any, states as any);
-    await expect(service.getOptions({ userId: 'reader' })).resolves.toEqual(catalog);
-    await expect(service.getTimetable({ userId: 'reader' }, { year: '2025', semester: '1', week: '1' })).resolves.toMatchObject({ isEmpty: true });
-    expect(states.findOne).toHaveBeenCalled(); expect(snapshots.findOne).toHaveBeenCalled();
+  it('offers only synchronized descendants for the selected parents', async () => {
+    const { service } = setup();
+    const options = await service.getOptions({}, { year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c' });
+    expect(options.years).toContainEqual({ value: 'y', label: '2026' });
+    expect(options.semesters.map((item) => item.value)).toEqual(['s']);
+    expect(options.weeks.map((item) => item.value)).toEqual(['w1', 'w2']);
+    expect(options.faculties).toEqual([{ value: 'f', label: 'Khoa A' }]);
+    expect(options.classes).toEqual([{ value: 'a', label: 'Lớp A' }]);
+    expect(options.availableCoverage).toEqual(coverage);
   });
-  it('reports an explicit not-synchronized state when catalog is absent', async () => {
-    const service = new TimetableService({ findOne: jest.fn(() => chain(null)) } as any, { findOne: jest.fn(() => chain(null)) } as any);
-    await expect(service.getOptions({ userId: 'reader' })).rejects.toBeInstanceOf(NotFoundException);
+
+  it('preserves empty all-class coverage without inventing class-specific coverage', async () => {
+    const { service } = setup();
+    const options = await service.getOptions({}, { year: 'y', semester: 's', week: 'w1' });
+    expect(options.classes).toEqual([{ value: '', label: 'Tất cả lớp' }]);
+    await expect(service.getTimetable({}, { year: 'y', semester: 's', week: 'w1', className: 'a' })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('keeps existing snapshots discoverable even without a source catalog', async () => {
+    const { service } = setup(coverage, null);
+    expect((await service.getOptions({})).years).toContainEqual({ value: 'y', label: 'y' });
+  });
+
+  it('distinguishes an unsynchronized coverage from a synchronized empty schedule', async () => {
+    const { service, snapshots } = setup();
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: true, lessons: [] }, syncedAt: 'date', coverageKey: 'key' }));
+    await expect(service.getTimetable({}, coverage[0])).resolves.toMatchObject({ isEmpty: true, syncedAt: 'date' });
+    expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey(coverage[0]) });
+    await expect(setup([]).service.getOptions({})).rejects.toBeInstanceOf(NotFoundException);
   });
 });

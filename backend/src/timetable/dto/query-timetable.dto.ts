@@ -1,4 +1,5 @@
 import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
 
 export class QueryTimetableDto {
   @IsString()
@@ -31,3 +32,5 @@ export class QueryTimetableDto {
   @MaxLength(120)
   className?: string;
 }
+
+export class QueryTimetableOptionsDto extends PartialType(QueryTimetableDto) {}

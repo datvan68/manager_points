@@ -1,14 +1,8 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { QueryTimetableDto } from './query-timetable.dto';
 
-export class TimetableCoverageDto {
-  @IsString() year!: string;
-  @IsString() semester!: string;
-  @IsString() week!: string;
-  @IsOptional() @IsString() faculty?: string;
-  @IsOptional() @IsString() course?: string;
-  @IsOptional() @IsString() className?: string;
-}
+export class TimetableCoverageDto extends QueryTimetableDto {}
 
 export class StartTimetableSyncDto {
   @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TimetableCoverageDto)

@@ -21,6 +21,7 @@ export interface TimetableOptions {
   classes: TimetableOption[];
   syncedAt?: string;
   coverage?: string[];
+  availableCoverage?: TimetableFilters[];
 }
 
 export interface TimetableLesson {

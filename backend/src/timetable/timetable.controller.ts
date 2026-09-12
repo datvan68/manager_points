@@ -1,6 +1,6 @@
 import { BadGatewayException, BadRequestException, CanActivate, Controller, ExecutionContext, ForbiddenException, GatewayTimeoutException, Get, Injectable, Optional, Patch, Post, Body, Query, Req, ServiceUnavailableException, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { QueryTimetableDto } from './dto/query-timetable.dto';
+import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
 import { TimetableService } from './timetable.service';
 import { TimetableSourceError } from './timetable.types';
 import { StartTimetableSyncDto, TimetableSettingsDto } from './dto/sync-timetable.dto';
@@ -53,12 +53,16 @@ function mapTimetableSourceError(error: unknown): never {
 @UseGuards(TimetableAccessGuard)
 export class TimetableController {
   constructor(private readonly service: TimetableService, @Optional() private readonly syncService?: TimetableSyncService) {}
-  @Post('sync/catalog') @UseGuards(TimetableAdminGuard) loadCatalog(@Req() req: any) { return this.syncService!.loadCatalog(req.user); }
+  @Post('sync/catalog') @UseGuards(TimetableAdminGuard)
+  async loadCatalog(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
+    try { return await this.syncService!.loadCatalog(req.user, query); }
+    catch (error) { return mapTimetableSourceError(error); }
+  }
   @Post('sync') @UseGuards(TimetableAdminGuard) startSync(@Req() req: any, @Body() body: StartTimetableSyncDto) { return this.syncService!.start(req.user, body); }
   @Get('sync/status') @UseGuards(TimetableAdminGuard) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
   @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
   @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }
-  @Get('options') async getOptions(@Req() req: any, @Query() query: Partial<QueryTimetableDto>) {
+  @Get('options') async getOptions(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
     try { return await this.service.getOptions(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
   @Get() async getTimetable(@Req() req: any, @Query() query: QueryTimetableDto) {

@@ -10,7 +10,7 @@ import {
 
 const clean = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 const optionList = ($: cheerio.CheerioAPI, selector: string): TimetableOption[] =>
-  $(selector).find('option').map((_: number, el: any) => ({ label: clean($(el).text()), value: $(el).attr('value') || '' })).get().filter((item: TimetableOption) => item.label && item.value);
+  $(selector).find('option').map((_: number, el: any) => ({ label: clean($(el).text()), value: $(el).attr('value') || '' })).get().filter((item: TimetableOption) => item.label && item.value && !/^[-\s]*chọn[-\s]*$/i.test(item.label));
 
 function findSelect($: cheerio.CheerioAPI, words: string[]): string {
   let found = '';

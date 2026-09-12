@@ -1,6 +1,11 @@
 import { parseTimetable, parseTimetableOptions } from './timetable.parser';
 
 describe('timetable parser', () => {
+  it('does not offer the source placeholder as a real semester', () => {
+    const options = parseTimetableOptions('<select id="year"><option value="2026">2026</option></select><select id="semester"><option value="-1">--Chọn--</option><option value="1">1</option></select><select id="week"><option value="0">1</option></select>');
+    expect(options.semesters).toEqual([{ value: '1', label: '1' }]);
+    expect(options.weeks).toEqual([{ value: '0', label: '1' }]);
+  });
   it('preserves opaque option values and parses multi-period lessons', () => {
     const options = parseTimetableOptions(`<select id="year"><option value="2025|a">2025-2026</option></select><select id="semester"><option value="2">Học kỳ 2</option></select><select id="week"><option value="54">55</option></select>`);
     expect(options.years).toEqual([{ label: '2025-2026', value: '2025|a' }]);
