@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import mongoose from 'mongoose';
 import { TimetableSyncService } from './timetable-sync.service';
 import { TimetableSourceError } from './timetable.types';
 
@@ -90,7 +91,8 @@ describe('TimetableSyncService', () => {
     expect(states.updateOne).toHaveBeenCalledWith(expect.objectContaining({
       'job.status': 'running',
       $or: expect.arrayContaining([expect.objectContaining({ 'lease.expiresAt': { $lte: expect.any(Date) } })]),
-    }), expect.arrayContaining([expect.objectContaining({ $set: expect.objectContaining({ 'job.error': 'SYNC_INTERRUPTED', 'job.status': 'failed' }) })]));
+    }), expect.arrayContaining([expect.objectContaining({ $set: expect.objectContaining({ 'job.error': 'SYNC_INTERRUPTED', 'job.status': 'failed' }) })]), { updatePipeline: true });
+    expect(states.updateOne.mock.calls[0][2]).toEqual({ updatePipeline: true });
   });
 
   it('keeps scheduling disabled until explicitly enabled', async () => {
@@ -128,6 +130,27 @@ describe('TimetableSyncService', () => {
     const drain = jest.spyOn(service as any, 'drainQueue').mockResolvedValue(undefined);
     await (service as any).recoverInterrupted();
     expect(drain).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables Mongoose pipeline updates for lease recovery and enqueue', async () => {
+    const { service, states } = setup();
+    await (service as any).requeueLeaseLost({ key: 'k', selection, kind: 'demand', requestedAt: 'now' }, 'job', 'owner');
+    expect(states.updateOne.mock.calls.at(-1)?.[2]).toEqual({ updatePipeline: true });
+    states.findOneAndUpdate.mockReturnValue(chain({ settings: {}, queue: [], statuses: [] }));
+    await (service as any).enqueue([selection], 'demand', false);
+    expect(states.updateOne.mock.calls.at(-1)?.[2]).toEqual({ updatePipeline: true });
+  });
+
+  it('passes the installed Mongoose query boundary for update pipelines', () => {
+    const connection = mongoose.createConnection();
+    try {
+      const model = connection.model('TimetablePipelineBoundary', new mongoose.Schema({ name: String }));
+      const query = model.updateOne({}, [{ $set: { name: 'verified' } }], { updatePipeline: true });
+      expect((query as any)._mongooseOptions.updatePipeline).toBe(true);
+      expect(() => (query as any)._mergeUpdate(query.getUpdate())).not.toThrow();
+    } finally {
+      void connection.close();
+    }
   });
 
   it('requires year and semester context when authorizing a catalog week', async () => {

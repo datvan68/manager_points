@@ -56,7 +56,7 @@ export class TimetableSyncService {
 
   private async recoverInterrupted() {
     const now = new Date();
-    await this.states.updateOne({ name: STATE, 'job.status': 'running', $or: [{ 'lease.expiresAt': { $lte: now } }, { lease: null, 'job.startedAt': { $lte: new Date(now.getTime() - LEASE_MS) } }, { lease: null, 'job.startedAt': { $exists: false } }] }, [{ $set: { 'job.status': 'failed', 'job.error': 'SYNC_INTERRUPTED', 'job.finishedAt': now, queue: { $let: { vars: { existing: { $ifNull: ['$queue', []] }, keys: { $map: { input: { $ifNull: ['$queue', []] }, as: 'queued', in: '$$queued.key' } } }, in: { $cond: [{ $and: [{ $ne: ['$job.selection', null] }, { $not: { $in: ['$job.selection.key', '$$keys'] } }] }, { $concatArrays: [['$job.selection'], '$$existing'] }, '$$existing'] } } } } }, { $unset: 'lease' }]).exec();
+    await this.states.updateOne({ name: STATE, 'job.status': 'running', $or: [{ 'lease.expiresAt': { $lte: now } }, { lease: null, 'job.startedAt': { $lte: new Date(now.getTime() - LEASE_MS) } }, { lease: null, 'job.startedAt': { $exists: false } }] }, [{ $set: { 'job.status': 'failed', 'job.error': 'SYNC_INTERRUPTED', 'job.finishedAt': now, queue: { $let: { vars: { existing: { $ifNull: ['$queue', []] }, keys: { $map: { input: { $ifNull: ['$queue', []] }, as: 'queued', in: '$$queued.key' } } }, in: { $cond: [{ $and: [{ $ne: ['$job.selection', null] }, { $not: { $in: ['$job.selection.key', '$$keys'] } }] }, { $concatArrays: [['$job.selection'], '$$existing'] }, '$$existing'] } } } } }, { $unset: 'lease' }], { updatePipeline: true }).exec();
     await this.drainQueue();
   }
 
@@ -116,7 +116,7 @@ export class TimetableSyncService {
     const existingKeys = { $map: { input: { $ifNull: ['$queue', []] }, as: 'queued', in: '$$queued.key' } };
     const queue = { $let: { vars: { existing: { $ifNull: ['$queue', []] } }, in: { $cond: [{ $in: [item.key, existingKeys] }, { $slice: ['$$existing', this.config.queueLimit] }, { $slice: [{ $concatArrays: [[{ $literal: item }], '$$existing'] }, this.config.queueLimit] }] } } };
     const statuses = { $slice: [{ $concatArrays: [{ $ifNull: ['$statuses', []] }, { $literal: [this.statusEntry(item, 'pending', { recovery: true })] }] }, -this.config.statusRetention] };
-    await this.states.updateOne({ name: STATE, 'job.id': id, 'lease.owner': owner }, [{ $set: { 'job.status': 'failed', 'job.error': 'LEASE_LOST', 'job.finishedAt': new Date(), queue, statuses } }, { $unset: 'lease' }]).exec();
+    await this.states.updateOne({ name: STATE, 'job.id': id, 'lease.owner': owner }, [{ $set: { 'job.status': 'failed', 'job.error': 'LEASE_LOST', 'job.finishedAt': new Date(), queue, statuses } }, { $unset: 'lease' }], { updatePipeline: true }).exec();
   }
 
   async enqueueDemand(_user: any, selection: TimetableFilters, force = false) {
@@ -151,7 +151,7 @@ export class TimetableSyncService {
       const existingKeys = { $map: { input: { $ifNull: ['$queue', []] }, as: 'queued', in: '$$queued.key' } };
       const newUnique = { $size: { $filter: { input: { $literal: additions }, as: 'candidate', cond: { $not: { $in: ['$$candidate.key', existingKeys] } } } } };
       const nextQueue = { $let: { vars: { existing: { $ifNull: ['$queue', []] }, incoming: { $literal: additions } }, in: { $slice: [{ $concatArrays: ['$$existing', { $filter: { input: '$$incoming', as: 'candidate', cond: { $not: { $in: ['$$candidate.key', { $map: { input: '$$existing', as: 'queued', in: '$$queued.key' } }] } } } }] }, this.config.queueLimit] } } };
-      const written = await this.states.updateOne({ name: STATE, $expr: { $lte: [{ $add: [{ $size: { $ifNull: ['$queue', []] } }, newUnique] }, this.config.queueLimit] } }, [{ $set: { queue: nextQueue, statuses: { $slice: [{ $concatArrays: [{ $ifNull: ['$statuses', []] }, { $literal: pending }] }, -this.config.statusRetention] } } }]).exec();
+      const written = await this.states.updateOne({ name: STATE, $expr: { $lte: [{ $add: [{ $size: { $ifNull: ['$queue', []] } }, newUnique] }, this.config.queueLimit] } }, [{ $set: { queue: nextQueue, statuses: { $slice: [{ $concatArrays: [{ $ifNull: ['$statuses', []] }, { $literal: pending }] }, -this.config.statusRetention] } } }], { updatePipeline: true }).exec();
       if (!written.matchedCount) throw new ServiceUnavailableException({ reasonCode: 'TIMETABLE_QUEUE_BUSY', message: 'Hệ thống đang bận, vui lòng thử lại sau.' });
       void this.drainQueue();
     }
