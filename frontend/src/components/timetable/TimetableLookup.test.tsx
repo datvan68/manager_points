@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetableLookup from './TimetableLookup';
 import { timetableApi, type TimetableOptions } from '@/api/timetable-api';
@@ -16,7 +16,15 @@ beforeEach(() => {
   vi.mocked(timetableApi.getTimetable).mockResolvedValue({ filters: coverage, lessons: [], periods: [], isEmpty: true });
 });
 async function choose(label: string, value: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  const trigger = screen.getByRole('combobox', { name: label });
+  fireEvent.click(trigger);
+  await waitFor(() => expect(screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .some((element) => !element.className.includes('opacity-0'))).toBe(true));
+  const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .find((element) => !element.className.includes('opacity-0'));
+  if (!listbox) throw new Error('No open select listbox');
+  const options = within(listbox).getAllByRole('option', { hidden: true });
+  fireEvent.click(options[value ? options.length - 1 : 0]);
   await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 }
 
@@ -25,7 +33,7 @@ describe('TimetableLookup', () => {
     render(<TimetableLookup />);
     await screen.findByRole('option', { name: '2026' });
     await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w');
-    expect(timetableApi.getOptions).toHaveBeenLastCalledWith(expect.objectContaining({ week: 'w' }));
+    expect(timetableApi.getOptions).toHaveBeenCalledWith(expect.objectContaining({ week: 'w' }));
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
     const count = vi.mocked(timetableApi.getOptions).mock.calls.length;
     await choose('Lớp', 'a');
@@ -45,7 +53,7 @@ describe('TimetableLookup', () => {
     await screen.findByRole('option', { name: '2026' });
     await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w'); await choose('Lớp', 'a');
     await choose('Niên học', '');
-    expect(screen.getByLabelText('Lớp')).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Lớp' })).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
   });
 
