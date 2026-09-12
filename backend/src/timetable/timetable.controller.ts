@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
 import { TimetableService } from './timetable.service';
 import { TimetableSourceError } from './timetable.types';
-import { StartTimetableSyncDto, TimetableSettingsDto } from './dto/sync-timetable.dto';
+import { StartTimetableSyncDto, TimetableDemandDto, TimetableSettingsDto } from './dto/sync-timetable.dto';
 import { TimetableSyncService } from './timetable-sync.service';
 
 @Injectable()
@@ -62,10 +62,19 @@ export class TimetableController {
   @Get('sync/status') @UseGuards(TimetableAdminGuard) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
   @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
   @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }
+  @Post('demand') async demand(@Req() req: any, @Body() body: TimetableDemandDto) {
+    try { return await this.service.getTimetable(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
+  }
+  @Get('demand/status') async demandStatus(@Req() req: any, @Query() query: QueryTimetableDto) {
+    try { return await this.service.getDemandStatus(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
+  }
+  @Post('refresh') async refresh(@Req() req: any, @Body() body: QueryTimetableDto) {
+    try { return await this.service.refresh(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
+  }
   @Get('options') async getOptions(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
     try { return await this.service.getOptions(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
   @Get() async getTimetable(@Req() req: any, @Query() query: QueryTimetableDto) {
-    try { return await this.service.getTimetable(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
+    try { return await this.service.getLegacyTimetable(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
 }

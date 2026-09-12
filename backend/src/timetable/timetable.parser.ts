@@ -9,8 +9,18 @@ import {
 } from './timetable.types';
 
 const clean = (value: string) => value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-const optionList = ($: cheerio.CheerioAPI, selector: string): TimetableOption[] =>
-  $(selector).find('option').map((_: number, el: any) => ({ label: clean($(el).text()), value: $(el).attr('value') || '' })).get().filter((item: TimetableOption) => item.label && item.value && !/^[-\s]*chọn[-\s]*$/i.test(item.label));
+const datePair = (value: string) => {
+  const matches = [...value.matchAll(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/g)];
+  if (matches.length < 2) return {};
+  const iso = (match: RegExpMatchArray) => `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+  return { startDate: iso(matches[0]), endDate: iso(matches[1]) };
+};
+const optionList = ($: cheerio.CheerioAPI, selector: string, parent?: Partial<TimetableFilters>): TimetableOption[] =>
+  $(selector).find('option').map((_: number, el: any) => {
+    const label = clean($(el).text()); const value = $(el).attr('value') || '';
+    const dates = { ...datePair(label), ...datePair(`${$(el).attr('data-start-date') || ''} ${$(el).attr('data-end-date') || ''}`) };
+    return { label, value, ...(parent && Object.keys(parent).length ? { parent } : {}), ...(dates.startDate && dates.endDate ? dates : {}) };
+  }).get().filter((item: TimetableOption) => item.label && item.value && !/^[-\s]*chọn[-\s]*$/i.test(item.label));
 
 function findSelect($: cheerio.CheerioAPI, words: string[]): string {
   let found = '';
@@ -26,19 +36,20 @@ function findSelect($: cheerio.CheerioAPI, words: string[]): string {
   return found;
 }
 
-export function parseTimetableOptions(html: string): TimetableOptions {
+export function parseTimetableOptions(html: string, context: Partial<TimetableFilters> = {}): TimetableOptions {
   const $ = cheerio.load(html);
   const selects = $('select').toArray();
   if (selects.length < 3) throw new TimetableSourceError('SOURCE_MARKUP_CHANGED', 'Không nhận diện được bộ lọc thời khóa biểu.');
-  const pick = (words: string[], fallback: number) => optionList($, findSelect($, words) || `select:eq(${fallback})`);
-  const pickExact = (suffix: string, fallback: number) => optionList($, `select[id$="${suffix}"]`).length ? optionList($, `select[id$="${suffix}"]`) : pick([], fallback);
+  const parent = (field: keyof TimetableFilters) => Object.fromEntries(Object.entries(context).filter(([key, value]) => key !== field && value)) as Partial<TimetableFilters>;
+  const pick = (words: string[], fallback: number, field?: keyof TimetableFilters) => optionList($, findSelect($, words) || `select:eq(${fallback})`, field ? parent(field) : undefined);
+  const pickExact = (suffix: string, fallback: number, field?: keyof TimetableFilters) => optionList($, `select[id$="${suffix}"]`, field ? parent(field) : undefined).length ? optionList($, `select[id$="${suffix}"]`, field ? parent(field) : undefined) : pick([], fallback, field);
   return {
-    years: pickExact('_ddlYearID', 0),
-    semesters: pickExact('_ddlSemester', 1),
-    weeks: pickExact('_ddlWeek', 2),
-    faculties: pickExact('_ddlScienceID', 3),
-    courses: pickExact('_ddlCourseID', 4),
-    classes: pickExact('_ddlClassID', 5),
+    years: pickExact('_ddlYearID', 0, 'year'),
+    semesters: pickExact('_ddlSemester', 1, 'semester'),
+    weeks: pickExact('_ddlWeek', 2, 'week'),
+    faculties: pickExact('_ddlScienceID', 3, 'faculty'),
+    courses: pickExact('_ddlCourseID', 4, 'course'),
+    classes: pickExact('_ddlClassID', 5, 'className'),
   };
 }
 

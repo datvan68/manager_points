@@ -18,4 +18,9 @@ describe('timetable parser', () => {
     const result = parseTimetable('<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th><th>Thứ 3</th></tr></table>', { year: '2025', semester: '2', week: '50' });
     expect(result).toMatchObject({ isEmpty: true, lessons: [] });
   });
+
+  it('extracts only explicit week dates and keeps the selected parent context', () => {
+    const options = parseTimetableOptions('<select id="year"><option value="2026">2026</option></select><select id="semester"><option value="1">1</option></select><select id="week"><option value="10">Tuần 10 (01/11/2026 - 07/11/2026)</option></select>', { year: '2026', semester: '1' });
+    expect(options.weeks[0]).toMatchObject({ value: '10', parent: { year: '2026', semester: '1' }, startDate: '2026-11-01', endDate: '2026-11-07' });
+  });
 });

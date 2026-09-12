@@ -31,7 +31,7 @@ describe('TimetableService', () => {
     const { service } = setup();
     const options = await service.getOptions({}, { year: 'y', semester: 's', week: 'w1' });
     expect(options.classes).toEqual([{ value: '', label: 'Tất cả lớp' }]);
-    await expect(service.getTimetable({}, { year: 'y', semester: 's', week: 'w1', className: 'a' })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getLegacyTimetable({}, { year: 'y', semester: 's', week: 'w1', className: 'a' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('keeps existing snapshots discoverable even without a source catalog', async () => {
@@ -42,8 +42,18 @@ describe('TimetableService', () => {
   it('distinguishes an unsynchronized coverage from a synchronized empty schedule', async () => {
     const { service, snapshots } = setup();
     snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: true, lessons: [] }, syncedAt: 'date', coverageKey: 'key' }));
-    await expect(service.getTimetable({}, coverage[0])).resolves.toMatchObject({ isEmpty: true, syncedAt: 'date' });
+    await expect(service.getLegacyTimetable({}, coverage[0])).resolves.toMatchObject({ isEmpty: true, syncedAt: 'date' });
     expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey(coverage[0]) });
-    await expect(setup([]).service.getOptions({})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(setup([]).service.getOptions({})).resolves.toMatchObject({ years: [{ value: 'y' }] });
+  });
+
+  it('returns pending for a selected uncached class-week and keeps source work behind the coordinator', async () => {
+    const state = { catalog: { weeks: [{ value: 'future', label: 'Tuần tương lai' }] }, settings: { selectedClasses: [{ year: 'y', semester: 's', className: 'a' }] } };
+    const snapshots = { find: jest.fn(() => chain([])), findOne: jest.fn(() => chain(null)) };
+    const states = { findOne: jest.fn(() => chain(state)) };
+    const sync = { ensureDemandScope: jest.fn().mockResolvedValue(state), enqueueDemand: jest.fn().mockResolvedValue({ status: 'pending' }) };
+    const service = new TimetableService(snapshots as any, states as any, sync as any);
+    await expect(service.getTimetable({ roleCode: 'STUDENT' }, { year: 'y', semester: 's', week: 'future', className: 'a' })).resolves.toMatchObject({ status: 'pending', pending: true });
+    expect(sync.enqueueDemand).toHaveBeenCalledWith({ roleCode: 'STUDENT' }, { year: 'y', semester: 's', week: 'future', className: 'a' });
   });
 });

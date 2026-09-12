@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { timetableApi, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings } from '@/api/timetable-api';
+import { timetableApi, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings, type TimetableClassSelection, type TimetableWeekDate } from '@/api/timetable-api';
 import { changeFilter, emptyFilters, fields, selectionKey } from './timetable-filters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -90,6 +90,17 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
     if (coverage.length > 100) { setError('Chỉ được chọn tối đa 100 tổ hợp đồng bộ.'); return; }
     setSettings((current) => ({ ...current, coverage })); setError(''); setMessage('Đã thêm phạm vi. Lưu cấu hình để áp dụng cho lần chạy định kỳ.');
   };
+  const addClass = () => {
+    if (!selection.year || !selection.semester || !selection.className) { setError('Hãy chọn niên học, học kỳ và lớp cụ thể.'); return; }
+    const selected: TimetableClassSelection = { year: selection.year, semester: selection.semester, faculty: selection.faculty || '', course: selection.course || '', className: selection.className };
+    const classes = [...new Map([...(settings.selectedClasses || []), selected].map((item) => [JSON.stringify(item), item])).values()];
+    if (classes.length > 100) { setError('Chỉ được chọn tối đa 100 lớp.'); return; }
+    setSettings((current) => ({ ...current, selectedClasses: classes })); setError(''); setMessage('Đã thêm lớp. Lưu cấu hình để bật tra cứu demand cho lớp này.');
+  };
+  const toggleRolling = (enabled: boolean) => {
+    const sourceDates = catalog?.weekDates || catalog?.weeks.filter((item) => item.startDate && item.endDate).map((item) => ({ year: selection.year, semester: selection.semester, week: item.value, startDate: item.startDate!, endDate: item.endDate! } as TimetableWeekDate)) || [];
+    setSettings((current) => ({ ...current, rolling: { enabled, weekDates: enabled ? sourceDates : current.rolling?.weekDates || [] } }));
+  };
   const save = async () => {
     setBusy(true); setError(''); setMessage('');
     try { setSettings(await timetableApi.updateSyncSettings(settings)); setMessage('Đã lưu cấu hình đồng bộ.'); }
@@ -142,7 +153,9 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
     </>}
     <div className="space-y-2">
       <p className="text-sm font-semibold">Phạm vi đã chọn: {settings.coverage.length}/100</p>
-      <p className="text-xs text-slate-600">Có thể thêm nhiều lớp. Tra cứu sử dụng đúng tổ hợp đã đồng bộ; muốn tra cứu riêng một lớp, hãy thêm lớp đó vào phạm vi.</p>
+      <p className="text-xs text-slate-600">Có thể thêm nhiều lớp một lần. Việc lưu lớp không tự tải lịch cho mọi tuần; demand chỉ tải đúng tuần người dùng yêu cầu.</p>
+      <button type="button" onClick={addClass} disabled={busy || !statusReady || !selection.year || !selection.semester || !selection.className} className="rounded-xl border border-white/70 bg-white/40 px-4 py-2 text-sm font-semibold text-[#1E293B] transition-all duration-150 ease-out hover:bg-white/70 disabled:opacity-50">Thêm lớp đã chọn</button>
+      {!!settings.selectedClasses?.length && <ul aria-label="Lớp đã chọn" className="max-h-32 space-y-1 overflow-y-auto text-sm">{settings.selectedClasses.map((item, index) => <li key={`${item.year}-${item.semester}-${item.className}-${index}`} className="flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-2 py-1"><span>{item.className} · {item.year}/{item.semester}</span><button type="button" aria-label={`Bỏ lớp ${index + 1}`} disabled={busy} onClick={() => setSettings((current) => ({ ...current, selectedClasses: (current.selectedClasses || []).filter((_, i) => i !== index) }))} className="text-rose-700">Bỏ</button></li>)}</ul>}
       {settings.coverage.length > 0 && <ul aria-label="Phạm vi đồng bộ" className="max-h-48 space-y-2 overflow-y-auto">
         {settings.coverage.map((item, index) => <li key={selectionKey(item)} className="flex items-start justify-between gap-2 rounded-xl border border-white/70 bg-white/50 p-2 text-sm">
           <span>{describe(item)}{!item.className && ' · Tất cả lớp'}</span>
@@ -154,7 +167,8 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
       <label className="text-sm">Khoảng đồng bộ (phút)<input aria-label="Khoảng đồng bộ" type="number" min={30} max={10080} value={settings.intervalMinutes}
         disabled={busy || !statusReady} onChange={(e) => setSettings({ ...settings, intervalMinutes: Number(e.target.value) })} className="ml-2 h-9 w-24 rounded-xl border border-white/70 bg-white/50 px-2 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30" /></label>
       <label className="text-sm"><input type="checkbox" disabled={busy || !statusReady} checked={settings.enabled} onChange={(e) => setSettings({ ...settings, enabled: e.target.checked })} /> Bật định kỳ</label>
-      <button type="button" onClick={() => void save()} disabled={busy || !statusReady || !settings.coverage.length || !Number.isInteger(settings.intervalMinutes) || settings.intervalMinutes < 30 || settings.intervalMinutes > 10080} className="rounded-xl border border-white/70 bg-white/40 px-3 py-1.5 text-sm font-semibold text-[#1E293B] transition-all duration-150 ease-out motion-reduce:transition-none hover:bg-white/70 disabled:opacity-50">Lưu cấu hình</button>
+      <label className="text-sm"><input type="checkbox" disabled={busy || !statusReady} checked={settings.rolling?.enabled || false} onChange={(e) => toggleRolling(e.target.checked)} /> Bật cuốn tuần hiện tại/kế tiếp</label>
+      <button type="button" onClick={() => void save()} disabled={busy || !statusReady || (!settings.coverage.length && !settings.selectedClasses?.length) || !Number.isInteger(settings.intervalMinutes) || settings.intervalMinutes < 30 || settings.intervalMinutes > 10080} className="rounded-xl border border-white/70 bg-white/40 px-3 py-1.5 text-sm font-semibold text-[#1E293B] transition-all duration-150 ease-out motion-reduce:transition-none hover:bg-white/70 disabled:opacity-50">Lưu cấu hình</button>
       <button type="button" onClick={() => void start()} disabled={busy || !statusReady || !settings.coverage.length || running} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-sm font-bold text-white transition-all duration-150 ease-out motion-reduce:transition-none hover:scale-[1.01] motion-reduce:hover:scale-100 hover:bg-blue-700 disabled:opacity-50">Đồng bộ ngay</button>
     </div>
     {job && <div className="space-y-2 text-sm">
@@ -168,6 +182,7 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
         <button type="button" disabled={busy || running} onClick={() => void start(job.failures!.map((failure) => failure.coverage))} className="rounded-xl border border-white/70 bg-white/60 px-3 py-1.5 transition-all duration-150 ease-out hover:bg-white/80 disabled:opacity-50">Thử lại phạm vi lỗi</button>
       </>}
     </div>}
+    {settings.rolling?.enabled && !settings.rolling.weekDates?.length && <p role="alert" className="text-sm text-amber-800">Nguồn chưa cung cấp ngày tuần. Hãy nhập bản đồ tuần/ngày đã được kiểm chứng để bật cuốn tuần; tra cứu thủ công và demand vẫn hoạt động.</p>}
     {message && <p role="status" className="text-sm text-purple-700">{message}</p>}
     {error && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-700">{error}</p>}
     </div>

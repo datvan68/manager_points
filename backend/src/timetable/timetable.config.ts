@@ -12,6 +12,13 @@ export interface TimetableConfig {
   maxCacheEntries: number;
   sessionIdleTtlMs: number;
   maxSessionContexts: number;
+  freshnessMs: number;
+  queueLimit: number;
+  overallDeadlineMs: number;
+  maxRetries: number;
+  refreshCooldownMs: number;
+  statusRetention: number;
+  interactiveReserve: number;
 }
 
 export function getTimetableConfig(config: ConfigService): TimetableConfig {
@@ -24,5 +31,12 @@ export function getTimetableConfig(config: ConfigService): TimetableConfig {
     maxCacheEntries: 100,
     sessionIdleTtlMs: 5 * 60_000,
     maxSessionContexts: 100,
+    freshnessMs: 30 * 60_000,
+    queueLimit: 100,
+    overallDeadlineMs: 60_000,
+    maxRetries: 2,
+    refreshCooldownMs: 60_000,
+    statusRetention: 200,
+    interactiveReserve: 20,
   };
 }

@@ -109,4 +109,17 @@ describe('TimetableSyncPanel', () => {
     expect(screen.getByRole('button', { name: 'Mở cấu hình' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('status')).toHaveTextContent('Đang đồng bộ');
   });
+
+  it('saves selected classes separately and keeps rolling mode disabled without verified dates', async () => {
+    render(<TimetableSyncPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tải danh mục nguồn' }));
+    await screen.findByRole('combobox', { name: 'Đồng bộ niên học' });
+    await chooseParent('Đồng bộ niên học', 'y'); await chooseParent('Đồng bộ học kỳ', 's'); await chooseParent('Đồng bộ lớp', 'a');
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm lớp đã chọn' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Bật cuốn tuần hiện tại/kế tiếp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu cấu hình' }));
+    await waitFor(() => expect(timetableApi.updateSyncSettings).toHaveBeenCalledWith(expect.objectContaining({ selectedClasses: [{ year: 'y', semester: 's', faculty: '', course: '', className: 'a' }], rolling: { enabled: true, weekDates: [] } })));
+    expect(screen.getByRole('alert')).toHaveTextContent('Nguồn chưa cung cấp ngày tuần');
+  });
 });

@@ -135,4 +135,11 @@ describe('SchoolTimetableAdapter', () => {
     await adapter.getTimetable('viewer-2', filters);
     expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
   });
+
+  it('passes the selected parent context into catalog week metadata', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (_input, init) => response(init?.method === 'POST' ? optionsHtml() : optionsHtml()));
+    const adapter = new SchoolTimetableAdapter(new ConfigService({ TIMETABLE_SOURCE_USERNAME: 'u', TIMETABLE_SOURCE_PASSWORD: 'p' }));
+    const result = await adapter.getOptions('viewer-parent', { year: '2025', semester: '1' });
+    expect(result.weeks[0]).toHaveProperty('parent'); fetchMock.mockRestore();
+  });
 });
