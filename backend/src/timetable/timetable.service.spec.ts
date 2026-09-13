@@ -44,16 +44,28 @@ describe('TimetableService', () => {
     snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: true, lessons: [] }, syncedAt: 'date', coverageKey: 'key' }));
     await expect(service.getLegacyTimetable({}, coverage[0])).resolves.toMatchObject({ isEmpty: true, syncedAt: 'date' });
     expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey(coverage[0]) });
-    await expect(setup([]).service.getOptions({})).resolves.toMatchObject({ years: [{ value: 'y' }] });
+    await expect(setup([]).service.getOptions({})).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('returns pending for a selected uncached class-week and keeps source work behind the coordinator', async () => {
-    const state = { catalog: { weeks: [{ value: 'future', label: 'Tuần tương lai' }] }, settings: { selectedClasses: [{ year: 'y', semester: 's', className: 'a' }] } };
-    const snapshots = { find: jest.fn(() => chain([])), findOne: jest.fn(() => chain(null)) };
-    const states = { findOne: jest.fn(() => chain(state)) };
-    const sync = { ensureDemandScope: jest.fn().mockResolvedValue(state), enqueueDemand: jest.fn().mockResolvedValue({ status: 'pending' }) };
-    const service = new TimetableService(snapshots as any, states as any, sync as any);
-    await expect(service.getTimetable({ roleCode: 'STUDENT' }, { year: 'y', semester: 's', week: 'future', className: 'a' })).resolves.toMatchObject({ status: 'pending', pending: true });
-    expect(sync.enqueueDemand).toHaveBeenCalledWith({ roleCode: 'STUDENT' }, { year: 'y', semester: 's', week: 'future', className: 'a' });
+  it('only exposes saved coverage and never queues an uncached lookup', async () => {
+    const { service, snapshots } = setup([coverage[1]], { ...catalog, weeks: [{ value: 'future', label: 'Tuần tương lai' }] });
+    const options = await service.getOptions({});
+    expect(options.weeks).toEqual([{ value: 'w2', label: 'w2' }]);
+    await expect(service.getTimetable({ roleCode: 'STUDENT' }, { year: 'y', semester: 's', week: 'future', className: 'a' })).rejects.toMatchObject({ response: expect.objectContaining({ reasonCode: 'TIMETABLE_NOT_SYNCED' }) });
+    expect(snapshots.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a saved snapshot without refreshing it in the background', async () => {
+    const { service, snapshots } = setup();
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: false, lessons: [] }, syncedAt: '2026-01-01T00:00:00.000Z', coverageKey: 'key' }));
+    await expect(service.getTimetable({}, coverage[1])).resolves.toMatchObject({ status: 'valid', coverageKey: 'key' });
+    expect(snapshots.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the refresh status response read-only and reports missing snapshots', async () => {
+    const { service, snapshots } = setup();
+    await expect(service.refresh({}, coverage[1])).resolves.toMatchObject({ status: 'missing', key: timetableKey(coverage[1]) });
+    snapshots.findOne.mockReturnValueOnce(chain({ key: timetableKey(coverage[1]) }));
+    await expect(service.refresh({}, coverage[1])).resolves.toMatchObject({ status: 'valid', key: timetableKey(coverage[1]) });
   });
 });

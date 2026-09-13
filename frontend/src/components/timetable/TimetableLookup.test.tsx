@@ -68,16 +68,15 @@ describe('TimetableLookup', () => {
     await waitFor(() => expect(timetableApi.getOptions).toHaveBeenCalledTimes(count + 1));
   });
 
-  it('allows an uncached week to enter the demand flow instead of disabling search', async () => {
+  it('does not search an unsynchronized selection', async () => {
     const uncached = { ...options, availableCoverage: [] };
     vi.mocked(timetableApi.getOptions).mockResolvedValue(uncached);
-    vi.mocked(timetableApi.getTimetable).mockResolvedValue({ filters: coverage, lessons: [], periods: [], isEmpty: true, status: 'valid' });
     render(<TimetableLookup />);
     await screen.findByRole('option', { name: '2026' });
     await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w'); await choose('Lớp', 'a');
-    expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
+    expect(screen.getByText('Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
-    await waitFor(() => expect(timetableApi.getTimetable).toHaveBeenCalledWith(coverage));
-    expect(screen.getByText('Không có lịch cho bộ lọc đã chọn.')).toBeInTheDocument();
+    expect(timetableApi.getTimetable).not.toHaveBeenCalled();
   });
 });
