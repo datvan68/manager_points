@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { SchoolTimetableAdapter } from './school-timetable.adapter';
-import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto } from './dto/sync-timetable.dto';
+import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto } from './dto/sync-timetable.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { getTimetableConfig, TimetableConfig } from './timetable.config';
@@ -38,6 +38,10 @@ export class TimetableSyncService {
 
   private async state() {
     return this.states.findOneAndUpdate({ name: STATE }, { $setOnInsert: { name: STATE, settings: { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], rolling: { enabled: false, weekDates: [] } }, queue: [], statuses: [], coordinator: { demandStreak: 0 } } }, { upsert: true, new: true }).lean().exec();
+  }
+  private async readOnlyState() {
+    const query = (this.states as any).findOne?.({ name: STATE });
+    return query ? query.lean().exec() : this.state();
   }
 
   async getCatalog(user: any) {
@@ -145,6 +149,26 @@ export class TimetableSyncService {
   }
 
   private classIdentity(item: TimetableClassSelection) { return JSON.stringify([item.year, item.semester, item.faculty || '', item.course || '', item.className]); }
+  private weekOptions(state: any, item: TimetableClassSelection) {
+    const catalogWeeks = (state.catalog?.weeks || []) as Array<Record<string, any>>;
+    const rollingWeeks = (state.settings?.rolling?.weekDates || []) as TimetableWeekDate[];
+    const matches = (week: any) => week.value && week.year === item.year && week.semester === item.semester;
+    const options = [
+      ...catalogWeeks.filter((week) => matches({ ...week, year: week.parent?.year, semester: week.parent?.semester }) && week.parent && Object.entries(week.parent).every(([field, value]) => (item as any)[field] === value)),
+      ...rollingWeeks.filter((week) => week.year === item.year && week.semester === item.semester),
+    ];
+    return [...new Map(options.map((week: any) => [week.value || week.week, { value: week.value || week.week, label: week.label || week.value || week.week, ...(week.startDate && week.endDate ? { startDate: week.startDate, endDate: week.endDate } : {}) }])).values()];
+  }
+  private savedClass(state: any, dto: TimetableClassSelection) {
+    return ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
+  }
+  private manualSelection(state: any, dto: SavedTimetableWeekSyncDto) {
+    const saved = this.savedClass(state, dto);
+    if (!saved) throw new NotFoundException({ reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED', message: 'Lớp chưa được lưu cấu hình đồng bộ.' });
+    const option = this.weekOptions(state, saved).find((item: any) => item.value === dto.week);
+    if (!option) throw new NotFoundException({ reasonCode: 'TIMETABLE_WEEK_NOT_ALLOWED', message: 'Tuần không thuộc đúng ngữ cảnh lớp đã lưu.' });
+    return { ...saved, week: dto.week } as TimetableFilters;
+  }
   private todayInHoChiMinh() {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
     return `${parts.find((p) => p.type === 'year')?.value}-${parts.find((p) => p.type === 'month')?.value}-${parts.find((p) => p.type === 'day')?.value}`;
@@ -167,13 +191,16 @@ export class TimetableSyncService {
     const rows: TimetableClassSyncStatus[] = [];
     for (const item of selected) {
       try {
-        const coverage = this.resolveClassCoverage(state.settings || {}, item);
+        const options = this.weekOptions(state, item);
+        const coverage = options.map((option: any) => ({ year: item.year, semester: item.semester, week: option.value, faculty: item.faculty || '', course: item.course || '', className: item.className }));
+        if (!coverage.length) throw new ConflictException({ reasonCode: 'TIMETABLE_CLASS_WEEKS_NOT_FOUND', message: `Không tìm thấy tuần nguồn cho lớp ${item.className}.` });
         const keys = coverage.map((selection) => timetableKey(selection));
         const snapshots = typeof (this.snapshots as any).find === 'function' ? await (this.snapshots as any).find({ key: { $in: keys } }).lean().exec() : [];
-        const byKey = new Map((snapshots || []).map((snapshot: any) => [snapshot.key, snapshot]));
+        const byKey = new Map<string, any>((snapshots || []).map((snapshot: any) => [snapshot.key, snapshot] as [string, any]));
         const weeks = coverage.map((selection) => {
           const key = timetableKey(selection); const snapshot = byKey.get(key); const queued = (state.queue || []).some((entry: QueueItem) => entry.key === key); const running = state.job?.selection?.key === key && state.job.status === 'running'; const terminal = [...(state.statuses || [])].reverse().find((entry: any) => entry.key === key);
-          return { week: selection.week, status: snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', ...(terminal?.failure ? { failure: terminal.failure } : {}) } as any;
+          const option = options.find((value: any) => value.value === selection.week);
+          return { week: selection.week, label: option?.label, startDate: option?.startDate, endDate: option?.endDate, snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : undefined, isEmpty: snapshot?.result?.isEmpty, status: snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', ...(terminal?.failure ? { failure: terminal.failure } : {}) } as any;
         });
         rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: coverage.map((value) => value.week), status: weeks.some((week) => week.status === 'failed') ? 'failed' : weeks.every((week) => week.status === 'valid') ? 'valid' : weeks.some((week) => week.status === 'running') ? 'running' : weeks.some((week) => week.status === 'pending') ? 'pending' : 'missing', weeks });
       } catch (error) { rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: [], status: 'configuration', weeks: [], error: error instanceof ConflictException ? String((error.getResponse() as any).message) : 'Cấu hình tuần không hợp lệ.' }); }
@@ -185,6 +212,18 @@ export class TimetableSyncService {
     this.assertAdmin(user); const state = await this.state(); const saved = ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
     if (!saved) throw new NotFoundException({ reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED', message: 'Lớp chưa được lưu cấu hình đồng bộ.' });
     return this.start(user, { coverage: this.resolveClassCoverage(state.settings || {}, saved) } as StartTimetableSyncDto);
+  }
+  async getSavedClassWeekStatus(user: any, dto: SavedTimetableWeekSyncDto) {
+    this.assertAdmin(user); const state = await this.readOnlyState(); const selection = this.manualSelection(state, dto); const key = timetableKey(selection);
+    const snapshot = await this.snapshots.findOne({ key }).lean().exec();
+    const running = state.job?.selection?.key === key && state.job.status === 'running';
+    const queued = (state.queue || []).some((item: QueueItem) => item.key === key);
+    const terminal = [...(state.statuses || [])].reverse().find((item: any) => item.key === key);
+    return { key, selection, status: snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, isEmpty: snapshot?.result?.isEmpty === true, failure: terminal?.failure || null, cooldownUntil: terminal?.lastRequestedAt ? new Date(Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs).toISOString() : null };
+  }
+  async startSavedClassWeek(user: any, dto: SavedTimetableWeekSyncDto) {
+    this.assertAdmin(user); const state = await this.state(); const selection = this.manualSelection(state, dto);
+    return this.enqueue([selection], 'demand', dto.intent === 'update', state);
   }
   private async enqueue(selections: TimetableFilters[], kind: QueueKind, force: boolean, current?: any) {
     const state = current || await this.state(); const now = new Date().toISOString(); const queue = (state.queue || []) as QueueItem[]; const statuses = (state.statuses || []) as any[]; const known = new Set(queue.map((item) => item.key)); if (state.job?.selection?.key) known.add(state.job.selection.key);

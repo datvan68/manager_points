@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
 import { TimetableService } from './timetable.service';
 import { TimetableSourceError } from './timetable.types';
-import { StartTimetableSyncDto, TimetableDemandDto, TimetableSettingsDto, SavedTimetableClassSyncDto } from './dto/sync-timetable.dto';
+import { StartTimetableSyncDto, TimetableDemandDto, TimetableSettingsDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto } from './dto/sync-timetable.dto';
 import { TimetableSyncService } from './timetable-sync.service';
 
 @Injectable()
@@ -60,6 +60,8 @@ export class TimetableController {
   }
   @Post('sync') @UseGuards(TimetableAdminGuard) startSync(@Req() req: any, @Body() body: StartTimetableSyncDto) { return this.syncService!.start(req.user, body); }
   @Post('sync/class') @UseGuards(TimetableAdminGuard) startSavedClassSync(@Req() req: any, @Body() body: SavedTimetableClassSyncDto) { return this.syncService!.startSavedClass(req.user, body); }
+  @Get('sync/class/week/status') @UseGuards(TimetableAdminGuard) getSavedClassWeekStatus(@Req() req: any, @Query() query: SavedTimetableWeekSyncDto) { return this.syncService!.getSavedClassWeekStatus(req.user, query); }
+  @Post('sync/class/week') @UseGuards(TimetableAdminGuard) startSavedClassWeek(@Req() req: any, @Body() body: SavedTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeek(req.user, body); }
   @Get('sync/status') @UseGuards(TimetableAdminGuard) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
   @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
   @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }

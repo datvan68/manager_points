@@ -23,4 +23,15 @@ describe('timetableApi', () => {
     expect(vi.mocked(httpClient).mock.calls[0][0]).toContain('year=2025%7Csource');
     expect(vi.mocked(httpClient).mock.calls[0][0]).toContain('className=L%E1%BB%9Bp+A%2FB');
   });
+
+  it('uses the exact saved-class week status and action contracts', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
+    vi.mocked(handleResponse).mockResolvedValue({ status: 'pending', key: 'k' });
+    const selection = { year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'A', week: 'opaque|past' };
+    await timetableApi.getSavedClassWeekStatus(selection);
+    expect(vi.mocked(httpClient).mock.calls[0][0]).toContain('/timetable/sync/class/week/status?');
+    await timetableApi.syncSavedClassWeek(selection, 'update');
+    expect(vi.mocked(httpClient).mock.calls[1][0]).toContain('/timetable/sync/class/week');
+    expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[1][1]?.body))).toMatchObject({ week: 'opaque|past', intent: 'update' });
+  });
 });

@@ -50,7 +50,7 @@ export interface TimetableClassSyncStatus {
   weekCount: number;
   targetWeeks: string[];
   status: 'valid' | 'pending' | 'running' | 'failed' | 'missing' | 'configuration';
-  weeks: Array<{ week: string; status: 'valid' | 'pending' | 'running' | 'failed' | 'missing'; failure?: string }>;
+  weeks: Array<{ week: string; label?: string; startDate?: string; endDate?: string; status: 'valid' | 'pending' | 'running' | 'failed' | 'missing'; failure?: string; snapshotExists?: boolean; lastSuccessfulUpdate?: string; isEmpty?: boolean }>;
   error?: string;
 }
 

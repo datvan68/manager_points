@@ -15,6 +15,7 @@ function setup() {
     findOne: jest.fn(() => ({ sort: () => chain(null) })),
   };
   const states = {
+    findOne: jest.fn(() => chain(state)),
     findOneAndUpdate: jest.fn(() => chain(state)),
     updateOne: jest.fn(() => chain({ matchedCount: 1 })),
   };
@@ -157,5 +158,25 @@ describe('TimetableSyncService', () => {
     const { service, states } = setup();
     states.findOneAndUpdate.mockReturnValue(chain({ settings: { selectedClasses: [{ year: '2026', semester: '1', className: 'A' }] }, catalog: { weeks: [{ value: '10' }] }, queue: [], statuses: [] }));
     await expect(service.enqueueDemand({ roleCode: 'STUDENT' }, { year: '2026', semester: '1', week: '10', className: 'A' })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_SCOPE_NOT_ALLOWED' } });
+  });
+
+  it('reads a selected saved-class week without enqueueing and keeps empty snapshots synchronized', async () => {
+    const { service, states, snapshots } = setup();
+    const savedState = { settings: { selectedClasses: [{ year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'A' }] }, catalog: { weeks: [{ value: 'past', label: 'Tuần đã qua', parent: { year: '2026', semester: '1', faculty: 'f', course: 'c' } }] }, queue: [], statuses: [] };
+    states.findOne.mockReturnValueOnce(chain(savedState));
+    snapshots.findOne.mockReturnValueOnce(chain({ key: 'key', syncedAt: '2026-09-01T00:00:00.000Z', result: { isEmpty: true } }));
+    await expect(service.getSavedClassWeekStatus(admin, { ...savedState.settings.selectedClasses[0], week: 'past' })).resolves.toMatchObject({ status: 'valid', snapshotExists: true, isEmpty: true });
+    expect(states.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects a foreign week and routes a valid update through force enqueue', async () => {
+    const { service, states } = setup();
+    const savedState = { settings: { selectedClasses: [{ year: '2026', semester: '1', className: 'A' }] }, catalog: { weeks: [{ value: 'one', parent: { year: '2026', semester: '1' } }, { value: 'other', parent: { year: '2027', semester: '1' } }] }, queue: [], statuses: [] };
+    states.findOneAndUpdate.mockReturnValueOnce(chain(savedState));
+    await expect(service.startSavedClassWeek(admin, { ...savedState.settings.selectedClasses[0], week: 'other', intent: 'update' })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_WEEK_NOT_ALLOWED' } });
+    const enqueue = jest.spyOn(service as any, 'enqueue').mockResolvedValue({ status: 'pending' });
+    states.findOneAndUpdate.mockReturnValueOnce(chain(savedState));
+    await service.startSavedClassWeek(admin, { ...savedState.settings.selectedClasses[0], week: 'one', intent: 'update' });
+    expect(enqueue).toHaveBeenCalledWith([expect.objectContaining({ week: 'one' })], 'demand', true, savedState);
   });
 });

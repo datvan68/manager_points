@@ -5,7 +5,7 @@ import { timetableApi, type TimetableOptions } from '@/api/timetable-api';
 
 vi.mock('@/providers/auth-provider', () => ({ useAuth: () => ({ user: { roleCode: 'ADMIN' } }) }));
 vi.mock('@/api/timetable-api', () => ({ timetableApi: {
-  getSyncStatus: vi.fn(), loadCatalog: vi.fn(), startSync: vi.fn(), updateSyncSettings: vi.fn(),
+  getSyncStatus: vi.fn(), getSavedClassWeekStatus: vi.fn(), syncSavedClassWeek: vi.fn(), loadCatalog: vi.fn(), startSync: vi.fn(), updateSyncSettings: vi.fn(),
 } }));
 const catalog: TimetableOptions = {
   years: [{ value: 'y', label: '2026' }], semesters: [{ value: 's', label: 'Học kỳ 1' }],
@@ -20,6 +20,8 @@ beforeEach(() => {
   vi.mocked(timetableApi.loadCatalog).mockResolvedValue(catalog);
   vi.mocked(timetableApi.startSync).mockResolvedValue({ id: 'job-1', status: 'running', total: 2 });
   vi.mocked(timetableApi.updateSyncSettings).mockImplementation(async (settings) => settings);
+  vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ status: 'missing', key: 'k', selection: coverage, snapshotExists: false, lastSuccessfulUpdate: null, isEmpty: false });
+  vi.mocked(timetableApi.syncSavedClassWeek).mockResolvedValue({ status: 'pending', key: 'k', selection: coverage });
 });
 async function chooseParent(label: string, value: string) {
   fireEvent.click(screen.getByRole('combobox', { name: label }));
@@ -108,6 +110,19 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Thu gọn cấu hình' }));
     expect(screen.getByRole('button', { name: 'Mở cấu hình' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('status')).toHaveTextContent('Đang đồng bộ');
+  });
+
+  it('selects and synchronizes one independent saved-class week', async () => {
+    const saved = { year: 'y', semester: 's', faculty: '', course: '', className: 'a' };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ ...initial, settings: { ...initial.settings, selectedClasses: [saved] }, classStatuses: [{ classSelection: saved, weekCount: 1, targetWeeks: [], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', startDate: '2026-09-01', endDate: '2026-09-07', status: 'missing' }, { week: 'w2', label: 'Tuần 2', status: 'missing' }] }] });
+    render(<TimetableSyncPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình' }));
+    const selector = await screen.findByRole('combobox', { name: 'Tuần xử lý lớp 1' });
+    expect(selector).toHaveValue('');
+    fireEvent.change(selector, { target: { value: 'w2' } });
+    await waitFor(() => expect(timetableApi.getSavedClassWeekStatus).toHaveBeenCalledWith(expect.objectContaining({ className: 'a', week: 'w2' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ' }));
+    await waitFor(() => expect(timetableApi.syncSavedClassWeek).toHaveBeenCalledWith(expect.objectContaining({ className: 'a', week: 'w2' }), 'sync'));
   });
 
   it('saves selected classes separately and keeps rolling mode disabled without verified dates', async () => {

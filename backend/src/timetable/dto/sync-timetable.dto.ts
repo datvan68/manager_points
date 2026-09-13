@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QueryTimetableDto } from './query-timetable.dto';
 
@@ -19,6 +19,11 @@ export class TimetableClassSelectionDto {
 }
 
 export class SavedTimetableClassSyncDto extends TimetableClassSelectionDto {}
+
+export class SavedTimetableWeekSyncDto extends TimetableClassSelectionDto {
+  @IsString() week!: string;
+  @IsOptional() @IsIn(['sync', 'update']) intent?: 'sync' | 'update';
+}
 
 export class TimetableWeekDateDto {
   @IsString() year!: string;

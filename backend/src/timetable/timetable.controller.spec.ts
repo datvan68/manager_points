@@ -5,6 +5,7 @@ import { TimetableService } from './timetable.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BadRequestException } from '@nestjs/common';
 import { TimetableSourceError } from './timetable.types';
+import { TimetableSyncService } from './timetable-sync.service';
 
 describe('TimetableController', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -58,5 +59,14 @@ describe('TimetableController', () => {
     const controller = module.get(TimetableController); const req = { user: { userId: 'viewer-1' } }; const query = { year: 'y', semester: 's', week: 'w', className: 'a' } as any;
     await expect(controller.demandStatus(req, query)).resolves.toEqual({ status: 'pending' }); await expect(controller.refresh(req, query)).resolves.toEqual({ status: 'pending' });
     expect(service.getDemandStatus).toHaveBeenCalledWith(req.user, query); expect(service.refresh).toHaveBeenCalledWith(req.user, query);
+  });
+
+  it('delegates admin week status and action routes', async () => {
+    const service = { getSavedClassWeekStatus: jest.fn().mockResolvedValue({ status: 'missing' }), startSavedClassWeek: jest.fn().mockResolvedValue({ status: 'pending' }) };
+    const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: {} }, { provide: TimetableSyncService, useValue: service }] }).compile();
+    const controller = module.get(TimetableController); const req = { user: { roleCode: 'ADMIN' } }; const query = { year: 'y', semester: 's', week: 'w', className: 'a' } as any;
+    await expect(controller.getSavedClassWeekStatus(req, query)).resolves.toEqual({ status: 'missing' });
+    await expect(controller.startSavedClassWeek(req, { ...query, intent: 'sync' })).resolves.toEqual({ status: 'pending' });
+    expect(service.getSavedClassWeekStatus).toHaveBeenCalledWith(req.user, query); expect(service.startSavedClassWeek).toHaveBeenCalledWith(req.user, { ...query, intent: 'sync' });
   });
 });
