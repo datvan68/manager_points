@@ -9,14 +9,26 @@ describe('timetableApi', () => {
     vi.mocked(handleResponse).mockResolvedValue({ status: 'pending' });
     const selection = { year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'opaque|class', weekCount: 12 };
     const link = { ...selection, systemClassId: 'system-1', sourceLabel: 'Class A', matchMethod: 'manual' as const };
+    const originalSelection = { ...selection };
+    const originalLink = { ...link };
     await timetableApi.startSavedClassSync(link);
     expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[0][1]?.body))).toEqual(selection);
     await timetableApi.syncSavedClassWeek({ ...link, week: 'opaque|week' }, 'update');
     expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[1][1]?.body))).toEqual({ ...selection, week: 'opaque|week', intent: 'update' });
     await timetableApi.getSavedClassWeekStatus({ ...link, week: 'opaque|week' });
     const params = new URL(String(vi.mocked(httpClient).mock.calls[2][0]), 'http://localhost').searchParams;
-    expect(Object.fromEntries(params)).toEqual({ ...selection, weekCount: '12', week: 'opaque|week' });
-    expect(link).toMatchObject({ systemClassId: 'system-1', sourceLabel: 'Class A', matchMethod: 'manual' });
+    expect(Object.fromEntries(params)).toEqual({ year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'opaque|class', week: 'opaque|week' });
+    expect(link).toEqual(originalLink);
+    expect(selection).toEqual(originalSelection);
+  });
+
+  it('omits weekCount from saved-class week status when it is absent', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
+    vi.mocked(handleResponse).mockResolvedValue({ status: 'missing' });
+    const selection = { year: '2026', semester: '1', className: 'opaque|class', week: 'opaque|week' };
+    await timetableApi.getSavedClassWeekStatus(selection);
+    const params = new URL(String(vi.mocked(httpClient).mock.calls[0][0]), 'http://localhost').searchParams;
+    expect(Object.fromEntries(params)).toEqual(selection);
   });
   it('times out a stalled request and aborts its fetch', async () => {
     vi.useFakeTimers();
