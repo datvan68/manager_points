@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { timetableApi, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings, type TimetableClassSelection, type TimetableWeekDate } from '@/api/timetable-api';
+import { timetableApi, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings, type TimetableClassSelection, type TimetableWeekDate, type TimetableClassSyncStatus } from '@/api/timetable-api';
 import { changeFilter, emptyFilters, fields, selectionKey } from './timetable-filters';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -20,6 +20,8 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
   const [selection, setSelection] = useState<TimetableFilters>(emptyFilters);
   const [weeks, setWeeks] = useState<string[]>([]);
   const [settings, setSettings] = useState(initial);
+  const [savedSettings, setSavedSettings] = useState(initial);
+  const [classStatuses, setClassStatuses] = useState<TimetableClassSyncStatus[]>([]);
   const [job, setJob] = useState<TimetableSyncJob | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -36,7 +38,7 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
     let active = true;
     void timetableApi.getSyncStatus().then((data) => {
       if (!active) return;
-      setSettings(data.settings || initial); setJob(data.job); setLastUpdate(data.lastSuccessfulUpdate); setStatusReady(true);
+      const next = data.settings || initial; setSettings(next); setSavedSettings(next); setClassStatuses(data.classStatuses || []); setJob(data.job); setLastUpdate(data.lastSuccessfulUpdate); setStatusReady(true);
     }).catch((e: Error) => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [isAdmin]);
@@ -51,7 +53,7 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
       pending = true;
       void timetableApi.getSyncStatus().then((data) => {
         if (!active) return;
-        setJob(data.job); setLastUpdate(data.lastSuccessfulUpdate);
+        setJob(data.job); setLastUpdate(data.lastSuccessfulUpdate); setClassStatuses(data.classStatuses || []);
         if (data.job && !['running', 'pending'].includes(data.job.status)) onSyncedRef.current?.();
       }).catch(() => { if (active) setError('Không thể cập nhật tiến trình. Hệ thống sẽ thử lại.'); })
         .finally(() => { pending = false; });
@@ -103,7 +105,7 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
   };
   const save = async () => {
     setBusy(true); setError(''); setMessage('');
-    try { setSettings(await timetableApi.updateSyncSettings(settings)); setMessage('Đã lưu cấu hình đồng bộ.'); }
+    try { const next = await timetableApi.updateSyncSettings(settings); setSettings(next); setSavedSettings(next); setMessage('Đã lưu cấu hình đồng bộ.'); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể lưu cấu hình.'); }
     finally { setBusy(false); }
   };
@@ -113,6 +115,8 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
     catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể bắt đầu đồng bộ.'); }
     finally { setBusy(false); }
   };
+  const updateClassDraft = (index: number, patch: Partial<TimetableClassSelection>) => setSettings((current) => ({ ...current, selectedClasses: (current.selectedClasses || []).map((item, i) => i === index ? { ...item, ...patch } : item) }));
+  const statusFor = (item: TimetableClassSelection) => classStatuses.find((row) => JSON.stringify(row.classSelection && [row.classSelection.year, row.classSelection.semester, row.classSelection.faculty || '', row.classSelection.course || '', row.classSelection.className]) === JSON.stringify([item.year, item.semester, item.faculty || '', item.course || '', item.className]));
 
   return <section aria-label="Quản trị đồng bộ thời khóa biểu" className="min-w-0 space-y-3 rounded-2xl border border-white/75 bg-white/45 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -155,7 +159,7 @@ export default function TimetableSyncPanel({ onSynced }: { onSynced?: () => void
       <p className="text-sm font-semibold">Phạm vi đã chọn: {settings.coverage.length}/100</p>
       <p className="text-xs text-slate-600">Có thể thêm nhiều lớp một lần. Việc lưu lớp không tự tải lịch cho mọi tuần; demand chỉ tải đúng tuần người dùng yêu cầu.</p>
       <button type="button" onClick={addClass} disabled={busy || !statusReady || !selection.year || !selection.semester || !selection.className} className="rounded-xl border border-white/70 bg-white/40 px-4 py-2 text-sm font-semibold text-[#1E293B] transition-all duration-150 ease-out hover:bg-white/70 disabled:opacity-50">Thêm lớp đã chọn</button>
-      {!!settings.selectedClasses?.length && <ul aria-label="Lớp đã chọn" className="max-h-32 space-y-1 overflow-y-auto text-sm">{settings.selectedClasses.map((item, index) => <li key={`${item.year}-${item.semester}-${item.className}-${index}`} className="flex items-center justify-between rounded-xl border border-white/70 bg-white/50 px-2 py-1"><span>{item.className} · {item.year}/{item.semester}</span><button type="button" aria-label={`Bỏ lớp ${index + 1}`} disabled={busy} onClick={() => setSettings((current) => ({ ...current, selectedClasses: (current.selectedClasses || []).filter((_, i) => i !== index) }))} className="text-rose-700">Bỏ</button></li>)}</ul>}
+      {!!settings.selectedClasses?.length && <div className="overflow-x-auto rounded-xl border border-white/70 bg-white/50"><table className="min-w-[720px] w-full text-left text-sm"><caption className="p-2 text-left font-semibold">Cấu hình đã lưu theo lớp</caption><thead><tr className="border-t border-white/70"><th className="p-2">Lớp</th><th className="p-2">Nguồn</th><th className="p-2">Số tuần</th><th className="p-2">Tuần đích</th><th className="p-2">Trạng thái</th><th className="p-2">Thao tác</th></tr></thead><tbody>{settings.selectedClasses.map((item, index) => { const row = statusFor(item); const saved = savedSettings.selectedClasses?.find((value) => JSON.stringify(value) === JSON.stringify(item)); return <tr key={`${item.year}-${item.semester}-${item.className}-${index}`} className="border-t border-white/70 align-top"><td className="p-2 font-semibold">{item.className}<div className="text-xs font-normal text-slate-600">{item.year}/{item.semester}</div></td><td className="p-2">{[item.faculty, item.course].filter(Boolean).join(' · ') || 'Tất cả'}</td><td className="p-2"><input aria-label={`Số tuần lớp ${index + 1}`} type="number" min={1} max={100} value={item.weekCount || 1} disabled={busy} onChange={(e) => updateClassDraft(index, { weekCount: Number(e.target.value) })} className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1" /></td><td className="p-2">{row?.targetWeeks?.join(', ') || (row?.error || 'Chưa xác định')}</td><td className="p-2">{row?.status || 'Chưa lưu'}</td><td className="p-2"><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || JSON.stringify(saved) === JSON.stringify(item)} onClick={() => void save()} className="rounded-lg border px-2 py-1 disabled:opacity-50">Lưu</button><button type="button" disabled={busy || !saved} onClick={() => saved && void timetableApi.startSavedClassSync(saved).then(setJob).catch((e: Error) => setError(e.message))} className="rounded-lg bg-[#1A73E8] px-2 py-1 text-white disabled:opacity-50">Đồng bộ</button><button type="button" aria-label={`Bỏ lớp ${index + 1}`} disabled={busy} onClick={() => setSettings((current) => ({ ...current, selectedClasses: (current.selectedClasses || []).filter((_, i) => i !== index) }))} className="rounded-lg px-2 py-1 text-rose-700">Bỏ</button></div></td></tr>})}</tbody></table></div>}
       {settings.coverage.length > 0 && <ul aria-label="Phạm vi đồng bộ" className="max-h-48 space-y-2 overflow-y-auto">
         {settings.coverage.map((item, index) => <li key={selectionKey(item)} className="flex items-start justify-between gap-2 rounded-xl border border-white/70 bg-white/50 p-2 text-sm">
           <span>{describe(item)}{!item.className && ' · Tất cả lớp'}</span>

@@ -29,6 +29,7 @@ export interface TimetableClassSelection {
   faculty?: string;
   course?: string;
   className: string;
+  weekCount?: number;
 }
 
 export interface TimetableRollingPolicy {
@@ -42,6 +43,15 @@ export interface TimetableSyncSettings {
   coverage: TimetableFilters[];
   selectedClasses?: TimetableClassSelection[];
   rolling?: TimetableRollingPolicy;
+}
+
+export interface TimetableClassSyncStatus {
+  classSelection: TimetableClassSelection;
+  weekCount: number;
+  targetWeeks: string[];
+  status: 'valid' | 'pending' | 'running' | 'failed' | 'missing' | 'configuration';
+  weeks: Array<{ week: string; status: 'valid' | 'pending' | 'running' | 'failed' | 'missing'; failure?: string }>;
+  error?: string;
 }
 
 export interface TimetableOptions {

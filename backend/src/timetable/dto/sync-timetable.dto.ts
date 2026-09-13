@@ -15,7 +15,10 @@ export class TimetableClassSelectionDto {
   @IsOptional() @IsString() faculty?: string;
   @IsOptional() @IsString() course?: string;
   @IsString() className!: string;
+  @IsOptional() @IsInt() @Min(1) @Max(100) weekCount?: number;
 }
+
+export class SavedTimetableClassSyncDto extends TimetableClassSelectionDto {}
 
 export class TimetableWeekDateDto {
   @IsString() year!: string;
