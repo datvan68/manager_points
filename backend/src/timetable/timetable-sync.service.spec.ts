@@ -20,8 +20,9 @@ function setup() {
     updateOne: jest.fn(() => chain({ matchedCount: 1 })),
   };
   const adapter = { getOptions: jest.fn(), getTimetable: jest.fn(async () => ({ isEmpty: true, lessons: [], filters: selection })) };
-  const service = new TimetableSyncService(adapter as any, snapshots as any, states as any);
-  return { service, adapter, snapshots, states, state, session };
+  const classes = { find: jest.fn(() => chain([])) };
+  const service = new TimetableSyncService(adapter as any, snapshots as any, states as any, classes as any);
+  return { service, adapter, snapshots, states, classes, state, session };
 }
 
 describe('TimetableSyncService', () => {
@@ -116,6 +117,24 @@ describe('TimetableSyncService', () => {
     expect(states.updateOne.mock.calls[0][1].$set.settings).toMatchObject({ selectedClasses: [{ className: 'A' }], rolling: { enabled: true } });
     expect(adapter.getTimetable).not.toHaveBeenCalled();
     expect(states.updateOne).toHaveBeenCalledWith({ name: 'default' }, expect.objectContaining({ $set: expect.objectContaining({ settings: expect.any(Object) }) }), expect.objectContaining({ upsert: true }));
+  });
+
+  it('validates persistent links against class IDs and a fresh source context, then enrolls without schedule fetch', async () => {
+    const { service, adapter, classes, states } = setup();
+    classes.find.mockReturnValue(chain([{ _id: 'system-1', class_name: 'Lớp A' }]));
+    adapter.getOptions.mockResolvedValue({ classes: [{ value: 'opaque-a', label: ' LỚP   A ', parent: { year: '2026', semester: '1' } }], weeks: [] });
+    await service.updateSettings(admin, { enabled: true, intervalMinutes: 60, coverage: [], classLinks: [{ systemClassId: 'system-1', year: '2026', semester: '1', className: 'opaque-a', sourceLabel: ' LỚP   A ', matchMethod: 'auto' }] });
+    expect(adapter.getOptions).toHaveBeenCalledWith(expect.stringContaining('sync-links:admin-1'), { year: '2026', semester: '1', faculty: '', course: '' });
+    expect(states.updateOne.mock.calls[0][1].$set.settings).toMatchObject({ classLinks: [{ systemClassId: 'system-1' }], selectedClasses: [{ className: 'opaque-a' }] });
+    expect(adapter.getTimetable).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown IDs and duplicate source assignments', async () => {
+    const { service, classes, adapter } = setup();
+    classes.find.mockReturnValue(chain([]));
+    await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, classLinks: [{ systemClassId: 'missing', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_SYSTEM_CLASS_NOT_FOUND' } });
+    classes.find.mockReturnValue(chain([{ _id: 'one' }, { _id: 'two' }])); adapter.getOptions.mockResolvedValue({ classes: [{ value: 'a', label: 'A' }], weeks: [] });
+    await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, classLinks: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }, { systemClassId: 'two', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_DUPLICATE_SOURCE_CLASS' } });
   });
 
   it('coalesces a demand request and rejects an unselected scope before source work', async () => {

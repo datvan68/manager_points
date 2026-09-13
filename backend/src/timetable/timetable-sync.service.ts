@@ -9,7 +9,8 @@ import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, Save
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { getTimetableConfig, TimetableConfig } from './timetable.config';
-import { TimetableClassSelection, TimetableFilters, TimetableSourceError, TimetableWeekDate, TimetableClassSyncStatus } from './timetable.types';
+import { TimetableClassSelection, TimetableClassLink, TimetableFilters, TimetableSourceError, TimetableWeekDate, TimetableClassSyncStatus } from './timetable.types';
+import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { timetableFields, timetableKey } from './timetable-selection';
 
 const STATE = 'default';
@@ -31,6 +32,7 @@ export class TimetableSyncService {
     private readonly adapter: SchoolTimetableAdapter,
     @InjectModel(TimetableSnapshot.name) private readonly snapshots: Model<TimetableSnapshotDocument>,
     @InjectModel(TimetableSyncState.name) private readonly states: Model<TimetableSyncStateDocument>,
+    @Optional() @InjectModel(Class.name) private readonly classes?: Model<ClassDocument>,
     @Optional() configService?: ConfigService,
   ) { this.config = getTimetableConfig(configService || ({ get: () => undefined } as any)); }
 
@@ -80,9 +82,46 @@ export class TimetableSyncService {
   async getSettings(user: any) { this.assertAdmin(user); return (await this.state()).settings; }
 
   async updateSettings(user: any, dto: TimetableSettingsDto) {
-    this.assertAdmin(user); const coverage = this.validateCoverage(dto.coverage || [], true); const selectedClasses = this.validateSelectedClasses(dto.selectedClasses || []); const rolling = this.validateRolling(dto.rolling || { enabled: false, weekDates: [] });
-    if (!coverage.length && !selectedClasses.length) throw new ConflictException('Cần chọn ít nhất một lớp hoặc phạm vi đồng bộ.');
-    await this.states.updateOne({ name: STATE }, { $set: { settings: { enabled: dto.enabled, intervalMinutes: dto.intervalMinutes, coverage, selectedClasses, rolling } } }, { upsert: true }).exec(); return (await this.state()).settings;
+    this.assertAdmin(user); const current = await this.state(); const coverage = this.validateCoverage(dto.coverage ?? current.settings?.coverage ?? [], true);
+    const selectedClasses = this.validateSelectedClasses(dto.selectedClasses ?? current.settings?.selectedClasses ?? []);
+    const classLinks = await this.validateClassLinks(user, dto.classLinks ?? current.settings?.classLinks ?? []);
+    const enrolled: TimetableClassSelection[] = [...selectedClasses];
+    for (const link of classLinks) {
+      const item = this.linkSelection(link);
+      if (!enrolled.some((candidate) => this.classIdentity(candidate) === this.classIdentity(item))) enrolled.push(item);
+    }
+    const rolling = this.validateRolling(dto.rolling || current.settings?.rolling || { enabled: false, weekDates: [] });
+    if (!coverage.length && !enrolled.length && !classLinks.length) throw new ConflictException('Cần chọn ít nhất một lớp hoặc phạm vi đồng bộ.');
+    await this.states.updateOne({ name: STATE }, { $set: { settings: { enabled: dto.enabled, intervalMinutes: dto.intervalMinutes, coverage, selectedClasses: enrolled, classLinks, rolling } } }, { upsert: true }).exec(); return (await this.state()).settings;
+  }
+
+  private normalizeName(value: unknown) { return String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase(); }
+  private linkSelection(link: TimetableClassLink): TimetableClassSelection { const { systemClassId: _id, sourceLabel: _label, matchMethod: _method, ...selection } = link; return selection; }
+  private sourceMatches(link: TimetableClassLink, option: any) {
+    if (!option || option.value !== link.className) return false;
+    const parent = option.parent || {};
+    return ['year', 'semester', 'faculty', 'course'].every((field) => !link[field as keyof TimetableClassLink] || !parent[field] || parent[field] === link[field as keyof TimetableClassLink]);
+  }
+  private async validateClassLinks(user: any, links: TimetableClassLink[]): Promise<TimetableClassLink[]> {
+    if (links.length > this.config.queueLimit) throw new ConflictException('Danh sách liên kết lớp không hợp lệ.');
+    if (!links.length) return [];
+    const ids = [...new Set(links.map((link) => link.systemClassId))];
+    if (!this.classes) throw new ConflictException('Không thể xác thực lớp hệ thống.');
+    const records = await this.classes.find({ _id: { $in: ids } }).lean().exec();
+    const byId = new Map(records.map((record: any) => [String(record._id), record]));
+    if (byId.size !== ids.length) throw new ConflictException({ reasonCode: 'TIMETABLE_SYSTEM_CLASS_NOT_FOUND', message: 'Một hoặc nhiều lớp hệ thống không còn tồn tại.' });
+    const seenSystems = new Set<string>(); const seenSources = new Set<string>(); const contexts = new Map<string, Promise<any>>();
+    for (const link of links) {
+      if (seenSystems.has(link.systemClassId)) throw new ConflictException({ reasonCode: 'TIMETABLE_DUPLICATE_SYSTEM_CLASS', message: 'Không được liên kết trùng lớp hệ thống.' });
+      const sourceKey = this.classIdentity(link); if (seenSources.has(sourceKey)) throw new ConflictException({ reasonCode: 'TIMETABLE_DUPLICATE_SOURCE_CLASS', message: 'Không được gán trùng lớp nguồn trong cùng ngữ cảnh.' });
+      seenSystems.add(link.systemClassId); seenSources.add(sourceKey);
+      if (!link.year || !link.semester || !link.className || !link.sourceLabel) throw new ConflictException('Liên kết lớp thiếu ngữ cảnh nguồn.');
+      const contextKey = JSON.stringify([link.year, link.semester, link.faculty || '', link.course || '']);
+      if (!contexts.has(contextKey)) contexts.set(contextKey, this.adapter.getOptions(`sync-links:${String(user.userId)}:${contextKey}`, { year: link.year, semester: link.semester, faculty: link.faculty || '', course: link.course || '' }));
+      const options = await contexts.get(contextKey)!;
+      if (!(options.classes || []).some((option: any) => this.sourceMatches(link, option) && option.label === link.sourceLabel)) throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_LINK_NOT_FOUND', message: `Lớp nguồn ${link.sourceLabel} không thuộc đúng ngữ cảnh đã tải.` });
+    }
+    return links.map((link) => ({ ...link, faculty: link.faculty || '', course: link.course || '', weekCount: Number.isInteger(link.weekCount) ? link.weekCount : 1 }));
   }
 
   private validateCoverage(coverage: TimetableCoverageDto[] = [], allowEmpty = false) {

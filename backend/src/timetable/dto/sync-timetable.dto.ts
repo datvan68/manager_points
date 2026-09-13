@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QueryTimetableDto } from './query-timetable.dto';
 
@@ -16,6 +16,12 @@ export class TimetableClassSelectionDto {
   @IsOptional() @IsString() course?: string;
   @IsString() className!: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) weekCount?: number;
+}
+
+export class TimetableClassLinkDto extends TimetableClassSelectionDto {
+  @IsString() @IsNotEmpty() systemClassId!: string;
+  @IsString() @IsNotEmpty() sourceLabel!: string;
+  @IsIn(['auto', 'manual']) matchMethod!: 'auto' | 'manual';
 }
 
 export class SavedTimetableClassSyncDto extends TimetableClassSelectionDto {}
@@ -46,6 +52,8 @@ export class TimetableSettingsDto {
   coverage?: TimetableCoverageDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TimetableClassSelectionDto)
   selectedClasses?: TimetableClassSelectionDto[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TimetableClassLinkDto)
+  classLinks?: TimetableClassLinkDto[];
   @IsOptional() @ValidateNested() @Type(() => TimetableRollingPolicyDto)
   rolling?: TimetableRollingPolicyDto;
 }

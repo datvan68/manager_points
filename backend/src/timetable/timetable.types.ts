@@ -32,6 +32,14 @@ export interface TimetableClassSelection {
   weekCount?: number;
 }
 
+export type TimetableClassLinkMatchMethod = 'auto' | 'manual';
+
+export interface TimetableClassLink extends TimetableClassSelection {
+  systemClassId: string;
+  sourceLabel: string;
+  matchMethod: TimetableClassLinkMatchMethod;
+}
+
 export interface TimetableRollingPolicy {
   enabled: boolean;
   weekDates?: TimetableWeekDate[];
@@ -42,6 +50,7 @@ export interface TimetableSyncSettings {
   intervalMinutes: number;
   coverage: TimetableFilters[];
   selectedClasses?: TimetableClassSelection[];
+  classLinks?: TimetableClassLink[];
   rolling?: TimetableRollingPolicy;
 }
 

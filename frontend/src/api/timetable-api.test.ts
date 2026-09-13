@@ -4,6 +4,20 @@ import { handleResponse, httpClient } from './http-client';
 vi.mock('./http-client', () => ({ httpClient: vi.fn(), handleResponse: vi.fn() }));
 
 describe('timetableApi', () => {
+  it('sends only DTO fields when syncing a linked class or checking its week', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
+    vi.mocked(handleResponse).mockResolvedValue({ status: 'pending' });
+    const selection = { year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'opaque|class', weekCount: 12 };
+    const link = { ...selection, systemClassId: 'system-1', sourceLabel: 'Class A', matchMethod: 'manual' as const };
+    await timetableApi.startSavedClassSync(link);
+    expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[0][1]?.body))).toEqual(selection);
+    await timetableApi.syncSavedClassWeek({ ...link, week: 'opaque|week' }, 'update');
+    expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[1][1]?.body))).toEqual({ ...selection, week: 'opaque|week', intent: 'update' });
+    await timetableApi.getSavedClassWeekStatus({ ...link, week: 'opaque|week' });
+    const params = new URL(String(vi.mocked(httpClient).mock.calls[2][0]), 'http://localhost').searchParams;
+    expect(Object.fromEntries(params)).toEqual({ ...selection, weekCount: '12', week: 'opaque|week' });
+    expect(link).toMatchObject({ systemClassId: 'system-1', sourceLabel: 'Class A', matchMethod: 'manual' });
+  });
   it('times out a stalled request and aborts its fetch', async () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
@@ -33,5 +47,12 @@ describe('timetableApi', () => {
     await timetableApi.syncSavedClassWeek(selection, 'update');
     expect(vi.mocked(httpClient).mock.calls[1][0]).toContain('/timetable/sync/class/week');
     expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[1][1]?.body))).toMatchObject({ week: 'opaque|past', intent: 'update' });
+  });
+
+  it('serializes persistent class links additively when saving settings', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
+    vi.mocked(handleResponse).mockResolvedValue({ enabled: true, intervalMinutes: 60, coverage: [], classLinks: [] });
+    await timetableApi.updateSyncSettings({ enabled: true, intervalMinutes: 60, coverage: [], selectedClasses: [{ year: '2026', semester: '1', className: 'legacy' }], classLinks: [{ systemClassId: 'system-1', year: '2026', semester: '1', className: 'opaque-1', sourceLabel: 'Class 1', matchMethod: 'manual' }] });
+    expect(JSON.parse(String(vi.mocked(httpClient).mock.calls[0][1]?.body))).toMatchObject({ classLinks: [{ systemClassId: 'system-1', className: 'opaque-1', matchMethod: 'manual' }], selectedClasses: [{ className: 'legacy' }] });
   });
 });
