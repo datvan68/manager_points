@@ -467,10 +467,10 @@ export default function TimetableSyncPanel({
   return (
     <section
       aria-label="Quản trị đồng bộ thời khóa biểu"
-      className="min-w-0 space-y-4 rounded-2xl border border-white/75 bg-white/45 p-4 sm:p-5 shadow-sm shadow-slate-300/40 backdrop-blur-md"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-2xl border border-white/75 bg-white/45 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md sm:p-5"
     >
       {/* Header & Status Indicator */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/60 pb-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/60 pb-3">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-[#1E293B]">
             Quản trị đồng bộ
@@ -512,7 +512,7 @@ export default function TimetableSyncPanel({
       </div>
 
       {/* Menu and source configuration */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/40 p-2.5 shadow-sm backdrop-blur-sm">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/40 p-2.5 shadow-sm backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="px-2 text-xs font-bold text-[#1E293B]">Cấu hình liên kết</span>
           <Popover>
@@ -618,21 +618,21 @@ export default function TimetableSyncPanel({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+      <div className="flex shrink-0 flex-col items-stretch gap-2.5 rounded-xl border border-white/60 bg-white/30 p-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <input
             aria-label="Tìm lớp"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm lớp hệ thống"
-            className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] placeholder:text-[#64748B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+          className="h-[33px] w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] placeholder:text-[#64748B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
           />
         </div>
         <select
           aria-label="Khoa hệ thống"
           value={department}
           onChange={(e) => setDepartment(e.target.value)}
-          className="rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[190px]"
         >
           <option value="">Tất cả khoa</option>
           {departments.map((value) => (
@@ -645,7 +645,7 @@ export default function TimetableSyncPanel({
           aria-label="Trạng thái liên kết"
           value={linkStatus}
           onChange={(e) => setLinkStatus(e.target.value)}
-          className="rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[190px]"
         >
           <option value="all">Mọi trạng thái</option>
           <option value="linked">Đã liên kết</option>
@@ -655,7 +655,7 @@ export default function TimetableSyncPanel({
           aria-label="Kiểu hiển thị"
           value={view}
           onChange={(e) => setView(e.target.value as 'system' | 'source')}
-          className="rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[220px]"
         >
           <option value="system">Lớp hệ thống</option>
           <option value="source">Lớp nguồn / chưa liên kết</option>
@@ -663,14 +663,14 @@ export default function TimetableSyncPanel({
       </div>
 
       {/* Class Mapping Table */}
-      <div className="flex max-h-[calc(100vh-300px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
-        <div className="min-h-0 max-h-[min(60vh,600px)] flex-1 overflow-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[1050px] border-collapse text-left text-xs">
             <caption className="border-b border-white/70 bg-white/60 px-4 py-2.5 text-left text-xs font-bold text-[#1E293B]">
               Bảng quản lý liên kết lớp
             </caption>
-            <thead>
-              <tr className="border-b border-white/70 bg-white/70 text-[11px] font-bold uppercase tracking-wider text-[#1E293B]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-white/70 bg-white/90 text-[11px] font-bold uppercase tracking-wider text-[#1E293B]">
                 <th className="px-3.5 py-3"><input aria-label="Chọn tất cả lớp trên trang" type="checkbox" checked={allVisibleSelected} onChange={(e) => toggleVisible(e.target.checked)} disabled={!eligibleVisibleIds.length || bulkSubmitting} /></th>
                 <th className="px-3.5 py-3">Lớp hệ thống</th>
                 <th className="px-3.5 py-3">Khoa nguồn</th>
@@ -684,7 +684,7 @@ export default function TimetableSyncPanel({
             </thead>
             <tbody>
               {view === 'system' ? (
-                visibleClasses.map((item) => {
+                visibleClasses.length ? visibleClasses.map((item) => {
                   const link = draftFor(item);
                   const path = paths[item._id] || {
                     faculty: link?.faculty || '',
@@ -879,9 +879,11 @@ export default function TimetableSyncPanel({
                       </td>
                     </tr>
                   );
-                })
+                }) : (
+                  <tr><td colSpan={9} className="px-6 py-12 text-center text-sm font-semibold text-slate-400">Không có lớp phù hợp.</td></tr>
+                )
               ) : (
-                (catalog?.classes || []).map((source) => (
+                (catalog?.classes || []).length ? (catalog?.classes || []).map((source) => (
                   <tr
                     key={source.value}
                     className="border-b border-white/50 transition-colors duration-150 ease-out hover:bg-white/40"
@@ -911,11 +913,27 @@ export default function TimetableSyncPanel({
                       Không đủ điều kiện đồng bộ
                     </td>
                   </tr>
-                ))
+                )) : (
+                  <tr><td colSpan={9} className="px-6 py-12 text-center text-sm font-semibold text-slate-400">Không có lớp nguồn.</td></tr>
+                )
               )}
             </tbody>
           </table>
         </div>
+
+        {view === 'system' && (
+          <div className="shrink-0 border-t border-white/60 bg-white/40 px-2 backdrop-blur-md">
+            <CustomPagination
+              totalItems={filteredClasses.length}
+              pageSize={pageSize}
+              currentPage={Math.min(page, totalPages)}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+              pageSizeOptions={[10, 20, 50]}
+              label="lớp"
+            />
+          </div>
+        )}
       </div>
 
       {view === 'system' && (
@@ -933,20 +951,6 @@ export default function TimetableSyncPanel({
             </>
           )}
         />
-      )}
-
-      {view === 'system' && (
-        <div className="w-full overflow-x-auto">
-          <CustomPagination
-            totalItems={filteredClasses.length}
-            pageSize={pageSize}
-            currentPage={Math.min(page, totalPages)}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-            pageSizeOptions={[10, 20, 50]}
-            label="lớp"
-          />
-        </div>
       )}
 
       {/* Messages and Alerts */}

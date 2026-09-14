@@ -13,6 +13,21 @@ const openSourceConfig = () => fireEvent.click(screen.getByRole('button', { name
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(classApi.getClasses).mockResolvedValue([{ _id: 'c1', class_name: 'Lớp A', class_year: '2026', dept_id: 'd1', class_type: 'Cao đẳng' }]); vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings, job: null, lastSuccessfulUpdate: null }); vi.mocked(timetableApi.loadCatalog).mockResolvedValue(catalog); vi.mocked(timetableApi.updateSyncSettings).mockImplementation(async (value) => value); vi.mocked(timetableApi.syncSavedClassWeek).mockResolvedValue({ status: 'pending', key: 'k', selection: { year: '2026', semester: '1', className: 'A', week: 'w1' } }); vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'running', id: 'job', total: 1 }); vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { year: '2026', semester: '1', className: 'A', week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: null, isEmpty: false }); });
 
 describe('TimetableSyncPanel', () => {
+  it('keeps the filter bar responsive and the table footer outside the scroll area', async () => {
+    render(<TimetableSyncPanel />);
+    await screen.findAllByText('Lớp A');
+    const panel = screen.getByRole('region', { name: 'Quản trị đồng bộ thời khóa biểu' });
+    expect(panel).toHaveClass('flex', 'min-h-0', 'overflow-hidden');
+    expect(screen.getByLabelText('Tìm lớp')).toBeInTheDocument();
+    expect(screen.getByLabelText('Khoa hệ thống')).toBeInTheDocument();
+    expect(screen.getByLabelText('Trạng thái liên kết')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kiểu hiển thị')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' })).toBeInTheDocument();
+    expect(screen.getByRole('table').querySelector('thead')).toHaveClass('sticky', 'top-0');
+    expect(screen.getByText(/Hiển thị 1-1 trên tổng số 1 lớp/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Trang sau' })).toBeInTheDocument();
+  });
+
   it('opens and closes advanced source configuration from the menu', async () => {
     render(<TimetableSyncPanel />);
     await screen.findAllByText('Lớp A');
