@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { classApi, type Class } from '@/api/class-api';
 import { timetableApi, type TimetableClassLink, type TimetableClassSyncStatus, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings } from '@/api/timetable-api';
+import FloatingActionBar from '@/components/ui/FloatingActionBar';
+import { CustomPagination } from '@/components/ui/pagination';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -902,28 +904,32 @@ export default function TimetableSyncPanel({
       </div>
 
       {view === 'system' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3" aria-label="Đồng bộ hàng loạt">
-          <span className="text-xs font-semibold text-blue-800">Đã chọn {selectedLinks.length} lớp</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <select aria-label="Tuần đồng bộ chung" value={bulkWeek} onChange={(e) => setBulkWeek(e.target.value)} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-2.5 py-1.5 text-xs">
-              <option value="">Chọn tuần chung</option>
-              {commonWeeks.map((week) => <option key={week} value={week}>{week}</option>)}
-            </select>
-            <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{bulkSubmitting ? 'Đang gửi...' : 'Đồng bộ đã chọn'}</button>
-            <button type="button" onClick={() => { setSelectedClassIds(new Set()); setBulkWeek(''); }} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 disabled:opacity-40">Xóa lựa chọn</button>
-          </div>
-        </div>
+        <FloatingActionBar
+          selectedCount={selectedLinks.length}
+          onClear={() => { setSelectedClassIds(new Set()); setBulkWeek(''); }}
+          itemLabel="lớp"
+          actions={(
+            <>
+              <select aria-label="Tuần đồng bộ chung" value={bulkWeek} onChange={(e) => setBulkWeek(e.target.value)} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-2.5 py-1.5 text-xs">
+                <option value="">Chọn tuần chung</option>
+                {commonWeeks.map((week) => <option key={week} value={week}>{week}</option>)}
+              </select>
+              <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{bulkSubmitting ? 'Đang gửi...' : 'Đồng bộ đã chọn'}</button>
+            </>
+          )}
+        />
       )}
 
       {view === 'system' && (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748B]" aria-label="Phân trang bảng lớp">
-          <span>Trang {Math.min(page, totalPages)}/{totalPages} · {filteredClasses.length} lớp</span>
-          <div className="flex items-center gap-2">
-            <label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded border px-1.5 py-1"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select> dòng</label>
-            <button type="button" aria-label="Trang trước" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} className="rounded border px-2 py-1 disabled:opacity-40">‹</button>
-            <button type="button" aria-label="Trang sau" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages} className="rounded border px-2 py-1 disabled:opacity-40">›</button>
-          </div>
-        </div>
+        <CustomPagination
+          totalItems={filteredClasses.length}
+          pageSize={pageSize}
+          currentPage={Math.min(page, totalPages)}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          pageSizeOptions={[10, 20, 50]}
+          label="lớp"
+        />
       )}
 
       {/* Messages and Alerts */}
