@@ -449,7 +449,7 @@ describe("StudentDirectorySearch", () => {
     await act(async () => { resolveCreate({}); await Promise.resolve(); });
   });
 
-  it("shows advisor and a collapsed, keyboard-operable timetable detail", async () => {
+  it("shows advisor and opens the timetable day popover from a collapsed button", async () => {
     vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
       status: "available", date: "2026-09-14", lessons: [{ subject: "Toán", day: 1, startPeriod: 1, endPeriod: 2, teacher: "Cô A", room: "A101" }],
     });
@@ -457,13 +457,14 @@ describe("StudentDirectorySearch", () => {
     expect(screen.getByText("GVCN")).toBeInTheDocument();
     expect(screen.getByText("Cô Chủ nhiệm")).toBeInTheDocument();
     expect(screen.getByText("Có lịch học")).toBeInTheDocument();
-    const toggle = screen.getByRole("button", { name: "Xem chi tiết" });
+    const toggle = screen.getByRole("button", { name: "Xem lịch" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Toán")).not.toBeInTheDocument();
-    fireEvent.keyDown(toggle, { key: "Enter" });
     fireEvent.click(toggle);
     expect(screen.getByText("Toán")).toBeInTheDocument();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(toggle, { key: "Escape" });
+    expect(screen.queryByText("Toán")).not.toBeInTheDocument();
   });
 
   it("does not replace unavailable timetable data with no-schedule status", async () => {

@@ -9,7 +9,9 @@ import { ApiError } from "@/api/http-client";
 import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { semesterApi, Semester } from "@/api/semester-api";
-import { timetableApi, TodayTimetableResult, TimetableLesson } from "@/api/timetable-api";
+import { timetableApi, TodayTimetableResult } from "@/api/timetable-api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import TimetableDayView from "@/components/timetable/TimetableDayView";
 import { useAuth } from "@/providers/auth-provider";
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from "@/components/grading/criterion-usage";
 
@@ -395,28 +397,20 @@ export default function StudentDirectorySearch({
                 {todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
               </p>
             </div>
-            {todayTimetable?.status === "available" && (
-              <button
-                type="button"
-                aria-expanded={todayDetailsOpen}
-                aria-controls="student-timetable-details"
-                onClick={() => setTodayDetailsOpen((open) => !open)}
-                className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[#1A73E8] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0"
-              >
-                {todayDetailsOpen ? "Thu gọn" : "Xem chi tiết"}
-              </button>
-            )}
+            <Popover open={todayDetailsOpen} onOpenChange={setTodayDetailsOpen}>
+              <PopoverTrigger asChild>
+                <button type="button" aria-expanded={todayDetailsOpen} aria-controls="student-timetable-details" className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[#1A73E8] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0">
+                  {todayDetailsOpen ? "Đóng lịch" : "Xem lịch"}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent id="student-timetable-details" align="end" className="w-[min(92vw,26rem)] p-3" onOpenAutoFocus={(event) => event.preventDefault()}>
+                {todayLoading && <p className="py-8 text-center text-xs text-[#64748B]">Đang tải thời khóa biểu...</p>}
+                {todayError && <p className="py-8 text-center text-xs font-medium text-rose-700">Không thể tải thời khóa biểu. Vui lòng thử lại.</p>}
+                {!todayLoading && !todayError && todayTimetable?.status === "unavailable" && <p className="py-8 text-center text-xs font-medium text-amber-700">Chưa có dữ liệu thời khóa biểu cho lớp này hôm nay.</p>}
+                {!todayLoading && !todayError && todayTimetable && <TimetableDayView date={todayTimetable.date} lessons={todayTimetable.lessons} />}
+              </PopoverContent>
+            </Popover>
           </div>
-          {todayDetailsOpen && todayTimetable?.status === "available" && (
-            <ul id="student-timetable-details" className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2 text-xs text-[#334155]">
-              {todayTimetable.lessons.map((lesson: TimetableLesson, index) => (
-                <li key={`${lesson.subject}-${lesson.startPeriod}-${index}`} className="rounded-lg bg-white/60 px-2.5 py-2">
-                  <span className="font-semibold">{lesson.subject}</span> · Tiết {lesson.startPeriod}{lesson.endPeriod !== lesson.startPeriod ? `-${lesson.endPeriod}` : ""}
-                  {lesson.teacher ? ` · ${lesson.teacher}` : ""}{lesson.room ? ` · Phòng ${lesson.room}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
 
         {canCreateRecord && (

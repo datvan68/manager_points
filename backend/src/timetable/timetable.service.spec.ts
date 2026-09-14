@@ -96,19 +96,34 @@ describe('TimetableService', () => {
   it('returns only lessons for today from the linked class snapshot', async () => {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const { service, snapshots } = setup();
-    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', week: 'w1', className: 'A' }] } })) };
+    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'A' }], rolling: { weekDates: [{ year: '2026', semester: '1', week: 'w1', startDate: today, endDate: today }] } } })) };
     const linkedService = new TimetableService(snapshots as any, states as any);
     snapshots.findOne.mockReturnValueOnce(chain({ result: { startDate: today, endDate: today, lessons: [{ date: today, subject: 'Toán' }, { date: '2099-01-01', subject: 'Sai ngày' }] }, syncedAt: 'date', coverageKey: 'key' }));
     await expect(linkedService.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'available', date: today, lessons: [{ subject: 'Toán' }] });
-    expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey({ year: '2026', semester: '1', week: 'w1', className: 'A' }) });
+    expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey({ year: '2026', semester: '1', week: 'w1', faculty: 'f', course: 'c', className: 'A' }) });
   });
 
   it('marks missing links, dates, and snapshots as unavailable', async () => {
     const { service, snapshots } = setup();
     await expect(service.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'unavailable', lessons: [] });
-    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', week: 'w1', className: 'A' }] } })) };
+    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', className: 'A' }], rolling: { weekDates: [] } } })) };
     const linkedService = new TimetableService(snapshots as any, states as any);
-    snapshots.findOne.mockReturnValueOnce(chain({ result: { lessons: [] }, syncedAt: 'date' }));
+    snapshots.find.mockReturnValueOnce(chain([{ result: { lessons: [] }, syncedAt: 'date' }]));
     await expect(linkedService.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'unavailable' });
+  });
+
+  it('returns empty for a mapped week with a valid snapshot and rejects ambiguous day matches', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const { service, snapshots } = setup();
+    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', className: 'A' }], rolling: { weekDates: [{ year: '2026', semester: '1', week: 'w1', startDate: today, endDate: today }] } } })) };
+    const linkedService = new TimetableService(snapshots as any, states as any);
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { startDate: today, endDate: today, lessons: [] }, syncedAt: 'date' }));
+    await expect(linkedService.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'empty', lessons: [] });
+
+    const ambiguous = new TimetableService({ ...snapshots, find: jest.fn(() => chain([
+      { result: { startDate: today, endDate: today } },
+      { result: { startDate: today, endDate: today } },
+    ])) } as any, { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', className: 'A' }], rolling: { weekDates: [] } } })) } as any);
+    await expect(ambiguous.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'unavailable' });
   });
 });

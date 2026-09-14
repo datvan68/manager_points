@@ -50,12 +50,39 @@ export class TimetableService {
     const link = (state?.settings?.classLinks || []).find(
       (candidate: any) => String(candidate.systemClassId) === classId,
     );
-    if (!link?.year || !link?.semester || !link?.week || !link?.className) {
+    if (!link?.year || !link?.semester || !link?.className) {
       return { status: 'unavailable', date: this.todayInHoChiMinh(), lessons: [] as any[] };
     }
 
     const today = this.todayInHoChiMinh();
-    const snapshot = await this.snapshots.findOne({ key: timetableKey(link) }).lean().exec();
+    const context = {
+      year: link.year,
+      semester: link.semester,
+      faculty: link.faculty || '',
+      course: link.course || '',
+      className: link.className,
+    };
+    const rollingWeeks = (state?.settings?.rolling?.weekDates || []).filter(
+      (week: any) => week.year === context.year && week.semester === context.semester && week.startDate <= today && week.endDate >= today,
+    );
+    if (rollingWeeks.length > 1) {
+      return { status: 'unavailable', date: today, lessons: [] as any[] };
+    }
+
+    let snapshot: any = null;
+    if (rollingWeeks.length === 1) {
+      snapshot = await this.snapshots.findOne({ key: timetableKey({ ...context, week: rollingWeeks[0].week }) }).lean().exec();
+    } else {
+      const candidates = await this.snapshots.find(context).lean().exec();
+      const matching = (candidates || []).filter((candidate: any) => {
+        const result = candidate?.result;
+        return result?.startDate && result?.endDate && result.startDate <= today && result.endDate >= today;
+      });
+      if (matching.length !== 1) {
+        return { status: 'unavailable', date: today, lessons: [] as any[] };
+      }
+      snapshot = matching[0];
+    }
     const result = snapshot?.result as any;
     if (!snapshot || !result?.startDate || !result?.endDate || today < result.startDate || today > result.endDate) {
       return { status: 'unavailable', date: today, lessons: [] as any[] };
