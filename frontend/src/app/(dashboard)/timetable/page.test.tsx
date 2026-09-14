@@ -21,16 +21,16 @@ describe('TimetablePage', () => {
     expect(screen.getByRole('tablist').parentElement).toHaveClass('shrink-0');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('overflow-x-auto');
     expect(screen.getByRole('main')).toHaveClass('p-4', 'sm:p-6');
-    expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-controls', 'timetable-lookup-panel');
+    expect(screen.getByRole('tab', { name: 'Tra cứu' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Tra cứu' })).toHaveAttribute('aria-controls', 'timetable-lookup-panel');
     expect(document.getElementById('timetable-lookup-panel')).not.toHaveAttribute('hidden');
-    fireEvent.click(screen.getByRole('tab', { name: 'Cấu hình tkb' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Cấu hình' }));
     expect(document.getElementById('timetable-settings-panel')).not.toHaveAttribute('hidden');
     expect(document.getElementById('timetable-lookup-panel')).toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('button', { name: 'sync complete' }));
     expect(screen.getByTestId('lookup')).toHaveTextContent('lookup-1');
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Cấu hình tkb' }), { key: 'ArrowLeft' });
-    expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Cấu hình' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Tra cứu' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps lookup for permitted non-admin users without rendering configuration', () => {

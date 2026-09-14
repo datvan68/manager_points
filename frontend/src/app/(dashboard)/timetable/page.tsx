@@ -7,8 +7,8 @@ import { useAuth } from '@/providers/auth-provider';
 import TabNavigation from '@/components/ui/TabNavigation';
 
 const timetableTabs = [
-  { id: 'lookup', label: 'Tra tkb', panelId: 'timetable-lookup-panel' },
-  { id: 'settings', label: 'Cấu hình tkb', panelId: 'timetable-settings-panel' },
+  { id: 'lookup', label: 'Tra cứu', panelId: 'timetable-lookup-panel' },
+  { id: 'settings', label: 'Cấu hình', panelId: 'timetable-settings-panel' },
 ];
 
 export default function TimetablePage() {
