@@ -58,14 +58,41 @@ function parsePeriod(value: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-function parseLesson(text: string, day: number, startPeriod: number, endPeriod: number, classLabel?: string, sessionLabel?: string): TimetableLesson | undefined {
+function extractCellLines($: cheerio.CheerioAPI, element: any): string {
+  const blockTags = new Set(['div', 'li', 'p', 'section']);
+  const visit = (node: any): string => {
+    if (node.type === 'text') return node.data || '';
+    if (node.type !== 'tag') return '';
+    const tag = String(node.name || '').toLowerCase();
+    if (tag === 'br') return '\n';
+    const content = $(node).contents().toArray().map(visit).join('');
+    return blockTags.has(tag) ? `\n${content}\n` : content;
+  };
+  return $(element).contents().toArray().map(visit).join('');
+}
+
+function validHttpUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
+  } catch { return undefined; }
+}
+
+function parseLesson(text: string, links: string[] = [], day: number, startPeriod: number, endPeriod: number, classLabel?: string, sessionLabel?: string): TimetableLesson | undefined {
   const lines = text.split(/\n|\r/).map(clean).filter(Boolean);
   if (!lines.length) return undefined;
   const sourceTime = lines.find((line) => /\d{1,2}:\d{2}/.test(line));
   const subjectLine = lines[0];
   const code = subjectLine.match(/\[([^\]]+)\]/)?.[1];
   const rest = lines.slice(1).filter((line) => line !== sourceTime);
-  return { day, startPeriod, endPeriod, ...(classLabel ? { classLabel } : {}), ...(sessionLabel ? { sessionLabel } : {}), subject: subjectLine.replace(/\s*\[[^\]]+\]/, '').trim(), ...(code ? { subjectCode: code } : {}), teacher: rest.find((line) => /giảng viên|giáo viên|teacher|^gv\s*:/i.test(line))?.replace(/^.*?:\s*/, ''), room: rest.find((line) => /phòng|room|^p\s*:/i.test(line))?.replace(/^.*?:\s*/, ''), sourceTime };
+  const urlCandidates = [...links, ...rest.flatMap((line) => line.match(/https?:\/\/[^\s]+/gi) || [])];
+  const onlineUrl = urlCandidates.map((value) => validHttpUrl(value.replace(/[),.;]+$/, ''))).find(Boolean);
+  const durationLabel = lines.map((line) => line.match(/\(\s*\d+(?:[.,]\d+)?\s*h\s*\)/i)?.[0]).find(Boolean);
+  const teacherLine = rest.find((line) => /giảng viên|giáo viên|teacher|^gv\s*:/i.test(line) || /^(?:pgs\.|ts\.|ths\.|gs\.|cn\.|ks\.)\s+/i.test(line));
+  const roomLine = rest.find((line) => /phòng|room|^p\s*:/i.test(line) || /^[a-z]\d+(?:\.\d+)?\s*\([^)]*\)$/i.test(line));
+  const teacher = teacherLine?.replace(/^.*?:\s*/, '').replace(/\s*\(\s*\d+(?:[.,]\d+)?\s*h\s*\)\s*$/i, '').trim();
+  const room = roomLine?.replace(/^.*?:\s*/, '').trim();
+  return { day, startPeriod, endPeriod, ...(classLabel ? { classLabel } : {}), ...(sessionLabel ? { sessionLabel } : {}), subject: subjectLine.replace(/\s*\[[^\]]+\]/, '').trim(), ...(code ? { subjectCode: code } : {}), ...(teacher ? { teacher } : {}), ...(room ? { room } : {}), ...(onlineUrl ? { onlineUrl } : {}), ...(durationLabel ? { durationLabel: clean(durationLabel) } : {}), ...(sourceTime ? { sourceTime } : {}) };
 }
 
 function parseResultDates($: cheerio.CheerioAPI): Pick<TimetableResult, 'startDate' | 'endDate'> {
@@ -131,8 +158,9 @@ export function parseTimetable(html: string, filters: TimetableFilters): Timetab
     logicalRow.slice(3, 10).forEach((cell, index) => {
       if (!cell || cell.originRow !== rowIndex || !cell.text || /lớp|buổi|tiết|class|session|period/i.test(cell.text)) return;
       if (!period) return;
-      const cellLines = $(cell.element).contents().map((_: number, node: any) => node.type === 'tag' && node.name === 'br' ? '\n' : $(node).text()).get().join('');
-      const lesson = parseLesson(cellLines, index + 1, period, period + Math.max(1, cell.rowSpan) - 1, classText, sessionText);
+      const cellLines = extractCellLines($, cell.element);
+      const links = $(cell.element).find('a[href]').map((_: number, anchor: any) => $(anchor).attr('href') || '').get();
+      const lesson = parseLesson(cellLines, links, index + 1, period, period + Math.max(1, cell.rowSpan) - 1, classText, sessionText);
       if (lesson) lessons.push(lesson);
     });
   });

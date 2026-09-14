@@ -99,6 +99,7 @@ export interface TimetableLesson {
   teacher?: string;
   room?: string;
   onlineUrl?: string;
+  durationLabel?: string;
   sourceTime?: string;
   date?: string;
 }

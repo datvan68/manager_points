@@ -10,8 +10,24 @@ describe('timetable parser', () => {
     const options = parseTimetableOptions(`<select id="year"><option value="2025|a">2025-2026</option></select><select id="semester"><option value="2">Học kỳ 2</option></select><select id="week"><option value="54">55</option></select>`);
     expect(options.years).toEqual([{ label: '2025-2026', value: '2025|a' }]);
     const result = parseTimetable(`<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th><th>Thứ 3</th><th>Thứ 4</th></tr><tr><td>Lớp A</td><td>Tối</td><td rowspan="2">13</td><td rowspan="2">Toán<br/>Phòng: A101<br/>GV: Cô A<br/>06:00-09:15 (4h)</td><td>&nbsp;</td><td>&nbsp;</td></tr></table>`, { year: '2025|a', semester: '2', week: '54' });
-    expect(result.lessons).toEqual(expect.arrayContaining([expect.objectContaining({ subject: 'Toán', startPeriod: 13, endPeriod: 14, teacher: 'Cô A', sourceTime: '06:00-09:15 (4h)' })]));
+    expect(result.lessons).toEqual(expect.arrayContaining([expect.objectContaining({ subject: 'Toán', startPeriod: 13, endPeriod: 14, teacher: 'Cô A', room: 'A101', durationLabel: '(4h)', sourceTime: '06:00-09:15 (4h)' })]));
     expect(result.isEmpty).toBe(false);
+  });
+
+  it('preserves source-style room, teacher, duration and safe meeting links across HTML lines', () => {
+    const result = parseTimetable('<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th><th>Thứ 3</th></tr><tr><td>A</td><td>Sáng</td><td>1</td><td><span>CD-TTCAD-CAM</span><br><span>B0.7 (TH-QTMMT)</span><br><strong>ThS. Nguyễn Nhơn Hải (5h)</strong></td><td>CD-DACNCTM<br><a href="https://meet.google.com/xji-euts-xwt">https://meet.google.com/xji-euts-xwt</a><br><span>ThS. Lê Quang Trung</span><br>01:00-05:25 (3t)</td></tr></table>', { year: '2026', semester: '1', week: '1' });
+    expect(result.lessons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ subject: 'CD-TTCAD-CAM', teacher: 'ThS. Nguyễn Nhơn Hải', room: 'B0.7 (TH-QTMMT)', durationLabel: '(5h)' }),
+      expect.objectContaining({ subject: 'CD-DACNCTM', teacher: 'ThS. Lê Quang Trung', onlineUrl: 'https://meet.google.com/xji-euts-xwt', sourceTime: '01:00-05:25 (3t)' }),
+    ]));
+  });
+
+  it('rejects unsafe links and keeps absent optional fields absent', () => {
+    const result = parseTimetable('<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th></tr><tr><td>A</td><td>Sáng</td><td>1</td><td>Môn<br><a href="javascript:alert(1)">Họp</a></td></tr></table>', { year: 'y', semester: 's', week: 'w' });
+    expect(result.lessons[0]).not.toHaveProperty('onlineUrl');
+    expect(result.lessons[0]).not.toHaveProperty('teacher');
+    expect(result.lessons[0]).not.toHaveProperty('room');
+    expect(result.lessons[0]).not.toHaveProperty('durationLabel');
   });
 
   it('reads a valid result date range and assigns the calendar date to each lesson day', () => {
