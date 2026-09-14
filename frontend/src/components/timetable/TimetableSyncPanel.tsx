@@ -6,7 +6,7 @@ import { timetableApi, type TimetableClassLink, type TimetableClassSyncStatus, t
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, Search, SlidersHorizontal } from 'lucide-react';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -619,47 +619,22 @@ export default function TimetableSyncPanel({
 
       {/* Filter and Search Bar */}
       <div className="flex shrink-0 flex-col items-stretch gap-2.5 rounded-xl border border-white/60 bg-white/30 p-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative min-w-0 flex-1 sm:max-w-xs">
+        <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-md">
+          <Search aria-hidden="true" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
           <input
             aria-label="Tìm lớp"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm lớp hệ thống"
-          className="h-[33px] w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] placeholder:text-[#64748B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+            className="h-10 w-full rounded-xl border border-white/75 bg-white/60 py-2 pl-9 pr-3 text-xs font-medium text-[#1E293B] placeholder:text-[#64748B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
           />
         </div>
-        <select
-          aria-label="Khoa hệ thống"
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[190px]"
-        >
-          <option value="">Tất cả khoa</option>
-          {departments.map((value) => (
-            <option key={value} value={value}>
-              {value.replace('|', ' · ')}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Trạng thái liên kết"
-          value={linkStatus}
-          onChange={(e) => setLinkStatus(e.target.value)}
-          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[190px]"
-        >
-          <option value="all">Mọi trạng thái</option>
-          <option value="linked">Đã liên kết</option>
-          <option value="unlinked">Chưa liên kết</option>
-        </select>
-        <select
-          aria-label="Kiểu hiển thị"
-          value={view}
-          onChange={(e) => setView(e.target.value as 'system' | 'source')}
-          className="min-w-0 rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:max-w-[220px]"
-        >
-          <option value="system">Lớp hệ thống</option>
-          <option value="source">Lớp nguồn / chưa liên kết</option>
-        </select>
+        <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Khoa hệ thống</span><select aria-label="Khoa hệ thống" value={department} onChange={(e) => setDepartment(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="">Tất cả khoa</option>{departments.map((value) => <option key={value} value={value}>{value.replace('|', ' · ')}</option>)}</select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
+        <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Trạng thái liên kết</span><select aria-label="Trạng thái liên kết" value={linkStatus} onChange={(e) => setLinkStatus(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="all">Mọi trạng thái</option><option value="linked">Đã liên kết</option><option value="unlinked">Chưa liên kết</option></select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
+        <div role="group" aria-label="Kiểu hiển thị" className="flex h-10 shrink-0 items-center rounded-xl border border-white/70 bg-white/35 p-1 text-xs font-semibold text-[#64748B]">
+          <button type="button" aria-pressed={view === 'system'} onClick={() => setView('system')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'system' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp hệ thống</button>
+          <button type="button" aria-pressed={view === 'source'} onClick={() => setView('source')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'source' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp nguồn</button>
+        </div>
       </div>
 
       {/* Class Mapping Table */}

@@ -21,7 +21,7 @@ describe('TimetableSyncPanel', () => {
     expect(screen.getByLabelText('Tìm lớp')).toBeInTheDocument();
     expect(screen.getByLabelText('Khoa hệ thống')).toBeInTheDocument();
     expect(screen.getByLabelText('Trạng thái liên kết')).toBeInTheDocument();
-    expect(screen.getByLabelText('Kiểu hiển thị')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Kiểu hiển thị' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' })).toBeInTheDocument();
     expect(screen.getByRole('table').querySelector('thead')).toHaveClass('sticky', 'top-0');
     expect(screen.getByText(/Hiển thị 1-1 trên tổng số 1 lớp/)).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('TimetableSyncPanel', () => {
     vi.mocked(timetableApi.updateSyncSettings).mockRejectedValue(new Error('Lưu lỗi'));
     render(<TimetableSyncPanel />); await screen.findAllByText('Lớp A'); openSourceConfig(); fireEvent.change(screen.getByLabelText('year'), { target: { value: '2026' } }); fireEvent.change(screen.getByLabelText('semester'), { target: { value: '1' } }); fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu lớp' })); await waitFor(() => expect(screen.getByText('Tự động (unique)')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' })); await screen.findByRole('alert'); expect(screen.getByRole('combobox', { name: 'Nguồn cho Lớp A' })).toHaveValue('A');
-    fireEvent.change(screen.getByLabelText('Kiểu hiển thị'), { target: { value: 'source' } }); expect(within(screen.getByRole('table')).getAllByText('Source-only')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Lớp nguồn' })); expect(within(screen.getByRole('table')).getAllByText('Source-only')).toHaveLength(2);
   });
   it('requires an explicit saved-link week and sends that exact week', async () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
