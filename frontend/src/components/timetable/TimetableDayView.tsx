@@ -34,7 +34,7 @@ export default function TimetableDayView({ date, lessons }: { date: string; less
   const ordered = [...lessons].sort((a, b) => a.startPeriod - b.startPeriod);
   return (
     <div data-testid="timetable-day-view" className="max-h-[min(70vh,32rem)] space-y-3 overflow-y-auto pr-1">
-      <div className="border-b border-slate-200/70 pb-2"><p className="text-sm font-bold text-[#1E293B]">Lịch ngày {date.split('-').reverse().join('/')}</p><p className="text-xs text-[#64748B]">Chỉ hiển thị lịch của hôm nay</p></div>
+      <div className="border-b border-slate-200/70 pb-2 pr-7"><p className="text-sm font-bold text-[#1E293B]">Lịch ngày {date.split('-').reverse().join('/')}</p><p className="text-xs text-[#64748B]">Chỉ hiển thị lịch của hôm nay</p></div>
       {!ordered.length ? <div className="flex flex-col items-center py-8 text-center text-[#64748B]"><Coffee className="mb-2 h-7 w-7 text-slate-400" /><p className="text-sm font-semibold text-[#1E293B]">Không có lịch học trong ngày</p><p className="text-xs">Ngày hôm nay chưa có tiết học.</p></div> : sessionGroups.map((group) => {
         const groupLessons = ordered.filter(group.match);
         return groupLessons.length ? <section key={group.label} className="space-y-2"><div className="flex items-center gap-2"><span className={`rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${group.className}`}>{group.label}</span><div className="h-px flex-1 bg-slate-200/70" /></div>{groupLessons.map((lesson, index) => <DayLessonCard key={`${lesson.subject}-${lesson.startPeriod}-${index}`} lesson={lesson} />)}</section> : null;

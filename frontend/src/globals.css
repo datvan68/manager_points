@@ -618,3 +618,22 @@ html {
 [data-radix-popper-content-wrapper]:has([data-centered]) [data-centered] {
   pointer-events: auto !important;
 }
+
+/* Center Radix Popover on mobile when data-mobile-centered is present */
+@media (max-width: 639px) {
+  [data-radix-popper-content-wrapper]:has([data-mobile-centered]) {
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    transform: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    z-index: 50 !important;
+  }
+
+  [data-radix-popper-content-wrapper]:has([data-mobile-centered]) [data-mobile-centered] {
+    pointer-events: auto !important;
+  }
+}

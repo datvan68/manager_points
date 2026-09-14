@@ -467,6 +467,59 @@ describe("StudentDirectorySearch", () => {
     expect(screen.queryByText("Toán")).not.toBeInTheDocument();
   });
 
+  it("positions timetable to the right on desktop, hides basic info on mobile, and restores basic info when timetable closes", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Vật lý", day: 1, startPeriod: 1, endPeriod: 2, teacher: "Thầy B", room: "B202" }],
+    });
+    await openPreview();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).not.toHaveClass("hidden", "sm:block");
+
+    const openBtn = screen.getByRole("button", { name: "Xem lịch" });
+    fireEvent.click(openBtn);
+
+    // On open: basic info dialog is hidden on mobile & shifted on desktop
+    expect(dialog).toHaveClass("hidden", "sm:block", "sm:-translate-x-[13.25rem]");
+    const popoverContent = document.getElementById("student-timetable-details");
+    expect(popoverContent).toBeInTheDocument();
+    expect(popoverContent).toHaveAttribute("data-mobile-centered");
+    expect(screen.getByText("Vật lý")).toBeInTheDocument();
+
+    // Mobile close button inside the popover
+    const mobileCloseBtns = screen.getAllByRole("button", { name: "Đóng lịch" });
+    // One inside popover footer (mobile), one may be the trigger if rendered
+    const footerCloseBtn = mobileCloseBtns.find(btn => btn.closest(".sm\\:hidden"));
+    expect(footerCloseBtn).toBeInTheDocument();
+
+    // Click mobile close button -> closes timetable, basic info is restored
+    fireEvent.click(footerCloseBtn!);
+    expect(screen.queryByText("Vật lý")).not.toBeInTheDocument();
+    expect(dialog).not.toHaveClass("hidden", "sm:block");
+  });
+
+  it("closes timetable and restores basic info when clicking backdrop while timetable is open", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Hóa học", day: 1, startPeriod: 3, endPeriod: 4, teacher: "Cô C", room: "C303" }],
+    });
+    await openPreview();
+    const dialog = screen.getByRole("dialog");
+    const openBtn = screen.getByRole("button", { name: "Xem lịch" });
+    fireEvent.click(openBtn);
+
+    expect(dialog).toHaveClass("hidden", "sm:block");
+    expect(screen.getByText("Hóa học")).toBeInTheDocument();
+
+    // Click backdrop
+    const backdrop = document.querySelector('[data-student-preview="true"]');
+    expect(backdrop).toBeInTheDocument();
+    fireEvent.mouseDown(backdrop!);
+
+    // Timetable is closed, preview is still open and dialog is restored
+    expect(screen.queryByText("Hóa học")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(dialog).not.toHaveClass("hidden", "sm:block");
+  });
+
   it("does not replace unavailable timetable data with no-schedule status", async () => {
     vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({ status: "unavailable", date: "2026-09-14", lessons: [] });
     await openPreview();

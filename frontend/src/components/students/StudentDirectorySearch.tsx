@@ -10,7 +10,7 @@ import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { semesterApi, Semester } from "@/api/semester-api";
 import { timetableApi, TodayTimetableResult } from "@/api/timetable-api";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor, PopoverClose } from "@/components/ui/popover";
 import TimetableDayView from "@/components/timetable/TimetableDayView";
 import { useAuth } from "@/providers/auth-provider";
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from "@/components/grading/criterion-usage";
@@ -232,6 +232,7 @@ export default function StudentDirectorySearch({
   const closePreview = () => {
     timetableRequestIdRef.current += 1;
     setSelected(null);
+    setTodayDetailsOpen(false);
     resetRecordControls();
   };
 
@@ -242,6 +243,7 @@ export default function StudentDirectorySearch({
 
   const handleStartRecord = async () => {
     if (!selected || !canCreateRecord || recordLoading || recordSaving) return;
+    setTodayDetailsOpen(false);
     setRecordPanelOpen(true);
     setRecordLoading(true);
     setRecordError(null);
@@ -327,157 +329,189 @@ export default function StudentDirectorySearch({
       data-student-preview="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-xs"
       role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && closePreview()}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          if (todayDetailsOpen) {
+            setTodayDetailsOpen(false);
+          } else {
+            closePreview();
+          }
+        }
+      }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="student-preview-title"
-        className={recordPanelOpen
-          ? "w-full max-w-md rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-white/80 sm:bg-white/90 sm:p-5 sm:shadow-xl sm:shadow-slate-300/40 sm:backdrop-blur-md"
-          : "w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"}
-      >
-        <div aria-hidden={recordPanelOpen} className={recordPanelOpen ? "hidden sm:block" : ""}>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
-              <div className="mt-1 flex items-baseline gap-2">
-                <h2 id="student-preview-title" className="text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
-                {canOpenDetail && (
-                  <button
-                    type="button"
-                    onClick={handleNavigateDetail}
-                    className="min-h-11 min-w-11 shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0"
-                  >
-                    Chi tiết
-                  </button>
-                )}
-              </div>
-            </div>
-            <button
-              ref={dialogCloseRef}
-              type="button"
-              onClick={closePreview}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer sm:h-8 sm:w-8"
-              aria-label="Đóng thông tin sinh viên"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
-          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
-            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
-          </div>
-          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">Lớp</dt>
-            <dd className="mt-0.5 truncate text-xs font-semibold text-[#1E293B]" title={classNameOf(selected)}>{classNameOf(selected)}</dd>
-          </div>
-          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">Ngày sinh</dt>
-            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatDate(selected.date_bir)}</dd>
-          </div>
-          <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">Giới tính</dt>
-            <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
-          </div>
-          <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">GVCN</dt>
-            <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{advisorNameOf(selected)}</dd>
-          </div>
-          </dl>
-        </div>
-
-        <section className="mt-3 rounded-xl border border-white/70 bg-white/50 p-2.5" aria-label="Thời khóa biểu hôm nay">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-[#1E293B]">Thời khóa biểu hôm nay</p>
-              <p className="mt-1 text-xs text-[#64748B]">
-                {todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
-              </p>
-            </div>
-            <Popover open={todayDetailsOpen} onOpenChange={setTodayDetailsOpen}>
-              <PopoverTrigger asChild>
-                <button type="button" aria-expanded={todayDetailsOpen} aria-controls="student-timetable-details" className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[#1A73E8] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0">
-                  {todayDetailsOpen ? "Đóng lịch" : "Xem lịch"}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent id="student-timetable-details" align="end" className="w-[min(92vw,26rem)] p-3" onOpenAutoFocus={(event) => event.preventDefault()}>
-                {todayLoading && <p className="py-8 text-center text-xs text-[#64748B]">Đang tải thời khóa biểu...</p>}
-                {todayError && <p className="py-8 text-center text-xs font-medium text-rose-700">Không thể tải thời khóa biểu. Vui lòng thử lại.</p>}
-                {!todayLoading && !todayError && todayTimetable?.status === "unavailable" && <p className="py-8 text-center text-xs font-medium text-amber-700">Chưa có dữ liệu thời khóa biểu cho lớp này hôm nay.</p>}
-                {!todayLoading && !todayError && todayTimetable && <TimetableDayView date={todayTimetable.date} lessons={todayTimetable.lessons} />}
-              </PopoverContent>
-            </Popover>
-          </div>
-        </section>
-
-        {canCreateRecord && (
-          <>
-          <div className={`mt-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-2.5 ${recordPanelOpen ? "hidden sm:block" : ""}`}>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-[#1E293B]">Ghi nhận học vụ</p>
-              {!criteria.length && !recordLoading && !recordSuccess && (
-                <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
-                  Ghi nhận
-                </button>
-                )}
-            </div>
-            {recordError && !recordPanelOpen && <p className="mt-2 text-xs font-medium text-rose-700">{recordError}</p>}
-            {recordSuccess && <p className="mt-2 text-xs font-medium text-emerald-700">{recordSuccess}</p>}
-          </div>
-            {recordPanelOpen && (
-              <div onMouseDown={(event) => event.target === event.currentTarget && closeRecordPanel()} className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
-                <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:max-h-none sm:overflow-visible sm:rounded-xl sm:shadow-sm">
-                  <p className="px-2 pb-1 text-sm font-semibold text-[#1E293B] sm:hidden">Ghi nhận học vụ</p>
-                  <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
-                  <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 min-h-11 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] sm:min-h-0 sm:text-xs" />
-                  {frequentCriteria.length > 0 && (
-                    <p className="px-2 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">Sử dụng nhiều</p>
-                  )}
-                  <div className="max-h-56 overflow-y-auto px-1 pb-1">
-                    {frequentCriteria.map((criterion) => {
-                      const score = criterion.score_per_unit || criterion.min_score || 0;
-                      return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
-                          <span className="truncate font-semibold">{criterion.criterion_name}</span>
-                          <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
-                        </button>
-                      );
-                    })}
-                    {frequentCriteria.length > 0 && remainingCriteria.length > 0 && <div className="my-1 border-t border-slate-100" />}
-                    {remainingCriteria.map((criterion) => {
-                      const score = criterion.score_per_unit || criterion.min_score || 0;
-                      return (
-                        <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
-                          <span className="truncate font-semibold">{criterion.criterion_name}</span>
-                          <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {recordError && <p className="mt-1 px-2 text-xs font-medium text-rose-700">{recordError}</p>}
-                  <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 px-1 pt-2">
-                    <button type="button" onClick={closeRecordPanel} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0 sm:text-xs">
-                      Đóng
-                    </button>
-                    <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0 sm:text-xs">
-                      {recordSaving ? "Đang lưu..." : "Xác nhận ghi nhận"}
-                    </button>
+      <Popover open={todayDetailsOpen} onOpenChange={(open) => { setTodayDetailsOpen(open); if (open && recordPanelOpen) closeRecordPanel(); }}>
+        <PopoverAnchor asChild>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-preview-title"
+            className={`${
+              recordPanelOpen
+                ? "w-full max-w-md rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-white/80 sm:bg-white/90 sm:p-5 sm:shadow-xl sm:shadow-slate-300/40 sm:backdrop-blur-md"
+                : "w-full max-w-md rounded-2xl border border-white/80 bg-white/90 p-5 shadow-xl shadow-slate-300/40 backdrop-blur-md"
+            } ${todayDetailsOpen ? "hidden sm:block sm:-translate-x-[13.25rem]" : ""}`}
+          >
+            <div aria-hidden={recordPanelOpen} className={recordPanelOpen ? "hidden sm:block" : ""}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#1A73E8]">Thông tin cơ bản</p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <h2 id="student-preview-title" className="text-lg font-bold text-[#1E293B]">{selected.full_name}</h2>
+                    {canOpenDetail && (
+                      <button
+                        type="button"
+                        onClick={handleNavigateDetail}
+                        className="min-h-11 min-w-11 shrink-0 text-xs font-semibold text-[#1A73E8] underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0"
+                      >
+                        Chi tiết
+                      </button>
+                    )}
                   </div>
                 </div>
+                <button
+                  ref={dialogCloseRef}
+                  type="button"
+                  onClick={closePreview}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/60 text-[#64748B] transition-all duration-150 ease-out hover:scale-[1.02] hover:bg-white/90 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 cursor-pointer sm:h-8 sm:w-8"
+                  aria-label="Đóng thông tin sinh viên"
+                >
+                  <X size={16} />
+                </button>
               </div>
-            )}
-          </>
-        )}
 
-        {!canOpenDetail && (
-          <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
-            Sinh viên chưa có lớp để mở trang chi tiết.
-          </p>
-        )}
-      </div>
+              <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Mã sinh viên</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{selected.student_code}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Lớp</dt>
+                <dd className="mt-0.5 truncate text-xs font-semibold text-[#1E293B]" title={classNameOf(selected)}>{classNameOf(selected)}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Ngày sinh</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatDate(selected.date_bir)}</dd>
+              </div>
+              <div className="rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">Giới tính</dt>
+                <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
+              </div>
+              <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
+                <dt className="text-[11px] font-medium text-[#64748B]">GVCN</dt>
+                <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{advisorNameOf(selected)}</dd>
+              </div>
+              </dl>
+            </div>
+
+            <section className="mt-3 rounded-xl border border-white/70 bg-white/50 p-2.5" aria-label="Thời khóa biểu hôm nay">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[#1E293B]">Thời khóa biểu hôm nay</p>
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    {todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
+                  </p>
+                </div>
+                <PopoverTrigger asChild>
+                  <button type="button" aria-expanded={todayDetailsOpen} aria-controls="student-timetable-details" className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[#1A73E8] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0">
+                    {todayDetailsOpen ? "Đóng lịch" : "Xem lịch"}
+                  </button>
+                </PopoverTrigger>
+              </div>
+            </section>
+
+            {canCreateRecord && (
+              <>
+              <div className={`mt-3 rounded-xl border border-blue-500/15 bg-blue-500/5 p-2.5 ${recordPanelOpen ? "hidden sm:block" : ""}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-[#1E293B]">Ghi nhận học vụ</p>
+                  {!criteria.length && !recordLoading && !recordSuccess && (
+                    <button type="button" onClick={handleStartRecord} disabled={recordSaving} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0">
+                      Ghi nhận
+                    </button>
+                    )}
+                </div>
+                {recordError && !recordPanelOpen && <p className="mt-2 text-xs font-medium text-rose-700">{recordError}</p>}
+                {recordSuccess && <p className="mt-2 text-xs font-medium text-emerald-700">{recordSuccess}</p>}
+              </div>
+                {recordPanelOpen && (
+                  <div onMouseDown={(event) => event.target === event.currentTarget && closeRecordPanel()} className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 sm:static sm:inset-auto sm:z-auto sm:mt-2 sm:block sm:bg-transparent sm:p-0">
+                    <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xl sm:max-h-none sm:overflow-visible sm:rounded-xl sm:shadow-sm">
+                      <p className="px-2 pb-1 text-sm font-semibold text-[#1E293B] sm:hidden">Ghi nhận học vụ</p>
+                      <label htmlFor="student-record-criterion" className="sr-only">Tìm tiêu chí</label>
+                      <input id="student-record-criterion" value={criterionSearch} onChange={(event) => setCriterionSearch(event.target.value)} disabled={recordLoading || recordSaving} placeholder="Tìm tiêu chí..." className="m-1 min-h-11 w-[calc(100%-0.5rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-base text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] sm:min-h-0 sm:text-xs" />
+                      {frequentCriteria.length > 0 && (
+                        <p className="px-2 pb-1 text-xs font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">Sử dụng nhiều</p>
+                      )}
+                      <div className="max-h-56 overflow-y-auto px-1 pb-1">
+                        {frequentCriteria.map((criterion) => {
+                          const score = criterion.score_per_unit || criterion.min_score || 0;
+                          return (
+                            <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                              <span className="truncate font-semibold">{criterion.criterion_name}</span>
+                              <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
+                            </button>
+                          );
+                        })}
+                        {frequentCriteria.length > 0 && remainingCriteria.length > 0 && <div className="my-1 border-t border-slate-100" />}
+                        {remainingCriteria.map((criterion) => {
+                          const score = criterion.score_per_unit || criterion.min_score || 0;
+                          return (
+                            <button key={criterion._id} type="button" onClick={() => { setSelectedCriterionId(criterion._id); setCriterionUsage(incrementCriterionUsage(user?.id, criterion._id)); }} disabled={recordLoading || recordSaving} className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed sm:min-h-0 sm:text-xs ${selectedCriterionId === criterion._id ? "bg-blue-50 text-[#1A73E8]" : "text-[#334155]"}`}>
+                              <span className="truncate font-semibold">{criterion.criterion_name}</span>
+                              <span className="shrink-0 text-xs font-bold text-slate-400 sm:text-[11px]">({score > 0 ? "+" : ""}{score}đ)</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {recordError && <p className="mt-1 px-2 text-xs font-medium text-rose-700">{recordError}</p>}
+                      <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 px-1 pt-2">
+                        <button type="button" onClick={closeRecordPanel} className="min-h-11 min-w-11 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-[#64748B] transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0 sm:min-w-0 sm:text-xs">
+                          Đóng
+                        </button>
+                        <button type="button" onClick={handleCreateRecord} disabled={!selectedCriterionId || !activeSemester || recordSaving || recordLoading} className="min-h-11 min-w-11 rounded-xl bg-[#1A73E8] px-3.5 py-1.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-0 sm:min-w-0 sm:text-xs">
+                          {recordSaving ? "Đang lưu..." : "Xác nhận ghi nhận"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!canOpenDetail && (
+              <p className="mt-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-right text-xs font-medium text-amber-700">
+                Sinh viên chưa có lớp để mở trang chi tiết.
+              </p>
+            )}
+          </div>
+        </PopoverAnchor>
+        <PopoverContent
+          id="student-timetable-details"
+          side="right"
+          align="start"
+          sideOffset={6}
+          avoidCollisions={false}
+          mobileCentered
+          showCloseButton
+          className="w-[min(92vw,26rem)] p-3"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          {todayLoading && <p className="py-8 text-center text-xs text-[#64748B]">Đang tải thời khóa biểu...</p>}
+          {todayError && <p className="py-8 text-center text-xs font-medium text-rose-700">Không thể tải thời khóa biểu. Vui lòng thử lại.</p>}
+          {!todayLoading && !todayError && todayTimetable?.status === "unavailable" && <p className="py-8 text-center text-xs font-medium text-amber-700">Chưa có dữ liệu thời khóa biểu cho lớp này hôm nay.</p>}
+          {!todayLoading && !todayError && todayTimetable && <TimetableDayView date={todayTimetable.date} lessons={todayTimetable.lessons} />}
+          <div className="mt-3 flex justify-end border-t border-slate-100 pt-2 sm:hidden">
+            <PopoverClose asChild>
+              <button
+                type="button"
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-[#64748B] hover:bg-slate-50"
+              >
+                Đóng lịch
+              </button>
+            </PopoverClose>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   ) : null;
 
