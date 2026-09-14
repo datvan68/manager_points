@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { SchoolTimetableAdapter } from './school-timetable.adapter';
-import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto } from './dto/sync-timetable.dto';
+import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto, BulkTimetableWeekSyncDto } from './dto/sync-timetable.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { getTimetableConfig, TimetableConfig } from './timetable.config';
@@ -224,7 +224,9 @@ export class TimetableSyncService {
     return [...new Map(options.map((week: any) => [week.value || week.week, { value: week.value || week.week, label: week.label || week.value || week.week, ...(week.startDate && week.endDate ? { startDate: week.startDate, endDate: week.endDate } : {}) }])).values()];
   }
   private savedClass(state: any, dto: TimetableClassSelection) {
-    return ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
+    const selected = ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
+    if (selected) return selected;
+    return ((state.settings?.classLinks || []) as TimetableClassLink[]).map((link) => this.linkSelection(link)).find((item) => this.classIdentity(item) === this.classIdentity(dto));
   }
   private manualSelection(state: any, dto: SavedTimetableWeekSyncDto) {
     const saved = this.savedClass(state, dto);
@@ -262,9 +264,9 @@ export class TimetableSyncService {
         const snapshots = typeof (this.snapshots as any).find === 'function' ? await (this.snapshots as any).find({ key: { $in: keys } }).lean().exec() : [];
         const byKey = new Map<string, any>((snapshots || []).map((snapshot: any) => [snapshot.key, snapshot] as [string, any]));
         const weeks = coverage.map((selection) => {
-          const key = timetableKey(selection); const snapshot = byKey.get(key); const queued = (state.queue || []).some((entry: QueueItem) => entry.key === key); const running = state.job?.selection?.key === key && state.job.status === 'running'; const terminal = [...(state.statuses || [])].reverse().find((entry: any) => entry.key === key);
+          const key = timetableKey(selection); const snapshot = byKey.get(key); const queued = (state.queue || []).some((entry: QueueItem) => entry.key === key); const inJob = (state.job?.coverage || []).some((entry: TimetableFilters) => timetableKey(entry) === key); const running = inJob && state.job.status === 'running'; const jobFailure = (state.job?.failures || []).find((entry: Failure) => timetableKey(entry.coverage) === key); const terminal = [...(state.statuses || [])].reverse().find((entry: any) => entry.key === key);
           const option = options.find((value: any) => value.value === selection.week);
-          return { week: selection.week, label: option?.label, startDate: option?.startDate, endDate: option?.endDate, snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : undefined, isEmpty: snapshot?.result?.isEmpty, status: snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', ...(terminal?.failure ? { failure: terminal.failure } : {}) } as any;
+          return { week: selection.week, label: option?.label, startDate: option?.startDate, endDate: option?.endDate, snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : undefined, isEmpty: snapshot?.result?.isEmpty, status: jobFailure ? 'failed' : snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', ...((jobFailure?.reason || terminal?.failure) ? { failure: jobFailure?.reason || terminal?.failure } : {}) } as any;
         });
         rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: coverage.map((value) => value.week), status: weeks.some((week) => week.status === 'failed') ? 'failed' : weeks.every((week) => week.status === 'valid') ? 'valid' : weeks.some((week) => week.status === 'running') ? 'running' : weeks.some((week) => week.status === 'pending') ? 'pending' : 'missing', weeks });
       } catch (error) { rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: [], status: 'configuration', weeks: [], error: error instanceof ConflictException ? String((error.getResponse() as any).message) : 'Cấu hình tuần không hợp lệ.' }); }
@@ -288,6 +290,23 @@ export class TimetableSyncService {
   async startSavedClassWeek(user: any, dto: SavedTimetableWeekSyncDto) {
     this.assertAdmin(user); const state = await this.state(); const selection = this.manualSelection(state, dto);
     return this.enqueue([selection], 'demand', dto.intent === 'update', state);
+  }
+
+  async startSavedClassWeeks(user: any, dto: BulkTimetableWeekSyncDto) {
+    this.assertAdmin(user);
+    const state = await this.state();
+    const seen = new Set<string>();
+    const coverage = dto.selections.map((item) => {
+      const link = (state.settings?.classLinks || []).find((candidate: TimetableClassLink) => candidate.systemClassId === item.systemClassId && this.classIdentity(candidate) === this.classIdentity(item));
+      if (!link) throw new NotFoundException({ reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED', message: `Lớp ${item.className} chưa được lưu cấu hình đồng bộ.` });
+      const selection = this.manualSelection(state, { ...link, week: item.week });
+      const key = timetableKey(selection);
+      if (seen.has(key)) throw new ConflictException({ reasonCode: 'TIMETABLE_DUPLICATE_SELECTION', message: 'Danh sách lớp-tuần bị trùng.' });
+      seen.add(key);
+      return selection;
+    });
+    if (!coverage.length) throw new ConflictException({ reasonCode: 'TIMETABLE_BULK_SELECTION_REQUIRED', message: 'Cần chọn ít nhất một lớp-tuần.' });
+    return this.start(user, { coverage });
   }
   private async enqueue(selections: TimetableFilters[], kind: QueueKind, force: boolean, current?: any) {
     const state = current || await this.state(); const now = new Date().toISOString(); const queue = (state.queue || []) as QueueItem[]; const statuses = (state.statuses || []) as any[]; const known = new Set(queue.map((item) => item.key)); if (state.job?.selection?.key) known.add(state.job.selection.key);

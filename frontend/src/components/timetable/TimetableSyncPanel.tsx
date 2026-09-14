@@ -65,6 +65,11 @@ export default function TimetableSyncPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set());
+  const [bulkWeek, setBulkWeek] = useState('');
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const mounted = useRef(true);
   const callback = useRef(onSynced);
   const pollTimers = useRef(new Map<string, number>());
@@ -431,6 +436,28 @@ export default function TimetableSyncPanel({
     [classes, search, department, linkStatus, settings.classLinks]
   );
 
+  useEffect(() => setPage(1), [search, department, linkStatus, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filteredClasses.length / pageSize));
+  const visibleClasses = useMemo(() => filteredClasses.slice((page - 1) * pageSize, page * pageSize), [filteredClasses, page, pageSize]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const eligibleVisibleIds = visibleClasses.filter((item) => savedLinks.some((link) => link.systemClassId === item._id)).map((item) => item._id);
+  const allVisibleSelected = eligibleVisibleIds.length > 0 && eligibleVisibleIds.every((id) => selectedClassIds.has(id));
+  const selectedLinks = savedLinks.filter((link) => selectedClassIds.has(link.systemClassId));
+  const commonWeeks = useMemo(() => {
+    if (!selectedLinks.length) return [];
+    const sets = selectedLinks.map((link) => new Set((statuses.find((row) => selectionKey(row.classSelection) === selectionKey(link))?.weeks || []).map((week) => week.week)));
+    return [...sets[0]].filter((week) => sets.every((set) => set.has(week)));
+  }, [selectedLinks, statuses]);
+  const toggleClass = (id: string, checked: boolean) => setSelectedClassIds((current) => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; });
+  const toggleVisible = (checked: boolean) => setSelectedClassIds((current) => { const next = new Set(current); eligibleVisibleIds.forEach((id) => checked ? next.add(id) : next.delete(id)); return next; });
+  const syncSelected = async () => {
+    if (bulkSubmitting || !bulkWeek || !selectedLinks.length || !commonWeeks.includes(bulkWeek)) return;
+    setBulkSubmitting(true); setError(''); setMessage('');
+    try { const result = await timetableApi.syncSavedClassWeeks(selectedLinks.map((link) => ({ ...link, week: bulkWeek }))); setMessage(`Đã gửi ${result.total} lớp; đang theo dõi tiến độ...`); await refreshStatuses(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể đồng bộ các lớp đã chọn.'); }
+    finally { setBulkSubmitting(false); }
+  };
+
   if (!isAdmin) return null;
 
   return (
@@ -627,6 +654,7 @@ export default function TimetableSyncPanel({
             </caption>
             <thead>
               <tr className="border-b border-white/70 bg-white/70 text-[11px] font-bold uppercase tracking-wider text-[#1E293B]">
+                <th className="px-3.5 py-3"><input aria-label="Chọn tất cả lớp trên trang" type="checkbox" checked={allVisibleSelected} onChange={(e) => toggleVisible(e.target.checked)} disabled={!eligibleVisibleIds.length || bulkSubmitting} /></th>
                 <th className="px-3.5 py-3">Lớp hệ thống</th>
                 <th className="px-3.5 py-3">Khoa nguồn</th>
                 <th className="px-3.5 py-3">Khóa nguồn</th>
@@ -639,7 +667,7 @@ export default function TimetableSyncPanel({
             </thead>
             <tbody>
               {view === 'system' ? (
-                filteredClasses.map((item) => {
+                visibleClasses.map((item) => {
                   const link = draftFor(item);
                   const path = paths[item._id] || {
                     faculty: link?.faculty || '',
@@ -667,6 +695,7 @@ export default function TimetableSyncPanel({
                       key={item._id}
                       className="border-b border-white/50 transition-colors duration-150 ease-out hover:bg-white/40"
                     >
+                      <td className="px-3.5 py-2.5"><input aria-label={`Chọn lớp ${item.class_name}`} type="checkbox" checked={selectedClassIds.has(item._id)} onChange={(e) => toggleClass(item._id, e.target.checked)} disabled={!savedLinks.some((saved) => saved.systemClassId === item._id) || bulkSubmitting} /></td>
                       <td className="whitespace-nowrap px-3.5 py-2.5 font-bold text-[#1E293B]">
                         {item.class_name}
                       </td>
@@ -840,6 +869,7 @@ export default function TimetableSyncPanel({
                     key={source.value}
                     className="border-b border-white/50 transition-colors duration-150 ease-out hover:bg-white/40"
                   >
+                    <td className="px-3.5 py-2.5 font-mono text-[#64748B]">—</td>
                     <td className="px-3.5 py-2.5 font-mono text-[#64748B]">
                       —
                     </td>
@@ -870,6 +900,31 @@ export default function TimetableSyncPanel({
           </table>
         </div>
       </div>
+
+      {view === 'system' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/80 p-3" aria-label="Đồng bộ hàng loạt">
+          <span className="text-xs font-semibold text-blue-800">Đã chọn {selectedLinks.length} lớp</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <select aria-label="Tuần đồng bộ chung" value={bulkWeek} onChange={(e) => setBulkWeek(e.target.value)} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-2.5 py-1.5 text-xs">
+              <option value="">Chọn tuần chung</option>
+              {commonWeeks.map((week) => <option key={week} value={week}>{week}</option>)}
+            </select>
+            <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{bulkSubmitting ? 'Đang gửi...' : 'Đồng bộ đã chọn'}</button>
+            <button type="button" onClick={() => { setSelectedClassIds(new Set()); setBulkWeek(''); }} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-800 disabled:opacity-40">Xóa lựa chọn</button>
+          </div>
+        </div>
+      )}
+
+      {view === 'system' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748B]" aria-label="Phân trang bảng lớp">
+          <span>Trang {Math.min(page, totalPages)}/{totalPages} · {filteredClasses.length} lớp</span>
+          <div className="flex items-center gap-2">
+            <label>Hiển thị <select aria-label="Số dòng mỗi trang" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded border px-1.5 py-1"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select> dòng</label>
+            <button type="button" aria-label="Trang trước" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} className="rounded border px-2 py-1 disabled:opacity-40">‹</button>
+            <button type="button" aria-label="Trang sau" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages} className="rounded border px-2 py-1 disabled:opacity-40">›</button>
+          </div>
+        </div>
+      )}
 
       {/* Messages and Alerts */}
       {message && (

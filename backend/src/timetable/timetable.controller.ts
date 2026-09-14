@@ -4,7 +4,7 @@ import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetab
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableService } from './timetable.service';
 import { TimetableSourceError } from './timetable.types';
-import { StartTimetableSyncDto, TimetableDemandDto, TimetableSettingsDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto } from './dto/sync-timetable.dto';
+import { StartTimetableSyncDto, TimetableDemandDto, TimetableSettingsDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto, BulkTimetableWeekSyncDto } from './dto/sync-timetable.dto';
 import { TimetableSyncService } from './timetable-sync.service';
 
 @Injectable()
@@ -63,6 +63,7 @@ export class TimetableController {
   @Post('sync/class') @UseGuards(TimetableAdminGuard) startSavedClassSync(@Req() req: any, @Body() body: SavedTimetableClassSyncDto) { return this.syncService!.startSavedClass(req.user, body); }
   @Get('sync/class/week/status') @UseGuards(TimetableAdminGuard) getSavedClassWeekStatus(@Req() req: any, @Query() query: SavedTimetableWeekSyncDto) { return this.syncService!.getSavedClassWeekStatus(req.user, query); }
   @Post('sync/class/week') @UseGuards(TimetableAdminGuard) startSavedClassWeek(@Req() req: any, @Body() body: SavedTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeek(req.user, body); }
+  @Post('sync/class/weeks') @UseGuards(TimetableAdminGuard) startSavedClassWeeks(@Req() req: any, @Body() body: BulkTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeeks(req.user, body); }
   @Get('sync/status') @UseGuards(TimetableAdminGuard) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
   @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
   @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }

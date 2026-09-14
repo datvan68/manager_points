@@ -205,4 +205,16 @@ describe('TimetableSyncService', () => {
     await service.startSavedClassWeek(admin, { ...savedState.settings.selectedClasses[0], week: 'one', intent: 'update' });
     expect(enqueue).toHaveBeenCalledWith([expect.objectContaining({ week: 'one' })], 'demand', true, savedState);
   });
+
+  it('validates every saved class-week pair before starting one bulk job', async () => {
+    const { service, states } = setup();
+    const savedState = { settings: { selectedClasses: [{ year: '2026', semester: '1', className: 'A' }], classLinks: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual' }] }, catalog: { weeks: [{ value: 'w1', parent: { year: '2026', semester: '1' } }] }, queue: [], statuses: [] };
+    states.findOneAndUpdate.mockReturnValueOnce(chain(savedState));
+    const start = jest.spyOn(service, 'start').mockResolvedValue({ status: 'running', total: 1 } as any);
+    await expect(service.startSavedClassWeeks(admin, { selections: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual', week: 'w1' }] })).resolves.toMatchObject({ total: 1 });
+    expect(start).toHaveBeenCalledWith(admin, { coverage: [expect.objectContaining({ className: 'A', week: 'w1' })] });
+    states.findOneAndUpdate.mockReturnValueOnce(chain({ ...savedState, settings: { ...savedState.settings, classLinks: [{ ...savedState.settings.classLinks[0], systemClassId: 'one' }] } }));
+    await expect(service.startSavedClassWeeks(admin, { selections: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual', week: 'w1' }, { systemClassId: 'missing', year: '2026', semester: '1', className: 'B', sourceLabel: 'B', matchMethod: 'manual', week: 'w1' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED' } });
+    expect(start).toHaveBeenCalledTimes(1);
+  });
 });

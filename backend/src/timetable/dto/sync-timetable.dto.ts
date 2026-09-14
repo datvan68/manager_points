@@ -32,6 +32,15 @@ export class SavedTimetableWeekSyncDto extends TimetableClassSelectionDto {
   @IsOptional() @IsIn(['sync', 'update']) intent?: 'sync' | 'update';
 }
 
+export class BulkTimetableWeekSyncItemDto extends TimetableClassLinkDto {
+  @IsString() @IsNotEmpty() week!: string;
+}
+
+export class BulkTimetableWeekSyncDto {
+  @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => BulkTimetableWeekSyncItemDto)
+  selections!: BulkTimetableWeekSyncItemDto[];
+}
+
 export class TimetableWeekDateDto {
   @IsString() year!: string;
   @IsString() semester!: string;

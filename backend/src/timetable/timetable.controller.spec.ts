@@ -75,6 +75,14 @@ describe('TimetableController', () => {
     expect(service.getSavedClassWeekStatus).toHaveBeenCalledWith(req.user, query); expect(service.startSavedClassWeek).toHaveBeenCalledWith(req.user, { ...query, intent: 'sync' });
   });
 
+  it('delegates the validated admin bulk week route', async () => {
+    const service = { startSavedClassWeeks: jest.fn().mockResolvedValue({ status: 'running', total: 2 }) };
+    const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: {} }, { provide: TimetableSyncService, useValue: service }] }).compile();
+    const controller = module.get(TimetableController); const req = { user: { roleCode: 'ADMIN' } }; const body = { selections: [{ systemClassId: 'one', className: 'A', year: '2026', semester: '1', week: 'w1' }] } as any;
+    await expect(controller.startSavedClassWeeks(req, body)).resolves.toEqual({ status: 'running', total: 2 });
+    expect(service.startSavedClassWeeks).toHaveBeenCalledWith(req.user, body);
+  });
+
   it('delegates snapshot listing through the admin route', async () => {
     const service = { listSnapshots: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 }) };
     const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();
