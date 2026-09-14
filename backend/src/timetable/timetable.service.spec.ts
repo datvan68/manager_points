@@ -10,7 +10,7 @@ const coverage = [
 ];
 const catalog = { years: [{ value: 'y', label: '2026' }], semesters: [], weeks: [], faculties: [{ value: 'f', label: 'Khoa A' }], courses: [], classes: [{ value: 'a', label: 'Lớp A' }] };
 const setup = (rows = coverage, savedCatalog: any = catalog) => {
-  const snapshots = { find: jest.fn(() => chain(rows)), findOne: jest.fn(() => chain(null)) };
+  const snapshots = { find: jest.fn(() => chain(rows)), findOne: jest.fn(() => chain(null)), countDocuments: jest.fn(() => ({ exec: async () => rows.length })) };
   const states = { findOne: jest.fn(() => chain({ catalog: savedCatalog })) };
   return { service: new TimetableService(snapshots as any, states as any), snapshots };
 };
@@ -60,6 +60,22 @@ describe('TimetableService', () => {
     snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: false, lessons: [] }, syncedAt: '2026-01-01T00:00:00.000Z', coverageKey: 'key' }));
     await expect(service.getTimetable({}, coverage[1])).resolves.toMatchObject({ status: 'valid', coverageKey: 'key' });
     expect(snapshots.findOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists metadata with exact filters, stable pagination, and no result payload', async () => {
+    const { service, snapshots } = setup();
+    const query = {
+      page: 2, limit: 1, year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c', className: 'a',
+    } as any;
+    const data = [{ year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c', className: 'a', syncedAt: 'date', coverageKey: 'key', jobId: 'job' }];
+    const request = { sort: jest.fn().mockReturnThis(), skip: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), lean: jest.fn(() => ({ exec: async () => data })) };
+    snapshots.find.mockReturnValueOnce(request as any);
+    snapshots.countDocuments.mockReturnValueOnce({ exec: async () => 2 } as any);
+    await expect(service.listSnapshots({}, query)).resolves.toEqual({ data, total: 2, page: 2, limit: 1, totalPages: 2 });
+    expect(snapshots.find).toHaveBeenCalledWith({ year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c', className: 'a' }, 'year semester week faculty course className coverageKey syncedAt jobId');
+    expect(request.sort).toHaveBeenCalledWith({ syncedAt: -1, _id: -1 });
+    expect(request.skip).toHaveBeenCalledWith(1); expect(request.limit).toHaveBeenCalledWith(1);
+    expect(data[0]).not.toHaveProperty('result');
   });
 
   it('keeps the refresh status response read-only and reports missing snapshots', async () => {

@@ -7,13 +7,14 @@ vi.mock('@/providers/auth-provider', () => ({ useAuth: () => authState }));
 vi.mock('@/components/guards/RouteGuard', () => ({ RouteGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/timetable/TimetableLookup', () => ({ default: ({ refreshKey }: { refreshKey: number }) => <div data-testid="lookup">lookup-{refreshKey}</div> }));
 vi.mock('@/components/timetable/TimetableSyncPanel', () => ({ default: ({ onSynced }: { onSynced?: () => void }) => <button type="button" onClick={onSynced}>sync complete</button> }));
+vi.mock('@/components/timetable/TimetableSnapshotsPanel', () => ({ default: () => <div data-testid="snapshots">snapshots</div> }));
 beforeEach(() => { authState.user = { roleCode: 'ADMIN' }; });
 afterEach(() => { cleanup(); });
 
 describe('TimetablePage', () => {
   it('shows admin tabs, switches mounted panels, and refreshes lookup after sync', () => {
     render(<TimetablePage />);
-    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
     expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
     expect(document.getElementById('timetable-lookup-panel')).not.toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('tab', { name: 'Cấu hình tkb' }));
@@ -21,6 +22,8 @@ describe('TimetablePage', () => {
     expect(document.getElementById('timetable-lookup-panel')).toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('button', { name: 'sync complete' }));
     expect(screen.getByTestId('lookup')).toHaveTextContent('lookup-1');
+    fireEvent.click(screen.getByRole('tab', { name: 'Dữ liệu đã đồng bộ' }));
+    expect(screen.getByTestId('snapshots')).toBeInTheDocument();
   });
 
   it('keeps lookup for permitted non-admin users without rendering configuration', () => {

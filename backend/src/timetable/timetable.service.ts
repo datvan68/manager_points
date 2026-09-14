@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { QueryTimetableDto } from './dto/query-timetable.dto';
+import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { TimetableFilters, TimetableOptions, TimetableResult } from './timetable.types';
@@ -38,6 +39,22 @@ export class TimetableService {
 
   async getTimetable(requester: any, query: QueryTimetableDto): Promise<TimetableResult> {
     return this.getLegacyTimetable(requester, query);
+  }
+
+  async listSnapshots(_requester: any, query: QueryTimetableSnapshotsDto = new QueryTimetableSnapshotsDto()) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 20;
+    const filter = Object.fromEntries(
+      timetableFields
+        .filter((field) => query[field] !== undefined && query[field] !== '')
+        .map((field) => [field, query[field]]),
+    );
+    const projection = 'year semester week faculty course className coverageKey syncedAt jobId';
+    const [data, total] = await Promise.all([
+      this.snapshots.find(filter, projection).sort({ syncedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean().exec(),
+      this.snapshots.countDocuments(filter).exec(),
+    ]);
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async getLegacyTimetable(_requester: any, query: QueryTimetableDto): Promise<TimetableResult> {

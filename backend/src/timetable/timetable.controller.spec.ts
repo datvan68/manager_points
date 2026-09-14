@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { TimetableController } from './timetable.controller';
-import { TimetableAccessGuard } from './timetable.controller';
+import { TimetableAccessGuard, TimetableAdminGuard } from './timetable.controller';
 import { TimetableService } from './timetable.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BadRequestException } from '@nestjs/common';
@@ -45,6 +45,11 @@ describe('TimetableController', () => {
     await expect(new TimetableAccessGuard().canActivate(context)).resolves.toBe(false);
   });
 
+  it.each([{ roleCode: 'STUDENT' }, { roleCode: 'TEACHER' }, { roleCode: 'USER' }, {}])('blocks snapshot access for non-admin user %j', async (user) => {
+    const context = { switchToHttp: () => ({ getRequest: () => ({ user }) }) } as any;
+    expect(() => new TimetableAdminGuard().canActivate(context)).toThrow(expect.objectContaining({ response: expect.objectContaining({ statusCode: 403 }) }));
+  });
+
   it('maps source selection failures to a stable HTTP error', async () => {
     const service = { getOptions: jest.fn(), getLegacyTimetable: jest.fn().mockRejectedValue(new TimetableSourceError('SOURCE_INVALID_SELECTION', 'invalid')) };
     const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();
@@ -68,5 +73,13 @@ describe('TimetableController', () => {
     await expect(controller.getSavedClassWeekStatus(req, query)).resolves.toEqual({ status: 'missing' });
     await expect(controller.startSavedClassWeek(req, { ...query, intent: 'sync' })).resolves.toEqual({ status: 'pending' });
     expect(service.getSavedClassWeekStatus).toHaveBeenCalledWith(req.user, query); expect(service.startSavedClassWeek).toHaveBeenCalledWith(req.user, { ...query, intent: 'sync' });
+  });
+
+  it('delegates snapshot listing through the admin route', async () => {
+    const service = { listSnapshots: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 }) };
+    const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();
+    const controller = module.get(TimetableController); const req = { user: { roleCode: 'ADMIN' } }; const query = { page: 1, limit: 20, year: 'y' } as any;
+    await expect(controller.listSnapshots(req, query)).resolves.toMatchObject({ total: 0 });
+    expect(service.listSnapshots).toHaveBeenCalledWith(req.user, query);
   });
 });

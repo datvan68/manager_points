@@ -16,8 +16,11 @@ export type TimetableWeekSyncIntent = 'sync' | 'update';
 export interface TimetableWeekSyncRequest extends TimetableClassSelection { week: string; intent?: TimetableWeekSyncIntent }
 export interface TimetableWeekSyncStatus { key: string; selection: TimetableFilters; status: string; snapshotExists: boolean; lastSuccessfulUpdate: string | null; isEmpty: boolean; failure?: string | null; cooldownUntil?: string | null }
 export interface TimetableSyncSettings { enabled: boolean; intervalMinutes: number; coverage: TimetableFilters[]; selectedClasses?: TimetableClassSelection[]; classLinks?: TimetableClassLink[]; rolling?: TimetableRollingPolicy }
+export interface TimetableSnapshotMetadata extends TimetableFilters { coverageKey: string; syncedAt: string; jobId: string }
+export interface TimetableSnapshotsQuery extends Partial<TimetableFilters> { page?: number; limit?: number }
+export interface TimetableSnapshotsResponse { data: TimetableSnapshotMetadata[]; total: number; page: number; limit: number; totalPages: number }
 
-const query = (values: Partial<TimetableFilters>) => new URLSearchParams(Object.entries(values).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, value as string])).toString();
+const query = (values: object) => new URLSearchParams(Object.entries(values).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)])).toString();
 // Linked-class metadata belongs to settings, not the saved-class sync DTOs.
 const classSyncPayload = ({ year, semester, faculty, course, className, weekCount }: TimetableClassSelection) => ({ year, semester, faculty, course, className, weekCount });
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -41,6 +44,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 export const timetableApi = {
   async getOptions(filters: Partial<TimetableFilters> = {}) { return request<TimetableOptions>(`${API_BASE}/timetable/options?${query(filters)}`); },
   async getTimetable(filters: TimetableFilters) { return request<TimetableResult>(`${API_BASE}/timetable?${query(filters)}`); },
+  async getSnapshots(filters: TimetableSnapshotsQuery = {}) { return request<TimetableSnapshotsResponse>(`${API_BASE}/timetable/snapshots?${query(filters)}`); },
   async requestDemand(filters: TimetableFilters) { return request<TimetableResult>(`${API_BASE}/timetable/demand`, { method: 'POST', body: JSON.stringify(filters), headers: { 'Content-Type': 'application/json' } }); },
   async loadCatalog(filters: Partial<TimetableFilters> = {}) { return request<TimetableOptions>(`${API_BASE}/timetable/sync/catalog?${query(filters)}`, { method: 'POST' }); },
   async startSync(coverage: TimetableFilters[]) { return request<{ id: string; status: string; total: number }>(`${API_BASE}/timetable/sync`, { method: 'POST', body: JSON.stringify({ coverage }), headers: { 'Content-Type': 'application/json' } }); },
