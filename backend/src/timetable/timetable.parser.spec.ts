@@ -14,6 +14,24 @@ describe('timetable parser', () => {
     expect(result.isEmpty).toBe(false);
   });
 
+  it('reads a valid result date range and assigns the calendar date to each lesson day', () => {
+    const result = parseTimetable('<h2>Từ ngày 14/09/2026 đến ngày 20/09/2026</h2><table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th><th>Thứ 3</th></tr><tr><td>Lớp A</td><td>Sáng</td><td>1</td><td>Toán</td><td>Văn</td></tr></table>', { year: '2026', semester: '1', week: 'w' });
+    expect(result).toMatchObject({ startDate: '2026-09-14', endDate: '2026-09-20' });
+    expect(result.lessons.map((lesson) => lesson.date)).toEqual(['2026-09-14', '2026-09-15']);
+  });
+
+  it.each([
+    '<h2>Từ ngày 15/09/2026 đến ngày 21/09/2026</h2>',
+    '<h2>Từ ngày 14/09/2026 đến ngày 19/09/2026</h2>',
+    '<h2>Từ ngày 31/09/2026 đến ngày 07/10/2026</h2>',
+    '<h2>Từ ngày 14/09/2026 đến ngày 20/09/2026</h2><h2>Từ ngày 21/09/2026 đến ngày 27/09/2026</h2>',
+    '',
+  ])('does not infer dates from an invalid or missing result range: %s', (header) => {
+    const result = parseTimetable(`${header}<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th></tr><tr><td>A</td><td>Sáng</td><td>1</td><td>Toán</td></tr></table>`, { year: 'y', semester: 's', week: 'w' });
+    expect(result).not.toHaveProperty('startDate');
+    expect(result.lessons[0]).not.toHaveProperty('date');
+  });
+
   it('distinguishes a valid header-only empty schedule from changed markup', () => {
     const result = parseTimetable('<table><tr><th>Lớp</th><th>Buổi</th><th>Tiết</th><th>Thứ 2</th><th>Thứ 3</th></tr></table>', { year: '2025', semester: '2', week: '50' });
     expect(result).toMatchObject({ isEmpty: true, lessons: [] });

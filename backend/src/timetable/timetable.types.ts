@@ -100,6 +100,7 @@ export interface TimetableLesson {
   room?: string;
   onlineUrl?: string;
   sourceTime?: string;
+  date?: string;
 }
 
 export interface TimetableResult {
@@ -109,6 +110,8 @@ export interface TimetableResult {
   periods: string[];
   lessons: TimetableLesson[];
   isEmpty: boolean;
+  startDate?: string;
+  endDate?: string;
   syncedAt?: string;
   coverageKey?: string;
   status?: 'valid' | 'pending' | 'failed' | 'missing' | 'busy';

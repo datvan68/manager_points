@@ -68,6 +68,28 @@ function parseLesson(text: string, day: number, startPeriod: number, endPeriod: 
   return { day, startPeriod, endPeriod, ...(classLabel ? { classLabel } : {}), ...(sessionLabel ? { sessionLabel } : {}), subject: subjectLine.replace(/\s*\[[^\]]+\]/, '').trim(), ...(code ? { subjectCode: code } : {}), teacher: rest.find((line) => /giảng viên|giáo viên|teacher|^gv\s*:/i.test(line))?.replace(/^.*?:\s*/, ''), room: rest.find((line) => /phòng|room|^p\s*:/i.test(line))?.replace(/^.*?:\s*/, ''), sourceTime };
 }
 
+function parseResultDates($: cheerio.CheerioAPI): Pick<TimetableResult, 'startDate' | 'endDate'> {
+  const candidates = $('h1,h2,h3,h4,h5,h6,caption,[class*="title"],[class*="header"],[id*="title"],[id*="header"]')
+    .map((_: number, element: any) => clean($(element).text()))
+    .get()
+    .filter((text: string) => /từ\s+ngày/i.test(text));
+  const pairs = new Set<string>();
+  let malformed = false;
+  candidates.forEach((text: string) => {
+    const matches = [...text.matchAll(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/g)];
+    if (matches.length !== 2) { malformed = true; return; }
+    pairs.add(matches.map((match) => `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`).join('|'));
+  });
+  if (malformed || pairs.size !== 1) return {};
+  const [startDate, endDate] = [...pairs][0].split('|');
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const validDate = (date: Date, value: string) => !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  const duration = (end.getTime() - start.getTime()) / 86_400_000;
+  if (!validDate(start, startDate) || !validDate(end, endDate) || duration !== 6 || start.getUTCDay() !== 1 || end.getUTCDay() !== 0) return {};
+  return { startDate, endDate };
+}
+
 export function parseTimetable(html: string, filters: TimetableFilters): TimetableResult {
   const $ = cheerio.load(html);
   const table = $('table').filter((_: number, el: any) => {
@@ -114,5 +136,6 @@ export function parseTimetable(html: string, filters: TimetableFilters): Timetab
       if (lesson) lessons.push(lesson);
     });
   });
-  return { filters, classLabel, sessionLabel, periods: [...periods].sort((a, b) => Number(a) - Number(b)), lessons, isEmpty: lessons.length === 0 };
+  const dates = parseResultDates($);
+  return { filters, ...dates, classLabel, sessionLabel, periods: [...periods].sort((a, b) => Number(a) - Number(b)), lessons: dates.startDate ? lessons.map((lesson) => ({ ...lesson, date: new Date(new Date(`${dates.startDate}T00:00:00Z`).getTime() + (lesson.day - 1) * 86_400_000).toISOString().slice(0, 10) })) : lessons, isEmpty: lessons.length === 0 };
 }

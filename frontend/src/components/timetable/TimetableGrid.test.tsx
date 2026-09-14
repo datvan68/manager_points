@@ -8,6 +8,7 @@ it.each([['Sáng', 1], ['Chiều', 7], ['Tối', 13]] as const)('renders six per
   expect(screen.getByText(sessionLabel)).toHaveAttribute('rowspan', '6');
 });
 describe('TimetableGrid', () => {
+  it('renders source dates on all seven day headers', () => { render(<TimetableGrid result={{ filters: { year: 'y', semester: 's', week: 'w' }, startDate: '2026-09-14', endDate: '2026-09-20', periods: ['1'], lessons: [], isEmpty: true }} />); expect(screen.getByText('Thứ 2 · 14/09')).toBeInTheDocument(); expect(screen.getByText('Chủ nhật · 20/09')).toBeInTheDocument(); });
   it('keeps merged multi-period lesson and all week columns', () => { render(<TimetableGrid result={{ filters: { year: 'y', semester: 's', week: 'w' }, periods: ['13', '14'], lessons: [{ day: 1, startPeriod: 13, endPeriod: 14, subject: 'Toán', teacher: 'Cô A' }], isEmpty: false }} />); expect(screen.getByText('Toán')).toBeInTheDocument(); expect(screen.getByText('Chủ nhật')).toBeInTheDocument(); });
   it('exposes a keyboard-focusable named scroll region and visible hint', () => { render(<TimetableGrid result={{ filters: { year: 'y', semester: 's', week: 'w' }, periods: ['1'], lessons: [], isEmpty: false }} />); const region = screen.getByRole('region', { name: /vùng cuộn ngang/i }); expect(region).toHaveAttribute('tabindex', '0'); expect(region).toHaveAttribute('aria-describedby', 'timetable-grid-hint'); expect(screen.getByText(/Vuốt ngang/)).toBeInTheDocument(); expect(screen.getByText('Tiết 1')).toHaveClass('sticky'); });
 });

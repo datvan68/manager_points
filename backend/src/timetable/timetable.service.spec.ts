@@ -62,6 +62,14 @@ describe('TimetableService', () => {
     expect(snapshots.findOne).toHaveBeenCalledTimes(1);
   });
 
+  it('returns optional dates from new snapshots and preserves old snapshot results', async () => {
+    const { service, snapshots } = setup();
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: false, startDate: '2026-09-14', endDate: '2026-09-20', lessons: [{ day: 1, date: '2026-09-14' }] }, syncedAt: 'date', coverageKey: 'key' }));
+    await expect(service.getLegacyTimetable({}, coverage[0])).resolves.toMatchObject({ startDate: '2026-09-14', endDate: '2026-09-20', lessons: [{ date: '2026-09-14' }] });
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: true, lessons: [] }, syncedAt: 'date', coverageKey: 'old-key' }));
+    await expect(service.getLegacyTimetable({}, coverage[0])).resolves.toMatchObject({ isEmpty: true, lessons: [], coverageKey: 'old-key' });
+  });
+
   it('lists metadata with exact filters, stable pagination, and no result payload', async () => {
     const { service, snapshots } = setup();
     const query = {
