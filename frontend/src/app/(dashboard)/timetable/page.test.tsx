@@ -14,8 +14,11 @@ afterEach(() => { cleanup(); });
 describe('TimetablePage', () => {
   it('shows admin tabs, switches mounted panels, and refreshes lookup after sync', () => {
     render(<TimetablePage />);
+    expect(screen.queryByRole('heading', { name: 'Thời khóa biểu' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Tra cứu lịch học theo dữ liệu nhà trường.')).not.toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(3);
     expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-controls', 'timetable-lookup-panel');
     expect(document.getElementById('timetable-lookup-panel')).not.toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('tab', { name: 'Cấu hình tkb' }));
     expect(document.getElementById('timetable-settings-panel')).not.toHaveAttribute('hidden');
@@ -24,6 +27,8 @@ describe('TimetablePage', () => {
     expect(screen.getByTestId('lookup')).toHaveTextContent('lookup-1');
     fireEvent.click(screen.getByRole('tab', { name: 'Dữ liệu đã đồng bộ' }));
     expect(screen.getByTestId('snapshots')).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Dữ liệu đã đồng bộ' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps lookup for permitted non-admin users without rendering configuration', () => {

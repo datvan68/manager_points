@@ -9,12 +9,23 @@ vi.mock('@/api/class-api', () => ({ classApi: { getClasses: vi.fn() } }));
 vi.mock('@/api/timetable-api', () => ({ timetableApi: { getSyncStatus: vi.fn(), getSavedClassWeekStatus: vi.fn(), loadCatalog: vi.fn(), updateSyncSettings: vi.fn(), syncSavedClassWeek: vi.fn(), syncSavedClassWeeks: vi.fn() } }));
 const catalog: TimetableOptions = { years: [{ value: '2026', label: '2026' }], semesters: [{ value: '1', label: 'Học kỳ 1' }], weeks: [{ value: 'w1', label: 'Tuần 1' }], faculties: [{ value: 'f1', label: 'Khoa 1' }], courses: [{ value: 'c1', label: 'Khóa 1' }], classes: [{ value: 'A', label: '  Lớp A  ', parent: { year: '2026', semester: '1', faculty: 'f1', course: 'c1' } }, { value: 'B', label: 'Lớp B', parent: { year: '2026', semester: '1', faculty: 'f1', course: 'c1' } }] };
 const settings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
+const openSourceConfig = () => fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' }));
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(classApi.getClasses).mockResolvedValue([{ _id: 'c1', class_name: 'Lớp A', class_year: '2026', dept_id: 'd1', class_type: 'Cao đẳng' }]); vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings, job: null, lastSuccessfulUpdate: null }); vi.mocked(timetableApi.loadCatalog).mockResolvedValue(catalog); vi.mocked(timetableApi.updateSyncSettings).mockImplementation(async (value) => value); vi.mocked(timetableApi.syncSavedClassWeek).mockResolvedValue({ status: 'pending', key: 'k', selection: { year: '2026', semester: '1', className: 'A', week: 'w1' } }); vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'running', id: 'job', total: 1 }); vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { year: '2026', semester: '1', className: 'A', week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: null, isEmpty: false }); });
 
 describe('TimetableSyncPanel', () => {
+  it('opens and closes advanced source configuration from the menu', async () => {
+    render(<TimetableSyncPanel />);
+    await screen.findAllByText('Lớp A');
+    expect(screen.queryByLabelText('year')).not.toBeInTheDocument();
+    openSourceConfig();
+    expect(screen.getByLabelText('year')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByLabelText('year')).not.toBeInTheDocument();
+  });
+
   it('renders every system class and creates a normalized unique draft link without fetching schedules', async () => {
     render(<TimetableSyncPanel />);
-    expect((await screen.findAllByText('Lớp A')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Lớp A')).length).toBeGreaterThan(0); openSourceConfig();
     fireEvent.change(screen.getByLabelText('year'), { target: { value: '2026' } }); fireEvent.change(screen.getByLabelText('semester'), { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu lớp' }));
     await waitFor(() => expect(screen.getByText('Tự động (unique)')).toBeInTheDocument());
@@ -22,14 +33,14 @@ describe('TimetableSyncPanel', () => {
   });
   it('keeps ambiguous/unmatched rows visible and saves additive links', async () => {
     vi.mocked(classApi.getClasses).mockResolvedValue([{ _id: 'c1', class_name: 'Lớp C', class_year: '2026', dept_id: 'd1', class_type: 'Cao đẳng' }]);
-    render(<TimetableSyncPanel />); await screen.findByText('Lớp C');
+    render(<TimetableSyncPanel />); await screen.findByText('Lớp C'); openSourceConfig();
     fireEvent.change(screen.getByLabelText('year'), { target: { value: '2026' } }); fireEvent.change(screen.getByLabelText('semester'), { target: { value: '1' } }); fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' }));
     await waitFor(() => expect(timetableApi.updateSyncSettings).toHaveBeenCalledWith(expect.objectContaining({ classLinks: [] })));
     expect(screen.getByText('Unverified')).toBeInTheDocument();
   });
   it('supports source-only view and retains draft after a failed save', async () => {
     vi.mocked(timetableApi.updateSyncSettings).mockRejectedValue(new Error('Lưu lỗi'));
-    render(<TimetableSyncPanel />); await screen.findAllByText('Lớp A'); fireEvent.change(screen.getByLabelText('year'), { target: { value: '2026' } }); fireEvent.change(screen.getByLabelText('semester'), { target: { value: '1' } }); fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu lớp' })); await waitFor(() => expect(screen.getByText('Tự động (unique)')).toBeInTheDocument());
+    render(<TimetableSyncPanel />); await screen.findAllByText('Lớp A'); openSourceConfig(); fireEvent.change(screen.getByLabelText('year'), { target: { value: '2026' } }); fireEvent.change(screen.getByLabelText('semester'), { target: { value: '1' } }); fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu lớp' })); await waitFor(() => expect(screen.getByText('Tự động (unique)')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' })); await screen.findByRole('alert'); expect(screen.getByRole('combobox', { name: 'Nguồn cho Lớp A' })).toHaveValue('A');
     fireEvent.change(screen.getByLabelText('Kiểu hiển thị'), { target: { value: 'source' } }); expect(within(screen.getByRole('table')).getAllByText('Source-only')).toHaveLength(2);
   });

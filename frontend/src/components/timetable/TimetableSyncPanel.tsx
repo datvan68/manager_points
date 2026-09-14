@@ -5,6 +5,8 @@ import { classApi, type Class } from '@/api/class-api';
 import { timetableApi, type TimetableClassLink, type TimetableClassSyncStatus, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings } from '@/api/timetable-api';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import { CustomPagination } from '@/components/ui/pagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SlidersHorizontal } from 'lucide-react';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -509,8 +511,17 @@ export default function TimetableSyncPanel({
         )}
       </div>
 
-      {/* Source Configuration Controls */}
-      <div className="rounded-xl border border-white/70 bg-white/40 p-3.5 sm:p-4 shadow-sm backdrop-blur-sm space-y-3.5">
+      {/* Menu and source configuration */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/40 p-2.5 shadow-sm backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="px-2 text-xs font-bold text-[#1E293B]">Cấu hình liên kết</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" aria-label="Mở cấu hình nâng cao" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/75 bg-white/60 text-[#64748B] shadow-sm transition hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30">
+                <SlidersHorizontal size={18} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[min(92vw,540px)] p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
             <span>Niên học nguồn</span>
@@ -600,6 +611,10 @@ export default function TimetableSyncPanel({
             </button>
           </div>
         </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <span className="text-[11px] font-medium text-[#64748B]">Chọn biểu tượng để quản lý nguồn</span>
       </div>
 
       {/* Filter and Search Bar */}
@@ -648,8 +663,8 @@ export default function TimetableSyncPanel({
       </div>
 
       {/* Class Mapping Table */}
-      <div className="overflow-hidden rounded-2xl border border-white/75 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
-        <div className="overflow-x-auto">
+      <div className="flex max-h-[calc(100vh-300px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
+        <div className="min-h-0 max-h-[min(60vh,600px)] flex-1 overflow-auto">
           <table className="w-full min-w-[1050px] border-collapse text-left text-xs">
             <caption className="border-b border-white/70 bg-white/60 px-4 py-2.5 text-left text-xs font-bold text-[#1E293B]">
               Bảng quản lý liên kết lớp
@@ -921,15 +936,17 @@ export default function TimetableSyncPanel({
       )}
 
       {view === 'system' && (
-        <CustomPagination
-          totalItems={filteredClasses.length}
-          pageSize={pageSize}
-          currentPage={Math.min(page, totalPages)}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-          pageSizeOptions={[10, 20, 50]}
-          label="lớp"
-        />
+        <div className="w-full overflow-x-auto">
+          <CustomPagination
+            totalItems={filteredClasses.length}
+            pageSize={pageSize}
+            currentPage={Math.min(page, totalPages)}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            pageSizeOptions={[10, 20, 50]}
+            label="lớp"
+          />
+        </div>
       )}
 
       {/* Messages and Alerts */}

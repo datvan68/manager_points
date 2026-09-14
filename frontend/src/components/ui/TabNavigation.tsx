@@ -13,6 +13,7 @@ interface TabOption {
 interface Tab {
   id: string;
   label: string;
+  panelId?: string;
   type?: 'tab' | 'select-option';
   options?: TabOption[];
 }
@@ -42,8 +43,9 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
         className
       )}
     >
-      <div className={cn("flex items-center gap-5 sm:gap-6 lg:gap-7 h-full", responsiveScrollable && "min-w-max")}>
-        {tabs.map((tab) => {
+      <div role="tablist" aria-label="Điều hướng tab" className={cn("flex items-center gap-5 sm:gap-6 lg:gap-7 h-full", responsiveScrollable && "min-w-max")}>
+        {tabs.map((tab, index) => {
+          const panelId = tab.panelId || `${tab.id}-panel`;
           const isDropdown = tab.type === 'select-option';
           const isActive = activeTab === tab.id || (tab.options?.some(opt => opt.id === activeTab));
           
@@ -58,6 +60,25 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
                 onMouseLeave={() => setOpenSelectId(null)}
               >
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  id={`${tab.id}-tab`}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onTabChange(tab.options?.find((option) => option.id === activeTab)?.id || tab.id);
+                      return;
+                    }
+                    if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+                      event.preventDefault();
+                      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + tabs.length) % tabs.length;
+                      const nextTab = tabs[nextIndex];
+                      onTabChange(nextTab.options?.[0]?.id || nextTab.id);
+                    }
+                  }}
                   className={cn(
                     "flex items-center justify-center gap-1.5 h-full px-1 text-[13.5px] leading-[20px] transition-all duration-200 cursor-pointer outline-none shrink-0 whitespace-nowrap",
                     isActive 
@@ -113,7 +134,25 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={panelId}
+              id={`${tab.id}-tab`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onTabChange(tab.id);
+                  return;
+                }
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+                  event.preventDefault();
+                  const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + tabs.length) % tabs.length;
+                  onTabChange(tabs[nextIndex].id);
+                }
+              }}
               className={cn(
                 "relative shrink-0 flex items-center justify-center h-full px-1 text-[13.5px] leading-[20px] transition-colors duration-200 cursor-pointer outline-none whitespace-nowrap",
                 isActive 

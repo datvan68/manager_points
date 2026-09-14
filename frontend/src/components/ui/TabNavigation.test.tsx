@@ -18,15 +18,26 @@ describe('TabNavigation responsive distribution', () => {
 
     expect(viewport).toHaveClass('overflow-x-auto');
     expect(track).toHaveClass('min-w-max');
-    expect(screen.getByRole('button', { name: 'Tổng quan' })).toHaveClass('shrink-0');
-    expect(screen.getByRole('button', { name: 'Tổng quan' }).querySelector('[class*="bg-[#1A73E8]"]')).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Tổng quan' })).toHaveClass('shrink-0');
+    expect(screen.getByRole('tab', { name: 'Tổng quan' }).querySelector('[class*="bg-[#1A73E8]"]')).toBeTruthy();
   });
 
   it('keeps tab navigation callbacks intact', () => {
     const onTabChange = vi.fn();
     render(<TabNavigation tabs={tabs} activeTab="overview" onTabChange={onTabChange} responsiveScrollable />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Danh sách' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Danh sách' }));
+    expect(onTabChange).toHaveBeenCalledWith('roster');
+  });
+
+  it('exposes tab semantics and supports arrow-key navigation', () => {
+    const onTabChange = vi.fn();
+    render(<TabNavigation tabs={tabs} activeTab="overview" onTabChange={onTabChange} />);
+    const overview = screen.getByRole('tab', { name: 'Tổng quan' });
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(overview).toHaveAttribute('aria-controls', 'overview-panel');
+    expect(overview).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(overview, { key: 'ArrowRight' });
     expect(onTabChange).toHaveBeenCalledWith('roster');
   });
 });
