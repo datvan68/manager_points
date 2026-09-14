@@ -4,6 +4,23 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectLabel } from './select';
 
 describe('Select Component', () => {
+  it('defers a large option list while preserving its selected label and search', async () => {
+    const onChange = vi.fn();
+    render(<Select deferOptions value="900" onValueChange={onChange}>
+      <SelectTrigger aria-label="Deferred"><SelectValue /></SelectTrigger>
+      <SelectContent>{Array.from({ length: 1000 }, (_, i) => <SelectItem key={i} value={String(i)}>Choice {i}</SelectItem>)}</SelectContent>
+    </Select>);
+    const trigger = screen.getByRole('combobox', { name: 'Deferred' });
+    expect(trigger).toHaveValue('Choice 900');
+    expect(screen.queryAllByRole('option', { hidden: true })).toHaveLength(0);
+    fireEvent.click(trigger);
+    fireEvent.change(trigger, { target: { value: 'Choice 999' } });
+    await screen.findByRole('option', { name: 'Choice 999' });
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('999');
+    expect(screen.queryAllByRole('option', { hidden: true })).toHaveLength(0);
+  });
+
   it('should mount SelectContent inside document.body using React Portal when opened', async () => {
     render(
       <Select>

@@ -27,6 +27,7 @@ interface SelectContextProps {
   setHighlightedIndex: React.Dispatch<React.SetStateAction<number>>;
   registeredItems: Array<{ value: string; label: string }>;
   registerItem: (value: string, label: string) => () => void;
+  deferOptions?: boolean;
 }
 
 const SelectContext = React.createContext<SelectContextProps | undefined>(undefined);
@@ -52,13 +53,32 @@ export const Select = ({
   required,
   error,
   containerClassName,
+  deferOptions = false,
 }: any) => {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedLabel, setSelectedLabel] = React.useState("");
   const [openUp, setOpenUp] = React.useState(false);
   const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
-  const [registeredItems, setRegisteredItems] = React.useState<Array<{ value: string; label: string }>>([]);
+  const [mountedItems, setRegisteredItems] = React.useState<Array<{ value: string; label: string }>>([]);
+  const optionItems = React.useMemo(() => {
+    if (!deferOptions) return [];
+    const items: Array<{ value: string; label: string }> = [];
+    const visit = (nodes: React.ReactNode) => React.Children.forEach(nodes, (node) => {
+      if (!React.isValidElement<any>(node)) return;
+      const props = node.props as { value?: unknown; label?: string; children?: React.ReactNode };
+      if (node.type === SelectItem) items.push({ value: String(props.value), label: props.label || getChildText(props.children) });
+      else if (props.children) visit(props.children);
+    });
+    visit(children);
+    return items;
+  }, [children, deferOptions]);
+  const registeredItems = React.useMemo(() => {
+    if (!deferOptions) return mountedItems;
+    return open && searchQuery
+      ? optionItems.filter((item) => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
+      : optionItems;
+  }, [deferOptions, mountedItems, optionItems, open, searchQuery]);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const triggerRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
@@ -67,6 +87,7 @@ export const Select = ({
   const selectId = `select-${generatedId.replace(/:/g, "")}`;
 
   const registerItem = React.useCallback((itemValue: string, itemLabel: string) => {
+    if (deferOptions) return () => {};
     setRegisteredItems((prev) => {
       const idx = prev.findIndex((i) => i.value === itemValue);
       if (idx >= 0) {
@@ -80,7 +101,7 @@ export const Select = ({
     return () => {
       setRegisteredItems((prev) => prev.filter((i) => i.value !== itemValue));
     };
-  }, []);
+  }, [deferOptions]);
 
   // Close dropdown on click outside
   React.useEffect(() => {
@@ -174,6 +195,7 @@ export const Select = ({
         setHighlightedIndex,
         registeredItems,
         registerItem,
+        deferOptions,
       }}
     >
       <div ref={containerRef} className={cn("flex flex-col gap-1.5 w-full", containerClassName)}>
@@ -472,7 +494,7 @@ export const SelectContent = React.forwardRef<any, any>(
       </div>
     );
 
-    if (!mounted) return null;
+    if (!mounted || (context.deferOptions && !open)) return null;
     return disablePortal ? content : createPortal(content, document.body);
   }
 );

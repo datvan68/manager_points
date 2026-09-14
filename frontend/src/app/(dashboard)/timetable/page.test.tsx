@@ -17,6 +17,8 @@ describe('TimetablePage', () => {
     expect(screen.queryByRole('heading', { name: 'Thời khóa biểu' })).not.toBeInTheDocument();
     expect(screen.queryByText('Tra cứu lịch học theo dữ liệu nhà trường.')).not.toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.queryByText('sync complete')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('snapshots')).not.toBeInTheDocument();
     expect(screen.getByRole('tablist')).toHaveAttribute('aria-label', 'Điều hướng tab');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('shrink-0');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('overflow-x-auto');

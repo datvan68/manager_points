@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetableSyncPanel from './TimetableSyncPanel';
 import { classApi } from '@/api/class-api';
@@ -27,10 +27,27 @@ const selectOption = async (label: string, text: string) => {
     .find((el) => !el.className.includes('opacity-0'));
   if (!openListbox) throw new Error('No open listbox');
   const option = within(openListbox).getByRole('option', { name: text, hidden: true });
-  fireEvent.click(option);
+  await act(async () => { fireEvent.click(option); });
 };
 
 describe('TimetableSyncPanel', () => {
+  it('keeps classes searchable while the source catalog is pending', async () => {
+    vi.mocked(timetableApi.loadCatalog).mockReturnValue(new Promise(() => {}));
+    render(<TimetableSyncPanel />);
+    await screen.findByText('Lớp A');
+    fireEvent.change(screen.getByLabelText('Tìm lớp'), { target: { value: 'missing' } });
+    expect(screen.queryByText('Lớp A')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tìm lớp'), { target: { value: 'Lớp A' } });
+    expect(screen.getByText('Lớp A')).toBeInTheDocument();
+  });
+
+  it('retains system classes when the source catalog fails', async () => {
+    vi.mocked(timetableApi.loadCatalog).mockRejectedValue(new Error('Source timeout'));
+    render(<TimetableSyncPanel />);
+    await screen.findByText('Lớp A');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Source timeout');
+  });
+
   it('keeps the filter bar responsive and the table footer outside the scroll area', async () => {
     render(<TimetableSyncPanel />);
     await screen.findAllByText('Lớp A');

@@ -45,8 +45,10 @@ type Path = { faculty: string; course: string; className: string };
 
 export default function TimetableSyncPanel({
   onSynced,
+  active = true,
 }: {
   onSynced?: () => void;
+  active?: boolean;
 }) {
   const { user } = useAuth();
   const isAdmin = String(user?.roleCode || '').toUpperCase() === 'ADMIN';
@@ -69,6 +71,8 @@ export default function TimetableSyncPanel({
   const [department, setDepartment] = useState('');
   const [linkStatus, setLinkStatus] = useState('all');
   const [busy, setBusy] = useState(false);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [pageSize, setPageSize] = useState(20);
@@ -121,16 +125,19 @@ export default function TimetableSyncPanel({
   useEffect(() => {
     if (!isAdmin) return;
     mounted.current = true;
-    void Promise.all([
-      classApi.getClasses(),
-      timetableApi.getSyncStatus(),
-      timetableApi.loadCatalog({}),
-    ])
-      .then(([roster, data, initialCatalog]) => {
-        if (!mounted.current) return;
+    let cancelled = false;
+    const reportError = (e: Error) => { if (!cancelled) setError(e.message); };
+    void classApi.getClasses().then((roster) => {
+      if (!cancelled) setClasses(roster);
+    }).catch(reportError);
+    void timetableApi.loadCatalog({}).then((initialCatalog) => {
+      if (!cancelled) setCatalog(initialCatalog);
+    }).catch(reportError);
+    void timetableApi.getSyncStatus()
+      .then((data) => {
+        if (cancelled) return;
         const next = data.settings || emptySettings;
-        setClasses(roster);
-        setCatalog(initialCatalog);
+        setSettingsReady(true);
         setSettings({
           ...emptySettings,
           ...next,
@@ -152,28 +159,31 @@ export default function TimetableSyncPanel({
         );
         applyStatus(data);
       })
-      .catch((e: Error) => mounted.current && setError(e.message));
+      .catch(reportError)
+      .finally(() => { if (!cancelled) setSettingsLoading(false); });
     return () => {
+      cancelled = true;
       mounted.current = false;
     };
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !active) return;
+    let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let delay = 5000;
-    const active = () => Boolean(job && activeStatuses.includes(job.status)) || statuses.some((row) => activeStatuses.includes(row.status));
+    const hasActiveJob = () => Boolean(job && activeStatuses.includes(job.status)) || statuses.some((row) => activeStatuses.includes(row.status));
     const poll = async () => {
-      if (!mounted.current || document.visibilityState !== 'visible' || !active()) return;
+      if (cancelled || !mounted.current || document.visibilityState !== 'visible' || !hasActiveJob()) return;
       const ok = await refreshStatuses();
       delay = ok ? 5000 : Math.min(delay * 2, 30000);
-      if (mounted.current && document.visibilityState === 'visible' && active()) timer = setTimeout(() => void poll(), delay);
+      if (!cancelled && mounted.current && document.visibilityState === 'visible' && hasActiveJob()) timer = setTimeout(() => void poll(), delay);
     };
     const onVisibility = () => { if (document.visibilityState === 'visible') { delay = 5000; void poll(); } };
     document.addEventListener('visibilitychange', onVisibility);
-    if (active() && document.visibilityState === 'visible') timer = setTimeout(() => void poll(), delay);
-    return () => { document.removeEventListener('visibilitychange', onVisibility); if (timer) clearTimeout(timer); };
-  }, [isAdmin, job?.status, statuses]);
+    if (hasActiveJob() && document.visibilityState === 'visible') timer = setTimeout(() => void poll(), delay);
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisibility); if (timer) clearTimeout(timer); };
+  }, [isAdmin, active, job?.status, statuses]);
 
   const loadFor = async (key: string, filters: Partial<TimetableFilters>) => {
     const cacheKey = JSON.stringify(filters);
@@ -310,6 +320,7 @@ export default function TimetableSyncPanel({
   };
 
   const save = async () => {
+    if (!settingsReady) return;
     setBusy(true);
     setError('');
     setMessage('');
@@ -488,6 +499,7 @@ export default function TimetableSyncPanel({
       aria-label="Quản trị đồng bộ thời khóa biểu"
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
     >
+      {settingsLoading && <p role="status">Đang tải cấu hình đã lưu…</p>}
       {/* Filter and Search Bar */}
       <div className="flex shrink-0 flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-md">
@@ -501,7 +513,7 @@ export default function TimetableSyncPanel({
           />
         </div>
         <div className="min-w-0 sm:w-[190px]">
-          <Select
+          <Select deferOptions
             value={department || 'ALL'}
             onValueChange={(value: string) => setDepartment(value === 'ALL' ? '' : value)}
           >
@@ -522,7 +534,7 @@ export default function TimetableSyncPanel({
           </Select>
         </div>
         <div className="min-w-0 sm:w-[190px]">
-          <Select
+          <Select deferOptions
             value={linkStatus}
             onValueChange={(value: string) => setLinkStatus(value as 'all' | 'linked' | 'unlinked')}
           >
@@ -568,12 +580,13 @@ export default function TimetableSyncPanel({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-[#1E293B]">Niên học nguồn</span>
-                  <Select
+                  <Select deferOptions
                     value={period.year || 'NONE'}
                     onValueChange={(value: string) => void changePeriod('year', value === 'NONE' ? '' : value)}
                   >
                     <SelectTrigger
                       aria-label="year"
+                      disabled={!settingsReady}
                       className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
                     >
                       <SelectValue placeholder="Chọn" />
@@ -592,12 +605,13 @@ export default function TimetableSyncPanel({
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs font-semibold text-[#1E293B]">Học kỳ nguồn</span>
-                  <Select
+                  <Select deferOptions
                     value={period.semester || 'NONE'}
                     onValueChange={(value: string) => void changePeriod('semester', value === 'NONE' ? '' : value)}
                   >
                     <SelectTrigger
                       aria-label="semester"
+                      disabled={!settingsReady}
                       className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
                     >
                       <SelectValue placeholder="Chọn" />
@@ -629,7 +643,7 @@ export default function TimetableSyncPanel({
                   <button
                     type="button"
                     onClick={reconcile}
-                    disabled={busy || !catalog || !period.year || !period.semester}
+                    disabled={busy || !settingsReady || !catalog || !period.year || !period.semester}
                     className="rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition-all duration-150 ease-out hover:bg-indigo-100 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
                   >
                     Đối chiếu lớp
@@ -642,6 +656,7 @@ export default function TimetableSyncPanel({
                     <div className="flex items-center gap-1.5">
                       <input
                         aria-label="Khoảng đồng bộ"
+                        disabled={!settingsReady}
                         type="number"
                         min={30}
                         value={settings.intervalMinutes}
@@ -659,7 +674,7 @@ export default function TimetableSyncPanel({
                   <button
                     type="button"
                     onClick={() => void save()}
-                    disabled={busy}
+                    disabled={busy || !settingsReady}
                     className="rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-bold text-white shadow-sm transition-all duration-150 ease-out hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
                   >
                     Lưu liên kết
@@ -725,7 +740,7 @@ export default function TimetableSyncPanel({
                       </td>
                       <td className="px-3.5 py-2.5">
                         <div className="w-full min-w-[130px]">
-                          <Select
+                          <Select deferOptions
                             value={path.faculty || 'NONE'}
                             onValueChange={(value: string) =>
                               void setPath(item, 'faculty', value === 'NONE' ? '' : value)
@@ -733,6 +748,7 @@ export default function TimetableSyncPanel({
                           >
                             <SelectTrigger
                               aria-label={`Khoa nguồn cho ${item.class_name}`}
+                              disabled={!settingsReady}
                               className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
                             >
                               <SelectValue placeholder="Chọn" />
@@ -750,7 +766,7 @@ export default function TimetableSyncPanel({
                       </td>
                       <td className="px-3.5 py-2.5">
                         <div className="w-full min-w-[110px]">
-                          <Select
+                          <Select deferOptions
                             value={path.course || 'NONE'}
                             onValueChange={(value: string) =>
                               void setPath(item, 'course', value === 'NONE' ? '' : value)
@@ -758,7 +774,7 @@ export default function TimetableSyncPanel({
                           >
                             <SelectTrigger
                               aria-label={`Khóa nguồn cho ${item.class_name}`}
-                              disabled={!path.faculty}
+                              disabled={!settingsReady || !path.faculty}
                               className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <SelectValue placeholder="Chọn" />
@@ -776,7 +792,7 @@ export default function TimetableSyncPanel({
                       </td>
                       <td className="px-3.5 py-2.5">
                         <div className="w-full min-w-[200px]">
-                          <Select
+                          <Select deferOptions
                             value={path.className || 'NONE'}
                             onValueChange={(value: string) => {
                               const finalVal = value === 'NONE' ? '' : value;
@@ -787,7 +803,7 @@ export default function TimetableSyncPanel({
                           >
                             <SelectTrigger
                               aria-label={`Nguồn cho ${item.class_name}`}
-                              disabled={!path.faculty || !path.course}
+                              disabled={!settingsReady || !path.faculty || !path.course}
                               className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <SelectValue placeholder="Chưa liên kết / unverified" />
@@ -833,7 +849,7 @@ export default function TimetableSyncPanel({
                       <td className="whitespace-nowrap px-3.5 py-2.5">
                         {status?.weeks?.length ? (
                           <div className="w-full min-w-[120px]">
-                            <Select
+                            <Select deferOptions
                               value={selected || 'NONE'}
                               onValueChange={(value: string) =>
                                 setSelectedWeeks((current) => ({
@@ -995,7 +1011,7 @@ export default function TimetableSyncPanel({
                 }}
               />
               <div className="flex items-center gap-1.5" aria-label="Đồng bộ nhanh tương thích">
-                <Select value={bulkWeek || 'NONE'} onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}>
+                <Select deferOptions value={bulkWeek || 'NONE'} onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}>
                   <SelectTrigger aria-label="Tuần đồng bộ chung" disabled={!selectedLinks.length || bulkSubmitting} className="h-8 w-[140px] rounded-xl border-blue-200 bg-white px-2.5 py-1 text-xs"><SelectValue placeholder="Chọn tuần chung" /></SelectTrigger>
                   <SelectContent className="z-[10000]"><SelectItem value="NONE">Chọn tuần chung</SelectItem>{commonWeeks.map((week) => <SelectItem key={week} value={week}>{week}</SelectItem>)}</SelectContent>
                 </Select>
