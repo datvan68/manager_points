@@ -57,6 +57,12 @@ type BulkProgress = {
   pairs: BulkPairState[];
   message?: string;
 };
+type SingleProgress = {
+  link: TimetableClassLink;
+  week: string;
+  phase: 'processing' | 'completed' | 'failed' | 'request-error' | 'tracking-error';
+  message?: string;
+};
 const bulkPairKey = (pair: TimetableBulkWeekSyncRequest) => `${selectionKey(pair)}|${pair.week}`;
 
 export default function TimetableSyncPanel({
@@ -97,9 +103,11 @@ export default function TimetableSyncPanel({
   const [bulkWeek, setBulkWeek] = useState('');
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
+  const [singleProgress, setSingleProgress] = useState<SingleProgress | null>(null);
   const mounted = useRef(true);
   const callback = useRef(onSynced);
   const pollTimers = useRef(new Map<string, number>());
+  const singlePollTimer = useRef<number | null>(null);
   const bulkPollTimers = useRef(new Map<string, number>());
   const bulkRun = useRef(0);
 
@@ -111,6 +119,7 @@ export default function TimetableSyncPanel({
     () => () => {
       mounted.current = false;
       pollTimers.current.forEach((timer) => window.clearTimeout(timer));
+      if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current);
       bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
       bulkRun.current += 1;
     },
@@ -406,10 +415,12 @@ export default function TimetableSyncPanel({
       if (terminal) {
         setPolling((current) => ({ ...current, [key]: false }));
         if (result.status === 'valid') {
-          setMessage(`Đồng bộ ${link.sourceLabel} tuần ${week} đã hoàn tất.`);
+          setSingleProgress((current) => current?.link.systemClassId === key && current.week === week ? { ...current, phase: 'completed' } : current);
           callback.current?.();
-        } else if (result.status === 'failed')
-          setError(result.failure || `Đồng bộ tuần ${week} thất bại.`);
+        } else {
+          const failure = result.failure || `Đồng bộ tuần ${week} thất bại.`;
+          setSingleProgress((current) => current?.link.systemClassId === key && current.week === week ? { ...current, phase: 'failed', message: failure } : current);
+        }
         return;
       }
       const timer = window.setTimeout(
@@ -417,14 +428,11 @@ export default function TimetableSyncPanel({
         2000
       );
       pollTimers.current.set(key, timer);
+      singlePollTimer.current = timer;
     } catch (e: unknown) {
       if (mounted.current) {
         setPolling((current) => ({ ...current, [key]: false }));
-        setError(
-          e instanceof Error
-            ? e.message
-            : 'Không thể theo dõi trạng thái đồng bộ.'
-        );
+        setSingleProgress((current) => current?.link.systemClassId === key && current.week === week ? { ...current, phase: 'tracking-error', message: e instanceof Error ? e.message : 'Không thể theo dõi trạng thái đồng bộ.' } : current);
       }
     }
   };
@@ -435,29 +443,24 @@ export default function TimetableSyncPanel({
     before: string | null
   ) => {
     const key = link.systemClassId;
-    if (submitting || polling[key]) return;
+    if (submitting || polling[key] || singleProgress) return;
     setSubmitting(key);
     setError('');
     setMessage('');
+    if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current);
+    setSingleProgress({ link, week, phase: 'processing' });
     try {
-      const result = await timetableApi.syncSavedClassWeek(
+      await timetableApi.syncSavedClassWeek(
         { ...link, week },
         'sync'
       );
       if (!mounted.current) return;
       setSubmitting(null);
-      setMessage(
-        result.status === 'pending' || result.status === 'running'
-          ? `Đã nhận yêu cầu tuần ${week}; đang theo dõi...`
-          : 'Đã gửi yêu cầu đồng bộ.'
-      );
       void pollWeek(key, link, week, before);
     } catch (e: unknown) {
       if (mounted.current) {
         setSubmitting(null);
-        setError(
-          e instanceof Error ? e.message : 'Không thể đồng bộ tuần đã chọn.'
-        );
+        setSingleProgress((current) => current?.link.systemClassId === key && current.week === week ? { ...current, phase: 'request-error', message: e instanceof Error ? e.message : 'Không thể đồng bộ tuần đã chọn.' } : current);
       }
     }
   };
@@ -521,6 +524,7 @@ export default function TimetableSyncPanel({
   const bulkPercentage = bulkProgress?.pairs.length
     ? Math.min(100, Math.max(0, Math.floor((bulkCounters.processed / bulkProgress.pairs.length) * 100)))
     : 0;
+  const singlePercentage = singleProgress?.phase === 'completed' || singleProgress?.phase === 'failed' ? 100 : 0;
 
   const clearBulkTimers = () => {
     bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
@@ -1155,6 +1159,47 @@ export default function TimetableSyncPanel({
           {error}
         </div>
       )}
+      <Dialog
+        open={Boolean(singleProgress)}
+        onOpenChange={(open) => {
+          if (!open && singleProgress?.phase !== 'processing') {
+            if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current);
+            pollTimers.current.delete(singleProgress?.link.systemClassId || '');
+            setSingleProgress(null);
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={singleProgress?.phase !== 'processing'}
+          onEscapeKeyDown={(event) => { if (singleProgress?.phase === 'processing') event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (singleProgress?.phase === 'processing') event.preventDefault(); }}
+          onInteractOutside={(event) => { if (singleProgress?.phase === 'processing') event.preventDefault(); }}
+          className="w-[calc(100%-1rem)] max-w-xl rounded-2xl border border-white/75 bg-white/45 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md sm:p-5"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              {singleProgress?.phase === 'processing' ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" aria-hidden="true" /> : singleProgress?.phase === 'completed' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
+              Tiến độ đồng bộ tuần
+            </DialogTitle>
+            <DialogDescription className="text-[#64748B]">
+              {singleProgress?.link.sourceLabel} · Tuần {singleProgress?.week}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+              <span>{singleProgress?.phase === 'processing' ? 'Đang gửi và theo dõi kết quả…' : singleProgress?.phase === 'tracking-error' ? 'Không thể xác nhận kết quả' : singleProgress?.phase === 'request-error' ? 'Không gửi được yêu cầu' : singleProgress?.phase === 'failed' ? 'Đồng bộ thất bại' : 'Đồng bộ hoàn tất'}</span>
+              <span>{singlePercentage}%</span>
+            </div>
+            <div role="progressbar" aria-label="Tiến độ đồng bộ tuần" aria-valuemin={0} aria-valuemax={100} aria-valuenow={singlePercentage} aria-valuetext={`${singlePercentage}%`} className="h-2 overflow-hidden rounded-xl bg-blue-500/10">
+              <div className="h-full rounded-xl bg-[#1A73E8] transition-[width] duration-150 motion-reduce:transition-none" style={{ width: `${singlePercentage}%` }} />
+            </div>
+            {singleProgress?.message && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">{singleProgress.message}</p>}
+          </div>
+          <DialogFooter>
+            <button type="button" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" disabled={singleProgress?.phase === 'processing'} onClick={() => { if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current); pollTimers.current.delete(singleProgress?.link.systemClassId || ''); setSingleProgress(null); }}>Đóng</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(bulkProgress)}
         onOpenChange={(open) => {

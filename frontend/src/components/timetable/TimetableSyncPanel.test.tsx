@@ -123,6 +123,34 @@ describe('TimetableSyncPanel', () => {
     await waitFor(() => expect(timetableApi.syncSavedClassWeek).toHaveBeenCalledWith(expect.objectContaining({ systemClassId: 'c1', className: 'A', week: 'w2' }), 'sync'));
   });
 
+  it('opens the single progress dialog before the request resolves and keeps it at 0%', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    vi.mocked(timetableApi.syncSavedClassWeek).mockReturnValue(new Promise(() => {}));
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    await selectOption('Tuần cho Lớp A', 'Tuần 1 · Chưa đồng bộ');
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Lớp A · Tuần w1');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows 100% and invokes onSynced only after a new valid snapshot', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    const onSynced = vi.fn();
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { ...link, week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: 'new', isEmpty: false });
+    render(<TimetableSyncPanel onSynced={onSynced} />);
+    await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    await selectOption('Tuần cho Lớp A', 'Tuần 1 · Chưa đồng bộ');
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
+    await waitFor(() => expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100'));
+    expect(onSynced).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('shows every week status while keeping the selected trigger compact', async () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
     const weeks = [
@@ -181,7 +209,7 @@ describe('TimetableSyncPanel', () => {
     expect(within(listbox).queryByRole('option', { name: 'Tuần 1 · Đang chờ', hidden: true })).not.toBeInTheDocument();
   });
 
-  it('shows request failures and reports observed completion', async () => {
+  it('shows request failures in the dialog and reports no completion', async () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
     const onSynced = vi.fn();
     vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', status: 'missing' }] }] });
@@ -192,7 +220,23 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
     await screen.findByRole('alert');
     expect(screen.getByRole('alert')).toHaveTextContent('Mất kết nối');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
     expect(onSynced).not.toHaveBeenCalled();
+  });
+
+  it('shows tracking failures in the dialog and prevents duplicate requests while open', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', status: 'missing' }] }] });
+    vi.mocked(timetableApi.getSavedClassWeekStatus).mockRejectedValue(new Error('Lỗi theo dõi'));
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    await selectOption('Tuần cho Lớp A', 'w1 · Chưa đồng bộ');
+    const syncButton = screen.getByRole('button', { name: 'Đồng bộ tuần' });
+    fireEvent.click(syncButton);
+    fireEvent.click(syncButton);
+    await screen.findByRole('alert');
+    expect(screen.getByRole('alert')).toHaveTextContent('Lỗi theo dõi');
+    expect(timetableApi.syncSavedClassWeek).toHaveBeenCalledTimes(1);
   });
 
   it('selects saved rows and sends one bulk request for the common week', async () => {
