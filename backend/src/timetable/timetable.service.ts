@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { QueryTimetableDto } from './dto/query-timetable.dto';
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
@@ -41,6 +41,39 @@ export class TimetableService {
     return this.getLegacyTimetable(requester, query);
   }
 
+  async getTodayForClass(_requester: any, classId: string) {
+    if (!Types.ObjectId.isValid(classId)) {
+      throw new BadRequestException({ reasonCode: 'TIMETABLE_CLASS_INVALID', message: 'Lớp không hợp lệ.' });
+    }
+
+    const state = await this.states.findOne({ name: 'default' }).lean().exec();
+    const link = (state?.settings?.classLinks || []).find(
+      (candidate: any) => String(candidate.systemClassId) === classId,
+    );
+    if (!link?.year || !link?.semester || !link?.week || !link?.className) {
+      return { status: 'unavailable', date: this.todayInHoChiMinh(), lessons: [] as any[] };
+    }
+
+    const today = this.todayInHoChiMinh();
+    const snapshot = await this.snapshots.findOne({ key: timetableKey(link) }).lean().exec();
+    const result = snapshot?.result as any;
+    if (!snapshot || !result?.startDate || !result?.endDate || today < result.startDate || today > result.endDate) {
+      return { status: 'unavailable', date: today, lessons: [] as any[] };
+    }
+
+    const lessons = Array.isArray(result.lessons)
+      ? result.lessons.filter((lesson: any) => lesson?.date === today)
+      : [];
+    const syncedAt = snapshot.syncedAt instanceof Date ? snapshot.syncedAt.toISOString() : String(snapshot.syncedAt);
+    return {
+      status: lessons.length ? 'available' : 'empty',
+      date: today,
+      lessons,
+      syncedAt,
+      coverageKey: snapshot.coverageKey,
+    };
+  }
+
   async listSnapshots(_requester: any, query: QueryTimetableSnapshotsDto = new QueryTimetableSnapshotsDto()) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
@@ -62,6 +95,15 @@ export class TimetableService {
     if (!snapshot) throw new NotFoundException({ reasonCode: 'TIMETABLE_NOT_SYNCED', message: 'Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.' });
     const syncedAt = snapshot.syncedAt instanceof Date ? snapshot.syncedAt.toISOString() : String(snapshot.syncedAt);
     return { ...snapshot.result, status: 'valid', syncedAt, coverageKey: snapshot.coverageKey } as TimetableResult;
+  }
+
+  private todayInHoChiMinh() {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
   }
 
   async getDemandStatus(_requester: any, query: QueryTimetableDto) {

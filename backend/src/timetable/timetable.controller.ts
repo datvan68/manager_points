@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, CanActivate, Controller, ExecutionContext, ForbiddenException, GatewayTimeoutException, Get, Injectable, Optional, Patch, Post, Body, Query, Req, ServiceUnavailableException, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, CanActivate, Controller, ExecutionContext, ForbiddenException, GatewayTimeoutException, Get, Injectable, Optional, Patch, Post, Body, Query, Req, Param, ServiceUnavailableException, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
@@ -68,6 +68,7 @@ export class TimetableController {
   @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
   @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }
   @Get('snapshots') @UseGuards(TimetableAdminGuard) listSnapshots(@Req() req: any, @Query() query: QueryTimetableSnapshotsDto) { return this.service.listSnapshots(req.user, query); }
+  @Get('today/:classId') getToday(@Req() req: any, @Param('classId') classId: string) { return this.service.getTodayForClass(req.user, classId); }
   @Post('demand') async demand(@Req() req: any, @Body() body: TimetableDemandDto) {
     try { return await this.service.getTimetable(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
   }

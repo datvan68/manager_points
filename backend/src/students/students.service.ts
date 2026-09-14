@@ -1023,7 +1023,8 @@ export class StudentsService implements OnModuleInit {
             )
             .populate({
               path: 'class_id',
-              select: 'class_name _id',
+              select: 'class_name _id advisor_id',
+              populate: { path: 'advisor_id', select: 'user_name' },
             })
             .skip((p - 1) * l)
             .limit(l)

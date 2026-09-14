@@ -92,4 +92,23 @@ describe('TimetableService', () => {
     snapshots.findOne.mockReturnValueOnce(chain({ key: timetableKey(coverage[1]) }));
     await expect(service.refresh({}, coverage[1])).resolves.toMatchObject({ status: 'valid', key: timetableKey(coverage[1]) });
   });
+
+  it('returns only lessons for today from the linked class snapshot', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const { service, snapshots } = setup();
+    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', week: 'w1', className: 'A' }] } })) };
+    const linkedService = new TimetableService(snapshots as any, states as any);
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { startDate: today, endDate: today, lessons: [{ date: today, subject: 'Toán' }, { date: '2099-01-01', subject: 'Sai ngày' }] }, syncedAt: 'date', coverageKey: 'key' }));
+    await expect(linkedService.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'available', date: today, lessons: [{ subject: 'Toán' }] });
+    expect(snapshots.findOne).toHaveBeenCalledWith({ key: timetableKey({ year: '2026', semester: '1', week: 'w1', className: 'A' }) });
+  });
+
+  it('marks missing links, dates, and snapshots as unavailable', async () => {
+    const { service, snapshots } = setup();
+    await expect(service.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'unavailable', lessons: [] });
+    const states = { findOne: jest.fn(() => chain({ settings: { classLinks: [{ systemClassId: '507f1f77bcf86cd799439012', year: '2026', semester: '1', week: 'w1', className: 'A' }] } })) };
+    const linkedService = new TimetableService(snapshots as any, states as any);
+    snapshots.findOne.mockReturnValueOnce(chain({ result: { lessons: [] }, syncedAt: 'date' }));
+    await expect(linkedService.getTodayForClass({}, '507f1f77bcf86cd799439012')).resolves.toMatchObject({ status: 'unavailable' });
+  });
 });

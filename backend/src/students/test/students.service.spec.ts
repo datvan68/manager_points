@@ -387,6 +387,16 @@ describe('StudentsService', () => {
   });
 
   describe('findAll', () => {
+    it('populates only the advisor user name in slider class data', async () => {
+      await service.findAll({ page: 1, limit: 20, fields: 'slider' }, { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' });
+      const query = model.find.mock.results[0].value;
+      expect(query.populate).toHaveBeenCalledWith({
+        path: 'class_id',
+        select: 'class_name _id advisor_id',
+        populate: { path: 'advisor_id', select: 'user_name' },
+      });
+    });
+
     it('escapes search text and clamps paginated slider results', async () => {
       const requester = { userId: '507f1f77bcf86cd799439015', roleName: 'Admin' };
       const result = await service.findAll({ search: '  A.B+  ', page: 0, limit: 999, fields: 'slider' }, requester);

@@ -9,11 +9,12 @@ import { ApiError } from "@/api/http-client";
 import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi, Criterion } from "@/api/criteria-api";
 import { semesterApi, Semester } from "@/api/semester-api";
+import { timetableApi, TodayTimetableResult, TimetableLesson } from "@/api/timetable-api";
 import { useAuth } from "@/providers/auth-provider";
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from "@/components/grading/criterion-usage";
 
 export type StudentWithClass = Student & {
-  class_id?: { _id?: string; class_name?: string } | string;
+  class_id?: { _id?: string; class_name?: string; advisor_id?: { user_name?: string } | string } | string;
 };
 
 export interface StudentDirectorySearchProps {
@@ -33,6 +34,14 @@ function classIdOf(student: StudentWithClass) {
   return typeof student.class_id === "object" ? student.class_id?._id : student.class_id;
 }
 
+function advisorNameOf(student: StudentWithClass) {
+  return typeof student.class_id === "object" && typeof student.class_id?.advisor_id === "object"
+    ? student.class_id.advisor_id?.user_name || "Chưa phân công GVCN"
+    : typeof student.class_id === "object" && student.class_id?.advisor_id
+      ? "Đã phân công GVCN"
+      : "Chưa phân công GVCN";
+}
+
 function formatDate(value?: string) {
   if (!value) return "Chưa cập nhật";
   const date = new Date(value);
@@ -44,15 +53,6 @@ function formatGender(gender?: string) {
   if (gender === "Male" || gender.toLowerCase() === "nam") return "Nam";
   if (gender === "Female" || gender.toLowerCase() === "nữ") return "Nữ";
   return gender;
-}
-
-function formatStatus(status?: string) {
-  if (!status) return "Chưa cập nhật";
-  if (status.toLowerCase() === "studying" || status === "Đang học") return "Đang học";
-  if (status.toLowerCase() === "reserved" || status === "Bảo lưu") return "Bảo lưu";
-  if (status.toLowerCase() === "suspended" || status.toLowerCase() === "dropped" || status === "Thôi học") return "Thôi học";
-  if (status.toLowerCase() === "graduated" || status === "Tốt nghiệp") return "Tốt nghiệp";
-  return status;
 }
 
 function getRecordErrorMessage(error: unknown) {
@@ -88,9 +88,14 @@ export default function StudentDirectorySearch({
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordSuccess, setRecordSuccess] = useState<string | null>(null);
   const [recordPanelOpen, setRecordPanelOpen] = useState(false);
+  const [todayTimetable, setTodayTimetable] = useState<TodayTimetableResult | null>(null);
+  const [todayLoading, setTodayLoading] = useState(false);
+  const [todayError, setTodayError] = useState(false);
+  const [todayDetailsOpen, setTodayDetailsOpen] = useState(false);
   const savingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const timetableRequestIdRef = useRef(0);
   const dialogCloseRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -181,6 +186,27 @@ export default function StudentDirectorySearch({
   }, [selected]);
 
   useEffect(() => {
+    const requestId = ++timetableRequestIdRef.current;
+    setTodayDetailsOpen(false);
+    setTodayError(false);
+    setTodayTimetable(null);
+    const classId = selected ? classIdOf(selected) : undefined;
+    if (!classId) {
+      setTodayLoading(false);
+      return;
+    }
+    setTodayLoading(true);
+    timetableApi.getTodayForClass(classId).then((result) => {
+      if (requestId !== timetableRequestIdRef.current) return;
+      setTodayTimetable(result);
+    }).catch(() => {
+      if (requestId === timetableRequestIdRef.current) setTodayError(true);
+    }).finally(() => {
+      if (requestId === timetableRequestIdRef.current) setTodayLoading(false);
+    });
+  }, [selected]);
+
+  useEffect(() => {
     setCriterionUsage(readCriterionUsage(user?.id));
   }, [user?.id]);
 
@@ -202,6 +228,7 @@ export default function StudentDirectorySearch({
   };
 
   const closePreview = () => {
+    timetableRequestIdRef.current += 1;
     setSelected(null);
     resetRecordControls();
   };
@@ -354,22 +381,43 @@ export default function StudentDirectorySearch({
             <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatGender(selected.sex)}</dd>
           </div>
           <div className="col-span-2 rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <dt className="text-[11px] font-medium text-[#64748B]">Email</dt>
-            <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{selected.email || "Chưa cập nhật"}</dd>
-          </div>
-          <div className="col-span-2 flex items-center justify-between rounded-xl border border-white/70 bg-white/50 p-2.5 backdrop-blur-xs">
-            <div>
-              <dt className="text-[11px] font-medium text-[#64748B]">Trạng thái học tập</dt>
-              <dd className="mt-0.5 text-xs font-semibold text-[#1E293B]">{formatStatus(selected.status)}</dd>
-            </div>
-            {selected.status && (
-              <span className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-[#1A73E8]">
-                {formatStatus(selected.status)}
-              </span>
-            )}
+            <dt className="text-[11px] font-medium text-[#64748B]">GVCN</dt>
+            <dd className="mt-0.5 break-all text-xs font-semibold text-[#1E293B]">{advisorNameOf(selected)}</dd>
           </div>
           </dl>
         </div>
+
+        <section className="mt-3 rounded-xl border border-white/70 bg-white/50 p-2.5" aria-label="Thời khóa biểu hôm nay">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-[#1E293B]">Thời khóa biểu hôm nay</p>
+              <p className="mt-1 text-xs text-[#64748B]">
+                {todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
+              </p>
+            </div>
+            {todayTimetable?.status === "available" && (
+              <button
+                type="button"
+                aria-expanded={todayDetailsOpen}
+                aria-controls="student-timetable-details"
+                onClick={() => setTodayDetailsOpen((open) => !open)}
+                className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[#1A73E8] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 sm:min-h-0"
+              >
+                {todayDetailsOpen ? "Thu gọn" : "Xem chi tiết"}
+              </button>
+            )}
+          </div>
+          {todayDetailsOpen && todayTimetable?.status === "available" && (
+            <ul id="student-timetable-details" className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2 text-xs text-[#334155]">
+              {todayTimetable.lessons.map((lesson: TimetableLesson, index) => (
+                <li key={`${lesson.subject}-${lesson.startPeriod}-${index}`} className="rounded-lg bg-white/60 px-2.5 py-2">
+                  <span className="font-semibold">{lesson.subject}</span> · Tiết {lesson.startPeriod}{lesson.endPeriod !== lesson.startPeriod ? `-${lesson.endPeriod}` : ""}
+                  {lesson.teacher ? ` · ${lesson.teacher}` : ""}{lesson.room ? ` · Phòng ${lesson.room}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {canCreateRecord && (
           <>

@@ -6,6 +6,7 @@ import { ApiError } from "@/api/http-client";
 import { academicRecordApi } from "@/api/academic-record-api";
 import { criteriaApi } from "@/api/criteria-api";
 import { semesterApi } from "@/api/semester-api";
+import { timetableApi } from "@/api/timetable-api";
 import { CRITERION_USAGE_STORAGE_KEY_PREFIX } from "@/components/grading/criterion-usage";
 
 const mockPush = vi.fn();
@@ -27,6 +28,9 @@ vi.mock("@/api/criteria-api", () => ({
 vi.mock("@/api/semester-api", () => ({
   semesterApi: { getSemesters: vi.fn() },
 }));
+vi.mock("@/api/timetable-api", () => ({
+  timetableApi: { getTodayForClass: vi.fn() },
+}));
 vi.mock("@/providers/auth-provider", () => ({
   useAuth: mockUseAuth,
 }));
@@ -39,7 +43,7 @@ const student = {
   sex: "Male",
   email: "a@example.com",
   status: "Studying",
-  class_id: { _id: "class-1", class_name: "CNTT-K45A" },
+  class_id: { _id: "class-1", class_name: "CNTT-K45A", advisor_id: { user_name: "Cô Chủ nhiệm" } },
 };
 
 const makeMockStudents = (count: number) =>
@@ -60,6 +64,7 @@ describe("StudentDirectorySearch", () => {
     localStorage.clear();
     mockPush.mockClear();
     mockUseAuth.mockReturnValue({ user: { id: "user-1" }, hasPermission: () => true });
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({ status: "empty", date: "2026-09-14", lessons: [] });
   });
   afterEach(() => vi.useRealTimers());
 
@@ -69,6 +74,7 @@ describe("StudentDirectorySearch", () => {
     fireEvent.change(screen.getByPlaceholderText("Tìm kiếm sinh viên..."), { target: { value: "SV" } });
     await act(async () => { vi.advanceTimersByTime(400); await Promise.resolve(); });
     fireEvent.click(screen.getByRole("button", { name: /Nguyễn Văn A/ }));
+    await act(async () => { await Promise.resolve(); });
   };
 
   it("does not request for one trimmed character and debounces a bounded slider search with limit 20", async () => {
@@ -441,5 +447,29 @@ describe("StudentDirectorySearch", () => {
     fireEvent.click(confirm);
     expect(academicRecordApi.createAcademicRecord).toHaveBeenCalledTimes(1);
     await act(async () => { resolveCreate({}); await Promise.resolve(); });
+  });
+
+  it("shows advisor and a collapsed, keyboard-operable timetable detail", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Toán", day: 1, startPeriod: 1, endPeriod: 2, teacher: "Cô A", room: "A101" }],
+    });
+    await openPreview();
+    expect(screen.getByText("GVCN")).toBeInTheDocument();
+    expect(screen.getByText("Cô Chủ nhiệm")).toBeInTheDocument();
+    expect(screen.getByText("Có lịch học")).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Xem chi tiết" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Toán")).not.toBeInTheDocument();
+    fireEvent.keyDown(toggle, { key: "Enter" });
+    fireEvent.click(toggle);
+    expect(screen.getByText("Toán")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not replace unavailable timetable data with no-schedule status", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({ status: "unavailable", date: "2026-09-14", lessons: [] });
+    await openPreview();
+    expect(screen.getByText("Chưa có dữ liệu TKB")).toBeInTheDocument();
+    expect(screen.queryByText("Không có lịch học")).not.toBeInTheDocument();
   });
 });

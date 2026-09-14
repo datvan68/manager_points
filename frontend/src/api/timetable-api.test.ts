@@ -4,6 +4,14 @@ import { handleResponse, httpClient } from './http-client';
 vi.mock('./http-client', () => ({ httpClient: vi.fn(), handleResponse: vi.fn() }));
 
 describe('timetableApi', () => {
+  it('gets today timetable by system class id using GET only', async () => {
+    vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
+    vi.mocked(handleResponse).mockResolvedValue({ status: 'empty', date: '2026-09-14', lessons: [] });
+    await timetableApi.getTodayForClass('class/1');
+    expect(vi.mocked(httpClient).mock.calls[0][0]).toContain('/timetable/today/class%2F1');
+    expect(vi.mocked(httpClient).mock.calls[0][1]?.method).toBeUndefined();
+  });
+
   it('sends only DTO fields when syncing a linked class or checking its week', async () => {
     vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
     vi.mocked(handleResponse).mockResolvedValue({ status: 'pending' });

@@ -18,6 +18,15 @@ describe('TimetableController', () => {
     expect(controller).toBeDefined();
   });
 
+  it('delegates the read-only today route with the authenticated requester', async () => {
+    const service = { getTodayForClass: jest.fn().mockResolvedValue({ status: 'empty', lessons: [] }) };
+    const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();
+    const controller = module.get(TimetableController);
+    const req = { user: { userId: 'viewer-1' } };
+    await expect(controller.getToday(req, '507f1f77bcf86cd799439012')).resolves.toEqual({ status: 'empty', lessons: [] });
+    expect(service.getTodayForClass).toHaveBeenCalledWith(req.user, '507f1f77bcf86cd799439012');
+  });
+
   it.each([
     [{ roleCode: 'ADMIN' }, true],
     [{ roleCode: 'ADMIN', roleName: 'Student / HSSV' }, true],
