@@ -20,6 +20,7 @@ describe('TimetablePage', () => {
     expect(screen.getByRole('tablist')).toHaveAttribute('aria-label', 'Điều hướng tab');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('shrink-0');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('overflow-x-auto');
+    expect(screen.getByRole('main')).toHaveClass('p-4', 'sm:p-6');
     expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-controls', 'timetable-lookup-panel');
     expect(document.getElementById('timetable-lookup-panel')).not.toHaveAttribute('hidden');

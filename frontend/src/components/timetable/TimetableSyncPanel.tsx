@@ -467,158 +467,10 @@ export default function TimetableSyncPanel({
   return (
     <section
       aria-label="Quản trị đồng bộ thời khóa biểu"
-      className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-2xl border border-white/75 bg-white/45 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md sm:p-5"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
     >
-      {/* Header & Status Indicator */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/60 pb-3">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#1E293B]">
-            Quản trị đồng bộ
-          </h2>
-          <p className="text-xs sm:text-sm text-[#64748B]">
-            Đối chiếu toàn bộ lớp hệ thống với danh mục lớp nguồn.
-          </p>
-        </div>
-        {job && (
-          <div
-            role="status"
-            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-sm shadow-sm ${
-              job.status === 'succeeded'
-                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
-                : job.status === 'failed'
-                ? 'bg-rose-500/10 text-rose-700 border-rose-500/20'
-                : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                job.status === 'running' || job.status === 'pending'
-                  ? 'bg-[#1A73E8] animate-pulse'
-                  : job.status === 'succeeded'
-                  ? 'bg-emerald-600'
-                  : 'bg-rose-600'
-              }`}
-            />
-            <span>
-              {job.status === 'succeeded'
-                ? 'Đồng bộ hoàn tất'
-                : job.status === 'failed'
-                ? 'Đồng bộ có lỗi'
-                : 'Đang đồng bộ'}{' '}
-              · {job.completed || 0}/{job.total || 0}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Menu and source configuration */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/70 bg-white/40 p-2.5 shadow-sm backdrop-blur-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="px-2 text-xs font-bold text-[#1E293B]">Cấu hình liên kết</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button type="button" aria-label="Mở cấu hình nâng cao" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/75 bg-white/60 text-[#64748B] shadow-sm transition hover:bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30">
-                <SlidersHorizontal size={18} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-[min(92vw,540px)] p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
-            <span>Niên học nguồn</span>
-            <select
-              aria-label="year"
-              value={period.year}
-              onChange={(e) => void changePeriod('year', e.target.value)}
-              className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-            >
-              <option value="">Chọn</option>
-              {(catalog?.years || [])
-                .filter((option) => option.value)
-                .map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
-            <span>Học kỳ nguồn</span>
-            <select
-              aria-label="semester"
-              value={period.semester}
-              onChange={(e) => void changePeriod('semester', e.target.value)}
-              className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-            >
-              <option value="">Chọn</option>
-              {(catalog?.semesters || [])
-                .filter((option) => option.value)
-                .map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void changePeriod('year', period.year)}
-              disabled={busy || !period.year || !period.semester}
-              className="rounded-xl border border-white/75 bg-white/50 px-3.5 py-2 text-xs font-semibold text-[#1E293B] shadow-sm transition-all duration-150 ease-out hover:bg-white/80 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-            >
-              Tải danh mục nguồn
-            </button>
-            <button
-              type="button"
-              onClick={reconcile}
-              disabled={busy || !catalog || !period.year || !period.semester}
-              className="rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition-all duration-150 ease-out hover:bg-indigo-100 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-            >
-              Đối chiếu lớp
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs font-semibold text-[#1E293B]">
-              <span>Khoảng đồng bộ</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  aria-label="Khoảng đồng bộ"
-                  type="number"
-                  min={30}
-                  value={settings.intervalMinutes}
-                  onChange={(e) =>
-                    setSettings((current) => ({
-                      ...current,
-                      intervalMinutes: Number(e.target.value),
-                    }))
-                  }
-                  className="w-20 rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-center text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-                />
-                <span className="text-xs font-normal text-[#64748B]">phút</span>
-              </div>
-            </label>
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={busy}
-              className="rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-bold text-white shadow-sm transition-all duration-150 ease-out hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-            >
-              Lưu liên kết
-            </button>
-          </div>
-        </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-        <span className="text-[11px] font-medium text-[#64748B]">Chọn biểu tượng để quản lý nguồn</span>
-      </div>
-
       {/* Filter and Search Bar */}
-      <div className="flex shrink-0 flex-col items-stretch gap-2.5 rounded-xl border border-white/60 bg-white/30 p-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex shrink-0 flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-md">
           <Search aria-hidden="true" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
           <input
@@ -631,9 +483,114 @@ export default function TimetableSyncPanel({
         </div>
         <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Khoa hệ thống</span><select aria-label="Khoa hệ thống" value={department} onChange={(e) => setDepartment(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="">Tất cả khoa</option>{departments.map((value) => <option key={value} value={value}>{value.replace('|', ' · ')}</option>)}</select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
         <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Trạng thái liên kết</span><select aria-label="Trạng thái liên kết" value={linkStatus} onChange={(e) => setLinkStatus(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="all">Mọi trạng thái</option><option value="linked">Đã liên kết</option><option value="unlinked">Chưa liên kết</option></select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
-        <div role="group" aria-label="Kiểu hiển thị" className="flex h-10 shrink-0 items-center rounded-xl border border-white/70 bg-white/35 p-1 text-xs font-semibold text-[#64748B]">
-          <button type="button" aria-pressed={view === 'system'} onClick={() => setView('system')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'system' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp hệ thống</button>
-          <button type="button" aria-pressed={view === 'source'} onClick={() => setView('source')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'source' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp nguồn</button>
+        <div className="flex shrink-0 items-center gap-2">
+          <div role="group" aria-label="Kiểu hiển thị" className="flex h-10 shrink-0 items-center rounded-xl border border-white/70 bg-white/35 p-1 text-xs font-semibold text-[#64748B]">
+            <button type="button" aria-pressed={view === 'system'} onClick={() => setView('system')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'system' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp hệ thống</button>
+            <button type="button" aria-pressed={view === 'source'} onClick={() => setView('source')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'source' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp nguồn</button>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Mở cấu hình nâng cao"
+                title="Cấu hình liên kết"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/75 bg-white/60 text-[#64748B] shadow-sm transition hover:bg-white/80 hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+              >
+                <SlidersHorizontal size={18} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[min(92vw,540px)] p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
+                  <span>Niên học nguồn</span>
+                  <select
+                    aria-label="year"
+                    value={period.year}
+                    onChange={(e) => void changePeriod('year', e.target.value)}
+                    className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                  >
+                    <option value="">Chọn</option>
+                    {(catalog?.years || [])
+                      .filter((option) => option.value)
+                      .map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
+                  <span>Học kỳ nguồn</span>
+                  <select
+                    aria-label="semester"
+                    value={period.semester}
+                    onChange={(e) => void changePeriod('semester', e.target.value)}
+                    className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                  >
+                    <option value="">Chọn</option>
+                    {(catalog?.semesters || [])
+                      .filter((option) => option.value)
+                      .map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void changePeriod('year', period.year)}
+                    disabled={busy || !period.year || !period.semester}
+                    className="rounded-xl border border-white/75 bg-white/50 px-3.5 py-2 text-xs font-semibold text-[#1E293B] shadow-sm transition-all duration-150 ease-out hover:bg-white/80 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                  >
+                    Tải danh mục nguồn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reconcile}
+                    disabled={busy || !catalog || !period.year || !period.semester}
+                    className="rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition-all duration-150 ease-out hover:bg-indigo-100 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                  >
+                    Đối chiếu lớp
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-[#1E293B]">
+                    <span>Khoảng đồng bộ</span>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        aria-label="Khoảng đồng bộ"
+                        type="number"
+                        min={30}
+                        value={settings.intervalMinutes}
+                        onChange={(e) =>
+                          setSettings((current) => ({
+                            ...current,
+                            intervalMinutes: Number(e.target.value),
+                          }))
+                        }
+                        className="w-20 rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-center text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                      />
+                      <span className="text-xs font-normal text-[#64748B]">phút</span>
+                    </div>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void save()}
+                    disabled={busy}
+                    className="rounded-xl bg-[#1A73E8] px-4 py-2 text-xs font-bold text-white shadow-sm transition-all duration-150 ease-out hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                  >
+                    Lưu liên kết
+                  </button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -641,9 +598,7 @@ export default function TimetableSyncPanel({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 shadow-sm shadow-slate-300/40 backdrop-blur-md">
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[1050px] border-collapse text-left text-xs">
-            <caption className="border-b border-white/70 bg-white/60 px-4 py-2.5 text-left text-xs font-bold text-[#1E293B]">
-              Bảng quản lý liên kết lớp
-            </caption>
+            <caption className="sr-only">Bảng quản lý liên kết lớp</caption>
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-white/70 bg-white/90 text-[11px] font-bold uppercase tracking-wider text-[#1E293B]">
                 <th className="px-3.5 py-3"><input aria-label="Chọn tất cả lớp trên trang" type="checkbox" checked={allVisibleSelected} onChange={(e) => toggleVisible(e.target.checked)} disabled={!eligibleVisibleIds.length || bulkSubmitting} /></th>
@@ -897,7 +852,7 @@ export default function TimetableSyncPanel({
         </div>
 
         {view === 'system' && (
-          <div className="shrink-0 border-t border-white/60 bg-white/40 px-2 backdrop-blur-md">
+          <div className="shrink-0 sticky bottom-0 z-10 border-t border-white/60 bg-white/80 px-2 backdrop-blur-md shadow-sm">
             <CustomPagination
               totalItems={filteredClasses.length}
               pageSize={pageSize}
