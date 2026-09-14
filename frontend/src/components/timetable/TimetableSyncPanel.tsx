@@ -2,17 +2,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { classApi, type Class } from '@/api/class-api';
-import { timetableApi, type TimetableClassLink, type TimetableClassSyncStatus, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings } from '@/api/timetable-api';
+import { timetableApi, type TimetableBulkWeekSyncRequest, type TimetableClassLink, type TimetableClassSyncStatus, type TimetableFilters, type TimetableOptions, type TimetableSyncJob, type TimetableSyncSettings } from '@/api/timetable-api';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Search, SlidersHorizontal } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TimetableWeekPopover from './TimetableWeekPopover';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
-const selectionKey = (item: TimetableClassLink | TimetableClassSyncStatus['classSelection']) => JSON.stringify([item.year, item.semester, item.faculty || '', item.course || '', item.className]);
+const selectionKey = (item: { year: string; semester: string; faculty?: string; course?: string; className?: string }) => JSON.stringify([item.year, item.semester, item.faculty || '', item.course || '', item.className || '']);
 const statusLabel = (status: string) =>
   ({
     valid: 'Đã đồng bộ',
@@ -42,6 +43,21 @@ const statusBadgeClass = (status?: string) => {
 
 const activeStatuses = ['pending', 'running'];
 type Path = { faculty: string; course: string; className: string };
+type BulkPairState = {
+  pair: TimetableBulkWeekSyncRequest;
+  key: string;
+  baseline: string | null;
+  wasValid: boolean;
+  result: 'pending' | 'success' | 'failed' | 'skipped';
+  failure?: string;
+};
+type BulkProgress = {
+  runId: number;
+  phase: 'processing' | 'completed' | 'partial' | 'request-error' | 'tracking-error';
+  pairs: BulkPairState[];
+  message?: string;
+};
+const bulkPairKey = (pair: TimetableBulkWeekSyncRequest) => `${selectionKey(pair)}|${pair.week}`;
 
 export default function TimetableSyncPanel({
   onSynced,
@@ -80,9 +96,12 @@ export default function TimetableSyncPanel({
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set());
   const [bulkWeek, setBulkWeek] = useState('');
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const mounted = useRef(true);
   const callback = useRef(onSynced);
   const pollTimers = useRef(new Map<string, number>());
+  const bulkPollTimers = useRef(new Map<string, number>());
+  const bulkRun = useRef(0);
 
   useEffect(() => {
     callback.current = onSynced;
@@ -92,9 +111,15 @@ export default function TimetableSyncPanel({
     () => () => {
       mounted.current = false;
       pollTimers.current.forEach((timer) => window.clearTimeout(timer));
+      bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
+      bulkRun.current += 1;
     },
     []
   );
+
+  useEffect(() => {
+    if (bulkProgress && bulkProgress.phase !== 'processing') setBulkSubmitting(false);
+  }, [bulkProgress?.phase]);
 
   const applyStatus = (data: {
     job: TimetableSyncJob | null;
@@ -484,12 +509,95 @@ export default function TimetableSyncPanel({
   }, [selectedLinks, statuses]);
   const toggleClass = (id: string, checked: boolean) => setSelectedClassIds((current) => { const next = new Set(current); if (checked) next.add(id); else next.delete(id); return next; });
   const toggleVisible = (checked: boolean) => setSelectedClassIds((current) => { const next = new Set(current); eligibleVisibleIds.forEach((id) => checked ? next.add(id) : next.delete(id)); return next; });
+  const bulkCounters = useMemo(() => {
+    const pairs = bulkProgress?.pairs || [];
+    return {
+      processed: pairs.filter((pair) => pair.result !== 'pending').length,
+      success: pairs.filter((pair) => pair.result === 'success').length,
+      failed: pairs.filter((pair) => pair.result === 'failed').length,
+      skipped: pairs.filter((pair) => pair.result === 'skipped').length,
+    };
+  }, [bulkProgress]);
+  const bulkPercentage = bulkProgress?.pairs.length
+    ? Math.min(100, Math.max(0, Math.floor((bulkCounters.processed / bulkProgress.pairs.length) * 100)))
+    : 0;
+
+  const clearBulkTimers = () => {
+    bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
+    bulkPollTimers.current.clear();
+  };
+
+  const updateBulkPair = (runId: number, key: string, update: Partial<BulkPairState>) => {
+    if (!mounted.current || bulkRun.current !== runId) return;
+    setBulkProgress((current) => {
+      if (!current || current.runId !== runId) return current;
+      const pairs = current.pairs.map((pair) => pair.key === key ? { ...pair, ...update } : pair);
+      const finished = pairs.every((pair) => pair.result !== 'pending');
+      return { ...current, pairs, phase: finished ? (pairs.some((pair) => pair.result === 'failed') ? 'partial' : 'completed') : current.phase };
+    });
+  };
+
+  const pollBulkPair = async (runId: number, pair: BulkPairState): Promise<void> => {
+    if (!mounted.current || bulkRun.current !== runId) return;
+    try {
+      const result = await timetableApi.getSavedClassWeekStatus({ ...pair.pair, week: pair.pair.week });
+      if (!mounted.current || bulkRun.current !== runId) return;
+      if (result.status === 'failed') {
+        updateBulkPair(runId, pair.key, { result: 'failed', failure: result.failure || 'Đồng bộ thất bại.' });
+      } else if (result.status === 'missing') {
+        updateBulkPair(runId, pair.key, { result: 'failed', failure: 'Không có kết quả đồng bộ.' });
+      } else if (result.status === 'valid') {
+        if (pair.wasValid && !pair.baseline) {
+          setBulkProgress((current) => current?.runId === runId ? { ...current, phase: 'tracking-error', message: 'Không thể xác định kết quả mới của một cặp vì trạng thái hợp lệ cũ không có mốc cập nhật.' } : current);
+          clearBulkTimers();
+        } else if (!pair.wasValid || result.lastSuccessfulUpdate !== pair.baseline) {
+          updateBulkPair(runId, pair.key, { result: 'success' });
+        } else {
+          const timer = window.setTimeout(() => void pollBulkPair(runId, pair), 2000);
+          bulkPollTimers.current.set(pair.key, timer);
+        }
+      } else {
+        const timer = window.setTimeout(() => void pollBulkPair(runId, pair), 2000);
+        bulkPollTimers.current.set(pair.key, timer);
+      }
+    } catch (e: unknown) {
+      if (!mounted.current || bulkRun.current !== runId) return;
+      clearBulkTimers();
+      setBulkProgress((current) => current?.runId === runId ? { ...current, phase: 'tracking-error', message: e instanceof Error ? e.message : 'Không thể theo dõi trạng thái đồng bộ.' } : current);
+    }
+  };
+
+  const startBulkSync = async (pairs: TimetableBulkWeekSyncRequest[]) => {
+    const runId = ++bulkRun.current;
+    clearBulkTimers();
+    const initialPairs = pairs.map((pair) => {
+      const week = statuses.find((row) => selectionKey(row.classSelection) === selectionKey(pair))?.weeks.find((item) => item.week === pair.week);
+      return { pair, key: bulkPairKey(pair), baseline: week?.lastSuccessfulUpdate || null, wasValid: week?.status === 'valid', result: 'pending' as const };
+    });
+    setBulkSubmitting(true);
+    setBulkProgress({ runId, phase: 'processing', pairs: initialPairs });
+    try {
+      const result = await timetableApi.syncSavedClassWeeks(pairs);
+      if (!mounted.current || bulkRun.current !== runId) return;
+      const outcomes = result.outcomes || [];
+      const nextPairs = initialPairs.map((pair) => {
+        const outcome = outcomes.find((item) => item.key === pair.key || (item.selection.week === pair.pair.week && selectionKey(item.selection) === selectionKey(pair.pair)));
+        return outcome && outcome.status !== 'accepted' ? { ...pair, result: 'skipped' as const, failure: outcome.status === 'cooldown' ? 'Đang trong thời gian chờ.' : 'Yêu cầu đã được gộp vào lần đồng bộ khác.' } : pair;
+      });
+      setBulkProgress({ runId, phase: nextPairs.every((pair) => pair.result !== 'pending') ? 'completed' : 'processing', pairs: nextPairs });
+      await refreshStatuses();
+      nextPairs.filter((pair) => pair.result === 'pending').forEach((pair) => void pollBulkPair(runId, pair));
+    } catch (e: unknown) {
+      if (!mounted.current || bulkRun.current !== runId) return;
+      clearBulkTimers();
+      setBulkProgress({ runId, phase: 'request-error', pairs: initialPairs, message: e instanceof Error ? e.message : 'Không thể đồng bộ các lớp đã chọn.' });
+    }
+  };
+
   const syncSelected = async () => {
     if (bulkSubmitting || !bulkWeek || !selectedLinks.length || !commonWeeks.includes(bulkWeek)) return;
-    setBulkSubmitting(true); setError(''); setMessage('');
-    try { const result = await timetableApi.syncSavedClassWeeks(selectedLinks.map((link) => ({ ...link, week: bulkWeek }))); setMessage(`Đã gửi ${result.total} lớp; đang theo dõi tiến độ...`); await refreshStatuses(); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể đồng bộ các lớp đã chọn.'); }
-    finally { setBulkSubmitting(false); }
+    setError(''); setMessage('');
+    await startBulkSync(selectedLinks.map((link) => ({ ...link, week: bulkWeek })));
   };
 
   if (!isAdmin) return null;
@@ -1003,12 +1111,7 @@ export default function TimetableSyncPanel({
                 links={selectedLinks}
                 statuses={statuses}
                 disabled={bulkSubmitting}
-                onSubmit={async (pairs) => {
-                  setBulkSubmitting(true); setError(''); setMessage('');
-                  try { const result = await timetableApi.syncSavedClassWeeks(pairs); setMessage(`Đã tiếp nhận ${result.outcomes?.filter((item) => item.status === 'accepted').length ?? result.total} cặp lớp-tuần.`); await refreshStatuses(); }
-                  catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể đồng bộ các lớp đã chọn.'); throw e; }
-                  finally { setBulkSubmitting(false); }
-                }}
+                onSubmit={async (pairs) => { setError(''); setMessage(''); await startBulkSync(pairs); }}
               />
               <div className="flex items-center gap-1.5" aria-label="Đồng bộ nhanh tương thích">
                 <Select deferOptions value={bulkWeek || 'NONE'} onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}>
@@ -1039,6 +1142,52 @@ export default function TimetableSyncPanel({
           {error}
         </div>
       )}
+      <Dialog
+        open={Boolean(bulkProgress)}
+        onOpenChange={(open) => {
+          if (!open && bulkProgress?.phase !== 'processing') {
+            bulkRun.current += 1;
+            clearBulkTimers();
+            setBulkProgress(null);
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={bulkProgress?.phase !== 'processing'}
+          onEscapeKeyDown={(event) => { if (bulkProgress?.phase === 'processing') event.preventDefault(); }}
+          onPointerDownOutside={(event) => { if (bulkProgress?.phase === 'processing') event.preventDefault(); }}
+          onInteractOutside={(event) => { if (bulkProgress?.phase === 'processing') event.preventDefault(); }}
+          className="w-[calc(100%-1rem)] max-w-xl rounded-2xl border border-white/75 bg-white/45 p-4 text-[#1E293B] shadow-sm shadow-slate-300/40 backdrop-blur-md sm:p-5"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              {bulkProgress?.phase === 'processing' ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" aria-hidden="true" /> : bulkProgress?.phase === 'completed' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
+              Tiến độ đồng bộ tuần
+            </DialogTitle>
+            <DialogDescription className="text-[#64748B]">
+              {bulkProgress?.phase === 'processing' ? 'Đang theo dõi kết quả thực tế từ máy chủ.' : bulkProgress?.phase === 'request-error' ? 'Không gửi được yêu cầu đồng bộ.' : bulkProgress?.phase === 'tracking-error' ? 'Không thể xác nhận tiến độ từ máy chủ.' : bulkProgress?.phase === 'partial' ? 'Hoàn tất một phần.' : 'Đã xử lý xong các cặp lớp-tuần.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-sm font-semibold">
+              <span>{bulkCounters.processed}/{bulkProgress?.pairs.length || 0} cặp đã xử lý</span>
+              <span>{bulkPercentage}%</span>
+            </div>
+            <div role="progressbar" aria-label="Tiến độ đồng bộ tuần" aria-valuemin={0} aria-valuemax={bulkProgress?.pairs.length || 0} aria-valuenow={bulkCounters.processed} aria-valuetext={`${bulkPercentage}%`} className="h-2 overflow-hidden rounded-xl bg-blue-500/10">
+              <div className="h-full rounded-xl bg-[#1A73E8] transition-[width] duration-150 motion-reduce:transition-none" style={{ width: `${bulkPercentage}%` }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Thành công</span><strong>{bulkCounters.success}</strong></div>
+              <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Thất bại</span><strong>{bulkCounters.failed}</strong></div>
+              <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Bỏ qua</span><strong>{bulkCounters.skipped}</strong></div>
+            </div>
+            {bulkProgress?.message && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">{bulkProgress.message}</p>}
+          </div>
+          <DialogFooter>
+            <button type="button" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" disabled={bulkProgress?.phase === 'processing'} onClick={() => { bulkRun.current += 1; clearBulkTimers(); setBulkProgress(null); }}>Đóng</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

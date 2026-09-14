@@ -147,4 +147,53 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ đã chọn' }));
     await waitFor(() => expect(timetableApi.syncSavedClassWeeks).toHaveBeenCalledWith([expect.objectContaining({ systemClassId: 'c1', week: 'w1' })]));
   });
+
+  it('opens real progress before the bulk request resolves and completes from pair status', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    let resolveRequest!: (value: { status: string; total: number; outcomes: Array<{ key: string; selection: typeof link & { week: string }; status: 'accepted' }> }) => void;
+    vi.mocked(timetableApi.syncSavedClassWeeks).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('checkbox', { name: 'Chọn lớp Lớp A' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn lớp Lớp A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('0/1 cặp đã xử lý')).toBeInTheDocument();
+    expect(screen.queryByText(/Đã tiếp nhận/u)).not.toBeInTheDocument();
+    resolveRequest({ status: 'pending', total: 1, outcomes: [{ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'accepted' }] });
+    await waitFor(() => expect(screen.getByText('1/1 cặp đã xử lý')).toBeInTheDocument());
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('counts cooldown/coalesced outcomes as skipped instead of success', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'coalesced', total: 1, outcomes: [{ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'cooldown' }] });
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('checkbox', { name: 'Chọn lớp Lớp A' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn lớp Lớp A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
+    await waitFor(() => expect(screen.getByText('1/1 cặp đã xử lý')).toBeInTheDocument());
+    expect(screen.getByText('Bỏ qua')).toBeInTheDocument();
+    expect(timetableApi.getSavedClassWeekStatus).not.toHaveBeenCalled();
+  });
+
+  it('does not count an unchanged valid snapshot as new progress', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'valid', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'valid', lastSuccessfulUpdate: 'old' }] }] });
+    vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'pending', total: 1, outcomes: [{ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'accepted' }] });
+    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: 'old', isEmpty: false });
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('checkbox', { name: 'Chọn lớp Lớp A' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn lớp Lớp A' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
+    await waitFor(() => expect(timetableApi.getSavedClassWeekStatus).toHaveBeenCalled());
+    expect(screen.getByText('0/1 cặp đã xử lý')).toBeInTheDocument();
+  });
 });
