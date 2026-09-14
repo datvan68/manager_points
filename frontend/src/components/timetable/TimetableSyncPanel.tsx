@@ -975,8 +975,21 @@ export default function TimetableSyncPanel({
                               <SelectContent className="z-[60]">
                                 <SelectItem value="NONE">Chọn tuần</SelectItem>
                                 {status.weeks.map((week) => (
-                                  <SelectItem key={week.week} value={week.week}>
-                                    {week.label || week.week}
+                                  <SelectItem
+                                    key={week.week}
+                                    value={week.week}
+                                    label={week.label || week.week}
+                                    aria-label={`${week.label || week.week} · ${statusLabel(week.status)}`}
+                                  >
+                                    <span className="flex min-w-0 items-center justify-between gap-3">
+                                      <span className="truncate">{week.label || week.week}</span>
+                                      <span>{' · '}</span>
+                                      <span
+                                        className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${statusBadgeClass(week.status)}`}
+                                      >
+                                        {statusLabel(week.status)}
+                                      </span>
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>

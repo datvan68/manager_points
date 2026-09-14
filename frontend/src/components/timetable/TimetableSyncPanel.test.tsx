@@ -118,9 +118,67 @@ describe('TimetableSyncPanel', () => {
     render(<TimetableSyncPanel />);
     await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
     expect(screen.getByRole('button', { name: 'Đồng bộ tuần' })).toBeDisabled();
-    await selectOption('Tuần cho Lớp A', 'Tuần 2');
+    await selectOption('Tuần cho Lớp A', 'Tuần 2 · Đã đồng bộ');
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
     await waitFor(() => expect(timetableApi.syncSavedClassWeek).toHaveBeenCalledWith(expect.objectContaining({ systemClassId: 'c1', className: 'A', week: 'w2' }), 'sync'));
+  });
+
+  it('shows every week status while keeping the selected trigger compact', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    const weeks = [
+      { week: 'w1', label: 'Tuần 1', status: 'valid' },
+      { week: 'w2', label: 'Tuần 2', status: 'missing' },
+      { week: 'w3', label: 'Tuần 3', status: 'pending' },
+      { week: 'w4', label: 'Tuần 4', status: 'running' },
+      { week: 'w5', label: 'Tuần 5', status: 'failed' },
+    ];
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({
+      settings: { ...settings, classLinks: [link] },
+      job: null,
+      lastSuccessfulUpdate: null,
+      classStatuses: [{ classSelection: link, weekCount: weeks.length, targetWeeks: weeks.map(({ week }) => week), status: 'failed', weeks }],
+    });
+
+    render(<TimetableSyncPanel />);
+    const trigger = await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    fireEvent.click(trigger);
+    const listbox = await waitFor(() => {
+      const openListbox = screen.getAllByRole('listbox', { hidden: true }).find((el) => !el.className.includes('opacity-0'));
+      if (!openListbox) throw new Error('No open listbox');
+      return openListbox;
+    });
+    expect(within(listbox).getByRole('option', { name: 'Tuần 1 · Đã đồng bộ', hidden: true })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Tuần 2 · Chưa đồng bộ', hidden: true })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Tuần 3 · Đang chờ', hidden: true })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Tuần 4 · Đang chạy', hidden: true })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Tuần 5 · Lỗi', hidden: true })).toBeInTheDocument();
+
+    await act(async () => { fireEvent.click(within(listbox).getByRole('option', { name: 'Tuần 3 · Đang chờ', hidden: true })); });
+    expect(trigger).toHaveValue('Tuần 3');
+  });
+
+  it('reflects refreshed week status when the selector is reopened', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    const initial = { week: 'w1', label: 'Tuần 1', status: 'pending' };
+    const refreshed = { week: 'w1', label: 'Tuần 1', status: 'valid' };
+    vi.mocked(timetableApi.getSyncStatus)
+      .mockResolvedValueOnce({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'pending', weeks: [initial] }] })
+      .mockResolvedValueOnce({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'valid', weeks: [refreshed] }] });
+    vi.mocked(timetableApi.updateSyncSettings).mockResolvedValue({ ...settings, classLinks: [link] });
+
+    render(<TimetableSyncPanel />);
+    await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    openSourceConfig();
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' }));
+    await waitFor(() => expect(timetableApi.getSyncStatus).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Tuần cho Lớp A' }));
+    const listbox = await waitFor(() => {
+      const openListbox = screen.getAllByRole('listbox', { hidden: true }).find((el) => !el.className.includes('opacity-0'));
+      if (!openListbox) throw new Error('No open listbox');
+      return openListbox;
+    });
+    expect(within(listbox).getByRole('option', { name: 'Tuần 1 · Đã đồng bộ', hidden: true })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: 'Tuần 1 · Đang chờ', hidden: true })).not.toBeInTheDocument();
   });
 
   it('shows request failures and reports observed completion', async () => {
@@ -130,7 +188,7 @@ describe('TimetableSyncPanel', () => {
     vi.mocked(timetableApi.syncSavedClassWeek).mockRejectedValue(new Error('Mất kết nối'));
     render(<TimetableSyncPanel onSynced={onSynced} />);
     await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
-    await selectOption('Tuần cho Lớp A', 'w1');
+    await selectOption('Tuần cho Lớp A', 'w1 · Chưa đồng bộ');
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
     await screen.findByRole('alert');
     expect(screen.getByRole('alert')).toHaveTextContent('Mất kết nối');
