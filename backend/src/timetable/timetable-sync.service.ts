@@ -9,7 +9,7 @@ import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, Save
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { getTimetableConfig, TimetableConfig } from './timetable.config';
-import { TimetableClassSelection, TimetableClassLink, TimetableFilters, TimetableSourceError, TimetableWeekDate, TimetableClassSyncStatus } from './timetable.types';
+import { TimetableClassSelection, TimetableClassLink, TimetableFilters, TimetableSourceError, TimetableWeekDate, TimetableClassSyncStatus, TimetableSourcePeriod } from './timetable.types';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { timetableFields, timetableKey } from './timetable-selection';
 
@@ -83,26 +83,49 @@ export class TimetableSyncService {
 
   async updateSettings(user: any, dto: TimetableSettingsDto) {
     this.assertAdmin(user); const current = await this.state(); const coverage = this.validateCoverage(dto.coverage ?? current.settings?.coverage ?? [], true);
-    const selectedClasses = this.validateSelectedClasses(dto.selectedClasses ?? current.settings?.selectedClasses ?? []);
-    const classLinks = await this.validateClassLinks(user, dto.classLinks ?? current.settings?.classLinks ?? []);
+    const selectedClasses = this.removeStaleDerivedSelections(
+      this.validateSelectedClasses(dto.selectedClasses ?? current.settings?.selectedClasses ?? []),
+      current.settings?.classLinks || [],
+      dto.classLinks ?? current.settings?.classLinks ?? [],
+    );
+    const sourcePeriod = await this.validateSourcePeriod(user, dto.sourcePeriod ?? current.settings?.sourcePeriod);
+    const classLinks = await this.validateClassLinks(user, dto.classLinks ?? current.settings?.classLinks ?? [], current.settings?.classLinks || [], sourcePeriod);
     const enrolled: TimetableClassSelection[] = [...selectedClasses];
     for (const link of classLinks) {
-      const item = this.linkSelection(link);
+      const item = { ...this.linkSelection(link), derivedFromSystemClassId: link.systemClassId };
       if (!enrolled.some((candidate) => this.classIdentity(candidate) === this.classIdentity(item))) enrolled.push(item);
     }
     const rolling = this.validateRolling(dto.rolling || current.settings?.rolling || { enabled: false, weekDates: [] });
     if (!coverage.length && !enrolled.length && !classLinks.length) throw new ConflictException('Cần chọn ít nhất một lớp hoặc phạm vi đồng bộ.');
-    await this.states.updateOne({ name: STATE }, { $set: { settings: { enabled: dto.enabled, intervalMinutes: dto.intervalMinutes, coverage, selectedClasses: enrolled, classLinks, rolling } } }, { upsert: true }).exec(); return (await this.state()).settings;
+    await this.states.updateOne({ name: STATE }, { $set: { settings: { enabled: dto.enabled, intervalMinutes: dto.intervalMinutes, coverage, ...(sourcePeriod ? { sourcePeriod } : {}), selectedClasses: enrolled, classLinks, rolling } } }, { upsert: true }).exec(); return (await this.state()).settings;
+  }
+
+  private async validateSourcePeriod(user: any, period?: TimetableSourcePeriod) {
+    if (!period) return undefined;
+    const options = await this.adapter.getOptions(`sync-period:${String(user.userId)}`, period);
+    if (!(options.years || []).some((option: any) => option.value === period.year) || !(options.semesters || []).some((option: any) => option.value === period.semester)) {
+      throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_PERIOD_INVALID', message: 'Niên học hoặc học kỳ nguồn không hợp lệ.' });
+    }
+    return { year: period.year, semester: period.semester };
   }
 
   private normalizeName(value: unknown) { return String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase(); }
+  private removeStaleDerivedSelections(items: TimetableClassSelection[], previousLinks: TimetableClassLink[], nextLinks: TimetableClassLink[]) {
+    const nextBySystem = new Map(nextLinks.map((link) => [link.systemClassId, this.classIdentity(link)]));
+    const stale = new Set(previousLinks
+      .filter((link) => nextBySystem.get(link.systemClassId) !== this.classIdentity(link))
+      .map((link) => link.systemClassId));
+    return items.filter((item) => !item.derivedFromSystemClassId || !stale.has(item.derivedFromSystemClassId));
+  }
   private linkSelection(link: TimetableClassLink): TimetableClassSelection { const { systemClassId: _id, sourceLabel: _label, matchMethod: _method, ...selection } = link; return selection; }
-  private sourceMatches(link: TimetableClassLink, option: any) {
+  private sourceMatches(link: TimetableClassLink, option: any, legacy = false) {
     if (!option || option.value !== link.className) return false;
     const parent = option.parent || {};
-    return ['year', 'semester', 'faculty', 'course'].every((field) => !link[field as keyof TimetableClassLink] || !parent[field] || parent[field] === link[field as keyof TimetableClassLink]);
+    return ['year', 'semester', 'faculty', 'course'].every((field) => legacy
+      ? (!link[field as keyof TimetableClassLink] || !parent[field] || parent[field] === link[field as keyof TimetableClassLink])
+      : parent[field] === link[field as keyof TimetableClassLink]);
   }
-  private async validateClassLinks(user: any, links: TimetableClassLink[]): Promise<TimetableClassLink[]> {
+  private async validateClassLinks(user: any, links: TimetableClassLink[], previousLinks: TimetableClassLink[] = [], sourcePeriod?: TimetableSourcePeriod): Promise<TimetableClassLink[]> {
     if (links.length > this.config.queueLimit) throw new ConflictException('Danh sách liên kết lớp không hợp lệ.');
     if (!links.length) return [];
     const ids = [...new Set(links.map((link) => link.systemClassId))];
@@ -115,11 +138,13 @@ export class TimetableSyncService {
       if (seenSystems.has(link.systemClassId)) throw new ConflictException({ reasonCode: 'TIMETABLE_DUPLICATE_SYSTEM_CLASS', message: 'Không được liên kết trùng lớp hệ thống.' });
       const sourceKey = this.classIdentity(link); if (seenSources.has(sourceKey)) throw new ConflictException({ reasonCode: 'TIMETABLE_DUPLICATE_SOURCE_CLASS', message: 'Không được gán trùng lớp nguồn trong cùng ngữ cảnh.' });
       seenSystems.add(link.systemClassId); seenSources.add(sourceKey);
-      if (!link.year || !link.semester || !link.className || !link.sourceLabel) throw new ConflictException('Liên kết lớp thiếu ngữ cảnh nguồn.');
+      const previous = previousLinks.find((item) => item.systemClassId === link.systemClassId && item.className === link.className);
+      if (!link.year || !link.semester || !link.className || !link.sourceLabel || (!previous && (!link.faculty || !link.course))) throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_LINK_INCOMPLETE', message: 'Liên kết mới phải có đủ khoa, khóa và lớp nguồn.' });
+      if (!previous && sourcePeriod && (link.year !== sourcePeriod.year || link.semester !== sourcePeriod.semester)) throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_PERIOD_MISMATCH', message: 'Liên kết mới phải thuộc niên học và học kỳ nguồn đã chọn.' });
       const contextKey = JSON.stringify([link.year, link.semester, link.faculty || '', link.course || '']);
       if (!contexts.has(contextKey)) contexts.set(contextKey, this.adapter.getOptions(`sync-links:${String(user.userId)}:${contextKey}`, { year: link.year, semester: link.semester, faculty: link.faculty || '', course: link.course || '' }));
       const options = await contexts.get(contextKey)!;
-      if (!(options.classes || []).some((option: any) => this.sourceMatches(link, option) && option.label === link.sourceLabel)) throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_LINK_NOT_FOUND', message: `Lớp nguồn ${link.sourceLabel} không thuộc đúng ngữ cảnh đã tải.` });
+      if (!(options.classes || []).some((option: any) => this.sourceMatches(link, option, Boolean(previous)) && option.label === link.sourceLabel)) throw new ConflictException({ reasonCode: 'TIMETABLE_SOURCE_LINK_NOT_FOUND', message: `Lớp nguồn ${link.sourceLabel} không thuộc đúng ngữ cảnh đã tải.` });
     }
     return links.map((link) => ({ ...link, faculty: link.faculty || '', course: link.course || '', weekCount: Number.isInteger(link.weekCount) ? link.weekCount : 1 }));
   }
@@ -133,7 +158,7 @@ export class TimetableSyncService {
     if (items.some((item) => item.weekCount !== undefined && (!Number.isInteger(item.weekCount) || item.weekCount < 1 || item.weekCount > 100))) throw new ConflictException('Số tuần của lớp phải là số nguyên từ 1 đến 100.');
     const keys = items.map((item) => JSON.stringify([item.year, item.semester, item.faculty || '', item.course || '', item.className]));
     if (new Set(keys).size !== keys.length) throw new ConflictException('Không được cấu hình trùng lớp trong cùng ngữ cảnh.');
-    return items.map((item) => ({ year: item.year!, semester: item.semester!, faculty: item.faculty || '', course: item.course || '', className: item.className!, weekCount: Number.isInteger(item.weekCount) ? item.weekCount : 1 }));
+    return items.map((item) => ({ year: item.year!, semester: item.semester!, faculty: item.faculty || '', course: item.course || '', className: item.className!, weekCount: Number.isInteger(item.weekCount) ? item.weekCount : 1, ...(item.derivedFromSystemClassId ? { derivedFromSystemClassId: item.derivedFromSystemClassId } : {}) }));
   }
   private validateRolling(value: { enabled: boolean; weekDates?: TimetableWeekDate[] }) {
     const weekDates = value.weekDates || [];

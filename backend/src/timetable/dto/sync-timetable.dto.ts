@@ -16,6 +16,7 @@ export class TimetableClassSelectionDto {
   @IsOptional() @IsString() course?: string;
   @IsString() className!: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) weekCount?: number;
+  @IsOptional() @IsString() derivedFromSystemClassId?: string;
 }
 
 export class TimetableClassLinkDto extends TimetableClassSelectionDto {
@@ -45,9 +46,16 @@ export class TimetableRollingPolicyDto {
   weekDates?: TimetableWeekDateDto[];
 }
 
+export class TimetableSourcePeriodDto {
+  @IsString() @IsNotEmpty() year!: string;
+  @IsString() @IsNotEmpty() semester!: string;
+}
+
 export class TimetableSettingsDto {
   @IsBoolean() enabled!: boolean;
   @IsInt() @Min(30) @Max(7 * 24 * 60) intervalMinutes!: number;
+  @IsOptional() @ValidateNested() @Type(() => TimetableSourcePeriodDto)
+  sourcePeriod?: TimetableSourcePeriodDto;
   @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TimetableCoverageDto)
   coverage?: TimetableCoverageDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => TimetableClassSelectionDto)

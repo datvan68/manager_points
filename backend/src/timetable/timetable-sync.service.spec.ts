@@ -122,9 +122,9 @@ describe('TimetableSyncService', () => {
   it('validates persistent links against class IDs and a fresh source context, then enrolls without schedule fetch', async () => {
     const { service, adapter, classes, states } = setup();
     classes.find.mockReturnValue(chain([{ _id: 'system-1', class_name: 'Lớp A' }]));
-    adapter.getOptions.mockResolvedValue({ classes: [{ value: 'opaque-a', label: ' LỚP   A ', parent: { year: '2026', semester: '1' } }], weeks: [] });
-    await service.updateSettings(admin, { enabled: true, intervalMinutes: 60, coverage: [], classLinks: [{ systemClassId: 'system-1', year: '2026', semester: '1', className: 'opaque-a', sourceLabel: ' LỚP   A ', matchMethod: 'auto' }] });
-    expect(adapter.getOptions).toHaveBeenCalledWith(expect.stringContaining('sync-links:admin-1'), { year: '2026', semester: '1', faculty: '', course: '' });
+    adapter.getOptions.mockResolvedValue({ classes: [{ value: 'opaque-a', label: ' LỚP   A ', parent: { year: '2026', semester: '1', faculty: 'faculty-a', course: 'course-a' } }], weeks: [] });
+    await service.updateSettings(admin, { enabled: true, intervalMinutes: 60, coverage: [], classLinks: [{ systemClassId: 'system-1', year: '2026', semester: '1', faculty: 'faculty-a', course: 'course-a', className: 'opaque-a', sourceLabel: ' LỚP   A ', matchMethod: 'auto' }] });
+    expect(adapter.getOptions).toHaveBeenCalledWith(expect.stringContaining('sync-links:admin-1'), { year: '2026', semester: '1', faculty: 'faculty-a', course: 'course-a' });
     expect(states.updateOne.mock.calls[0][1].$set.settings).toMatchObject({ classLinks: [{ systemClassId: 'system-1' }], selectedClasses: [{ className: 'opaque-a' }] });
     expect(adapter.getTimetable).not.toHaveBeenCalled();
   });
@@ -133,8 +133,15 @@ describe('TimetableSyncService', () => {
     const { service, classes, adapter } = setup();
     classes.find.mockReturnValue(chain([]));
     await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, classLinks: [{ systemClassId: 'missing', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_SYSTEM_CLASS_NOT_FOUND' } });
-    classes.find.mockReturnValue(chain([{ _id: 'one' }, { _id: 'two' }])); adapter.getOptions.mockResolvedValue({ classes: [{ value: 'a', label: 'A' }], weeks: [] });
-    await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, classLinks: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }, { systemClassId: 'two', year: '2026', semester: '1', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_DUPLICATE_SOURCE_CLASS' } });
+    classes.find.mockReturnValue(chain([{ _id: 'one' }, { _id: 'two' }])); adapter.getOptions.mockResolvedValue({ classes: [{ value: 'a', label: 'A', parent: { year: '2026', semester: '1', faculty: 'f', course: 'c' } }], weeks: [] });
+    await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, classLinks: [{ systemClassId: 'one', year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }, { systemClassId: 'two', year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_DUPLICATE_SOURCE_CLASS' } });
+  });
+
+  it('validates the shared source period and rejects a new link from another period', async () => {
+    const { service, classes, adapter } = setup();
+    classes.find.mockReturnValue(chain([{ _id: 'system-1' }]));
+    adapter.getOptions.mockResolvedValue({ years: [{ value: '2026' }], semesters: [{ value: '1' }], classes: [{ value: 'a', label: 'A', parent: { year: '2027', semester: '2', faculty: 'f', course: 'c' } }], weeks: [] });
+    await expect(service.updateSettings(admin, { enabled: true, intervalMinutes: 60, sourcePeriod: { year: '2026', semester: '1' }, classLinks: [{ systemClassId: 'system-1', year: '2027', semester: '2', faculty: 'f', course: 'c', className: 'a', sourceLabel: 'A', matchMethod: 'manual' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_SOURCE_PERIOD_MISMATCH' } });
   });
 
   it('coalesces a demand request and rejects an unselected scope before source work', async () => {

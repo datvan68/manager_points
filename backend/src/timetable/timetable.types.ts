@@ -30,6 +30,7 @@ export interface TimetableClassSelection {
   course?: string;
   className: string;
   weekCount?: number;
+  derivedFromSystemClassId?: string;
 }
 
 export type TimetableClassLinkMatchMethod = 'auto' | 'manual';
@@ -45,10 +46,16 @@ export interface TimetableRollingPolicy {
   weekDates?: TimetableWeekDate[];
 }
 
+export interface TimetableSourcePeriod {
+  year: string;
+  semester: string;
+}
+
 export interface TimetableSyncSettings {
   enabled: boolean;
   intervalMinutes: number;
   coverage: TimetableFilters[];
+  sourcePeriod?: TimetableSourcePeriod;
   selectedClasses?: TimetableClassSelection[];
   classLinks?: TimetableClassLink[];
   rolling?: TimetableRollingPolicy;
