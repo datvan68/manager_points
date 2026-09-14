@@ -10,11 +10,15 @@ const options: TimetableOptions = {
   weeks: [{ label: 'Tuần 3', value: 'w' }], faculties: [{ value: '', label: 'Tất cả khoa' }],
   courses: [{ value: '', label: 'Tất cả khóa' }], classes: [{ label: 'Lớp A', value: 'a' }], availableCoverage: [coverage],
 };
+const openConfig = () => fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' }));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   vi.mocked(timetableApi.getOptions).mockResolvedValue(options);
   vi.mocked(timetableApi.getTimetable).mockResolvedValue({ filters: coverage, lessons: [], periods: [], isEmpty: true });
 });
+
 async function choose(label: string, value: string) {
   const trigger = screen.getByRole('combobox', { name: label });
   fireEvent.click(trigger);
@@ -29,30 +33,41 @@ async function choose(label: string, value: string) {
 }
 
 describe('TimetableLookup', () => {
-  it('reloads dependent choices on week changes and only searches exact synchronized coverage', async () => {
+  it('applies default year and semester, reloads choices on week changes, and searches synchronized coverage', async () => {
     render(<TimetableLookup />);
-    await screen.findByRole('option', { name: '2026' });
-    await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w');
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' })).toBeInTheDocument();
+
+    await choose('Tuần', 'w');
     expect(timetableApi.getOptions).toHaveBeenCalledWith(expect.objectContaining({ week: 'w' }));
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
+
     const count = vi.mocked(timetableApi.getOptions).mock.calls.length;
     await choose('Lớp', 'a');
     expect(timetableApi.getOptions).toHaveBeenCalledTimes(count);
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
+
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(await screen.findByText('Không có lịch cho bộ lọc đã chọn.')).toBeInTheDocument();
     expect(timetableApi.getTimetable).toHaveBeenCalledWith(coverage);
+
     vi.mocked(timetableApi.getTimetable).mockRejectedValueOnce(new Error('Nguồn phản hồi quá lâu.'));
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Nguồn phản hồi quá lâu.');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
   });
 
-  it('clears dependent class selection when a parent changes', async () => {
+  it('allows changing year and semester via config popover and resets dependent selections', async () => {
     render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    await choose('Tuần', 'w');
+    await choose('Lớp', 'a');
+
+    openConfig();
     await screen.findByRole('option', { name: '2026' });
-    await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w'); await choose('Lớp', 'a');
     await choose('Niên học', '');
+
     expect(screen.getByRole('combobox', { name: 'Lớp' })).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
   });
@@ -61,21 +76,26 @@ describe('TimetableLookup', () => {
     vi.mocked(timetableApi.getOptions).mockRejectedValueOnce(new Error('Chưa đồng bộ'));
     const { rerender } = render(<TimetableLookup refreshKey={0} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Chưa đồng bộ');
+
     fireEvent.click(screen.getByRole('button', { name: 'Làm mới danh mục' }));
-    await screen.findByRole('option', { name: '2026' });
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
     const count = vi.mocked(timetableApi.getOptions).mock.calls.length;
+
     rerender(<TimetableLookup refreshKey={1} />);
-    await waitFor(() => expect(timetableApi.getOptions).toHaveBeenCalledTimes(count + 1));
+    await waitFor(() => expect(timetableApi.getOptions).toHaveBeenCalledTimes(count + 2));
   });
 
   it('does not search an unsynchronized selection', async () => {
     const uncached = { ...options, availableCoverage: [] };
     vi.mocked(timetableApi.getOptions).mockResolvedValue(uncached);
     render(<TimetableLookup />);
-    await screen.findByRole('option', { name: '2026' });
-    await choose('Niên học', 'y'); await choose('Học kỳ', 's'); await choose('Tuần', 'w'); await choose('Lớp', 'a');
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    await choose('Tuần', 'w');
+    await choose('Lớp', 'a');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
     expect(screen.getByText('Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.')).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(timetableApi.getTimetable).not.toHaveBeenCalled();
   });

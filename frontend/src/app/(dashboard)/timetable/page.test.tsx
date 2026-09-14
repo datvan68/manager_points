@@ -7,7 +7,6 @@ vi.mock('@/providers/auth-provider', () => ({ useAuth: () => authState }));
 vi.mock('@/components/guards/RouteGuard', () => ({ RouteGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/timetable/TimetableLookup', () => ({ default: ({ refreshKey }: { refreshKey: number }) => <div data-testid="lookup">lookup-{refreshKey}</div> }));
 vi.mock('@/components/timetable/TimetableSyncPanel', () => ({ default: ({ onSynced }: { onSynced?: () => void }) => <button type="button" onClick={onSynced}>sync complete</button> }));
-vi.mock('@/components/timetable/TimetableSnapshotsPanel', () => ({ default: () => <div data-testid="snapshots">snapshots</div> }));
 beforeEach(() => { authState.user = { roleCode: 'ADMIN' }; });
 afterEach(() => { cleanup(); });
 
@@ -16,9 +15,8 @@ describe('TimetablePage', () => {
     render(<TimetablePage />);
     expect(screen.queryByRole('heading', { name: 'Thời khóa biểu' })).not.toBeInTheDocument();
     expect(screen.queryByText('Tra cứu lịch học theo dữ liệu nhà trường.')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
-    expect(screen.queryByText('sync complete')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('snapshots')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    expect(screen.queryByText('sync complete')).toBeInTheDocument();
     expect(screen.getByRole('tablist')).toHaveAttribute('aria-label', 'Điều hướng tab');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('shrink-0');
     expect(screen.getByRole('tablist').parentElement).toHaveClass('overflow-x-auto');
@@ -31,9 +29,7 @@ describe('TimetablePage', () => {
     expect(document.getElementById('timetable-lookup-panel')).toHaveAttribute('hidden');
     fireEvent.click(screen.getByRole('button', { name: 'sync complete' }));
     expect(screen.getByTestId('lookup')).toHaveTextContent('lookup-1');
-    fireEvent.click(screen.getByRole('tab', { name: 'Dữ liệu đã đồng bộ' }));
-    expect(screen.getByTestId('snapshots')).toBeInTheDocument();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Dữ liệu đã đồng bộ' }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Cấu hình tkb' }), { key: 'ArrowLeft' });
     expect(screen.getByRole('tab', { name: 'Tra tkb' })).toHaveAttribute('aria-selected', 'true');
   });
 

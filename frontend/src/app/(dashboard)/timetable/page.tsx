@@ -3,31 +3,27 @@ import { useState } from 'react';
 import { RouteGuard } from '@/components/guards/RouteGuard';
 import TimetableLookup from '@/components/timetable/TimetableLookup';
 import TimetableSyncPanel from '@/components/timetable/TimetableSyncPanel';
-import TimetableSnapshotsPanel from '@/components/timetable/TimetableSnapshotsPanel';
 import { useAuth } from '@/providers/auth-provider';
 import TabNavigation from '@/components/ui/TabNavigation';
 
 const timetableTabs = [
   { id: 'lookup', label: 'Tra tkb', panelId: 'timetable-lookup-panel' },
-  { id: 'snapshots', label: 'Dữ liệu đã đồng bộ', panelId: 'timetable-snapshots-panel' },
   { id: 'settings', label: 'Cấu hình tkb', panelId: 'timetable-settings-panel' },
 ];
 
 export default function TimetablePage() {
   const { user } = useAuth();
   const isAdmin = String(user?.roleCode || '').toUpperCase() === 'ADMIN';
-  const [activeTab, setActiveTab] = useState<'lookup' | 'snapshots' | 'settings'>('lookup');
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(['lookup']));
+  const [activeTab, setActiveTab] = useState<'lookup' | 'settings'>('lookup');
   const [refreshKey, setRefreshKey] = useState(0);
   return <RouteGuard><div className="flex min-h-0 flex-1 flex-col">
     {isAdmin && (
-      <TabNavigation tabs={timetableTabs} activeTab={activeTab} onTabChange={(id) => { setVisitedTabs((current) => new Set(current).add(id)); setActiveTab(id as typeof activeTab); }} responsiveScrollable />
+      <TabNavigation tabs={timetableTabs} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as typeof activeTab)} responsiveScrollable />
     )}
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-6">
       <div className="flex min-h-0 flex-1 flex-col w-full min-w-0">
         <div id="timetable-lookup-panel" role="tabpanel" aria-labelledby="timetable-lookup-tab" className="h-full overflow-y-auto" hidden={isAdmin && activeTab !== 'lookup'}><TimetableLookup refreshKey={refreshKey} /></div>
-        {isAdmin && <div id="timetable-snapshots-panel" role="tabpanel" aria-labelledby="timetable-snapshots-tab" className="h-full overflow-y-auto" hidden={activeTab !== 'snapshots'}>{visitedTabs.has('snapshots') && <TimetableSnapshotsPanel />}</div>}
-        {isAdmin && <div id="timetable-settings-panel" role="tabpanel" aria-labelledby="timetable-settings-tab" className="flex min-h-0 flex-1 flex-col overflow-hidden" hidden={activeTab !== 'settings'}>{visitedTabs.has('settings') && <TimetableSyncPanel active={activeTab === 'settings'} onSynced={() => setRefreshKey((current) => current + 1)} />}</div>}
+        {isAdmin && <div id="timetable-settings-panel" role="tabpanel" aria-labelledby="timetable-settings-tab" className="flex min-h-0 flex-1 flex-col overflow-hidden" hidden={activeTab !== 'settings'}><TimetableSyncPanel active={activeTab === 'settings'} onSynced={() => setRefreshKey((current) => current + 1)} /></div>}
       </div>
     </main>
   </div></RouteGuard>;
