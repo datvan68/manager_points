@@ -19,6 +19,8 @@ export interface TimetableConfig {
   refreshCooldownMs: number;
   statusRetention: number;
   interactiveReserve: number;
+  minAttemptSpacingMs: number;
+  sourcePauseMs: number;
 }
 
 export function getTimetableConfig(config: ConfigService): TimetableConfig {
@@ -38,5 +40,7 @@ export function getTimetableConfig(config: ConfigService): TimetableConfig {
     refreshCooldownMs: 60_000,
     statusRetention: 200,
     interactiveReserve: 20,
+    minAttemptSpacingMs: 1_000,
+    sourcePauseMs: 30_000,
   };
 }

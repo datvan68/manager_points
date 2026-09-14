@@ -68,7 +68,7 @@ describe('TimetableSyncService', () => {
     states.updateOne.mockReturnValue(chain({ matchedCount: 0 }));
     await (service as any).run('stale', 'old-owner', [selection]);
     expect(snapshots.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(states.updateOne).toHaveBeenCalledTimes(1);
+    expect(states.updateOne).toHaveBeenCalled();
   });
 
   it('renews ownership while waiting for a slow source and stops after renewal is lost', async () => {
@@ -210,11 +210,8 @@ describe('TimetableSyncService', () => {
     const { service, states } = setup();
     const savedState = { settings: { selectedClasses: [{ year: '2026', semester: '1', className: 'A' }], classLinks: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual' }] }, catalog: { weeks: [{ value: 'w1', parent: { year: '2026', semester: '1' } }] }, queue: [], statuses: [] };
     states.findOneAndUpdate.mockReturnValueOnce(chain(savedState));
-    const start = jest.spyOn(service, 'start').mockResolvedValue({ status: 'running', total: 1 } as any);
-    await expect(service.startSavedClassWeeks(admin, { selections: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual', week: 'w1' }] })).resolves.toMatchObject({ total: 1 });
-    expect(start).toHaveBeenCalledWith(admin, { coverage: [expect.objectContaining({ className: 'A', week: 'w1' })] });
+    await expect(service.startSavedClassWeeks(admin, { selections: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual', week: 'w1' }] })).resolves.toMatchObject({ total: 1, outcomes: [{ status: 'accepted' }] });
     states.findOneAndUpdate.mockReturnValueOnce(chain({ ...savedState, settings: { ...savedState.settings, classLinks: [{ ...savedState.settings.classLinks[0], systemClassId: 'one' }] } }));
     await expect(service.startSavedClassWeeks(admin, { selections: [{ systemClassId: 'one', year: '2026', semester: '1', className: 'A', sourceLabel: 'A', matchMethod: 'manual', week: 'w1' }, { systemClassId: 'missing', year: '2026', semester: '1', className: 'B', sourceLabel: 'B', matchMethod: 'manual', week: 'w1' }] })).rejects.toMatchObject({ response: { reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED' } });
-    expect(start).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,6 +8,7 @@ import { CustomPagination } from '@/components/ui/pagination';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, SlidersHorizontal } from 'lucide-react';
+import TimetableWeekPopover from './TimetableWeekPopover';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -156,6 +157,23 @@ export default function TimetableSyncPanel({
       mounted.current = false;
     };
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = 5000;
+    const active = () => Boolean(job && activeStatuses.includes(job.status)) || statuses.some((row) => activeStatuses.includes(row.status));
+    const poll = async () => {
+      if (!mounted.current || document.visibilityState !== 'visible' || !active()) return;
+      const ok = await refreshStatuses();
+      delay = ok ? 5000 : Math.min(delay * 2, 30000);
+      if (mounted.current && document.visibilityState === 'visible' && active()) timer = setTimeout(() => void poll(), delay);
+    };
+    const onVisibility = () => { if (document.visibilityState === 'visible') { delay = 5000; void poll(); } };
+    document.addEventListener('visibilitychange', onVisibility);
+    if (active() && document.visibilityState === 'visible') timer = setTimeout(() => void poll(), delay);
+    return () => { document.removeEventListener('visibilitychange', onVisibility); if (timer) clearTimeout(timer); };
+  }, [isAdmin, job?.status, statuses]);
 
   const loadFor = async (key: string, filters: Partial<TimetableFilters>) => {
     const cacheKey = JSON.stringify(filters);
@@ -965,29 +983,24 @@ export default function TimetableSyncPanel({
           itemLabel="lớp"
           actions={(
             <>
-              <div className="w-[160px]">
-                <Select
-                  value={bulkWeek || 'NONE'}
-                  onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}
-                >
-                  <SelectTrigger
-                    aria-label="Tuần đồng bộ chung"
-                    disabled={!selectedLinks.length || bulkSubmitting}
-                    className="h-8 rounded-xl border-blue-200 bg-white px-2.5 py-1 text-xs text-[#1E293B]"
-                  >
-                    <SelectValue placeholder="Chọn tuần chung" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[10000]">
-                    <SelectItem value="NONE">Chọn tuần chung</SelectItem>
-                    {commonWeeks.map((week) => (
-                      <SelectItem key={week} value={week}>
-                        {week}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+              <TimetableWeekPopover
+                links={selectedLinks}
+                statuses={statuses}
+                disabled={bulkSubmitting}
+                onSubmit={async (pairs) => {
+                  setBulkSubmitting(true); setError(''); setMessage('');
+                  try { const result = await timetableApi.syncSavedClassWeeks(pairs); setMessage(`Đã tiếp nhận ${result.outcomes?.filter((item) => item.status === 'accepted').length ?? result.total} cặp lớp-tuần.`); await refreshStatuses(); }
+                  catch (e: unknown) { setError(e instanceof Error ? e.message : 'Không thể đồng bộ các lớp đã chọn.'); throw e; }
+                  finally { setBulkSubmitting(false); }
+                }}
+              />
+              <div className="flex items-center gap-1.5" aria-label="Đồng bộ nhanh tương thích">
+                <Select value={bulkWeek || 'NONE'} onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}>
+                  <SelectTrigger aria-label="Tuần đồng bộ chung" disabled={!selectedLinks.length || bulkSubmitting} className="h-8 w-[140px] rounded-xl border-blue-200 bg-white px-2.5 py-1 text-xs"><SelectValue placeholder="Chọn tuần chung" /></SelectTrigger>
+                  <SelectContent className="z-[10000]"><SelectItem value="NONE">Chọn tuần chung</SelectItem>{commonWeeks.map((week) => <SelectItem key={week} value={week}>{week}</SelectItem>)}</SelectContent>
                 </Select>
+                <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#1A73E8] disabled:opacity-40">Đồng bộ đã chọn</button>
               </div>
-              <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{bulkSubmitting ? 'Đang gửi...' : 'Đồng bộ đã chọn'}</button>
             </>
           )}
         />

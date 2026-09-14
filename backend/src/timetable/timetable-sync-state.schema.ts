@@ -12,7 +12,7 @@ export class TimetableSyncState {
   @Prop({ type: Object, default: null }) lease?: { owner: string; expiresAt: Date; epoch: number } | null;
   @Prop({ type: [Object], default: [] }) queue!: Array<Record<string, any>>;
   @Prop({ type: [Object], default: [] }) statuses!: Array<Record<string, any>>;
-  @Prop({ type: Object, default: { demandStreak: 0 } }) coordinator!: Record<string, any>;
+  @Prop({ type: Object, default: { demandStreak: 0, lastAttemptFinishedAt: null, consecutiveFailures: 0, pausedUntil: null } }) coordinator!: Record<string, any>;
 }
 
 export const TimetableSyncStateSchema = SchemaFactory.createForClass(TimetableSyncState);

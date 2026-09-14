@@ -70,6 +70,9 @@ export interface TimetableClassSyncStatus {
   error?: string;
 }
 
+export type TimetablePairOutcomeStatus = 'accepted' | 'coalesced' | 'cooldown';
+export interface TimetablePairOutcome { key: string; selection: TimetableFilters; status: TimetablePairOutcomeStatus; cooldownUntil?: string }
+
 export interface TimetableOptions {
   years: TimetableOption[];
   semesters: TimetableOption[];

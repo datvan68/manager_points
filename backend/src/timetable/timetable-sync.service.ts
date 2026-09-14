@@ -39,7 +39,7 @@ export class TimetableSyncService {
   private assertAdmin(user: any) { if (String(user?.roleCode || '').toUpperCase() !== 'ADMIN') throw new ConflictException('Chỉ quản trị viên mới được đồng bộ thời khóa biểu.'); }
 
   private async state() {
-    return this.states.findOneAndUpdate({ name: STATE }, { $setOnInsert: { name: STATE, settings: { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], rolling: { enabled: false, weekDates: [] } }, queue: [], statuses: [], coordinator: { demandStreak: 0 } } }, { upsert: true, new: true }).lean().exec();
+    return this.states.findOneAndUpdate({ name: STATE }, { $setOnInsert: { name: STATE, settings: { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], rolling: { enabled: false, weekDates: [] } }, queue: [], statuses: [], coordinator: { demandStreak: 0, lastAttemptFinishedAt: null, consecutiveFailures: 0, pausedUntil: null } } }, { upsert: true, new: true }).lean().exec();
   }
   private async readOnlyState() {
     const query = (this.states as any).findOne?.({ name: STATE });
@@ -60,10 +60,10 @@ export class TimetableSyncService {
     return catalog;
   }
 
-  private async recoverInterrupted() {
+  private async recoverInterrupted(drain = true) {
     const now = new Date();
     await this.states.updateOne({ name: STATE, 'job.status': 'running', $or: [{ 'lease.expiresAt': { $lte: now } }, { lease: null, 'job.startedAt': { $lte: new Date(now.getTime() - LEASE_MS) } }, { lease: null, 'job.startedAt': { $exists: false } }] }, [{ $set: { 'job.status': 'failed', 'job.error': 'SYNC_INTERRUPTED', 'job.finishedAt': now, queue: { $let: { vars: { existing: { $ifNull: ['$queue', []] }, keys: { $map: { input: { $ifNull: ['$queue', []] }, as: 'queued', in: '$$queued.key' } } }, in: { $cond: [{ $and: [{ $ne: ['$job.selection', null] }, { $not: { $in: ['$job.selection.key', '$$keys'] } }] }, { $concatArrays: [['$job.selection'], '$$existing'] }, '$$existing'] } } } } }, { $unset: 'lease' }], { updatePipeline: true }).exec();
-    await this.drainQueue();
+    if (drain) await this.drainQueue();
   }
 
   async start(user: any, dto: StartTimetableSyncDto) {
@@ -76,7 +76,7 @@ export class TimetableSyncService {
   }
 
   async getStatus(user: any) {
-    this.assertAdmin(user); await this.recoverInterrupted(); const [state, latest] = await Promise.all([this.state(), this.snapshots.findOne().sort({ syncedAt: -1 }).lean().exec()]);
+    this.assertAdmin(user); await this.recoverInterrupted(false); const [state, latest] = await Promise.all([this.readOnlyState(), this.snapshots.findOne().sort({ syncedAt: -1 }).lean().exec()]);
     return { job: state.job, settings: state.settings, lastSuccessfulUpdate: latest?.syncedAt || null, queue: state.queue || [], classStatuses: await this.classStatuses(state) };
   }
   async getSettings(user: any) { this.assertAdmin(user); return (await this.state()).settings; }
@@ -172,15 +172,38 @@ export class TimetableSyncService {
     try {
       for (let attempt = 0; attempt <= this.config.maxRetries; attempt += 1) {
         const remaining = deadline - Date.now(); if (remaining <= 0 || controller.signal.aborted) throw new TimetableSourceError('SOURCE_TIMEOUT', 'Nguồn thời khóa biểu phản hồi quá lâu.');
-        try { return await this.adapter.getTimetable(`sync-demand:${timetableKey(selection)}`, selection, controller.signal); }
+        try {
+          await this.waitForSourceWindow(deadline);
+          const result = await this.adapter.getTimetable(`sync-demand:${timetableKey(selection)}`, selection, controller.signal);
+          await this.states.updateOne({ name: STATE }, { $set: { 'coordinator.lastAttemptFinishedAt': new Date(), 'coordinator.consecutiveFailures': 0, 'coordinator.pausedUntil': null } }).exec();
+          return result;
+        }
         catch (error) {
-          last = error; if (!(error instanceof TimetableSourceError) || !transient.has(error.code) || attempt >= this.config.maxRetries) throw error;
+          last = error;
+          if (error instanceof TimetableSourceError && transient.has(error.code)) {
+            const current = await this.readOnlyState();
+            const failures = Number(current?.coordinator?.consecutiveFailures || 0) + 1;
+            await this.states.updateOne({ name: STATE }, { $set: { 'coordinator.lastAttemptFinishedAt': new Date(), 'coordinator.consecutiveFailures': failures, ...(failures >= 3 ? { 'coordinator.pausedUntil': new Date(Date.now() + this.config.sourcePauseMs) } : {}) } }).exec();
+          } else {
+            await this.states.updateOne({ name: STATE }, { $set: { 'coordinator.lastAttemptFinishedAt': new Date() } }).exec();
+          }
+          if (!(error instanceof TimetableSourceError) || !transient.has(error.code) || attempt >= this.config.maxRetries) throw error;
           const backoff = Math.min(100 * 2 ** attempt, Math.max(0, deadline - Date.now()));
           if (backoff) await new Promise((resolve, reject) => { const wake = setTimeout(() => { controller.signal.removeEventListener('abort', abort); resolve(undefined); }, backoff); const abort = () => { clearTimeout(wake); reject(new TimetableSourceError('SOURCE_TIMEOUT', 'Nguồn thời khóa biểu phản hồi quá lâu.')); }; controller.signal.addEventListener('abort', abort, { once: true }); });
         }
       }
       throw last;
     } finally { clearTimeout(timer); }
+  }
+  private async waitForSourceWindow(deadline: number) {
+    const state = await this.readOnlyState();
+    const pausedUntil = state?.coordinator?.pausedUntil ? new Date(state.coordinator.pausedUntil).getTime() : 0;
+    const lastFinished = state?.coordinator?.lastAttemptFinishedAt ? new Date(state.coordinator.lastAttemptFinishedAt).getTime() : 0;
+    const wait = Math.max(pausedUntil, lastFinished + this.config.minAttemptSpacingMs) - Date.now();
+    if (wait > 0) {
+      if (Date.now() + wait >= deadline) throw new TimetableSourceError('SOURCE_TIMEOUT', 'Nguồn thời khóa biểu phản hồi quá lâu.');
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
   }
   private statusEntry(item: QueueItem, status: string, extra: Record<string, any> = {}) { return { key: item.key, selection: item.selection, kind: item.kind, status, updatedAt: new Date(), ...extra }; }
   private async requeueLeaseLost(item: QueueItem, id: string, owner: string) {
@@ -255,18 +278,22 @@ export class TimetableSyncService {
   private async classStatuses(state: any): Promise<TimetableClassSyncStatus[]> {
     const selected = (state.settings?.selectedClasses || []) as TimetableClassSelection[];
     const rows: TimetableClassSyncStatus[] = [];
+    const prepared = selected.map((item) => ({ item, options: this.weekOptions(state, item) }));
+    const allKeys = prepared.flatMap(({ item, options }) => options.map((option: any) => timetableKey({ year: item.year, semester: item.semester, week: option.value, faculty: item.faculty || '', course: item.course || '', className: item.className })));
+    const snapshots = allKeys.length && typeof (this.snapshots as any).find === 'function'
+      ? await (this.snapshots as any).find({ key: { $in: allKeys } }, { key: 1, syncedAt: 1, 'result.isEmpty': 1 }).lean().exec()
+      : [];
+    const byKey = new Map<string, any>((snapshots || []).map((snapshot: any) => [snapshot.key, snapshot] as [string, any]));
     for (const item of selected) {
       try {
         const options = this.weekOptions(state, item);
         const coverage = options.map((option: any) => ({ year: item.year, semester: item.semester, week: option.value, faculty: item.faculty || '', course: item.course || '', className: item.className }));
         if (!coverage.length) throw new ConflictException({ reasonCode: 'TIMETABLE_CLASS_WEEKS_NOT_FOUND', message: `Không tìm thấy tuần nguồn cho lớp ${item.className}.` });
         const keys = coverage.map((selection) => timetableKey(selection));
-        const snapshots = typeof (this.snapshots as any).find === 'function' ? await (this.snapshots as any).find({ key: { $in: keys } }).lean().exec() : [];
-        const byKey = new Map<string, any>((snapshots || []).map((snapshot: any) => [snapshot.key, snapshot] as [string, any]));
         const weeks = coverage.map((selection) => {
-          const key = timetableKey(selection); const snapshot = byKey.get(key); const queued = (state.queue || []).some((entry: QueueItem) => entry.key === key); const inJob = (state.job?.coverage || []).some((entry: TimetableFilters) => timetableKey(entry) === key); const running = inJob && state.job.status === 'running'; const jobFailure = (state.job?.failures || []).find((entry: Failure) => timetableKey(entry.coverage) === key); const terminal = [...(state.statuses || [])].reverse().find((entry: any) => entry.key === key);
+          const key = timetableKey(selection); const snapshot = byKey.get(key); const queued = (state.queue || []).some((entry: QueueItem) => entry.key === key); const jobItems = [state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean); const inJob = jobItems.some((entry: any) => timetableKey(entry.selection || entry) === key); const running = inJob && state.job.status === 'running'; const jobFailure = (state.job?.failures || []).find((entry: Failure) => timetableKey(entry.coverage) === key); const terminal = [...(state.statuses || [])].reverse().find((entry: any) => entry.key === key);
           const option = options.find((value: any) => value.value === selection.week);
-          return { week: selection.week, label: option?.label, startDate: option?.startDate, endDate: option?.endDate, snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : undefined, isEmpty: snapshot?.result?.isEmpty, status: jobFailure ? 'failed' : snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', ...((jobFailure?.reason || terminal?.failure) ? { failure: jobFailure?.reason || terminal?.failure } : {}) } as any;
+          return { week: selection.week, label: option?.label, startDate: option?.startDate, endDate: option?.endDate, snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : undefined, isEmpty: snapshot?.result?.isEmpty, status: jobFailure ? 'failed' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : snapshot ? 'valid' : 'missing', ...((jobFailure?.reason || terminal?.failure) ? { failure: jobFailure?.reason || terminal?.failure } : {}) } as any;
         });
         rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: coverage.map((value) => value.week), status: weeks.some((week) => week.status === 'failed') ? 'failed' : weeks.every((week) => week.status === 'valid') ? 'valid' : weeks.some((week) => week.status === 'running') ? 'running' : weeks.some((week) => week.status === 'pending') ? 'pending' : 'missing', weeks });
       } catch (error) { rows.push({ classSelection: item, weekCount: item.weekCount || 1, targetWeeks: [], status: 'configuration', weeks: [], error: error instanceof ConflictException ? String((error.getResponse() as any).message) : 'Cấu hình tuần không hợp lệ.' }); }
@@ -282,10 +309,10 @@ export class TimetableSyncService {
   async getSavedClassWeekStatus(user: any, dto: SavedTimetableWeekSyncDto) {
     this.assertAdmin(user); const state = await this.readOnlyState(); const selection = this.manualSelection(state, dto); const key = timetableKey(selection);
     const snapshot = await this.snapshots.findOne({ key }).lean().exec();
-    const running = state.job?.selection?.key === key && state.job.status === 'running';
+    const running = state.job?.status === 'running' && [state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean).some((entry: any) => timetableKey(entry.selection || entry) === key);
     const queued = (state.queue || []).some((item: QueueItem) => item.key === key);
     const terminal = [...(state.statuses || [])].reverse().find((item: any) => item.key === key);
-    return { key, selection, status: snapshot ? 'valid' : running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : 'missing', snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, isEmpty: snapshot?.result?.isEmpty === true, failure: terminal?.failure || null, cooldownUntil: terminal?.lastRequestedAt ? new Date(Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs).toISOString() : null };
+    return { key, selection, status: running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : snapshot ? 'valid' : 'missing', snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, isEmpty: snapshot?.result?.isEmpty === true, failure: terminal?.failure || null, cooldownUntil: terminal?.lastRequestedAt ? new Date(Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs).toISOString() : null };
   }
   async startSavedClassWeek(user: any, dto: SavedTimetableWeekSyncDto) {
     this.assertAdmin(user); const state = await this.state(); const selection = this.manualSelection(state, dto);
@@ -306,12 +333,12 @@ export class TimetableSyncService {
       return selection;
     });
     if (!coverage.length) throw new ConflictException({ reasonCode: 'TIMETABLE_BULK_SELECTION_REQUIRED', message: 'Cần chọn ít nhất một lớp-tuần.' });
-    return this.start(user, { coverage });
+    const result = await this.enqueue(coverage, 'demand', false, state, true);
+    return { ...result, total: coverage.length };
   }
-  private async enqueue(selections: TimetableFilters[], kind: QueueKind, force: boolean, current?: any) {
-    const state = current || await this.state(); const now = new Date().toISOString(); const queue = (state.queue || []) as QueueItem[]; const statuses = (state.statuses || []) as any[]; const known = new Set(queue.map((item) => item.key)); if (state.job?.selection?.key) known.add(state.job.selection.key);
-    const additions: QueueItem[] = [];
-    for (const selection of selections) { const key = timetableKey(selection); if (known.has(key)) continue; const terminal = [...statuses].reverse().find((item) => item.key === key); if (terminal?.status === 'pending' || terminal?.status === 'running') return { status: terminal.status, key, selection }; if (terminal?.lastRequestedAt && Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs > Date.now() && (force || !terminal.failure)) return { status: terminal.status, key, selection, cooldown: true }; additions.push({ key, selection, kind, requestedAt: now, force }); known.add(key); }
+  private async enqueue(selections: TimetableFilters[], kind: QueueKind, force: boolean, current?: any, bulk = false) {
+    const state = current || await this.state(); const now = new Date().toISOString(); const queue = (state.queue || []) as QueueItem[]; const statuses = (state.statuses || []) as any[]; const known = new Set(queue.map((item) => item.key)); const runningKeys = new Set([state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean).map((item: any) => timetableKey(item.selection || item))); const additions: QueueItem[] = []; const outcomes: any[] = [];
+    for (const selection of selections) { const key = timetableKey(selection); if (known.has(key) || runningKeys.has(key)) { outcomes.push({ key, selection, status: 'coalesced' }); continue; } const terminal = [...statuses].reverse().find((item) => item.key === key); if (terminal?.status === 'pending' || terminal?.status === 'running') { outcomes.push({ key, selection, status: 'coalesced' }); continue; } if (terminal?.lastRequestedAt && Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs > Date.now() && (force || !terminal.failure)) { outcomes.push({ key, selection, status: 'cooldown', cooldownUntil: new Date(Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs).toISOString() }); continue; } additions.push({ key, selection, kind, requestedAt: now, force }); known.add(key); outcomes.push({ key, selection, status: 'accepted' }); }
     const scheduledCount = queue.filter((item) => item.kind === 'scheduled').length;
     if (queue.length + additions.length > this.config.queueLimit || (kind === 'scheduled' && scheduledCount + additions.length > this.config.queueLimit - this.config.interactiveReserve)) throw new ServiceUnavailableException({ reasonCode: 'TIMETABLE_QUEUE_BUSY', message: 'Hệ thống đang bận, vui lòng thử lại sau.' });
     if (additions.length) {
@@ -323,7 +350,8 @@ export class TimetableSyncService {
       if (!written.matchedCount) throw new ServiceUnavailableException({ reasonCode: 'TIMETABLE_QUEUE_BUSY', message: 'Hệ thống đang bận, vui lòng thử lại sau.' });
       void this.drainQueue();
     }
-    return additions[0] ? { status: 'pending', key: additions[0].key, selection: additions[0].selection } : { status: 'pending', key: timetableKey(selections[0]), selection: selections[0] };
+    if (bulk || selections.length > 1) return { status: additions.length ? 'pending' : 'coalesced', total: selections.length, outcomes };
+    return additions[0] ? { status: 'pending', key: additions[0].key, selection: additions[0].selection } : outcomes[0] ? { status: outcomes[0].status, key: outcomes[0].key, selection: outcomes[0].selection, ...(outcomes[0].cooldownUntil ? { cooldownUntil: outcomes[0].cooldownUntil } : {}) } : { status: 'pending', key: timetableKey(selections[0]), selection: selections[0] };
   }
   private async claimNext() {
     const state = await this.state(); if (!state) return null; const queue = (state.queue || []) as QueueItem[]; if (!queue.length) return null;
