@@ -208,7 +208,7 @@ export const SelectValue = ({ placeholder, children }: any) => {
 };
 
 export const SelectTrigger = React.forwardRef<any, any>(
-  ({ className, children, disabled, id, ...props }, ref) => {
+  ({ className, children, disabled, id, "aria-label": ariaLabel, "aria-labelledby": ariaLabelledby, "aria-describedby": ariaDescribedby, ...props }, ref) => {
     const context = React.useContext(SelectContext);
     if (!context) throw new Error("SelectTrigger must be used inside Select");
 
@@ -320,9 +320,9 @@ export const SelectTrigger = React.forwardRef<any, any>(
           aria-expanded={open}
           aria-haspopup="listbox"
           aria-controls={`${selectId}-content`}
-          aria-label={props["aria-label"]}
-          aria-labelledby={props["aria-labelledby"]}
-          aria-describedby={props["aria-describedby"]}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledby}
+          aria-describedby={ariaDescribedby}
           aria-invalid={Boolean(error)}
           disabled={disabled}
           className="w-full bg-transparent border-none outline-none text-xs font-semibold text-[#1E293B] placeholder:text-[#64748B]/60 placeholder:font-normal focus:ring-0 focus:outline-none focus-visible:outline-none focus-visible:ring-0"

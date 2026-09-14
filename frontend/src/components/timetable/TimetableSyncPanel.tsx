@@ -6,7 +6,8 @@ import { timetableApi, type TimetableClassLink, type TimetableClassSyncStatus, t
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import { CustomPagination } from '@/components/ui/pagination';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ChevronDown, Search, SlidersHorizontal } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, SlidersHorizontal } from 'lucide-react';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -481,8 +482,45 @@ export default function TimetableSyncPanel({
             className="h-10 w-full rounded-xl border border-white/75 bg-white/60 py-2 pl-9 pr-3 text-xs font-medium text-[#1E293B] placeholder:text-[#64748B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
           />
         </div>
-        <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Khoa hệ thống</span><select aria-label="Khoa hệ thống" value={department} onChange={(e) => setDepartment(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="">Tất cả khoa</option>{departments.map((value) => <option key={value} value={value}>{value.replace('|', ' · ')}</option>)}</select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
-        <label className="relative min-w-0 sm:max-w-[190px]"><span className="sr-only">Trạng thái liên kết</span><select aria-label="Trạng thái liên kết" value={linkStatus} onChange={(e) => setLinkStatus(e.target.value)} className="h-10 w-full appearance-none rounded-xl border border-white/75 bg-white/60 px-3 pr-9 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"><option value="all">Mọi trạng thái</option><option value="linked">Đã liên kết</option><option value="unlinked">Chưa liên kết</option></select><ChevronDown aria-hidden="true" size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" /></label>
+        <div className="min-w-0 sm:w-[190px]">
+          <Select
+            value={department || 'ALL'}
+            onValueChange={(value: string) => setDepartment(value === 'ALL' ? '' : value)}
+          >
+            <SelectTrigger
+              aria-label="Khoa hệ thống"
+              className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+            >
+              <SelectValue placeholder="Tất cả khoa" />
+            </SelectTrigger>
+            <SelectContent className="z-[60]">
+              <SelectItem value="ALL">Tất cả khoa</SelectItem>
+              {departments.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value.replace('|', ' · ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-0 sm:w-[190px]">
+          <Select
+            value={linkStatus}
+            onValueChange={(value: string) => setLinkStatus(value as 'all' | 'linked' | 'unlinked')}
+          >
+            <SelectTrigger
+              aria-label="Trạng thái liên kết"
+              className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+            >
+              <SelectValue placeholder="Mọi trạng thái" />
+            </SelectTrigger>
+            <SelectContent className="z-[60]">
+              <SelectItem value="all">Mọi trạng thái</SelectItem>
+              <SelectItem value="linked">Đã liên kết</SelectItem>
+              <SelectItem value="unlinked">Chưa liên kết</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <div role="group" aria-label="Kiểu hiển thị" className="flex h-10 shrink-0 items-center rounded-xl border border-white/70 bg-white/35 p-1 text-xs font-semibold text-[#64748B]">
             <button type="button" aria-pressed={view === 'system'} onClick={() => setView('system')} className={`h-full rounded-lg px-3 transition focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 ${view === 'system' ? 'bg-white text-[#1A73E8] shadow-sm' : 'hover:bg-white/50'}`}>Lớp hệ thống</button>
@@ -499,44 +537,65 @@ export default function TimetableSyncPanel({
                 <SlidersHorizontal size={18} />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[min(92vw,540px)] p-4">
+            <PopoverContent
+              align="end"
+              className="w-[min(92vw,540px)] p-4"
+              onPointerDownOutside={(e) => {
+                const target = e.target as HTMLElement | null;
+                if (target?.closest('[data-select-content="true"]')) {
+                  e.preventDefault();
+                }
+              }}
+            >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
-                  <span>Niên học nguồn</span>
-                  <select
-                    aria-label="year"
-                    value={period.year}
-                    onChange={(e) => void changePeriod('year', e.target.value)}
-                    className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-[#1E293B]">Niên học nguồn</span>
+                  <Select
+                    value={period.year || 'NONE'}
+                    onValueChange={(value: string) => void changePeriod('year', value === 'NONE' ? '' : value)}
                   >
-                    <option value="">Chọn</option>
-                    {(catalog?.years || [])
-                      .filter((option) => option.value)
-                      .map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className="space-y-1 text-xs font-semibold text-[#1E293B]">
-                  <span>Học kỳ nguồn</span>
-                  <select
-                    aria-label="semester"
-                    value={period.semester}
-                    onChange={(e) => void changePeriod('semester', e.target.value)}
-                    className="w-full rounded-xl border border-white/75 bg-white/60 px-3 py-2 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
+                    <SelectTrigger
+                      aria-label="year"
+                      className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+                    >
+                      <SelectValue placeholder="Chọn" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                      <SelectItem value="NONE">Chọn</SelectItem>
+                      {(catalog?.years || [])
+                        .filter((option) => option.value)
+                        .map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-[#1E293B]">Học kỳ nguồn</span>
+                  <Select
+                    value={period.semester || 'NONE'}
+                    onValueChange={(value: string) => void changePeriod('semester', value === 'NONE' ? '' : value)}
                   >
-                    <option value="">Chọn</option>
-                    {(catalog?.semesters || [])
-                      .filter((option) => option.value)
-                      .map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                  </select>
-                </label>
+                    <SelectTrigger
+                      aria-label="semester"
+                      className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+                    >
+                      <SelectValue placeholder="Chọn" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[10000]">
+                      <SelectItem value="NONE">Chọn</SelectItem>
+                      {(catalog?.semesters || [])
+                        .filter((option) => option.value)
+                        .map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/60 pt-3">
@@ -647,61 +706,86 @@ export default function TimetableSyncPanel({
                         {item.class_name}
                       </td>
                       <td className="px-3.5 py-2.5">
-                        <select
-                          aria-label={`Khoa nguồn cho ${item.class_name}`}
-                          value={path.faculty}
-                          onChange={(e) =>
-                            void setPath(item, 'faculty', e.target.value)
-                          }
-                          className="w-full min-w-[120px] rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-                        >
-                          <option value="">Chọn</option>
-                          {(source?.faculties || []).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-full min-w-[130px]">
+                          <Select
+                            value={path.faculty || 'NONE'}
+                            onValueChange={(value: string) =>
+                              void setPath(item, 'faculty', value === 'NONE' ? '' : value)
+                            }
+                          >
+                            <SelectTrigger
+                              aria-label={`Khoa nguồn cho ${item.class_name}`}
+                              className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+                            >
+                              <SelectValue placeholder="Chọn" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[60]">
+                              <SelectItem value="NONE">Chọn</SelectItem>
+                              {(source?.faculties || []).map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </td>
                       <td className="px-3.5 py-2.5">
-                        <select
-                          aria-label={`Khóa nguồn cho ${item.class_name}`}
-                          value={path.course}
-                          disabled={!path.faculty}
-                          onChange={(e) =>
-                            void setPath(item, 'course', e.target.value)
-                          }
-                          className="w-full min-w-[100px] rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <option value="">Chọn</option>
-                          {(source?.courses || []).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-full min-w-[110px]">
+                          <Select
+                            value={path.course || 'NONE'}
+                            onValueChange={(value: string) =>
+                              void setPath(item, 'course', value === 'NONE' ? '' : value)
+                            }
+                          >
+                            <SelectTrigger
+                              aria-label={`Khóa nguồn cho ${item.class_name}`}
+                              disabled={!path.faculty}
+                              className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <SelectValue placeholder="Chọn" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[60]">
+                              <SelectItem value="NONE">Chọn</SelectItem>
+                              {(source?.courses || []).map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </td>
                       <td className="px-3.5 py-2.5">
-                        <select
-                          aria-label={`Nguồn cho ${item.class_name}`}
-                          value={path.className}
-                          disabled={!path.faculty || !path.course}
-                          onChange={(e) => {
-                            const next = { ...path, className: e.target.value };
-                            setPath(item, 'className', e.target.value);
-                            setLink(item, next);
-                          }}
-                          className="w-full rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <option value="">Chưa liên kết / unverified</option>
-                          {(matches.length ? matches : source?.classes || []).map(
-                            (option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            )
-                          )}
-                        </select>
+                        <div className="w-full min-w-[200px]">
+                          <Select
+                            value={path.className || 'NONE'}
+                            onValueChange={(value: string) => {
+                              const finalVal = value === 'NONE' ? '' : value;
+                              const next = { ...path, className: finalVal };
+                              void setPath(item, 'className', finalVal);
+                              setLink(item, finalVal ? next : null);
+                            }}
+                          >
+                            <SelectTrigger
+                              aria-label={`Nguồn cho ${item.class_name}`}
+                              disabled={!path.faculty || !path.course}
+                              className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <SelectValue placeholder="Chưa liên kết / unverified" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[60] max-w-[320px]">
+                              <SelectItem value="NONE">Chưa liên kết / unverified</SelectItem>
+                              {(matches.length ? matches : source?.classes || []).map(
+                                (option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                )
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         {link && (
                           <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-[#64748B]">
                             <span className="h-1.5 w-1.5 rounded-full bg-[#1A73E8]" />
@@ -730,24 +814,32 @@ export default function TimetableSyncPanel({
                       </td>
                       <td className="whitespace-nowrap px-3.5 py-2.5">
                         {status?.weeks?.length ? (
-                          <select
-                            aria-label={`Tuần cho ${item.class_name}`}
-                            value={selected || ''}
-                            onChange={(e) =>
-                              setSelectedWeeks((current) => ({
-                                ...current,
-                                [item._id]: e.target.value,
-                              }))
-                            }
-                            className="w-full min-w-[110px] rounded-xl border border-white/75 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-                          >
-                            <option value="">Chọn tuần</option>
-                            {status.weeks.map((week) => (
-                              <option key={week.week} value={week.week}>
-                                {week.label || week.week}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="w-full min-w-[120px]">
+                            <Select
+                              value={selected || 'NONE'}
+                              onValueChange={(value: string) =>
+                                setSelectedWeeks((current) => ({
+                                  ...current,
+                                  [item._id]: value === 'NONE' ? '' : value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger
+                                aria-label={`Tuần cho ${item.class_name}`}
+                                className="h-8 rounded-xl border-white/75 bg-white/60 px-2.5 py-1 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+                              >
+                                <SelectValue placeholder="Chọn tuần" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[60]">
+                                <SelectItem value="NONE">Chọn tuần</SelectItem>
+                                {status.weeks.map((week) => (
+                                  <SelectItem key={week.week} value={week.week}>
+                                    {week.label || week.week}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         ) : (
                           <span className="text-xs italic text-[#64748B]">
                             {status?.error || 'Chưa có tuần khả dụng.'}
@@ -873,10 +965,28 @@ export default function TimetableSyncPanel({
           itemLabel="lớp"
           actions={(
             <>
-              <select aria-label="Tuần đồng bộ chung" value={bulkWeek} onChange={(e) => setBulkWeek(e.target.value)} disabled={!selectedLinks.length || bulkSubmitting} className="rounded-xl border border-blue-200 bg-white px-2.5 py-1.5 text-xs">
-                <option value="">Chọn tuần chung</option>
-                {commonWeeks.map((week) => <option key={week} value={week}>{week}</option>)}
-              </select>
+              <div className="w-[160px]">
+                <Select
+                  value={bulkWeek || 'NONE'}
+                  onValueChange={(value: string) => setBulkWeek(value === 'NONE' ? '' : value)}
+                >
+                  <SelectTrigger
+                    aria-label="Tuần đồng bộ chung"
+                    disabled={!selectedLinks.length || bulkSubmitting}
+                    className="h-8 rounded-xl border-blue-200 bg-white px-2.5 py-1 text-xs text-[#1E293B]"
+                  >
+                    <SelectValue placeholder="Chọn tuần chung" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10000]">
+                    <SelectItem value="NONE">Chọn tuần chung</SelectItem>
+                    {commonWeeks.map((week) => (
+                      <SelectItem key={week} value={week}>
+                        {week}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <button type="button" onClick={() => void syncSelected()} disabled={!selectedLinks.length || !bulkWeek || bulkSubmitting} className="rounded-xl bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{bulkSubmitting ? 'Đang gửi...' : 'Đồng bộ đã chọn'}</button>
             </>
           )}
