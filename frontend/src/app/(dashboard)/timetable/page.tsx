@@ -22,7 +22,7 @@ export default function TimetablePage() {
     )}
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-6">
       <div className="flex min-h-0 flex-1 flex-col w-full min-w-0">
-        <div id="timetable-lookup-panel" role="tabpanel" aria-labelledby="timetable-lookup-tab" className="h-full overflow-y-auto" hidden={isAdmin && activeTab !== 'lookup'}><TimetableLookup refreshKey={refreshKey} /></div>
+        <div id="timetable-lookup-panel" role="tabpanel" aria-labelledby="timetable-lookup-tab" className="h-full overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" hidden={isAdmin && activeTab !== 'lookup'}><TimetableLookup refreshKey={refreshKey} /></div>
         {isAdmin && <div id="timetable-settings-panel" role="tabpanel" aria-labelledby="timetable-settings-tab" className="flex min-h-0 flex-1 flex-col overflow-hidden" hidden={activeTab !== 'settings'}><TimetableSyncPanel active={activeTab === 'settings'} onSynced={() => setRefreshKey((current) => current + 1)} /></div>}
       </div>
     </main>
