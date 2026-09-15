@@ -414,6 +414,8 @@ export default function TimetableSyncPanel({
           result.lastSuccessfulUpdate !== before);
       if (terminal) {
         setPolling((current) => ({ ...current, [key]: false }));
+        await refreshStatuses();
+        if (!mounted.current) return;
         if (result.status === 'valid') {
           setSingleProgress((current) => current?.link.systemClassId === key && current.week === week ? { ...current, phase: 'completed' } : current);
           callback.current?.();
@@ -556,6 +558,7 @@ export default function TimetableSyncPanel({
       });
       if (finished) {
         clearBulkTimers();
+        await refreshStatuses();
       } else {
         bulkPollTimer.current = window.setTimeout(() => void pollBulkStatus(runId, nextPairs), 2000);
       }

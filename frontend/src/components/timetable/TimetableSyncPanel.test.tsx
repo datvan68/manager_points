@@ -140,7 +140,9 @@ describe('TimetableSyncPanel', () => {
   it('shows 100% and invokes onSynced only after a new valid snapshot', async () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
     const onSynced = vi.fn();
-    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    const initialStatus = { settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] };
+    const refreshedStatus = { ...initialStatus, classStatuses: [{ ...initialStatus.classStatuses[0], status: 'valid', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'valid', lastSuccessfulUpdate: 'new' }] }] };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValueOnce(initialStatus).mockResolvedValue(refreshedStatus);
     vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { ...link, week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: 'new', isEmpty: false });
     render(<TimetableSyncPanel onSynced={onSynced} />);
     await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
@@ -148,7 +150,24 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
     await waitFor(() => expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100'));
     expect(onSynced).toHaveBeenCalledTimes(1);
+    expect(within(screen.getByRole('row', { name: /Lớp A/u, hidden: true })).getByText('Đã đồng bộ')).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('keeps the row badge failed when single-week polling returns a terminal failure', async () => {
+    const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
+    const initial = { settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] };
+    const failed = { ...initial, classStatuses: [{ ...initial.classStatuses[0], status: 'failed', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'failed', failure: 'SYNC_FAILED' }] }] };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValueOnce(initial).mockResolvedValueOnce(failed);
+    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { ...link, week: 'w1' }, status: 'failed', snapshotExists: false, lastSuccessfulUpdate: null, isEmpty: false, failure: 'SYNC_FAILED' });
+    const onSynced = vi.fn();
+    render(<TimetableSyncPanel onSynced={onSynced} />);
+    await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
+    await selectOption('Tuần cho Lớp A', 'Tuần 1 · Chưa đồng bộ');
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
+    await waitFor(() => expect(screen.getByText('Đồng bộ thất bại')).toBeInTheDocument());
+    expect(within(screen.getByRole('row', { name: /Lớp A/u, hidden: true })).getByText('Lỗi')).toBeInTheDocument();
+    expect(onSynced).not.toHaveBeenCalled();
   });
 
   it('shows every week status while keeping the selected trigger compact', async () => {
@@ -316,7 +335,7 @@ describe('TimetableSyncPanel', () => {
     vi.mocked(classApi.getClasses).mockResolvedValue(classes);
     vi.mocked(timetableApi.getSyncStatus).mockImplementation(async () => {
       statusPoll += 1;
-      const phase = statusPoll === 1 ? 'initial' : statusPoll === 2 ? 'pending' : statusPoll === 3 ? 'partial' : 'final';
+      const phase = statusPoll === 1 ? 'initial' : statusPoll === 2 ? 'pending' : 'final';
       return { settings: { ...settings, classLinks: links }, job: null, lastSuccessfulUpdate: null, classStatuses: makeStatuses(phase) };
     });
     let bulkStatusPoll = 0;
@@ -334,6 +353,8 @@ describe('TimetableSyncPanel', () => {
       fireEvent.click(await screen.findByRole('option', { name: '50', hidden: true }));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn tất cả lớp trên trang' }));
       fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+      await selectOption('Tuần cho A50', 'w1 · Chưa đồng bộ');
+      await selectOption('Tuần cho A67', 'w1 · Chưa đồng bộ');
       fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn tất cả lớp trên trang' }));
       fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
       fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
@@ -344,6 +365,8 @@ describe('TimetableSyncPanel', () => {
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2100)); });
       expect(timetableApi.getSavedClassWeeksStatus).toHaveBeenCalledTimes(2);
       expect(screen.getByText('68/68 cặp đã xử lý')).toBeInTheDocument();
+      expect(within(screen.getByRole('row', { name: /A50/u, hidden: true })).getByText('Đã đồng bộ')).toBeInTheDocument();
+      expect(within(screen.getByRole('row', { name: /A67/u, hidden: true })).getByText('Lỗi')).toBeInTheDocument();
       expect(screen.getAllByText('58').some((element) => element.tagName === 'STRONG')).toBe(true);
       expect(screen.getAllByText('10').some((element) => element.tagName === 'STRONG')).toBe(true);
     } finally {

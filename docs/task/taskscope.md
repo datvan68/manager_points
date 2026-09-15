@@ -1,73 +1,76 @@
 slot_id: "taskscope-00"
-generation: 1
-task_id: "20260915T094940+0700-fix-timetable-source-invalid-selection"
+generation: 2
+task_id: "20260915T100315+0700-fix-timetable-stale-sync-badge"
 scope_file: "docs/task/taskscope.md"
 status: completed
-scope_revision: 1
-created_at: "2026-09-15T09:49:40+07:00"
-updated_at: "2026-09-15T09:52:39+07:00"
-base_commit: "28206c66a6247a0f891cd730a2793695522c111d"
-task: "Recover timetable synchronization from a stale source selection page"
+scope_revision: 3
+created_at: "2026-09-15T10:03:15+07:00"
+updated_at: "2026-09-15T10:13:30+07:00"
+base_commit: "550ead8d6ecdbc0d045a359606c201d30838909a"
+task: "Refresh timetable week badges after synchronization completes"
 pipeline: bug_fix
 profile: Quick
-objective: "Timetable synchronization transparently reloads the source workflow once when a reused page cannot resolve a valid saved selection, while genuinely invalid selections still fail closed."
+objective: "After a timetable synchronization reaches a terminal result, the administration table displays the same current week status as the progress dialog without requiring a reload or tab change."
 coordination:
   depends_on: []
   warnings: []
 completion:
-  completed_at: "2026-09-15T09:52:39+07:00"
-  outcome: "Implemented bounded stale-page recovery for SOURCE_INVALID_SELECTION and added regressions for successful fresh replay and persistent invalid selection."
-  final_commit_or_state: "Working tree changes uncommitted at base commit 28206c66a6247a0f891cd730a2793695522c111d."
+  completed_at: "2026-09-15T10:13:30+07:00"
+  outcome: "Implemented terminal status reconciliation for single-week and bulk timetable synchronization, with success and failure badge regressions."
+  final_commit_or_state: "Working tree changes uncommitted at base commit 550ead8d6ecdbc0d045a359606c201d30838909a."
   changed_paths:
-    - "backend/src/timetable/school-timetable.adapter.ts"
-    - "backend/src/timetable/school-timetable.adapter.spec.ts"
+    - "frontend/src/components/timetable/TimetableSyncPanel.tsx"
+    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx"
     - "docs/task/taskscope.md"
   checks_passed:
-    - "V-01: adapter suite 11/11 passed."
-    - "V-02: bulk performance suite 3/3 passed with request-count baselines."
-    - "V-03: npm --prefix backend run build passed."
-    - "V-04: git diff --check passed for both implementation files."
+    - "V-01: TimetableSyncPanel suite 20/20 passed."
+    - "V-02: page callback and timetable API suites 9/9 passed."
+    - "V-03: npm --prefix frontend run build passed compilation, TypeScript, static generation, and optimization."
+    - "V-04: git diff --check passed for the two implementation/test files."
   cleanup_pending: []
 evidence:
-  current_behavior: "User-reported synchronization returns SOURCE_INVALID_SELECTION; backend/src/timetable/school-timetable.adapter.ts:lookup/loadFreshPage reuses SessionContext.page, but only retries SOURCE_MARKUP_CHANGED, while postback/submitSearch emit SOURCE_INVALID_SELECTION when the requested option is absent from that reused dependent-dropdown page. Commit 28206c66 introduced the reusable page state and this asymmetric recovery path."
-  expected_behavior: "Treat an invalid selection from an already reused page as stale page state, discard that page/filter state, and replay one fresh lookup; retain SOURCE_INVALID_SELECTION when the fresh source page also lacks the requested value."
-  root_cause: "The page-cache optimization retains an ASP.NET dependent-dropdown page between synchronization items, but lookup does not invalidate and replay that cached page for SOURCE_INVALID_SELECTION, so a selection valid in a fresh context fails against stale option markup."
+  current_behavior: "frontend/src/components/timetable/TimetableSyncPanel.tsx:pollWeek marks the dialog completed from getSavedClassWeekStatus and invokes onSynced, but does not refresh the panel's statuses state. The row badge continues to render the previously loaded weekStatus, and the page-level onSynced callback only refreshes TimetableLookup. Bulk polling likewise does not refresh panel statuses when all pairs become terminal."
+  expected_behavior: "A successful terminal poll updates the selected week badge to Đã đồng bộ in the same panel, while failed terminal results remain Lỗi with their failure details; bulk completion also reconciles the affected row badges."
+  root_cause: "The progress dialog and table badges use different state sources: targeted polling receives the new terminal result, while the table retains the classStatuses snapshot loaded before synchronization because no canonical status refresh occurs when polling finishes."
 scope:
   inspect:
-    - "backend/src/timetable/school-timetable.adapter.ts"
-    - "backend/src/timetable/school-timetable.adapter.spec.ts"
-    - "backend/src/timetable/timetable-sync.service.ts:fetchWithRetry"
-    - "backend/src/timetable/timetable.config.ts"
+    - "frontend/src/components/timetable/TimetableSyncPanel.tsx:applyStatus/refreshStatuses/pollWeek/pollBulkStatus"
+    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx"
+    - "frontend/src/app/(dashboard)/timetable/page.tsx:onSynced"
+    - "frontend/src/api/timetable-api.ts"
   write:
-    - "backend/src/timetable/school-timetable.adapter.ts"
-    - "backend/src/timetable/school-timetable.adapter.spec.ts"
+    - "frontend/src/components/timetable/TimetableSyncPanel.tsx"
+    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx"
   preserve:
-    - "Source credentials remain internal and source-origin, timeout, cookie isolation, serialization, coalescing, and cache contracts remain unchanged."
-    - "Recovery is bounded to the existing two-attempt lookup and only applies when the failed attempt used SessionContext.page."
-    - "A selection absent from a fresh source workflow still returns SOURCE_INVALID_SELECTION; errors are not swallowed or reclassified."
+    - "The progress dialog reaches completed only after a new valid snapshot is observed, preserving the existing lastSuccessfulUpdate baseline guard."
+    - "Request coalescing, cooldown handling, polling intervals, duplicate-submit prevention, and API contracts remain unchanged."
+    - "A status-refresh failure does not reclassify a successful synchronization as a source failure and remains visible as a refresh warning."
   out:
-    - "Frontend behavior and API response contracts"
-    - "Timetable sync queue, snapshots, settings, schemas, and persisted data"
-    - "Source credentials, deployment, and production runtime operations"
+    - "Backend synchronization, queue, snapshot, and status aggregation behavior"
+    - "Timetable lookup rendering outside the administration synchronization panel"
+    - "Settings, schemas, persisted data, deployment, and production operations"
 acceptance_criteria:
-  - "AC-01: Given a reused source page whose dependent dropdown does not contain the next valid selection, the adapter clears the stale page/filter state, replays one fresh lookup, and returns the timetable result without SOURCE_INVALID_SELECTION."
-  - "AC-02: Given a selection absent after the fresh replay, the adapter stops after the bounded retry and returns SOURCE_INVALID_SELECTION."
-  - "AC-03: Existing session isolation, request coalescing/cache behavior, session-expiry recovery, and bulk request-count expectations continue to pass."
+  - "AC-01: Given a row whose selected week currently shows Lỗi or Chưa đồng bộ, when single-week polling observes a new valid snapshot, the dialog shows Đồng bộ hoàn tất and the same row badge changes to Đã đồng bộ without a page reload or tab change."
+  - "AC-02: Given single-week polling returns a terminal failure, the dialog and selected-week badge remain consistent with Lỗi and the failure is not reported as a successful refresh."
+  - "AC-03: When every accepted bulk pair becomes terminal, the panel refreshes canonical class statuses so successful and failed row badges reflect the completed bulk result."
+  - "AC-04: Existing baseline timestamp checks, callback behavior, request coalescing, skipped outcomes, and duplicate-submit protection continue to pass."
 execution:
-  - "E-01 [AC-01, AC-02] backend/src/timetable/school-timetable.adapter.spec.ts -> add focused fetch-sequence regressions for a stale reused page that succeeds after a fresh reload and a persistently absent option that still fails after one replay."
-  - "E-02 [AC-01, AC-02] backend/src/timetable/school-timetable.adapter.ts:lookup -> extend cached-page recovery to SOURCE_INVALID_SELECTION, clearing only SessionContext.page and filters before the existing second attempt."
+  - "E-01 [AC-01, AC-02, AC-04] frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> extend the single-week terminal tests to assert canonical status refresh and the visible row badge for both success and failure."
+  - "E-02 [AC-03, AC-04] frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> add a bulk terminal regression proving badges are reconciled after all accepted pairs finish."
+  - "E-03 [AC-01, AC-02, AC-03, AC-04] frontend/src/components/timetable/TimetableSyncPanel.tsx:pollWeek/pollBulkStatus -> reconcile the panel through the existing refreshStatuses path at terminal completion while preserving dialog outcome and callback semantics."
 verification:
-  - "V-01 [AC-01, AC-02, AC-03] npm --prefix backend test -- --runTestsByPath src/timetable/school-timetable.adapter.spec.ts --runInBand -> the adapter suite passes with the new recovery and bounded-failure assertions."
-  - "V-02 [AC-03] npm --prefix backend test -- --runTestsByPath src/timetable/timetable-bulk-performance.spec.ts --runInBand -> all bulk request-count baselines pass."
-  - "V-03 [AC-01, AC-02, AC-03] npm --prefix backend run build -> Nest backend compiles successfully."
-  - "V-04 [AC-01, AC-02, AC-03] git diff --check -- backend/src/timetable/school-timetable.adapter.ts backend/src/timetable/school-timetable.adapter.spec.ts -> no whitespace errors are reported."
+  - "V-01 [AC-01, AC-02, AC-03, AC-04] npm --prefix frontend test -- --run src/components/timetable/TimetableSyncPanel.test.tsx -> the focused component suite passes with the new badge-reconciliation assertions."
+  - "V-02 [AC-04] npm --prefix frontend test -- --run 'src/app/(dashboard)/timetable/page.test.tsx' src/api/timetable-api.test.ts -> page callback and API contract suites pass."
+  - "V-03 [AC-01, AC-02, AC-03, AC-04] npm --prefix frontend run build -> the Next.js frontend compiles successfully."
+  - "V-04 [AC-01, AC-02, AC-03, AC-04] git diff --check -- frontend/src/components/timetable/TimetableSyncPanel.tsx frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> no whitespace errors are reported."
 temporary_artifacts:
   create: []
   cleanup: []
   retain:
     - "docs/task/taskscope.md: user-requested reusable taskscope slot"
 risks:
-  - "A broad retry could hide a genuinely invalid saved selection; constrain recovery to an attempt that started from a cached SessionContext.page and preserve the second failure."
+  - "Refreshing too early can reload pending state instead of the terminal snapshot; reconciliation must occur only after terminal polling has been observed."
+  - "Awaiting a secondary refresh must not leave submission locks or polling flags active if that refresh fails."
 stop_conditions:
   - "Stop with TASKSCOPE_CONFLICT if either write path becomes reserved or has unrelated changes relative to the recorded baseline."
-  - "Stop and amend the scope if the regression shows SOURCE_INVALID_SELECTION originates from a fresh page rather than reused page state, because the confirmed fix boundary has changed."
+  - "Stop and amend the scope if runtime evidence shows getSyncStatus remains failed after getSavedClassWeekStatus reports valid, because that indicates a backend status-aggregation defect rather than stale frontend state."
