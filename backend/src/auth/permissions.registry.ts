@@ -112,6 +112,13 @@ export const ADMIN_RBAC_GROUP = {
   status: 'Active',
 };
 
+export const TIMETABLE_MANAGER_GROUP = {
+  code: 'G_TIMETABLE',
+  name: 'Thời khóa biểu',
+  description: 'Tra cứu, đồng bộ và cấu hình thời khóa biểu.',
+  status: 'Active',
+};
+
 export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
   // 1. Nhóm Trang Phân Quyền
   {
@@ -577,6 +584,43 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
     description: 'Cho phép đóng phiên điểm danh đang hoạt động.',
   },
 
+  {
+    code: 'TIMETABLE_PAGE',
+    name: 'Truy cập thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép mở trang và hiển thị menu thời khóa biểu.',
+  },
+  {
+    code: 'TIMETABLE_READ',
+    name: 'Xem thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép đọc dữ liệu thời khóa biểu đã lưu và trạng thái nhu cầu.',
+  },
+  {
+    code: 'TIMETABLE_SYNC',
+    name: 'Đồng bộ thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép tải danh mục và khởi chạy đồng bộ thời khóa biểu.',
+  },
+  {
+    code: 'TIMETABLE_SETTINGS_READ',
+    name: 'Xem cấu hình thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép xem cấu hình đồng bộ thời khóa biểu.',
+  },
+  {
+    code: 'TIMETABLE_SETTINGS_UPDATE',
+    name: 'Cập nhật cấu hình thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép cập nhật cấu hình đồng bộ thời khóa biểu.',
+  },
+  {
+    code: 'TIMETABLE_SNAPSHOT_READ',
+    name: 'Xem snapshot thời khóa biểu',
+    module: TIMETABLE_MANAGER_GROUP.name,
+    description: 'Cho phép xem metadata snapshot thời khóa biểu.',
+  },
+
   // 8. Nhóm Quản lý Ký túc xá (KTX)
   {
     code: 'DORM_PAGE',
@@ -962,6 +1006,12 @@ const POLICY_OVERRIDES: Record<
   DORM_REG_CREATE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['POST /dormitory/roster'], routePath: '/dormitory/roster' },
   DORM_REG_UPDATE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['PATCH /dormitory/roster'], routePath: '/dormitory/roster' },
   DORM_REG_DELETE: { kind: 'action', requires: ['DORM_REG_READ'], owners: ['DELETE /dormitory/roster'], routePath: '/dormitory/roster' },
+  TIMETABLE_PAGE: { kind: 'page/module access', requires: [], owners: ['/timetable'], routePath: '/timetable' },
+  TIMETABLE_READ: { kind: 'read', requires: ['TIMETABLE_PAGE'], owners: ['/timetable', 'GET /timetable', 'GET /timetable/options', 'GET /timetable/today/:classId', 'POST /timetable/demand', 'GET /timetable/demand/status', 'POST /timetable/refresh'], routePath: '/timetable' },
+  TIMETABLE_SYNC: { kind: 'action', requires: ['TIMETABLE_PAGE'], owners: ['POST /timetable/sync/catalog', 'POST /timetable/sync', 'POST /timetable/sync/class', 'POST /timetable/sync/class/week', 'POST /timetable/sync/class/weeks', 'GET /timetable/sync/class/week/status', 'POST /timetable/sync/class/weeks/status'], routePath: '/timetable' },
+  TIMETABLE_SETTINGS_READ: { kind: 'read', requires: ['TIMETABLE_PAGE'], owners: ['GET /timetable/sync/status', 'GET /timetable/sync/settings'], routePath: '/timetable' },
+  TIMETABLE_SETTINGS_UPDATE: { kind: 'action', requires: ['TIMETABLE_PAGE', 'TIMETABLE_SETTINGS_READ'], owners: ['PATCH /timetable/sync/settings'], routePath: '/timetable' },
+  TIMETABLE_SNAPSHOT_READ: { kind: 'read', requires: ['TIMETABLE_PAGE'], owners: ['GET /timetable/snapshots'], routePath: '/timetable' },
 };
 
 function inferredPolicy(seed: PermissionSeed): PermissionPolicy {

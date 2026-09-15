@@ -84,8 +84,12 @@ export default function TimetableSyncPanel({
   onSynced?: () => void;
   active?: boolean;
 }) {
-  const { user } = useAuth();
-  const isAdmin = String(user?.roleCode || '').toUpperCase() === 'ADMIN';
+  const { user, hasPermission } = useAuth();
+  const allows = (code: string) => typeof hasPermission === 'function' ? hasPermission(code) : String(user?.roleCode || '').toUpperCase() === 'ADMIN';
+  const canSync = allows('TIMETABLE_SYNC');
+  const canSettingsRead = allows('TIMETABLE_SETTINGS_READ');
+  const canSettingsUpdate = allows('TIMETABLE_SETTINGS_UPDATE');
+  const canPanel = canSync || canSettingsRead;
   const [classes, setClasses] = useState<Class[]>([]);
   const [catalog, setCatalog] = useState<TimetableOptions | null>(null);
   const [period, setPeriod] = useState({ year: '', semester: '' });
@@ -169,20 +173,27 @@ export default function TimetableSyncPanel({
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canPanel || !active) return;
     mounted.current = true;
     let cancelled = false;
     const reportError = (e: Error) => { if (!cancelled) setError(e.message); };
-    void classApi.getClasses().then((roster) => {
-      if (!cancelled) setClasses(roster);
-    }).catch(reportError);
-    void timetableApi.loadCatalog({}).then((initialCatalog) => {
-      if (!cancelled) setCatalog(initialCatalog);
-    }).catch(reportError);
-    void timetableApi.getSyncStatus()
+    if (canSync) {
+      void classApi.getClasses().then((roster) => {
+        if (!cancelled) setClasses(roster);
+      }).catch(reportError);
+      void timetableApi.loadCatalog({}).then((initialCatalog) => {
+        if (!cancelled) setCatalog(initialCatalog);
+      }).catch(reportError);
+    }
+    const loadSettings = canSettingsRead
+      ? Promise.resolve(canSync
+        ? timetableApi.getSyncStatus()
+        : (typeof timetableApi.getSyncSettings === 'function' ? timetableApi.getSyncSettings() : null))
+      : Promise.resolve(null);
+    loadSettings
       .then((data) => {
         if (cancelled) return;
-        const next = data.settings || emptySettings;
+        const next = (data && 'settings' in data ? data.settings : data) || emptySettings;
         setSettingsReady(true);
         setSettings({
           ...emptySettings,
@@ -203,7 +214,7 @@ export default function TimetableSyncPanel({
             ])
           )
         );
-        applyStatus(data);
+        if (canSync && canSettingsRead) applyStatus(data as any);
       })
       .catch(reportError)
       .finally(() => { if (!cancelled) setSettingsLoading(false); });
@@ -211,10 +222,10 @@ export default function TimetableSyncPanel({
       cancelled = true;
       mounted.current = false;
     };
-  }, [isAdmin]);
+  }, [canPanel, canSync, canSettingsRead, active]);
 
   useEffect(() => {
-    if (!isAdmin || !active) return;
+    if (!canSync || !canSettingsRead || !active) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let delay = 5000;
@@ -229,9 +240,10 @@ export default function TimetableSyncPanel({
     document.addEventListener('visibilitychange', onVisibility);
     if (hasActiveJob() && document.visibilityState === 'visible') timer = setTimeout(() => void poll(), delay);
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisibility); if (timer) clearTimeout(timer); };
-  }, [isAdmin, active, job?.status, statuses]);
+  }, [canSync, canSettingsRead, active, job?.status, statuses]);
 
   const loadFor = async (key: string, filters: Partial<TimetableFilters>) => {
+    if (!canSync) return null;
     const cacheKey = JSON.stringify(filters);
     const cached = catalogCache.current.get(cacheKey);
     if (cached) {
@@ -366,6 +378,7 @@ export default function TimetableSyncPanel({
   };
 
   const save = async () => {
+    if (!canSettingsUpdate) return;
     if (!settingsReady) return;
     setBusy(true);
     setError('');
@@ -456,6 +469,7 @@ export default function TimetableSyncPanel({
     week: string,
     before: string | null
   ) => {
+    if (!canSync) return;
     const key = link.systemClassId;
     if (submitting || polling[key] || singleProgress) return;
     setSubmitting(key);
@@ -593,6 +607,7 @@ export default function TimetableSyncPanel({
   };
 
   const startBulkSync = async (pairs: TimetableBulkWeekSyncRequest[]) => {
+    if (!canSync) return;
     const runId = ++bulkRun.current;
     clearBulkTimers();
     const initialPairs = pairs.map((pair) => {
@@ -620,12 +635,28 @@ export default function TimetableSyncPanel({
   };
 
   const syncSelected = async () => {
+    if (!canSync) return;
     if (bulkSubmitting || !bulkWeek || !selectedLinks.length || !commonWeeks.includes(bulkWeek)) return;
     setError(''); setMessage('');
     await startBulkSync(selectedLinks.map((link) => ({ ...link, week: bulkWeek })));
   };
 
-  if (!isAdmin) return null;
+  if (!canPanel) return null;
+
+  if (!canSync) {
+    return (
+      <section aria-label="Cấu hình thời khóa biểu" className="rounded-2xl border border-white/75 bg-white/50 p-5 text-sm text-[#1E293B]">
+        {settingsLoading ? <p role="status">Đang tải cấu hình đã lưu…</p> : <>
+          <h2 className="font-semibold">Cấu hình đồng bộ thời khóa biểu</h2>
+          <p className="mt-2 text-[#64748B]">Bạn chỉ được xem cấu hình; quyền đồng bộ chưa được cấp.</p>
+          <dl className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div><dt className="text-xs text-[#64748B]">Trạng thái</dt><dd className="font-medium">{settings.enabled ? 'Đang bật' : 'Đang tắt'}</dd></div>
+            <div><dt className="text-xs text-[#64748B]">Chu kỳ</dt><dd className="font-medium">{settings.intervalMinutes} phút</dd></div>
+          </dl>
+        </>}
+      </section>
+    );
+  }
 
   return (
     <section

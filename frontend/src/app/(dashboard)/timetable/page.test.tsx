@@ -2,12 +2,12 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetablePage from './page';
 
-const authState = vi.hoisted(() => ({ user: { roleCode: 'ADMIN' } as { roleCode: string } | null }));
+const authState = vi.hoisted(() => ({ user: { roleCode: 'ADMIN' } as { roleCode: string } | null, permissions: [] as string[], hasPermission: (code: string) => authState.permissions.includes(code) || authState.user?.roleCode === 'ADMIN' }));
 vi.mock('@/providers/auth-provider', () => ({ useAuth: () => authState }));
 vi.mock('@/components/guards/RouteGuard', () => ({ RouteGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/timetable/TimetableLookup', () => ({ default: ({ refreshKey }: { refreshKey: number }) => <div data-testid="lookup">lookup-{refreshKey}</div> }));
 vi.mock('@/components/timetable/TimetableSyncPanel', () => ({ default: ({ onSynced }: { onSynced?: () => void }) => <button type="button" onClick={onSynced}>sync complete</button> }));
-beforeEach(() => { authState.user = { roleCode: 'ADMIN' }; });
+beforeEach(() => { authState.user = { roleCode: 'ADMIN' }; authState.permissions = []; });
 afterEach(() => { cleanup(); });
 
 describe('TimetablePage', () => {
@@ -36,6 +36,7 @@ describe('TimetablePage', () => {
 
   it('keeps lookup for permitted non-admin users without rendering configuration', () => {
     authState.user = { roleCode: 'TEACHER' };
+    authState.permissions = ['TIMETABLE_PAGE', 'TIMETABLE_READ'];
     render(<TimetablePage />);
     expect(screen.getByTestId('lookup')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();

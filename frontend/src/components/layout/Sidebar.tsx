@@ -190,6 +190,10 @@ const Sidebar = () => {
             return true;
           }
 
+          if (item.href === "/timetable") {
+            return hasPermission("TIMETABLE_PAGE");
+          }
+
           // KTX requires an explicit active route mapping for non-admin users.
           if (item.href === "/dormitory") {
             if (isStudentUser) return true;

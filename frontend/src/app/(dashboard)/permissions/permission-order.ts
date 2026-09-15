@@ -8,6 +8,7 @@ const GROUP_ORDER = [
   'G_REPORT',
   'G_CLUB',
   'G_DORMITORY',
+  'G_TIMETABLE',
   'G_UNGROUPED',
 ] as const;
 
@@ -24,6 +25,12 @@ const PERMISSION_ORDER = [
   'GRADING_PAGE',
   'GRADING_SEMESTER_MANAGE',
   'CONFIG_RECORD',
+  'TIMETABLE_PAGE',
+  'TIMETABLE_READ',
+  'TIMETABLE_SYNC',
+  'TIMETABLE_SETTINGS_READ',
+  'TIMETABLE_SETTINGS_UPDATE',
+  'TIMETABLE_SNAPSHOT_READ',
 ] as const;
 
 const groupRank = new Map<string, number>(GROUP_ORDER.map((code, index) => [code, index]));

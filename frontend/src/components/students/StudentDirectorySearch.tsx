@@ -103,6 +103,7 @@ export default function StudentDirectorySearch({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { user, hasPermission } = useAuth();
   const canCreateRecord = hasPermission("CREATE_STUDENT_RECORD");
+  const canReadTimetable = hasPermission("TIMETABLE_PAGE") && hasPermission("TIMETABLE_READ");
   const setInputRef = useCallback((node: HTMLInputElement | null) => {
     inputRef.current = node;
     if (node && isOpen && autoFocus) node.focus();
@@ -192,6 +193,10 @@ export default function StudentDirectorySearch({
     setTodayDetailsOpen(false);
     setTodayError(false);
     setTodayTimetable(null);
+    if (!canReadTimetable) {
+      setTodayLoading(false);
+      return;
+    }
     const classId = selected ? classIdOf(selected) : undefined;
     if (!classId) {
       setTodayLoading(false);
@@ -206,7 +211,7 @@ export default function StudentDirectorySearch({
     }).finally(() => {
       if (requestId === timetableRequestIdRef.current) setTodayLoading(false);
     });
-  }, [selected]);
+  }, [selected, canReadTimetable]);
 
   useEffect(() => {
     setCriterionUsage(readCriterionUsage(user?.id));
@@ -404,7 +409,7 @@ export default function StudentDirectorySearch({
                 <div>
                   <p className="text-xs font-semibold text-[#1E293B]">Thời khóa biểu hôm nay</p>
                   <p className="mt-1 text-xs text-[#64748B]">
-                    {todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
+                    {!canReadTimetable ? "Không có quyền xem TKB" : todayLoading ? "Đang tải TKB..." : todayError ? "Không thể tải TKB" : !todayTimetable || todayTimetable.status === "unavailable" ? "Chưa có dữ liệu TKB" : todayTimetable.status === "available" ? "Có lịch học" : "Không có lịch học"}
                   </p>
                 </div>
                 <PopoverTrigger asChild>
@@ -499,6 +504,7 @@ export default function StudentDirectorySearch({
             }
           }}
         >
+          {!canReadTimetable && <p className="py-8 text-center text-xs font-medium text-amber-700">Bạn chưa được cấp quyền xem thời khóa biểu.</p>}
           {todayLoading && <p className="py-8 text-center text-xs text-[#64748B]">Đang tải thời khóa biểu...</p>}
           {todayError && <p className="py-8 text-center text-xs font-medium text-rose-700">Không thể tải thời khóa biểu. Vui lòng thử lại.</p>}
           {!todayLoading && !todayError && todayTimetable?.status === "unavailable" && <p className="py-8 text-center text-xs font-medium text-amber-700">Chưa có dữ liệu thời khóa biểu cho lớp này hôm nay.</p>}

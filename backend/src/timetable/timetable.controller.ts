@@ -1,5 +1,6 @@
 import { BadGatewayException, BadRequestException, CanActivate, Controller, ExecutionContext, ForbiddenException, GatewayTimeoutException, Get, Injectable, Optional, Patch, Post, Body, Query, Req, Param, ServiceUnavailableException, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { checkPermission } from '../auth/guards/check-permission.guard';
 import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableService } from './timetable.service';
@@ -51,38 +52,38 @@ function mapTimetableSourceError(error: unknown): never {
 }
 
 @Controller('timetable')
-@UseGuards(TimetableAccessGuard)
+@UseGuards(JwtAuthGuard)
 export class TimetableController {
   constructor(private readonly service: TimetableService, @Optional() private readonly syncService?: TimetableSyncService) {}
-  @Post('sync/catalog') @UseGuards(TimetableAdminGuard)
+  @Post('sync/catalog') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC'))
   async loadCatalog(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
     try { return await this.syncService!.loadCatalog(req.user, query); }
     catch (error) { return mapTimetableSourceError(error); }
   }
-  @Post('sync') @UseGuards(TimetableAdminGuard) startSync(@Req() req: any, @Body() body: StartTimetableSyncDto) { return this.syncService!.start(req.user, body); }
-  @Post('sync/class') @UseGuards(TimetableAdminGuard) startSavedClassSync(@Req() req: any, @Body() body: SavedTimetableClassSyncDto) { return this.syncService!.startSavedClass(req.user, body); }
-  @Get('sync/class/week/status') @UseGuards(TimetableAdminGuard) getSavedClassWeekStatus(@Req() req: any, @Query() query: SavedTimetableWeekSyncDto) { return this.syncService!.getSavedClassWeekStatus(req.user, query); }
-  @Post('sync/class/week') @UseGuards(TimetableAdminGuard) startSavedClassWeek(@Req() req: any, @Body() body: SavedTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeek(req.user, body); }
-  @Post('sync/class/weeks') @UseGuards(TimetableAdminGuard) startSavedClassWeeks(@Req() req: any, @Body() body: BulkTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeeks(req.user, body); }
-  @Post('sync/class/weeks/status') @UseGuards(TimetableAdminGuard) getSavedClassWeeksStatus(@Req() req: any, @Body() body: BulkTimetableWeekStatusDto) { return this.syncService!.getSavedClassWeeksStatus(req.user, body); }
-  @Get('sync/status') @UseGuards(TimetableAdminGuard) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
-  @Get('sync/settings') @UseGuards(TimetableAdminGuard) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
-  @Patch('sync/settings') @UseGuards(TimetableAdminGuard) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }
-  @Get('snapshots') @UseGuards(TimetableAdminGuard) listSnapshots(@Req() req: any, @Query() query: QueryTimetableSnapshotsDto) { return this.service.listSnapshots(req.user, query); }
-  @Get('today/:classId') getToday(@Req() req: any, @Param('classId') classId: string) { return this.service.getTodayForClass(req.user, classId); }
-  @Post('demand') async demand(@Req() req: any, @Body() body: TimetableDemandDto) {
+  @Post('sync') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) startSync(@Req() req: any, @Body() body: StartTimetableSyncDto) { return this.syncService!.start(req.user, body); }
+  @Post('sync/class') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) startSavedClassSync(@Req() req: any, @Body() body: SavedTimetableClassSyncDto) { return this.syncService!.startSavedClass(req.user, body); }
+  @Get('sync/class/week/status') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) getSavedClassWeekStatus(@Req() req: any, @Query() query: SavedTimetableWeekSyncDto) { return this.syncService!.getSavedClassWeekStatus(req.user, query); }
+  @Post('sync/class/week') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) startSavedClassWeek(@Req() req: any, @Body() body: SavedTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeek(req.user, body); }
+  @Post('sync/class/weeks') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) startSavedClassWeeks(@Req() req: any, @Body() body: BulkTimetableWeekSyncDto) { return this.syncService!.startSavedClassWeeks(req.user, body); }
+  @Post('sync/class/weeks/status') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC')) getSavedClassWeeksStatus(@Req() req: any, @Body() body: BulkTimetableWeekStatusDto) { return this.syncService!.getSavedClassWeeksStatus(req.user, body); }
+  @Get('sync/status') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SYNC', 'TIMETABLE_SETTINGS_READ')) getSyncStatus(@Req() req: any) { return this.syncService!.getStatus(req.user); }
+  @Get('sync/settings') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SETTINGS_READ')) getSyncSettings(@Req() req: any) { return this.syncService!.getSettings(req.user); }
+  @Patch('sync/settings') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SETTINGS_READ', 'TIMETABLE_SETTINGS_UPDATE')) updateSyncSettings(@Req() req: any, @Body() body: TimetableSettingsDto) { return this.syncService!.updateSettings(req.user, body); }
+  @Get('snapshots') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_SNAPSHOT_READ')) listSnapshots(@Req() req: any, @Query() query: QueryTimetableSnapshotsDto) { return this.service.listSnapshots(req.user, query); }
+  @Get('today/:classId') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) getToday(@Req() req: any, @Param('classId') classId: string) { return this.service.getTodayForClass(req.user, classId); }
+  @Post('demand') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async demand(@Req() req: any, @Body() body: TimetableDemandDto) {
     try { return await this.service.getTimetable(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
   }
-  @Get('demand/status') async demandStatus(@Req() req: any, @Query() query: QueryTimetableDto) {
+  @Get('demand/status') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async demandStatus(@Req() req: any, @Query() query: QueryTimetableDto) {
     try { return await this.service.getDemandStatus(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
-  @Post('refresh') async refresh(@Req() req: any, @Body() body: QueryTimetableDto) {
+  @Post('refresh') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async refresh(@Req() req: any, @Body() body: QueryTimetableDto) {
     try { return await this.service.refresh(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
   }
-  @Get('options') async getOptions(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
+  @Get('options') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async getOptions(@Req() req: any, @Query() query: QueryTimetableOptionsDto) {
     try { return await this.service.getOptions(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
-  @Get() async getTimetable(@Req() req: any, @Query() query: QueryTimetableDto) {
+  @Get() @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async getTimetable(@Req() req: any, @Query() query: QueryTimetableDto) {
     try { return await this.service.getLegacyTimetable(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
   }
 }

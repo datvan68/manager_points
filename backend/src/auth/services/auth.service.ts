@@ -54,6 +54,7 @@ import {
   ACTIVITY_MANAGER_GROUP,
   DORMITORY_MANAGER_GROUP,
   PROPOSED_PERMISSION_GROUP,
+  TIMETABLE_MANAGER_GROUP,
 } from '../permissions.registry';
 import { maskLoginKey } from '../utils/mask.util';
 import { ImpersonationService } from './impersonation.service';
@@ -1437,6 +1438,8 @@ export class AuthService implements OnModuleInit {
           createdPerms['STUDENT_READ'],
           createdPerms['GRADING_PAGE'],
           createdPerms['STUDENT_PAGE'],
+          createdPerms['TIMETABLE_PAGE'],
+          createdPerms['TIMETABLE_READ'],
         ].filter(Boolean),
       },
       {
@@ -1459,6 +1462,8 @@ export class AuthService implements OnModuleInit {
         permissions: [
           createdPerms['GRADING_PAGE'],
           createdPerms['READ_STUDENT_TASK'],
+          createdPerms['TIMETABLE_PAGE'],
+          createdPerms['TIMETABLE_READ'],
         ],
       },
       {
@@ -1711,6 +1716,17 @@ export class AuthService implements OnModuleInit {
         constant: PROPOSED_PERMISSION_GROUP,
         permissions: [],
       },
+      {
+        constant: TIMETABLE_MANAGER_GROUP,
+        permissions: [
+          createdPerms['TIMETABLE_PAGE'],
+          createdPerms['TIMETABLE_READ'],
+          createdPerms['TIMETABLE_SYNC'],
+          createdPerms['TIMETABLE_SETTINGS_READ'],
+          createdPerms['TIMETABLE_SETTINGS_UPDATE'],
+          createdPerms['TIMETABLE_SNAPSHOT_READ'],
+        ],
+      },
     ];
 
     await Promise.all(
@@ -1867,6 +1883,15 @@ export class AuthService implements OnModuleInit {
         description: 'Xem các biểu đồ báo cáo và thống kê dữ liệu',
         permissions: [permMap['REPORTS_PAGE']],
         check_type: 'any',
+        is_active: true,
+        type: 'page',
+      },
+      {
+        route_path: '/timetable',
+        route_name: 'Thời khóa biểu',
+        description: 'Tra cứu, đồng bộ và cấu hình thời khóa biểu',
+        permissions: [permMap['TIMETABLE_PAGE']],
+        check_type: 'all',
         is_active: true,
         type: 'page',
       },

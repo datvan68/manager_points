@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import mongoose from 'mongoose';
 import { TimetableSyncService } from './timetable-sync.service';
 import { TimetableSourceError } from './timetable.types';
@@ -31,7 +31,7 @@ describe('TimetableSyncService', () => {
 
   it('rejects non-admin mutations before adapter or model work', async () => {
     const { service, adapter, states } = setup();
-    await expect(service.start({ roleCode: 'TEACHER' }, { coverage: [selection] })).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.start({ roleCode: 'TEACHER' }, { coverage: [selection] })).rejects.toBeInstanceOf(ForbiddenException);
     expect(adapter.getTimetable).not.toHaveBeenCalled(); expect(states.updateOne).not.toHaveBeenCalled();
   });
 

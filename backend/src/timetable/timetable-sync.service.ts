@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
@@ -36,7 +36,12 @@ export class TimetableSyncService {
     @Optional() configService?: ConfigService,
   ) { this.config = getTimetableConfig(configService || ({ get: () => undefined } as any)); }
 
-  private assertAdmin(user: any) { if (String(user?.roleCode || '').toUpperCase() !== 'ADMIN') throw new ConflictException('Chỉ quản trị viên mới được đồng bộ thời khóa biểu.'); }
+  private assertPermissions(user: any, requiredPermissions: string[]) {
+    if (String(user?.roleCode || '').toUpperCase() === 'ADMIN' || user?.permissions?.includes('ADMIN_FULL')) return;
+    const missing = requiredPermissions.filter((permission) => !user?.permissions?.includes(permission));
+    if (!missing.length) return;
+    throw new ForbiddenException({ reasonCode: 'TIMETABLE_PERMISSION_REQUIRED', requiredPermissions, missingPermissions: missing, message: `Thiếu quyền: ${missing.join(', ')}.` });
+  }
 
   private async state() {
     return this.states.findOneAndUpdate({ name: STATE }, { $setOnInsert: { name: STATE, settings: { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], rolling: { enabled: false, weekDates: [] } }, queue: [], statuses: [], coordinator: { demandStreak: 0, lastAttemptFinishedAt: null, consecutiveFailures: 0, pausedUntil: null } } }, { upsert: true, new: true }).lean().exec();
@@ -47,13 +52,13 @@ export class TimetableSyncService {
   }
 
   async getCatalog(user: any) {
-    this.assertAdmin(user); const state = await this.state();
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_READ']); const state = await this.state();
     if (!state.catalog) throw new NotFoundException({ reasonCode: 'TIMETABLE_CATALOG_NOT_SYNCED', message: 'Chưa tải danh mục nguồn.' });
     return state.catalog;
   }
 
   async loadCatalog(user: any, filters: Partial<TimetableFilters> = {}) {
-    this.assertAdmin(user); const catalog = await this.adapter.getOptions(`sync-catalog:${String(user.userId)}`, filters); await this.state();
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']); const catalog = await this.adapter.getOptions(`sync-catalog:${String(user.userId)}`, filters); await this.state();
     const fields = ['years', 'semesters', 'weeks', 'faculties', 'courses', 'classes'] as const;
     const context = { filters, weeks: catalog.weeks };
     await this.states.updateOne({ name: STATE }, [{ $set: { catalog: Object.fromEntries(fields.map((field) => [field, { $setUnion: [{ $ifNull: [`$catalog.${field}`, []] }, { $literal: catalog[field] }] }])) as Record<string, any>, catalogContexts: { $setUnion: [{ $ifNull: ['$catalogContexts', []] }, { $literal: [context] }] } } }], { updatePipeline: true }).exec();
@@ -67,7 +72,7 @@ export class TimetableSyncService {
   }
 
   async start(user: any, dto: StartTimetableSyncDto) {
-    this.assertAdmin(user); const coverage = this.validateCoverage(dto.coverage); await this.state(); await this.recoverInterrupted();
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']); const coverage = this.validateCoverage(dto.coverage); await this.state(); await this.recoverInterrupted();
     const id = randomUUID(); const owner = `${id}:${randomUUID()}`; const now = new Date();
     const claimed = await this.states.findOneAndUpdate({ name: STATE, 'job.status': { $ne: 'running' }, $or: [{ lease: null }, { 'lease.expiresAt': { $lte: now } }] }, { $set: { job: { id, status: 'running', startedAt: now, operatorId: String(user.userId), total: coverage.length, completed: 0, failures: [], coverage }, lease: { owner, expiresAt: new Date(now.getTime() + LEASE_MS), epoch: now.getTime() } } }, { new: true }).lean().exec();
     if (!claimed) throw new ConflictException('Đã có một tiến trình đồng bộ đang chạy.');
@@ -76,13 +81,13 @@ export class TimetableSyncService {
   }
 
   async getStatus(user: any) {
-    this.assertAdmin(user); await this.recoverInterrupted(false); const [state, latest] = await Promise.all([this.readOnlyState(), this.snapshots.findOne().sort({ syncedAt: -1 }).lean().exec()]);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC', 'TIMETABLE_SETTINGS_READ']); await this.recoverInterrupted(false); const [state, latest] = await Promise.all([this.readOnlyState(), this.snapshots.findOne().sort({ syncedAt: -1 }).lean().exec()]);
     return { job: state.job, settings: state.settings, lastSuccessfulUpdate: latest?.syncedAt || null, queue: state.queue || [], classStatuses: await this.classStatuses(state) };
   }
-  async getSettings(user: any) { this.assertAdmin(user); return (await this.state()).settings; }
+  async getSettings(user: any) { this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SETTINGS_READ']); return (await this.state()).settings; }
 
   async updateSettings(user: any, dto: TimetableSettingsDto) {
-    this.assertAdmin(user); const current = await this.state(); const coverage = this.validateCoverage(dto.coverage ?? current.settings?.coverage ?? [], true);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SETTINGS_READ', 'TIMETABLE_SETTINGS_UPDATE']); const current = await this.state(); const coverage = this.validateCoverage(dto.coverage ?? current.settings?.coverage ?? [], true);
     const selectedClasses = this.removeStaleDerivedSelections(
       this.validateSelectedClasses(dto.selectedClasses ?? current.settings?.selectedClasses ?? []),
       current.settings?.classLinks || [],
@@ -302,12 +307,12 @@ export class TimetableSyncService {
   }
 
   async startSavedClass(user: any, dto: SavedTimetableClassSyncDto) {
-    this.assertAdmin(user); const state = await this.state(); const saved = ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']); const state = await this.state(); const saved = ((state.settings?.selectedClasses || []) as TimetableClassSelection[]).find((item) => this.classIdentity(item) === this.classIdentity(dto));
     if (!saved) throw new NotFoundException({ reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED', message: 'Lớp chưa được lưu cấu hình đồng bộ.' });
     return this.start(user, { coverage: this.resolveClassCoverage(state.settings || {}, saved) } as StartTimetableSyncDto);
   }
   async getSavedClassWeekStatus(user: any, dto: SavedTimetableWeekSyncDto) {
-    this.assertAdmin(user); const state = await this.readOnlyState(); const selection = this.manualSelection(state, dto); const key = timetableKey(selection);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']); const state = await this.readOnlyState(); const selection = this.manualSelection(state, dto); const key = timetableKey(selection);
     const snapshot = await this.snapshots.findOne({ key }).lean().exec();
     const running = state.job?.status === 'running' && [state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean).some((entry: any) => timetableKey(entry.selection || entry) === key);
     const queued = (state.queue || []).some((item: QueueItem) => item.key === key);
@@ -315,12 +320,12 @@ export class TimetableSyncService {
     return { key, selection, status: running ? 'running' : queued ? 'pending' : terminal?.status === 'failed' ? 'failed' : snapshot ? 'valid' : 'missing', snapshotExists: Boolean(snapshot), lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, isEmpty: snapshot?.result?.isEmpty === true, failure: terminal?.failure || null, cooldownUntil: terminal?.lastRequestedAt ? new Date(Date.parse(terminal.lastRequestedAt) + this.config.refreshCooldownMs).toISOString() : null };
   }
   async startSavedClassWeek(user: any, dto: SavedTimetableWeekSyncDto) {
-    this.assertAdmin(user); const state = await this.state(); const selection = this.manualSelection(state, dto);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']); const state = await this.state(); const selection = this.manualSelection(state, dto);
     return this.enqueue([selection], 'demand', dto.intent === 'update', state);
   }
 
   async startSavedClassWeeks(user: any, dto: BulkTimetableWeekSyncDto) {
-    this.assertAdmin(user);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']);
     const state = await this.state();
     const seen = new Set<string>();
     const coverage = dto.selections.map((item) => {
@@ -338,7 +343,7 @@ export class TimetableSyncService {
   }
 
   async getSavedClassWeeksStatus(user: any, dto: BulkTimetableWeekStatusDto) {
-    this.assertAdmin(user);
+    this.assertPermissions(user, ['TIMETABLE_PAGE', 'TIMETABLE_SYNC']);
     const state = await this.readOnlyState();
     const selections = dto.selections.map((item) => {
       const link = (state.settings?.classLinks || []).find((candidate: TimetableClassLink) => candidate.systemClassId === item.systemClassId && this.classIdentity(candidate) === this.classIdentity(item));
