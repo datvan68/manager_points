@@ -1,81 +1,81 @@
 slot_id: "taskscope-00"
-generation: 3
-task_id: "20260915T101517+0700-show-timetable-sync-pair-results"
+generation: 4
+task_id: "20260915T133018+0700-sort-lookup-weeks-ascending"
 scope_file: "docs/task/taskscope.md"
 status: completed
-scope_revision: 2
-created_at: "2026-09-15T10:15:17+07:00"
-updated_at: "2026-09-15T10:22:30+07:00"
-base_commit: "e895bcbf849b3ef17f378266ba1c7b0cfa480b98"
-task: "Show class and week details for timetable synchronization results"
+scope_revision: 3
+created_at: "2026-09-15T13:30:18+07:00"
+updated_at: "2026-09-15T14:16:00+07:00"
+base_commit: "0b40a502611ddac10be195ce97f873a097841966"
+task: "Sort timetable lookup weeks ascending"
 pipeline: bug_fix
 profile: Quick
-objective: "Make single-week and bulk timetable synchronization results identify the affected system class, source class, week, outcome, and actionable failure reason so administrators can immediately locate every failed or skipped pair."
+objective: "Show available weeks from smallest to largest in the Tra cứu desktop/mobile selectors and previous/next navigation."
 coordination:
   depends_on: []
   warnings: []
 completion:
-  completed_at: "2026-09-15T10:22:30+07:00"
-  outcome: "Implemented detailed single and bulk timetable synchronization result presentation with localized known failure guidance and partial completion semantics."
-  final_commit_or_state: "Working tree changes uncommitted at base commit e895bcbf849b3ef17f378266ba1c7b0cfa480b98."
+  completed_at: "2026-09-15T14:16:00+07:00"
+  outcome: "success"
+  final_commit_or_state: "main at 0b40a502611ddac10be195ce97f873a097841966; uncommitted scoped implementation/test changes preserved"
   changed_paths:
-    - "frontend/src/components/timetable/TimetableSyncPanel.tsx"
-    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.test.tsx"
     - "docs/task/taskscope.md"
   checks_passed:
-    - "V-01: TimetableSyncPanel suite 20/20 passed."
-    - "V-02: timetable page and API suites 9/9 passed."
-    - "V-03: npm --prefix frontend run build passed compilation, TypeScript, static generation, and optimization."
-    - "V-04: git diff --check passed for the two implementation/test files."
-    - "Additional: npm --prefix frontend run typecheck passed."
+    - "V-01: npm --prefix frontend test -- --run src/components/timetable/TimetableLookup.test.tsx (5 tests passed)"
+    - "V-02: npm --prefix frontend run typecheck"
+    - "V-03: dev /timetable desktop/mobile dropdowns sorted ascending; selection, lookup, refresh and week-1 boundary verified"
+    - "V-04: git diff --check for scoped files"
   cleanup_pending: []
 evidence:
-  current_behavior: "TimetableSyncPanel retains each bulk pair's systemClassId, sourceLabel, week, result, and failure, but the bulk dialog renders only processed/success/failed/skipped counters. The single dialog shows only the source label and raw week value. Consequently a completed run can contain failures without identifying which system class or week failed, and raw source codes such as SOURCE_INVALID_SELECTION are not actionable to administrators."
-  expected_behavior: "The progress dialog clearly identifies the class-week pair for a single run and exposes a bounded, readable per-pair result list for bulk runs, prioritizing unsuccessful items and explaining known source failures in Vietnamese while retaining their diagnostic code."
-  root_cause: "The frontend maps API pair results into BulkPairState but never renders that detail; it also lacks presentation helpers for system-class names, human-readable week labels, result labels, and known failure-code explanations."
+  current_behavior: "Screenshot shows 3,4,1,2,5. TimetableLookup renders options.weeks directly in both selectors and uses it for currentWeekIndex/goToWeek; every loader retains API order."
+  expected_behavior: "Display 1,2,3,4,5, with week 10 after 9."
+  root_cause: "TimetableService.getOptions uses snapshot coverage Set insertion order without sorting; TimetableLookup has no presentation ordering. Parsed source values are strings and may be opaque."
 scope:
   inspect:
-    - "frontend/src/components/timetable/TimetableSyncPanel.tsx:BulkPairState/single progress/bulk progress rendering"
-    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx:single and bulk terminal-result tests"
-    - "frontend/src/api/timetable-api.ts:TimetableBulkWeekSyncRequest/TimetableBulkPairStatus/TimetableWeekSyncStatus"
+    - "frontend/src/components/timetable/TimetableLookup.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.test.tsx"
+    - "frontend/src/components/timetable/timetable-filters.ts"
+    - "frontend/src/api/timetable-api.ts"
+    - "backend/src/timetable/timetable.service.ts"
+    - "backend/src/timetable/timetable.parser.ts"
+    - "frontend/package.json"
   write:
-    - "frontend/src/components/timetable/TimetableSyncPanel.tsx"
-    - "frontend/src/components/timetable/TimetableSyncPanel.test.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.tsx"
+    - "frontend/src/components/timetable/TimetableLookup.test.tsx"
   preserve:
-    - "Synchronization submission, polling, cooldown, coalescing, canonical badge refresh, and callback behavior remain unchanged."
-    - "Backend endpoints, request/response DTOs, status persistence, and source-adapter behavior remain unchanged because the existing API already supplies pair selection and failure data."
-    - "Raw unknown failure text remains visible; known failure codes gain explanatory copy without losing the original diagnostic code."
-    - "The dialog remains usable with large batches and exposes status information to assistive technology."
+    - "Original values, labels, metadata and API filter payloads; no mutation of API arrays or automatic selection changes."
+    - "Cascading resets, stale-request protection, coverage checks, loading/errors and search behavior."
+    - "Existing empty-value placeholder remains first without duplication; no available options are removed."
   out:
-    - "Backend synchronization, queue, status aggregation, and error-generation changes"
-    - "Changes to timetable linkage, matching, or source selection rules"
-    - "Settings, schemas, persisted data, deployment, and production operations"
+    - "Other tabs, backend changes, API contracts, RBAC, synchronization and persistent data"
+    - "Commit, push, deployment and production"
 acceptance_criteria:
-  - "AC-01: A single-week progress dialog identifies the system class, linked source class, and a human-readable week label; a failed result shows an actionable Vietnamese explanation and retains the original failure code or message."
-  - "AC-02: A bulk progress dialog renders a per-pair result list containing system class, source class, week, outcome, and failure reason when applicable; failed and skipped pairs are easy to locate rather than being represented only by aggregate counters."
-  - "AC-03: SOURCE_INVALID_SELECTION is presented as an explanation that the saved source selection is no longer valid and instructs the administrator to relink or verify the source class, while the code remains available for diagnosis."
-  - "AC-04: A terminal batch with failures is presented as partial completion, and a batch containing only skipped pairs is not presented with an unqualified successful-completion state."
-  - "AC-05: The per-pair list is scroll-bounded for at least 68 pairs, keeps processing/count feedback intact, and supplies accessible labels or semantic status text."
-  - "AC-06: Existing single/bulk synchronization, stale-snapshot protection, badge reconciliation, cooldown, and duplicate-submit regression tests continue to pass."
+  - "AC-01: Both selectors display labels 3,4,1,2,5,10 in order 1,2,3,4,5,10, including Tuần N labels with opaque values."
+  - "AC-02: Order remains ascending after initial load, filter reload and refresh; empty/single lists work, placeholder stays first, and unrecognized entries retain stable deterministic ordering."
+  - "AC-03: Selection sends the original value; previous/next uses the same ascending order and remains disabled at boundaries. Existing lookup regressions pass."
 execution:
-  - "E-01 [AC-01, AC-03] frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> add single-result assertions for system class, source class, readable week, and localized SOURCE_INVALID_SELECTION guidance."
-  - "E-02 [AC-02, AC-04, AC-05, AC-06] frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> add bulk-result regressions for mixed success/failure/skipped identities, skipped-only completion semantics, and a large bounded result list."
-  - "E-03 [AC-01, AC-02, AC-03, AC-05] frontend/src/components/timetable/TimetableSyncPanel.tsx -> add presentation helpers that resolve the system class and week labels, translate known failure codes, and render single and per-pair bulk details without changing API or polling state."
-  - "E-04 [AC-02, AC-04, AC-05] frontend/src/components/timetable/TimetableSyncPanel.tsx -> derive terminal dialog tone/copy from success, failed, and skipped counts; visually prioritize unsuccessful pairs and constrain the result list height with scrolling."
+  - "E-01 [AC-01, AC-02, AC-03] TimetableLookup.tsx -> derive one sorted copy of options.weeks for both selectors and navigation. Read a numeric label or explicit Tuần N prefix, falling back to a numeric value. Keep empty values first and unrecognized entries stable after numbered weeks; do not treat date digits as week numbers."
+  - "E-02 [AC-01, AC-02, AC-03] TimetableLookup.test.tsx -> extend existing mocked API/listbox tests for unordered weeks, week 10, opaque values, refresh/filter reload, empty/single lists and navigation boundaries; assert original API values and input array remain unchanged."
 verification:
-  - "V-01 [AC-01, AC-02, AC-03, AC-04, AC-05, AC-06] npm --prefix frontend test -- --run src/components/timetable/TimetableSyncPanel.test.tsx -> the focused component suite passes with detailed-result assertions."
-  - "V-02 [AC-06] npm --prefix frontend test -- --run 'src/app/(dashboard)/timetable/page.test.tsx' src/api/timetable-api.test.ts -> page integration and API contract suites pass."
-  - "V-03 [AC-01, AC-02, AC-03, AC-04, AC-05, AC-06] npm --prefix frontend run build -> the Next.js frontend compiles successfully."
-  - "V-04 [AC-01, AC-02, AC-03, AC-04, AC-05, AC-06] git diff --check -- frontend/src/components/timetable/TimetableSyncPanel.tsx frontend/src/components/timetable/TimetableSyncPanel.test.tsx -> no whitespace errors are reported."
+  - "V-01 [AC-01, AC-02, AC-03] npm --prefix frontend test -- --run src/components/timetable/TimetableLookup.test.tsx -> focused suite and new regressions pass."
+  - "V-02 [AC-01, AC-03] npm --prefix frontend run typecheck -> no TypeScript errors."
+  - "V-03 [AC-01, AC-02, AC-03] Verified dev /timetable -> open Tra cứu week dropdown at desktop/mobile widths, inspect ascending available weeks, choose a week, use previous/next and refresh/reload filters; confirm original selection and boundary states. Record actual coverage; mocks do not replace runtime evidence."
+  - "V-04 [AC-01, AC-02, AC-03] git diff --check -- frontend/src/components/timetable/TimetableLookup.tsx frontend/src/components/timetable/TimetableLookup.test.tsx docs/task/taskscope.md -> no whitespace errors; inspect scoped diff."
+runtime_test:
+  targets: "Before testing, establish effective dev frontend/API/database identities and production separation read-only under safety.md section 6a; not established during planning."
+  resources: "Existing authenticated dev lookup session/catalog; browse, filter, refresh and search only."
+  scenarios: "V-03 desktop/mobile ordering, selection and navigation with available dev weeks."
+  cleanup: "No persistent-data writes or test records required."
 temporary_artifacts:
   create: []
   cleanup: []
   retain:
     - "docs/task/taskscope.md: user-requested reusable taskscope slot"
 risks:
-  - "System-class names and week labels must be resolved from the panel's current class/status data with a deterministic fallback when catalog metadata is missing."
-  - "Rendering every pair without a bounded container can make a large batch dialog unusable; the list must remain scrollable while summary and close controls stay reachable."
-  - "Skipped outcomes represent cooldown or request coalescing rather than source failures, so their copy and terminal state must remain distinct from failed results."
+  - "Opaque week identifiers require displayed-number ordering while retaining values. Presentation-only scope requires no independent review."
 stop_conditions:
-  - "Stop with TASKSCOPE_CONFLICT if either write path becomes reserved by another ready or in-progress scope, or contains unrelated changes relative to the recorded baseline."
-  - "Stop and amend the scope if the current API response does not retain selection/failure per pair in runtime evidence, because that would require a backend contract change outside this scope."
+  - "Stop with TASKSCOPE_CONFLICT if scope identity changes, candidate writes gain unrelated changes or active reservations overlap."
+  - "Stop dependent runtime checks if dev isolation cannot be established."
+  - "Amend scope before backend/persistent-data changes; do not invent ordering for unsupported labels."

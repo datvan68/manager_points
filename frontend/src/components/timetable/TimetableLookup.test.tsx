@@ -11,6 +11,24 @@ const options: TimetableOptions = {
   courses: [{ value: '', label: 'Tất cả khóa' }], classes: [{ label: 'Lớp A', value: 'a' }], availableCoverage: [coverage],
 };
 const openConfig = () => fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' }));
+async function weekLabels(name: string) {
+  fireEvent.click(screen.getByRole('combobox', { name }));
+  await waitFor(() => expect(screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .some((element) => !element.className.includes('opacity-0'))).toBe(true));
+  const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .find((element) => !element.className.includes('opacity-0'));
+  if (!listbox) throw new Error('No open select listbox');
+  return within(listbox).getAllByRole('option', { hidden: true }).map((item) => item.textContent?.trim());
+}
+
+async function visibleWeekLabels() {
+  await waitFor(() => expect(screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .some((element) => !element.className.includes('opacity-0'))).toBe(true));
+  const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+    .find((element) => !element.className.includes('opacity-0'));
+  if (!listbox) throw new Error('No open select listbox');
+  return within(listbox).getAllByRole('option', { hidden: true }).map((item) => item.textContent?.trim());
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +51,31 @@ async function choose(label: string, value: string) {
 }
 
 describe('TimetableLookup', () => {
+  it('sorts both week selectors by displayed week number without mutating API options', async () => {
+    const unorderedWeeks = [
+      { label: 'Tuần 3', value: 'opaque-3' },
+      { label: '4', value: 'opaque-4' },
+      { label: 'Tuần 1', value: 'opaque-1' },
+      { label: 'Tuần 2', value: 'opaque-2' },
+      { label: 'Tuần 5', value: 'opaque-5' },
+      { label: 'Tuần 10', value: 'opaque-10' },
+      { label: 'Ngày 2026-09-15', value: 'opaque-date' },
+      { label: 'Tất cả', value: '' },
+    ];
+    const unorderedOptions = { ...options, weeks: unorderedWeeks };
+    vi.mocked(timetableApi.getOptions).mockResolvedValue(unorderedOptions);
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    expect(await weekLabels('Tuần')).toEqual(['Tất cả', 'Tuần 1', 'Tuần 2', 'Tuần 3', '4', 'Tuần 5', 'Tuần 10', 'Ngày 2026-09-15']);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Mở bộ lọc tra cứu thời khóa biểu' }));
+    const mobileDialog = screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' });
+    fireEvent.click(within(mobileDialog).getAllByRole('combobox')[2]);
+    expect(await visibleWeekLabels()).toEqual(['Tất cả', 'Tuần 1', 'Tuần 2', 'Tuần 3', '4', 'Tuần 5', 'Tuần 10', 'Ngày 2026-09-15']);
+    expect(unorderedOptions.weeks).toEqual(unorderedWeeks);
+  });
+
   it('applies default year and semester, reloads choices on week changes, and searches synchronized coverage', async () => {
     render(<TimetableLookup />);
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());

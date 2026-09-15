@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { timetableApi, type TimetableFilters, type TimetableResult } from '@/api/timetable-api';
 import TimetableGrid from './TimetableGrid';
 import TimetableMobileView from './TimetableMobileView';
@@ -7,6 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
 import { changeFilter, emptyFilters, emptyOptions, selectionKey } from './timetable-filters';
+
+function weekNumber(item: { label: string; value: string }): number | null {
+  const label = item.label.trim();
+  const weekLabel = label.match(/^Tuần\s+(\d+)(?:\D|$)/i);
+  if (weekLabel) return Number(weekLabel[1]);
+  if (/^\d+$/.test(label)) return Number(label);
+  if (/^\d+$/.test(item.value.trim())) return Number(item.value);
+  return null;
+}
 
 export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: number }) {
   const [options, setOptions] = useState(emptyOptions);
@@ -183,14 +192,26 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const yearLabel = options.years.find((y) => y.value === filters.year)?.label || filters.year;
   const semesterLabel = options.semesters.find((s) => s.value === filters.semester)?.label || filters.semester;
 
-  const currentWeekIndex = options.weeks.findIndex((w) => w.value === filters.week);
+  const sortedWeeks = useMemo(() => options.weeks
+    .map((item, index) => ({ item, index, number: weekNumber(item) }))
+    .sort((a, b) => {
+      if (!a.item.value && b.item.value) return -1;
+      if (a.item.value && !b.item.value) return 1;
+      if (a.number !== null && b.number !== null) return a.number - b.number || a.index - b.index;
+      if (a.number !== null) return -1;
+      if (b.number !== null) return 1;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item), [options.weeks]);
+
+  const currentWeekIndex = sortedWeeks.findIndex((w) => w.value === filters.week);
   const canPrevWeek = currentWeekIndex > 0;
-  const canNextWeek = currentWeekIndex >= 0 && currentWeekIndex < options.weeks.length - 1;
+  const canNextWeek = currentWeekIndex >= 0 && currentWeekIndex < sortedWeeks.length - 1;
 
   const navigateWeek = (direction: -1 | 1) => {
     const targetIndex = currentWeekIndex + direction;
-    if (targetIndex >= 0 && targetIndex < options.weeks.length) {
-      const targetWeek = options.weeks[targetIndex];
+    if (targetIndex >= 0 && targetIndex < sortedWeeks.length) {
+      const targetWeek = sortedWeeks[targetIndex];
       setFilter('week', targetWeek.value);
       if (filters.className) {
         const nextFilters = { ...filters, week: targetWeek.value };
@@ -364,7 +385,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
                   {!options.weeks.some((item) => item.value === '') && (
                     <SelectItem value="">Chọn tuần</SelectItem>
                   )}
-                  {options.weeks.map((item) => (
+                  {sortedWeeks.map((item) => (
                     <SelectItem key={item.value || 'm-week-all'} value={item.value}>
                       {item.label}
                     </SelectItem>
@@ -490,7 +511,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               {!options.weeks.some((item) => item.value === '') && (
                 <SelectItem value="">Chọn tuần</SelectItem>
               )}
-              {options.weeks.map((item) => (
+              {sortedWeeks.map((item) => (
                 <SelectItem key={item.value || 'week-all'} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -755,7 +776,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               </div>
 
               <span className="font-semibold text-[#1E293B]">
-                Kết quả: {[yearLabel, semesterLabel, options.weeks.find((w) => w.value === result.filters.week)?.label || result.filters.week, options.classes.find((c) => c.value === result.filters.className)?.label || result.filters.className].filter(Boolean).join(' · ')}
+                Kết quả: {[yearLabel, semesterLabel, sortedWeeks.find((w) => w.value === result.filters.week)?.label || result.filters.week, options.classes.find((c) => c.value === result.filters.className)?.label || result.filters.className].filter(Boolean).join(' · ')}
               </span>
             </div>
 
