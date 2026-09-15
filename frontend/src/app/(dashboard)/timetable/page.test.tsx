@@ -7,14 +7,12 @@ vi.mock('@/providers/auth-provider', () => ({ useAuth: () => authState }));
 vi.mock('@/components/guards/RouteGuard', () => ({ RouteGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock('@/components/timetable/TimetableLookup', () => ({ default: ({ refreshKey }: { refreshKey: number }) => <div data-testid="lookup">lookup-{refreshKey}</div> }));
 vi.mock('@/components/timetable/TimetableSyncPanel', () => ({ default: ({ onSynced }: { onSynced?: () => void }) => <button type="button" onClick={onSynced}>sync complete</button> }));
-vi.mock('@/components/students/StudentSectionTabs', () => ({ default: ({ activeTab }: { activeTab: string }) => <div data-testid="student-section-tabs">{activeTab}</div> }));
 beforeEach(() => { authState.user = { roleCode: 'ADMIN' }; authState.permissions = []; });
 afterEach(() => { cleanup(); });
 
 describe('TimetablePage', () => {
   it('shows admin tabs, switches mounted panels, and refreshes lookup after sync', () => {
     render(<TimetablePage />);
-    expect(screen.getByTestId('student-section-tabs')).toHaveTextContent('Thời khóa biểu');
     expect(screen.queryByRole('heading', { name: 'Thời khóa biểu' })).not.toBeInTheDocument();
     expect(screen.queryByText('Tra cứu lịch học theo dữ liệu nhà trường.')).not.toBeInTheDocument();
     expect(screen.getAllByRole('tab')).toHaveLength(2);

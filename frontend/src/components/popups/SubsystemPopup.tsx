@@ -72,6 +72,16 @@ const INITIAL_MODULES = [
     icon: Calendar
   },
   {
+    id: 'timetable',
+    group: 'Học sinh',
+    name: 'Thời khóa biểu',
+    desc: 'Tra cứu và cấu hình thời khóa biểu học tập.',
+    status: 'ACTIVE',
+    stat: { type: 'time', label: 'Theo niên học và học kỳ' },
+    href: '/timetable',
+    icon: Calendar
+  },
+  {
     id: 'dormitory',
     group: 'KTX',
     name: 'Quản lý KTX',
@@ -331,6 +341,10 @@ export default function SubsystemPopup({ isOpen, onClose }: SubsystemPopupProps)
     // lists the old STUDENT_PAGE requirement.
     if (mod.id === 'attendance') {
       return isStudent || hasPermission('READ_STUDENT_RECORD');
+    }
+
+    if (mod.id === 'timetable') {
+      return hasPermission('TIMETABLE_PAGE');
     }
 
     // 2. Try dynamic database mapping

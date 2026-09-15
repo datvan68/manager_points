@@ -264,6 +264,29 @@ describe('SubsystemPopup', () => {
     expect(await screen.findByText('Theo dõi chuyên cần')).toBeInTheDocument();
   });
 
+  it('shows the timetable card in the student group when TIMETABLE_PAGE is granted', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'scheduler-1', role: 'Scheduler', username: 'scheduler' },
+      isLoading: false,
+      hasPermission: (permission) => permission === 'TIMETABLE_PAGE',
+      hasAnyPermission: (...permissions) => permissions.includes('TIMETABLE_PAGE'),
+      hasAllPermissions: (...permissions) => permissions.every((permission) => permission === 'TIMETABLE_PAGE'),
+      isAuthenticated: true,
+      permissions: ['TIMETABLE_PAGE'],
+      logout: vi.fn(),
+      checkAuth: vi.fn(),
+      forceLogoutAfterRestore: vi.fn(),
+    });
+    vi.mocked(authApi.getRoutePermissionsPublic).mockResolvedValueOnce([]);
+
+    render(<SubsystemPopup isOpen={true} onClose={() => {}} />);
+
+    const timetableCard = await screen.findByText('Thời khóa biểu');
+    expect(timetableCard.closest('.group')?.parentElement?.previousElementSibling).toHaveTextContent('NHÓM HỌC SINH');
+    fireEvent.click(timetableCard);
+    expect(mockPush).toHaveBeenCalledWith('/timetable');
+  });
+
   it('keeps the record module visible when a legacy mapping still requires STUDENT_PAGE', async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { id: 'reviewer-1', role: 'Records Reviewer', username: 'reviewer' },

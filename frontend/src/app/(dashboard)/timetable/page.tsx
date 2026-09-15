@@ -5,7 +5,6 @@ import TimetableLookup from '@/components/timetable/TimetableLookup';
 import TimetableSyncPanel from '@/components/timetable/TimetableSyncPanel';
 import { useAuth } from '@/providers/auth-provider';
 import TabNavigation from '@/components/ui/TabNavigation';
-import StudentSectionTabs from '@/components/students/StudentSectionTabs';
 
 const timetableTabs = [
   { id: 'lookup', label: 'Tra cứu', panelId: 'timetable-lookup-panel' },
@@ -20,7 +19,6 @@ export default function TimetablePage() {
   const [activeTab, setActiveTab] = useState<'lookup' | 'settings'>('lookup');
   const [refreshKey, setRefreshKey] = useState(0);
   return <RouteGuard requiredPermission="TIMETABLE_PAGE"><div className="flex min-h-0 flex-1 flex-col">
-    <StudentSectionTabs activeTab="Thời khóa biểu" />
     {canConfigure && (
       <TabNavigation tabs={timetableTabs} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as typeof activeTab)} responsiveScrollable />
     )}
