@@ -7,7 +7,7 @@ import { parseTimetable, parseTimetableOptions } from './timetable.parser';
 import { TimetableFilters, TimetableOptions, TimetableResult, TimetableSourceError, TimetableSourcePage } from './timetable.types';
 
 type CacheEntry = { expiresAt: number; value: TimetableResult | TimetableOptions };
-type SessionContext = { jar: CookieJar; lastUsedAt: number; active: boolean };
+type SessionContext = { jar: CookieJar; lastUsedAt: number; active: boolean; page?: TimetableSourcePage; filters?: Partial<TimetableFilters> };
 type AcquiredSession = { jar: CookieJar; context?: SessionContext };
 
 @Injectable()
@@ -79,9 +79,10 @@ export class SchoolTimetableAdapter {
   private async lookup<T>(contextKey: string, filters: Partial<TimetableFilters>, parse: (page: TimetableSourcePage) => T, signal?: AbortSignal): Promise<T> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const session = this.acquireSession(contextKey);
-      try { return parse(await this.loadFreshPage(session.jar, filters, signal)); }
+      try { return parse(await this.loadFreshPage(session, filters, signal)); }
       catch (error) {
         if (error instanceof TimetableSourceError && error.code === 'SOURCE_SESSION_EXPIRED' && attempt === 0) { this.invalidateSession(contextKey, session); continue; }
+        if (error instanceof TimetableSourceError && error.code === 'SOURCE_MARKUP_CHANGED' && session.context?.page && attempt === 0) { session.context.page = undefined; session.context.filters = undefined; continue; }
         throw error;
       } finally { this.releaseSession(contextKey, session); }
     }
@@ -113,8 +114,19 @@ export class SchoolTimetableAdapter {
     if (session.context && this.sessions.get(contextKey) === session.context) this.sessions.delete(contextKey);
   }
 
-  private async loadFreshPage(jar: CookieJar, filters: Partial<TimetableFilters>, signal?: AbortSignal): Promise<TimetableSourcePage> {
+  private async loadFreshPage(session: AcquiredSession, filters: Partial<TimetableFilters>, signal?: AbortSignal): Promise<TimetableSourcePage> {
+    const { jar, context } = session;
     if (!this.config.username || !this.config.password) throw new TimetableSourceError('SOURCE_NOT_CONFIGURED', 'Nguồn thời khóa biểu chưa được cấu hình.');
+    if (context?.page && !this.isLoginPage(context.page.html)) {
+      let page = context.page;
+      const previous = context.filters || {};
+      const parentChanges: Array<[keyof TimetableFilters, string | undefined]> = [['year', filters.year], ['semester', filters.semester], ['faculty', filters.faculty], ['course', filters.course]];
+      for (const [field, value] of parentChanges.filter((entry): entry is [keyof TimetableFilters, string] => Boolean(entry[1]) && previous[entry[0]] !== entry[1])) page = await this.postback(page, jar, value, field, signal);
+      if (filters.week || filters.className) page = await this.submitSearch(page, jar, filters as TimetableFilters, signal);
+      context.page = page;
+      context.filters = { year: filters.year, semester: filters.semester, faculty: filters.faculty, course: filters.course };
+      return page;
+    }
     let page = await this.request(SCHOOL_TIMETABLE_URL, jar, { signal });
     if (this.isLoginPage(page.html)) {
       const $ = cheerio.load(page.html);
@@ -129,8 +141,10 @@ export class SchoolTimetableAdapter {
       page = await this.request(SCHOOL_TIMETABLE_URL, jar, { signal });
     }
     if (this.isLoginPage(page.html)) throw new TimetableSourceError('SOURCE_SESSION_EXPIRED', 'Phiên nguồn thời khóa biểu đã hết hạn.');
+    if (!cheerio.load(page.html)('form').length) throw new TimetableSourceError('SOURCE_MARKUP_CHANGED', 'Biểu mẫu thời khóa biểu đã thay đổi.');
     for (const [field, value] of [['year', filters.year], ['semester', filters.semester], ['faculty', filters.faculty], ['course', filters.course] as const].filter(([, value]) => Boolean(value)) as [keyof TimetableFilters, string][]) page = await this.postback(page, jar, value, field, signal);
     if (filters.week || filters.className) page = await this.submitSearch(page, jar, filters as TimetableFilters, signal);
+    if (context) { context.page = page; context.filters = { year: filters.year, semester: filters.semester, faculty: filters.faculty, course: filters.course }; }
     return page;
   }
 

@@ -72,8 +72,8 @@ describe('SchoolTimetableAdapter', () => {
     const adapter = new SchoolTimetableAdapter(configured());
     await adapter.getOptions('viewer-1');
     await adapter.getOptions('viewer-1', { year: '2025' });
-    expect(fetchMock).toHaveBeenCalledTimes(7);
-    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('dang-nhap'))).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('dang-nhap'))).toHaveLength(0);
   });
 
   it('serializes different filter misses for one requester', async () => {
@@ -90,7 +90,7 @@ describe('SchoolTimetableAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     release();
     await Promise.all([first, second]);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('expires idle contexts, caps retained contexts, and keeps requester cookies separate', async () => {
@@ -109,8 +109,7 @@ describe('SchoolTimetableAdapter', () => {
     await adapter.getOptions('viewer-1', { year: '2025' });
     await adapter.getOptions('viewer-2', { year: '2025' });
     const warmGets = fetchMock.mock.calls.filter(([, init]) => init?.method === 'GET' && (init?.headers as Record<string, string>).Cookie);
-    expect(warmGets).toHaveLength(2);
-    expect((warmGets[0][1]?.headers as Record<string, string>).Cookie).not.toBe((warmGets[1][1]?.headers as Record<string, string>).Cookie);
+    expect(warmGets).toHaveLength(0);
 
     jest.useFakeTimers();
     jest.advanceTimersByTime(5 * 60_000 + 1);

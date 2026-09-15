@@ -92,6 +92,14 @@ describe('TimetableController', () => {
     expect(service.startSavedClassWeeks).toHaveBeenCalledWith(req.user, body);
   });
 
+  it('delegates the bounded bulk pair status route', async () => {
+    const service = { getSavedClassWeeksStatus: jest.fn().mockResolvedValue({ snapshotAt: 'now', items: [] }) };
+    const controller = new TimetableController({} as any, service as any);
+    const body = { selections: [] };
+    await expect(controller.getSavedClassWeeksStatus({ user: { roleCode: 'ADMIN' } }, body as any)).resolves.toEqual({ snapshotAt: 'now', items: [] });
+    expect(service.getSavedClassWeeksStatus).toHaveBeenCalledWith({ roleCode: 'ADMIN' }, body);
+  });
+
   it('delegates snapshot listing through the admin route', async () => {
     const service = { listSnapshots: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 }) };
     const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();

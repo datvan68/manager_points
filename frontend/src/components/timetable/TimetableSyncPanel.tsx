@@ -534,15 +534,14 @@ export default function TimetableSyncPanel({
   const pollBulkStatus = async (runId: number, pairs: BulkPairState[]): Promise<void> => {
     if (!mounted.current || bulkRun.current !== runId) return;
     try {
-      const result = await timetableApi.getSyncStatus();
+      const result = await timetableApi.getSavedClassWeeksStatus(pairs.map((pair) => pair.pair));
       if (!mounted.current || bulkRun.current !== runId) return;
       const nextPairs = pairs.map((pair) => {
-        const row = result.classStatuses?.find((item) => selectionKey(item.classSelection) === selectionKey(pair.pair));
-        const week = row?.weeks.find((item) => item.week === pair.pair.week);
-        if (week?.status === 'failed') return { ...pair, result: 'failed' as const, failure: week.failure || 'Đồng bộ thất bại.' };
-        if (week?.status === 'valid') {
+        const item = result.items.find((candidate) => candidate.key === pair.key || selectionKey(candidate.selection) === selectionKey(pair.pair));
+        if (item?.status === 'failed') return { ...pair, result: 'failed' as const, failure: item.failure || 'Đồng bộ thất bại.' };
+        if (item?.status === 'valid') {
           if (pair.wasValid && !pair.baseline) return { ...pair, result: 'failed' as const, failure: 'Không thể xác định kết quả mới vì trạng thái hợp lệ cũ không có mốc cập nhật.' };
-          if (!pair.wasValid || week.lastSuccessfulUpdate !== pair.baseline) return { ...pair, result: 'success' as const };
+          if (!pair.wasValid || item.lastSuccessfulUpdate !== pair.baseline) return { ...pair, result: 'success' as const };
         }
         return pair;
       });

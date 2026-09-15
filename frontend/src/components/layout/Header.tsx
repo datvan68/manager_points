@@ -240,7 +240,7 @@ const Header = ({ customMappings: propMappings = {} }: HeaderProps) => {
                 setIsNotificationOpen(false);
             }
             if (searchRef.current && !searchRef.current.contains(target)) {
-                if (target instanceof Element && target.closest('[data-student-preview]')) {
+                if (target instanceof Element && (target.closest('[data-student-preview]') || target.closest('[data-radix-popper-content-wrapper]'))) {
                     return;
                 }
                 setIsSearchOpen(false);

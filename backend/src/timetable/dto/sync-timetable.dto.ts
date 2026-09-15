@@ -41,6 +41,8 @@ export class BulkTimetableWeekSyncDto {
   selections!: BulkTimetableWeekSyncItemDto[];
 }
 
+export class BulkTimetableWeekStatusDto extends BulkTimetableWeekSyncDto {}
+
 export class TimetableWeekDateDto {
   @IsString() year!: string;
   @IsString() semester!: string;

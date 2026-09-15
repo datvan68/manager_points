@@ -13,6 +13,7 @@ function setup() {
     db: { startSession: jest.fn(async () => session) },
     findOneAndUpdate: jest.fn(() => chain({})),
     findOne: jest.fn(() => ({ sort: () => chain(null) })),
+    find: jest.fn(() => chain([])),
   };
   const states = {
     findOne: jest.fn(() => chain(state)),
@@ -95,6 +96,18 @@ describe('TimetableSyncService', () => {
       $or: expect.arrayContaining([expect.objectContaining({ 'lease.expiresAt': { $lte: expect.any(Date) } })]),
     }), expect.arrayContaining([expect.objectContaining({ $set: expect.objectContaining({ 'job.error': 'SYNC_INTERRUPTED', 'job.status': 'failed' }) })]), { updatePipeline: true });
     expect(states.updateOne.mock.calls[0][2]).toEqual({ updatePipeline: true });
+  });
+
+  it('returns bounded pair status from one projected snapshot query', async () => {
+    const { service, state, snapshots } = setup();
+    const link = { systemClassId: 'system-1', year: '2026', semester: '1', faculty: 'f', course: 'c', className: 'A', sourceLabel: 'A', matchMethod: 'manual' as const };
+    state.settings = { selectedClasses: [link], classLinks: [link], rolling: { enabled: true, weekDates: [{ year: '2026', semester: '1', week: 'w1', startDate: '2026-01-01', endDate: '2026-01-07' }] } };
+    state.catalog = { weeks: [] };
+    snapshots.find.mockReturnValue(chain([{ key: JSON.stringify([['year', '2026'], ['semester', '1'], ['week', 'w1'], ['faculty', 'f'], ['course', 'c'], ['className', 'A']]), syncedAt: '2026-01-02T00:00:00.000Z', result: { isEmpty: true } }]));
+    const result = await service.getSavedClassWeeksStatus(admin, { selections: [{ ...link, week: 'w1' }] } as any);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ status: 'valid', isEmpty: true });
+    expect(snapshots.find).toHaveBeenCalledWith(expect.objectContaining({ key: { $in: expect.any(Array) } }), { key: 1, syncedAt: 1, 'result.isEmpty': 1 });
   });
 
   it('keeps scheduling disabled until explicitly enabled', async () => {

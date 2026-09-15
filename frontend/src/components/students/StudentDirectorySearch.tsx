@@ -331,11 +331,7 @@ export default function StudentDirectorySearch({
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          if (todayDetailsOpen) {
-            setTodayDetailsOpen(false);
-          } else {
-            closePreview();
-          }
+          closePreview();
         }
       }}
     >
@@ -486,6 +482,7 @@ export default function StudentDirectorySearch({
           </div>
         </PopoverAnchor>
         <PopoverContent
+          data-student-preview="true"
           id="student-timetable-details"
           side="right"
           align="start"
@@ -495,6 +492,12 @@ export default function StudentDirectorySearch({
           showCloseButton
           className="w-[min(92vw,26rem)] p-3"
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => {
+            const originalTarget = event.detail?.originalEvent?.target;
+            if (originalTarget instanceof Element && originalTarget.closest('[role="dialog"]')) {
+              event.preventDefault();
+            }
+          }}
         >
           {todayLoading && <p className="py-8 text-center text-xs text-[#64748B]">Đang tải thời khóa biểu...</p>}
           {todayError && <p className="py-8 text-center text-xs font-medium text-rose-700">Không thể tải thời khóa biểu. Vui lòng thử lại.</p>}

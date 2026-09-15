@@ -19,6 +19,7 @@ export interface TimetableWeekSyncRequest extends TimetableClassSelection { week
 export interface TimetableBulkWeekSyncRequest extends TimetableClassLink { week: string }
 export interface TimetableWeekSyncStatus { key: string; selection: TimetableFilters; status: string; snapshotExists: boolean; lastSuccessfulUpdate: string | null; isEmpty: boolean; failure?: string | null; cooldownUntil?: string | null }
 export interface TimetablePairOutcome { key: string; selection: TimetableFilters; status: 'accepted' | 'coalesced' | 'cooldown'; cooldownUntil?: string }
+export interface TimetableBulkPairStatus { key: string; selection: TimetableFilters; status: string; snapshotAt: string | null; lastSuccessfulUpdate: string | null; snapshotExists: boolean; isEmpty: boolean; failure?: string | null }
 export interface TimetableSyncSettings { enabled: boolean; intervalMinutes: number; coverage: TimetableFilters[]; sourcePeriod?: TimetableSourcePeriod; selectedClasses?: TimetableClassSelection[]; classLinks?: TimetableClassLink[]; rolling?: TimetableRollingPolicy }
 export interface TimetableSnapshotMetadata extends TimetableFilters { coverageKey: string; syncedAt: string; jobId: string }
 export interface TimetableSnapshotsQuery extends Partial<TimetableFilters> { page?: number; limit?: number }
@@ -60,6 +61,7 @@ export const timetableApi = {
   async getSavedClassWeekStatus(selection: TimetableWeekSyncRequest) { return request<TimetableWeekSyncStatus>(`${API_BASE}/timetable/sync/class/week/status?${query({ year: selection.year, semester: selection.semester, faculty: selection.faculty, course: selection.course, className: selection.className, week: selection.week })}`); },
   async syncSavedClassWeek(selection: TimetableWeekSyncRequest, intent: TimetableWeekSyncIntent) { return request<{ status: string; key: string; selection: TimetableFilters; cooldown?: boolean }>(`${API_BASE}/timetable/sync/class/week`, { method: 'POST', body: JSON.stringify({ ...classSyncPayload(selection), week: selection.week, intent }), headers: { 'Content-Type': 'application/json' } }); },
   async syncSavedClassWeeks(selections: TimetableBulkWeekSyncRequest[]) { return request<{ id?: string; status: string; total: number; outcomes?: TimetablePairOutcome[] }>(`${API_BASE}/timetable/sync/class/weeks`, { method: 'POST', body: JSON.stringify({ selections }), headers: { 'Content-Type': 'application/json' } }); },
+  async getSavedClassWeeksStatus(selections: TimetableBulkWeekSyncRequest[]) { return request<{ snapshotAt: string; items: TimetableBulkPairStatus[] }>(`${API_BASE}/timetable/sync/class/weeks/status`, { method: 'POST', body: JSON.stringify({ selections }), headers: { 'Content-Type': 'application/json' } }); },
   async getDemandStatus(filters: TimetableFilters) { return request<{ status: string; key: string; failure?: string }>(`${API_BASE}/timetable/demand/status?${query(filters)}`); },
   async refreshTimetable(filters: TimetableFilters) { return request<{ status: string; key: string }>(`${API_BASE}/timetable/refresh`, { method: 'POST', body: JSON.stringify(filters), headers: { 'Content-Type': 'application/json' } }); },
 };

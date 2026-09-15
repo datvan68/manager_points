@@ -497,7 +497,7 @@ describe("StudentDirectorySearch", () => {
     expect(dialog).not.toHaveClass("hidden", "sm:block");
   });
 
-  it("closes timetable and restores basic info when clicking backdrop while timetable is open", async () => {
+  it("closes preview completely when clicking backdrop while timetable is open", async () => {
     vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
       status: "available", date: "2026-09-14", lessons: [{ subject: "Hóa học", day: 1, startPeriod: 3, endPeriod: 4, teacher: "Cô C", room: "C303" }],
     });
@@ -509,14 +509,66 @@ describe("StudentDirectorySearch", () => {
     expect(dialog).toHaveClass("hidden", "sm:block");
     expect(screen.getByText("Hóa học")).toBeInTheDocument();
 
-    // Click backdrop
+    // Click backdrop outside both cards -> closes completely
     const backdrop = document.querySelector('[data-student-preview="true"]');
     expect(backdrop).toBeInTheDocument();
     fireEvent.mouseDown(backdrop!);
 
-    // Timetable is closed, preview is still open and dialog is restored
     expect(screen.queryByText("Hóa học")).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps timetable and preview open when clicking inside timetable popover", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Hóa học", day: 1, startPeriod: 3, endPeriod: 4, teacher: "Cô C", room: "C303" }],
+    });
+    await openPreview();
+    const openBtn = screen.getByRole("button", { name: "Xem lịch" });
+    fireEvent.click(openBtn);
+
+    const popoverContent = document.getElementById("student-timetable-details");
+    expect(popoverContent).toBeInTheDocument();
+    expect(popoverContent).toHaveAttribute("data-student-preview", "true");
+
+    // Clicking inside the popover does not close it
+    const lesson = screen.getByText("Hóa học");
+    fireEvent.mouseDown(lesson);
+    expect(screen.getByText("Hóa học")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Nguyễn Văn A" })).toBeInTheDocument();
+  });
+
+  it("keeps timetable open when clicking inside basic info dialog", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Hóa học", day: 1, startPeriod: 3, endPeriod: 4, teacher: "Cô C", room: "C303" }],
+    });
+    await openPreview();
+    const openBtn = screen.getByRole("button", { name: "Xem lịch" });
+    fireEvent.click(openBtn);
+
+    expect(screen.getByText("Hóa học")).toBeInTheDocument();
+
+    // Clicking inside dialog should not dismiss popover
+    const studentName = screen.getByText("Nguyễn Văn A");
+    fireEvent.pointerDown(studentName);
+    expect(screen.getByText("Hóa học")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Nguyễn Văn A" })).toBeInTheDocument();
+  });
+
+  it("closes timetable and restores basic info when clicking Đóng lịch trigger button", async () => {
+    vi.mocked(timetableApi.getTodayForClass).mockResolvedValue({
+      status: "available", date: "2026-09-14", lessons: [{ subject: "Hóa học", day: 1, startPeriod: 3, endPeriod: 4, teacher: "Cô C", room: "C303" }],
+    });
+    await openPreview();
+    const openBtn = screen.getByRole("button", { name: "Xem lịch" });
+    fireEvent.click(openBtn);
+
+    expect(screen.getByText("Hóa học")).toBeInTheDocument();
+    const closeBtn = screen.getByRole("button", { name: "Đóng lịch", expanded: true });
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByText("Hóa học")).not.toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
     expect(dialog).not.toHaveClass("hidden", "sm:block");
   });
 

@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { SchoolTimetableAdapter } from './school-timetable.adapter';
-import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto, BulkTimetableWeekSyncDto } from './dto/sync-timetable.dto';
+import { TimetableCoverageDto, TimetableSettingsDto, StartTimetableSyncDto, SavedTimetableClassSyncDto, SavedTimetableWeekSyncDto, BulkTimetableWeekSyncDto, BulkTimetableWeekStatusDto } from './dto/sync-timetable.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
 import { getTimetableConfig, TimetableConfig } from './timetable.config';
@@ -174,7 +174,7 @@ export class TimetableSyncService {
         const remaining = deadline - Date.now(); if (remaining <= 0 || controller.signal.aborted) throw new TimetableSourceError('SOURCE_TIMEOUT', 'Nguồn thời khóa biểu phản hồi quá lâu.');
         try {
           await this.waitForSourceWindow(deadline);
-          const result = await this.adapter.getTimetable(`sync-demand:${timetableKey(selection)}`, selection, controller.signal);
+          const result = await this.adapter.getTimetable('sync-demand:admin-worker', selection, controller.signal);
           await this.states.updateOne({ name: STATE }, { $set: { 'coordinator.lastAttemptFinishedAt': new Date(), 'coordinator.consecutiveFailures': 0, 'coordinator.pausedUntil': null } }).exec();
           return result;
         }
@@ -335,6 +335,29 @@ export class TimetableSyncService {
     if (!coverage.length) throw new ConflictException({ reasonCode: 'TIMETABLE_BULK_SELECTION_REQUIRED', message: 'Cần chọn ít nhất một lớp-tuần.' });
     const result = await this.enqueue(coverage, 'demand', false, state, true);
     return { ...result, total: coverage.length };
+  }
+
+  async getSavedClassWeeksStatus(user: any, dto: BulkTimetableWeekStatusDto) {
+    this.assertAdmin(user);
+    const state = await this.readOnlyState();
+    const selections = dto.selections.map((item) => {
+      const link = (state.settings?.classLinks || []).find((candidate: TimetableClassLink) => candidate.systemClassId === item.systemClassId && this.classIdentity(candidate) === this.classIdentity(item));
+      if (!link) throw new NotFoundException({ reasonCode: 'TIMETABLE_CLASS_NOT_CONFIGURED', message: `Lớp ${item.className} chưa được lưu cấu hình đồng bộ.` });
+      return this.manualSelection(state, { ...link, week: item.week });
+    });
+    const keys = selections.map((selection) => timetableKey(selection));
+    const records = keys.length ? await this.snapshots.find({ key: { $in: keys } }, { key: 1, syncedAt: 1, 'result.isEmpty': 1 }).lean().exec() : [];
+    const byKey = new Map((records || []).map((record: any) => [record.key, record]));
+    const jobItems = [state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean);
+    const items = selections.map((selection) => {
+      const key = timetableKey(selection);
+      const snapshot = byKey.get(key);
+      const queued = (state.queue || []).some((item: QueueItem) => item.key === key);
+      const running = state.job?.status === 'running' && jobItems.some((item: any) => timetableKey(item.selection || item) === key);
+      const failure = running || queued ? null : (state.job?.failures || []).find((item: Failure) => timetableKey(item.coverage) === key)?.reason || [...(state.statuses || [])].reverse().find((item: any) => item.key === key)?.failure || null;
+      return { key, selection, status: running ? 'running' : queued ? 'pending' : failure ? 'failed' : snapshot ? 'valid' : 'missing', snapshotAt: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, lastSuccessfulUpdate: snapshot?.syncedAt ? new Date(snapshot.syncedAt).toISOString() : null, snapshotExists: Boolean(snapshot), isEmpty: snapshot?.result?.isEmpty === true, failure };
+    });
+    return { snapshotAt: new Date().toISOString(), items };
   }
   private async enqueue(selections: TimetableFilters[], kind: QueueKind, force: boolean, current?: any, bulk = false) {
     const state = current || await this.state(); const now = new Date().toISOString(); const queue = (state.queue || []) as QueueItem[]; const statuses = (state.statuses || []) as any[]; const known = new Set(queue.map((item) => item.key)); const runningKeys = new Set([state.job?.selection, ...(state.job?.coverage || [])].filter(Boolean).map((item: any) => timetableKey(item.selection || item))); const additions: QueueItem[] = []; const outcomes: any[] = [];
