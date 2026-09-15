@@ -13,7 +13,6 @@ import {
   LayoutGrid,
   Shield,
   Search,
-  CalendarDays,
 } from "lucide-react";
 import StudentDirectorySearch from "@/components/students/StudentDirectorySearch";
 import StudentQrAttendance from "@/components/attendance/StudentQrAttendance";
@@ -55,7 +54,6 @@ const allMenuItems = [
   { icon: Users, label: "Học sinh sinh viên", href: "/students/record" },
   { icon: Building2, label: "KTX", href: "/dormitory" },
   { icon: GraduationCap, label: "Rèn luyện", href: "/grading" },
-  { icon: CalendarDays, label: "Thời khóa biểu", href: "/timetable" },
 ];
 
 // Global variables to persist sidebar state across client-side page transitions
@@ -188,10 +186,6 @@ const Sidebar = () => {
           // Luôn hiển thị mục "Học sinh sinh viên" cho vai trò học sinh/sinh viên hoặc giáo viên
           if (item.href === "/students/record" && (isStudentUser || hasPermission("READ_STUDENT_RECORD"))) {
             return true;
-          }
-
-          if (item.href === "/timetable") {
-            return hasPermission("TIMETABLE_PAGE");
           }
 
           // KTX requires an explicit active route mapping for non-admin users.

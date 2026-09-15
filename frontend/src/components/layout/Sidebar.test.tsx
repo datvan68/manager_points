@@ -348,7 +348,7 @@ describe('Sidebar Component', () => {
     const mobileNav = document.querySelector('.mobile-bottom-nav');
     expect(mobileNav).toBeTruthy();
     const children = Array.from(mobileNav?.children || []).filter(el => !el.classList.contains('mobile-bottom-nav-skeleton'));
-    expect(children).toHaveLength(6);
+    expect(children).toHaveLength(5);
 
     // Center index (index 2 in 0-4) is the search button
     const centerItem = children[2];
@@ -525,9 +525,9 @@ describe('Sidebar Component', () => {
     expect(screen.queryByRole('button', { name: 'Mở hồ sơ cá nhân' })).not.toBeInTheDocument();
   });
 
-  it('includes the timetable navigation route in the sidebar source', async () => {
+  it('does not include the timetable route in the sidebar source', async () => {
     const source = await import('node:fs').then((fs) => fs.readFileSync(require('node:path').resolve(__dirname, './Sidebar.tsx'), 'utf8'));
-    expect(source).toContain('Thời khóa biểu');
-    expect(source).toContain('href: "/timetable"');
+    expect(source).not.toContain('Thời khóa biểu');
+    expect(source).not.toContain('href: "/timetable"');
   });
 });
