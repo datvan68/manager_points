@@ -61,6 +61,34 @@ describe('SchoolTimetableAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('reloads a reused page once when a stale dependent selection is absent', async () => {
+    const page = (year: string) => optionsHtml().replace('value="2025"', `value="${year}"`);
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(response(page('2025')))
+      .mockResolvedValueOnce(response(page('2025')))
+      .mockResolvedValueOnce(response(page('2024')))
+      .mockResolvedValueOnce(response(page('2024')));
+    const adapter = new SchoolTimetableAdapter(configured());
+
+    await adapter.getOptions('viewer-1', { year: '2025' });
+    await expect(adapter.getOptions('viewer-1', { year: '2024' })).resolves.toMatchObject({ years: [{ value: '2024' }] });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('preserves invalid selection after one fresh replay', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(response(optionsHtml()))
+      .mockResolvedValueOnce(response(optionsHtml()))
+      .mockResolvedValueOnce(response(optionsHtml()));
+    const adapter = new SchoolTimetableAdapter(configured());
+
+    await adapter.getOptions('viewer-1', { year: '2025' });
+    await expect(adapter.getOptions('viewer-1', { year: '2024' })).rejects.toMatchObject({ code: 'SOURCE_INVALID_SELECTION' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('reauthenticates once and replays the full lookup after expiry during a postback', async () => {
     let step = 0;
     const loginHtml = '<form><input name="ctl00$cphMain1$MainLogin1$DemoLogin1$txtUserName"/><input name="ctl00$cphMain1$MainLogin1$DemoLogin1$txtPassword"/></form>';

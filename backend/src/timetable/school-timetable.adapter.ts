@@ -82,7 +82,7 @@ export class SchoolTimetableAdapter {
       try { return parse(await this.loadFreshPage(session, filters, signal)); }
       catch (error) {
         if (error instanceof TimetableSourceError && error.code === 'SOURCE_SESSION_EXPIRED' && attempt === 0) { this.invalidateSession(contextKey, session); continue; }
-        if (error instanceof TimetableSourceError && error.code === 'SOURCE_MARKUP_CHANGED' && session.context?.page && attempt === 0) { session.context.page = undefined; session.context.filters = undefined; continue; }
+        if (error instanceof TimetableSourceError && ['SOURCE_MARKUP_CHANGED', 'SOURCE_INVALID_SELECTION'].includes(error.code) && session.context?.page && attempt === 0) { session.context.page = undefined; session.context.filters = undefined; continue; }
         throw error;
       } finally { this.releaseSession(contextKey, session); }
     }
