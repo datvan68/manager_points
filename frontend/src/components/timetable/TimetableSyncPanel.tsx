@@ -108,7 +108,7 @@ export default function TimetableSyncPanel({
   const callback = useRef(onSynced);
   const pollTimers = useRef(new Map<string, number>());
   const singlePollTimer = useRef<number | null>(null);
-  const bulkPollTimers = useRef(new Map<string, number>());
+  const bulkPollTimer = useRef<number | null>(null);
   const bulkRun = useRef(0);
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function TimetableSyncPanel({
       mounted.current = false;
       pollTimers.current.forEach((timer) => window.clearTimeout(timer));
       if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current);
-      bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
+      if (bulkPollTimer.current) window.clearTimeout(bulkPollTimer.current);
       bulkRun.current += 1;
     },
     []
@@ -527,42 +527,38 @@ export default function TimetableSyncPanel({
   const singlePercentage = singleProgress?.phase === 'completed' || singleProgress?.phase === 'failed' ? 100 : 0;
 
   const clearBulkTimers = () => {
-    bulkPollTimers.current.forEach((timer) => window.clearTimeout(timer));
-    bulkPollTimers.current.clear();
+    if (bulkPollTimer.current) window.clearTimeout(bulkPollTimer.current);
+    bulkPollTimer.current = null;
   };
 
-  const updateBulkPair = (runId: number, key: string, update: Partial<BulkPairState>) => {
-    if (!mounted.current || bulkRun.current !== runId) return;
-    setBulkProgress((current) => {
-      if (!current || current.runId !== runId) return current;
-      const pairs = current.pairs.map((pair) => pair.key === key ? { ...pair, ...update } : pair);
-      const finished = pairs.every((pair) => pair.result !== 'pending');
-      return { ...current, pairs, phase: finished ? (pairs.some((pair) => pair.result === 'failed') ? 'partial' : 'completed') : current.phase };
-    });
-  };
-
-  const pollBulkPair = async (runId: number, pair: BulkPairState): Promise<void> => {
+  const pollBulkStatus = async (runId: number, pairs: BulkPairState[]): Promise<void> => {
     if (!mounted.current || bulkRun.current !== runId) return;
     try {
-      const result = await timetableApi.getSavedClassWeekStatus({ ...pair.pair, week: pair.pair.week });
+      const result = await timetableApi.getSyncStatus();
       if (!mounted.current || bulkRun.current !== runId) return;
-      if (result.status === 'failed') {
-        updateBulkPair(runId, pair.key, { result: 'failed', failure: result.failure || 'Đồng bộ thất bại.' });
-      } else if (result.status === 'missing') {
-        updateBulkPair(runId, pair.key, { result: 'failed', failure: 'Không có kết quả đồng bộ.' });
-      } else if (result.status === 'valid') {
-        if (pair.wasValid && !pair.baseline) {
-          setBulkProgress((current) => current?.runId === runId ? { ...current, phase: 'tracking-error', message: 'Không thể xác định kết quả mới của một cặp vì trạng thái hợp lệ cũ không có mốc cập nhật.' } : current);
-          clearBulkTimers();
-        } else if (!pair.wasValid || result.lastSuccessfulUpdate !== pair.baseline) {
-          updateBulkPair(runId, pair.key, { result: 'success' });
-        } else {
-          const timer = window.setTimeout(() => void pollBulkPair(runId, pair), 2000);
-          bulkPollTimers.current.set(pair.key, timer);
+      const nextPairs = pairs.map((pair) => {
+        const row = result.classStatuses?.find((item) => selectionKey(item.classSelection) === selectionKey(pair.pair));
+        const week = row?.weeks.find((item) => item.week === pair.pair.week);
+        if (week?.status === 'failed') return { ...pair, result: 'failed' as const, failure: week.failure || 'Đồng bộ thất bại.' };
+        if (week?.status === 'valid') {
+          if (pair.wasValid && !pair.baseline) return { ...pair, result: 'failed' as const, failure: 'Không thể xác định kết quả mới vì trạng thái hợp lệ cũ không có mốc cập nhật.' };
+          if (!pair.wasValid || week.lastSuccessfulUpdate !== pair.baseline) return { ...pair, result: 'success' as const };
         }
+        return pair;
+      });
+      const finished = nextPairs.every((pair) => pair.result !== 'pending');
+      setBulkProgress((current) => {
+        if (!current || current.runId !== runId) return current;
+        return {
+          ...current,
+          pairs: nextPairs,
+          phase: finished ? (nextPairs.some((pair) => pair.result === 'failed') ? 'partial' : 'completed') : current.phase,
+        };
+      });
+      if (finished) {
+        clearBulkTimers();
       } else {
-        const timer = window.setTimeout(() => void pollBulkPair(runId, pair), 2000);
-        bulkPollTimers.current.set(pair.key, timer);
+        bulkPollTimer.current = window.setTimeout(() => void pollBulkStatus(runId, nextPairs), 2000);
       }
     } catch (e: unknown) {
       if (!mounted.current || bulkRun.current !== runId) return;
@@ -590,7 +586,7 @@ export default function TimetableSyncPanel({
       });
       setBulkProgress({ runId, phase: nextPairs.every((pair) => pair.result !== 'pending') ? 'completed' : 'processing', pairs: nextPairs });
       await refreshStatuses();
-      nextPairs.filter((pair) => pair.result === 'pending').forEach((pair) => void pollBulkPair(runId, pair));
+      if (nextPairs.some((pair) => pair.result === 'pending')) void pollBulkStatus(runId, nextPairs);
     } catch (e: unknown) {
       if (!mounted.current || bulkRun.current !== runId) return;
       clearBulkTimers();

@@ -252,7 +252,8 @@ describe('TimetableSyncPanel', () => {
 
   it('opens real progress before the bulk request resolves and completes from pair status', async () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
-    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] });
+    const initialStatus = { settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] };
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValueOnce(initialStatus).mockResolvedValue({ ...initialStatus, classStatuses: [{ ...initialStatus.classStatuses[0], status: 'valid', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'valid', lastSuccessfulUpdate: 'new' }] }] });
     let resolveRequest!: (value: { status: string; total: number; outcomes: Array<{ key: string; selection: typeof link & { week: string }; status: 'accepted' }> }) => void;
     vi.mocked(timetableApi.syncSavedClassWeeks).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
     render(<TimetableSyncPanel />);
@@ -288,14 +289,57 @@ describe('TimetableSyncPanel', () => {
     const link = { systemClassId: 'c1', year: '2026', semester: '1', className: 'A', sourceLabel: 'Lớp A', matchMethod: 'manual' as const };
     vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'valid', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'valid', lastSuccessfulUpdate: 'old' }] }] });
     vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'pending', total: 1, outcomes: [{ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'accepted' }] });
-    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'server-key', selection: { ...link, week: 'w1' }, status: 'valid', snapshotExists: true, lastSuccessfulUpdate: 'old', isEmpty: false });
+    vi.mocked(timetableApi.getSyncStatus).mockResolvedValue({ settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'valid', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'valid', lastSuccessfulUpdate: 'old' }] }] });
     render(<TimetableSyncPanel />);
     await screen.findByRole('checkbox', { name: 'Chọn lớp Lớp A' });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn lớp Lớp A' }));
     fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
     fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
-    await waitFor(() => expect(timetableApi.getSavedClassWeekStatus).toHaveBeenCalled());
+    await waitFor(() => expect(timetableApi.getSyncStatus).toHaveBeenCalledTimes(3));
     expect(screen.getByText('0/1 cặp đã xử lý')).toBeInTheDocument();
+  });
+
+  it('polls 68 accepted pairs with one aggregate status request per cycle', async () => {
+    const links = Array.from({ length: 68 }, (_, index) => ({ systemClassId: `c${index}`, year: '2026', semester: '1', className: `A${index}`, sourceLabel: `Lớp ${index}`, matchMethod: 'manual' as const }));
+    const classes = links.map((link) => ({ _id: link.systemClassId, class_name: link.className, class_year: '2026', dept_id: 'd1', class_type: 'Cao đẳng' }));
+    const makeStatuses = (phase: 'initial' | 'pending' | 'partial' | 'final') => links.map((link, index) => ({
+      classSelection: link,
+      weekCount: 1,
+      targetWeeks: ['w1'],
+      status: phase === 'final' || (phase === 'partial' && index < 34) ? (phase === 'final' && index >= 58 ? 'failed' : 'valid') : phase === 'pending' ? 'pending' : 'missing',
+      weeks: [{ week: 'w1', status: phase === 'final' && index >= 58 ? 'failed' : phase === 'final' || (phase === 'partial' && index < 34) ? 'valid' : phase === 'pending' ? 'pending' : 'missing', ...(phase === 'final' && index < 58 || phase === 'partial' && index < 34 ? { lastSuccessfulUpdate: 'new' } : {}), ...(phase === 'final' && index >= 58 ? { failure: 'SYNC_FAILED' } : {}) }],
+    }));
+    let statusPoll = 0;
+    vi.mocked(classApi.getClasses).mockResolvedValue(classes);
+    vi.mocked(timetableApi.getSyncStatus).mockImplementation(async () => {
+      statusPoll += 1;
+      const phase = statusPoll === 1 ? 'initial' : statusPoll === 2 ? 'pending' : statusPoll === 3 ? 'partial' : 'final';
+      return { settings: { ...settings, classLinks: links }, job: null, lastSuccessfulUpdate: null, classStatuses: makeStatuses(phase) };
+    });
+    vi.mocked(timetableApi.syncSavedClassWeeks).mockResolvedValue({ status: 'pending', total: 68, outcomes: links.map((link) => ({ key: `${link.className}|w1`, selection: { ...link, week: 'w1' }, status: 'accepted' as const })) });
+    const { unmount } = render(<TimetableSyncPanel />);
+    try {
+      await screen.findByRole('checkbox', { name: 'Chọn lớp A0' });
+      const pageSize = screen.getAllByRole('combobox').at(-1)!;
+      fireEvent.click(pageSize);
+      fireEvent.click(await screen.findByRole('option', { name: '50', hidden: true }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn tất cả lớp trên trang' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Chọn tất cả lớp trên trang' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Chọn tuần đồng bộ' }));
+      fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
+      await waitFor(() => expect(timetableApi.syncSavedClassWeeks).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ systemClassId: 'c67', week: 'w1' })])));
+      expect(timetableApi.getSavedClassWeekStatus).not.toHaveBeenCalled();
+      expect(timetableApi.getSyncStatus).toHaveBeenCalledTimes(3);
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2100)); });
+      expect(timetableApi.getSyncStatus).toHaveBeenCalledTimes(4);
+      expect(screen.getByText('68/68 cặp đã xử lý')).toBeInTheDocument();
+      expect(screen.getAllByText('58').some((element) => element.tagName === 'STRONG')).toBe(true);
+      expect(screen.getAllByText('10').some((element) => element.tagName === 'STRONG')).toBe(true);
+    } finally {
+      unmount();
+    }
   });
 });
