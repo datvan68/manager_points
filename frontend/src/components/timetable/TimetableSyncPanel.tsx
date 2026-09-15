@@ -24,6 +24,18 @@ const statusLabel = (status: string) =>
     missing: 'Chưa đồng bộ',
   }[status] || status);
 
+const failureMessage = (failure?: string | null) => {
+  if (!failure) return '';
+  if (failure.includes('SOURCE_INVALID_SELECTION')) {
+    return `Lựa chọn lớp nguồn đã lưu không còn hợp lệ. Hãy liên kết lại hoặc kiểm tra lớp nguồn. (SOURCE_INVALID_SELECTION)`;
+  }
+  return failure;
+};
+
+const resultLabel = (result: BulkPairState['result']) =>
+  ({ pending: 'Đang xử lý', success: 'Thành công', failed: 'Thất bại', skipped: 'Bỏ qua' }[result]);
+const hasUnsuccessfulPair = (pairs: BulkPairState[]) => pairs.some((pair) => pair.result === 'failed' || pair.result === 'skipped');
+
 const statusBadgeClass = (status?: string) => {
   switch (status) {
     case 'valid':
@@ -523,6 +535,17 @@ export default function TimetableSyncPanel({
       skipped: pairs.filter((pair) => pair.result === 'skipped').length,
     };
   }, [bulkProgress]);
+  const bulkHasIssues = bulkCounters.failed > 0 || bulkCounters.skipped > 0;
+  const classLabelFor = (systemClassId: string, fallback: string) =>
+    classes.find((item) => item._id === systemClassId)?.class_name || fallback || systemClassId;
+  const weekLabelFor = (link: TimetableClassLink, week: string) =>
+    statuses.find((row) => selectionKey(row.classSelection) === selectionKey(link))?.weeks.find((item) => item.week === week)?.label ||
+    catalog?.weeks.find((item) => item.value === week)?.label ||
+    (/^w\d+$/iu.test(week) ? `Tuần ${week.slice(1)}` : week);
+  const orderedBulkPairs = useMemo(
+    () => [...(bulkProgress?.pairs || [])].sort((a, b) => Number(b.result === 'failed' || b.result === 'skipped') - Number(a.result === 'failed' || a.result === 'skipped')),
+    [bulkProgress?.pairs]
+  );
   const bulkPercentage = bulkProgress?.pairs.length
     ? Math.min(100, Math.max(0, Math.floor((bulkCounters.processed / bulkProgress.pairs.length) * 100)))
     : 0;
@@ -553,7 +576,7 @@ export default function TimetableSyncPanel({
         return {
           ...current,
           pairs: nextPairs,
-          phase: finished ? (nextPairs.some((pair) => pair.result === 'failed') ? 'partial' : 'completed') : current.phase,
+          phase: finished ? (hasUnsuccessfulPair(nextPairs) ? 'partial' : 'completed') : current.phase,
         };
       });
       if (finished) {
@@ -586,7 +609,7 @@ export default function TimetableSyncPanel({
         const outcome = outcomes.find((item) => item.key === pair.key || (item.selection.week === pair.pair.week && selectionKey(item.selection) === selectionKey(pair.pair)));
         return outcome && outcome.status !== 'accepted' ? { ...pair, result: 'skipped' as const, failure: outcome.status === 'cooldown' ? 'Đang trong thời gian chờ.' : 'Yêu cầu đã được gộp vào lần đồng bộ khác.' } : pair;
       });
-      setBulkProgress({ runId, phase: nextPairs.every((pair) => pair.result !== 'pending') ? 'completed' : 'processing', pairs: nextPairs });
+      setBulkProgress({ runId, phase: nextPairs.every((pair) => pair.result !== 'pending') ? (hasUnsuccessfulPair(nextPairs) ? 'partial' : 'completed') : 'processing', pairs: nextPairs });
       await refreshStatuses();
       if (nextPairs.some((pair) => pair.result === 'pending')) void pollBulkStatus(runId, nextPairs);
     } catch (e: unknown) {
@@ -1180,7 +1203,7 @@ export default function TimetableSyncPanel({
               Tiến độ đồng bộ tuần
             </DialogTitle>
             <DialogDescription className="text-[#64748B]">
-              {singleProgress?.link.sourceLabel} · Tuần {singleProgress?.week}
+              Lớp hệ thống: {classLabelFor(singleProgress?.link.systemClassId || '', singleProgress?.link.systemClassId || '')} · Lớp nguồn: {singleProgress?.link.sourceLabel} · {singleProgress ? weekLabelFor(singleProgress.link, singleProgress.week) : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2" aria-live="polite">
@@ -1191,7 +1214,7 @@ export default function TimetableSyncPanel({
             <div role="progressbar" aria-label="Tiến độ đồng bộ tuần" aria-valuemin={0} aria-valuemax={100} aria-valuenow={singlePercentage} aria-valuetext={`${singlePercentage}%`} className="h-2 overflow-hidden rounded-xl bg-blue-500/10">
               <div className="h-full rounded-xl bg-[#1A73E8] transition-[width] duration-150 motion-reduce:transition-none" style={{ width: `${singlePercentage}%` }} />
             </div>
-            {singleProgress?.message && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">{singleProgress.message}</p>}
+            {singleProgress?.message && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">{failureMessage(singleProgress.message)}</p>}
           </div>
           <DialogFooter>
             <button type="button" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" disabled={singleProgress?.phase === 'processing'} onClick={() => { if (singlePollTimer.current) window.clearTimeout(singlePollTimer.current); pollTimers.current.delete(singleProgress?.link.systemClassId || ''); setSingleProgress(null); }}>Đóng</button>
@@ -1217,11 +1240,11 @@ export default function TimetableSyncPanel({
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              {bulkProgress?.phase === 'processing' ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" aria-hidden="true" /> : bulkProgress?.phase === 'completed' ? <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
+              {bulkProgress?.phase === 'processing' ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" aria-hidden="true" /> : bulkProgress?.phase === 'completed' && !bulkHasIssues ? <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" /> : <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden="true" />}
               Tiến độ đồng bộ tuần
             </DialogTitle>
             <DialogDescription className="text-[#64748B]">
-              {bulkProgress?.phase === 'processing' ? 'Đang theo dõi kết quả thực tế từ máy chủ.' : bulkProgress?.phase === 'request-error' ? 'Không gửi được yêu cầu đồng bộ.' : bulkProgress?.phase === 'tracking-error' ? 'Không thể xác nhận tiến độ từ máy chủ.' : bulkProgress?.phase === 'partial' ? 'Hoàn tất một phần.' : 'Đã xử lý xong các cặp lớp-tuần.'}
+              {bulkProgress?.phase === 'processing' ? 'Đang theo dõi kết quả thực tế từ máy chủ.' : bulkProgress?.phase === 'request-error' ? 'Không gửi được yêu cầu đồng bộ.' : bulkProgress?.phase === 'tracking-error' ? 'Không thể xác nhận tiến độ từ máy chủ.' : bulkProgress?.phase === 'partial' ? (bulkCounters.failed ? 'Hoàn tất một phần, có cặp thất bại.' : 'Đã xử lý, nhưng có cặp bị bỏ qua.') : 'Đã xử lý xong các cặp lớp-tuần.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2" aria-live="polite">
@@ -1236,6 +1259,17 @@ export default function TimetableSyncPanel({
               <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Thành công</span><strong>{bulkCounters.success}</strong></div>
               <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Thất bại</span><strong>{bulkCounters.failed}</strong></div>
               <div className="rounded-xl border border-white/75 bg-white/50 px-3 py-2"><span className="block text-[#64748B]">Bỏ qua</span><strong>{bulkCounters.skipped}</strong></div>
+            </div>
+            <div aria-label="Kết quả từng cặp lớp-tuần" className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {orderedBulkPairs.map(({ pair, result, failure, key }) => (
+                <div key={key} className={`rounded-xl border px-3 py-2 text-xs ${result === 'failed' || result === 'skipped' ? 'border-rose-500/25 bg-rose-500/10' : 'border-white/75 bg-white/50'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 font-semibold">{classLabelFor(pair.systemClassId, pair.systemClassId)} · {pair.sourceLabel} · {weekLabelFor(pair, pair.week)}</span>
+                    <span role="status" className="shrink-0 font-semibold">{resultLabel(result)}</span>
+                  </div>
+                  {failure && <p className="mt-1 text-rose-700">{failureMessage(failure)}</p>}
+                </div>
+              ))}
             </div>
             {bulkProgress?.message && <p role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-700">{bulkProgress.message}</p>}
           </div>

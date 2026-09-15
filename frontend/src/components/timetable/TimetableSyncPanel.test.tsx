@@ -131,7 +131,7 @@ describe('TimetableSyncPanel', () => {
     await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
     await selectOption('Tuần cho Lớp A', 'Tuần 1 · Chưa đồng bộ');
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('Lớp A · Tuần w1');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Lớp hệ thống: Lớp A · Lớp nguồn: Lớp A · Tuần 1');
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
@@ -159,13 +159,16 @@ describe('TimetableSyncPanel', () => {
     const initial = { settings: { ...settings, classLinks: [link] }, job: null, lastSuccessfulUpdate: null, classStatuses: [{ classSelection: link, weekCount: 1, targetWeeks: ['w1'], status: 'missing', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'missing' }] }] };
     const failed = { ...initial, classStatuses: [{ ...initial.classStatuses[0], status: 'failed', weeks: [{ week: 'w1', label: 'Tuần 1', status: 'failed', failure: 'SYNC_FAILED' }] }] };
     vi.mocked(timetableApi.getSyncStatus).mockResolvedValueOnce(initial).mockResolvedValueOnce(failed);
-    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { ...link, week: 'w1' }, status: 'failed', snapshotExists: false, lastSuccessfulUpdate: null, isEmpty: false, failure: 'SYNC_FAILED' });
+    vi.mocked(timetableApi.getSavedClassWeekStatus).mockResolvedValue({ key: 'k', selection: { ...link, week: 'w1' }, status: 'failed', snapshotExists: false, lastSuccessfulUpdate: null, isEmpty: false, failure: 'SOURCE_INVALID_SELECTION' });
     const onSynced = vi.fn();
     render(<TimetableSyncPanel onSynced={onSynced} />);
     await screen.findByRole('combobox', { name: 'Tuần cho Lớp A' });
     await selectOption('Tuần cho Lớp A', 'Tuần 1 · Chưa đồng bộ');
     fireEvent.click(screen.getByRole('button', { name: 'Đồng bộ tuần' }));
     await waitFor(() => expect(screen.getByText('Đồng bộ thất bại')).toBeInTheDocument());
+    expect(screen.getByText(/Lớp hệ thống: Lớp A · Lớp nguồn: Lớp A · Tuần 1/u)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Lựa chọn lớp nguồn đã lưu không còn hợp lệ');
+    expect(screen.getByRole('alert')).toHaveTextContent('SOURCE_INVALID_SELECTION');
     expect(within(screen.getByRole('row', { name: /Lớp A/u, hidden: true })).getByText('Lỗi')).toBeInTheDocument();
     expect(onSynced).not.toHaveBeenCalled();
   });
@@ -301,7 +304,8 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(within(screen.getByRole('group', { name: 'Các tuần có thể đồng bộ' })).getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đồng bộ' }));
     await waitFor(() => expect(screen.getByText('1/1 cặp đã xử lý')).toBeInTheDocument());
-    expect(screen.getByText('Bỏ qua')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').some((element) => element.textContent === 'Bỏ qua')).toBe(true);
+    expect(screen.getByText('Đã xử lý, nhưng có cặp bị bỏ qua.')).toBeInTheDocument();
     expect(timetableApi.getSavedClassWeekStatus).not.toHaveBeenCalled();
   });
 
@@ -365,6 +369,9 @@ describe('TimetableSyncPanel', () => {
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2100)); });
       expect(timetableApi.getSavedClassWeeksStatus).toHaveBeenCalledTimes(2);
       expect(screen.getByText('68/68 cặp đã xử lý')).toBeInTheDocument();
+      expect(screen.getByLabelText('Kết quả từng cặp lớp-tuần')).toHaveClass('max-h-64', 'overflow-y-auto');
+      expect(screen.getByLabelText('Kết quả từng cặp lớp-tuần')).toHaveTextContent('A50');
+      expect(within(screen.getByLabelText('Kết quả từng cặp lớp-tuần')).getAllByRole('status')).toHaveLength(68);
       expect(within(screen.getByRole('row', { name: /A50/u, hidden: true })).getByText('Đã đồng bộ')).toBeInTheDocument();
       expect(within(screen.getByRole('row', { name: /A67/u, hidden: true })).getByText('Lỗi')).toBeInTheDocument();
       expect(screen.getAllByText('58').some((element) => element.tagName === 'STRONG')).toBe(true);
