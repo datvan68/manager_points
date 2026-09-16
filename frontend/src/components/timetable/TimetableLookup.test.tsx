@@ -71,7 +71,7 @@ describe('TimetableLookup', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     fireEvent.click(screen.getByRole('button', { name: 'Mở bộ lọc tra cứu thời khóa biểu' }));
     const mobileDialog = screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' });
-    fireEvent.click(within(mobileDialog).getAllByRole('combobox')[2]);
+    fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Tuần' }));
     expect(await visibleWeekLabels()).toEqual(['Tất cả', 'Tuần 1', 'Tuần 2', 'Tuần 3', '4', 'Tuần 5', 'Tuần 10', 'Ngày 2026-09-15']);
     expect(unorderedOptions.weeks).toEqual(unorderedWeeks);
   });
@@ -138,8 +138,41 @@ describe('TimetableLookup', () => {
     await choose('Lớp', 'a');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
     expect(screen.getByText('Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.')).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(timetableApi.getTimetable).not.toHaveBeenCalled();
+  });
+
+  it('handles mobile choice popover selection, search filter, and confirmation', async () => {
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mở bộ lọc tra cứu thời khóa biểu' }));
+    const mobileDialog = screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' });
+
+    // Open week choice popover
+    fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Tuần' }));
+    const popover = document.querySelector('[data-mobile-choice-popover="true"]');
+    expect(popover).toBeInTheDocument();
+
+    // Verify search input, options list, and buttons exist
+    const popoverEl = popover as HTMLElement;
+    const searchInput = within(popoverEl).getByPlaceholderText('Tìm tuần học...');
+    expect(searchInput).toBeInTheDocument();
+    expect(within(popoverEl).getByRole('button', { name: 'Hủy' })).toBeInTheDocument();
+    expect(within(popoverEl).getByRole('button', { name: 'Xác nhận' })).toBeInTheDocument();
+
+    // Filter weeks
+    fireEvent.change(searchInput, { target: { value: 'Tuần 3' } });
+    const listbox = within(popoverEl).getByRole('listbox', { name: 'Options' });
+    const optionsFound = within(listbox).getAllByRole('option');
+    expect(optionsFound).toHaveLength(1);
+    expect(optionsFound[0]).toHaveTextContent('Tuần 3');
+
+    // Select Tuần 3 and click Xác nhận
+    fireEvent.click(optionsFound[0]);
+    fireEvent.click(within(popoverEl).getByRole('button', { name: 'Xác nhận' }));
+
+    // Popover should close
+    expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument();
   });
 });

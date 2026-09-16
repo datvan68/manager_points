@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { timetableApi, type TimetableFilters, type TimetableResult } from '@/api/timetable-api';
 import TimetableGrid from './TimetableGrid';
 import TimetableMobileView from './TimetableMobileView';
@@ -31,60 +32,153 @@ function MobileChoicePopover({
   const selectedLabel = options.find((item) => item.value === value)?.label || placeholder;
   const filteredOptions = options.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [open]);
+
+  const handleOpen = () => {
+    setDraftValue(value);
+    setQuery('');
+    setOpen(true);
+  };
+
+  const modalContent = open ? (
+    <div
+      data-mobile-choice-popover="true"
+      className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in-0 duration-150"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+    >
+      <div
+        className="flex max-h-[85dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border border-white/80 bg-[#F5F7FA] p-4 shadow-2xl backdrop-blur-md animate-in zoom-in-95 duration-150"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {/* Header with Title & Close button */}
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+          <h3 className="text-sm font-bold text-[#1E293B]">
+            {label === 'Tuần học' ? 'Chọn tuần học' : label === 'Lớp học' ? 'Chọn lớp học' : `Chọn ${label.toLowerCase()}`}
+          </h3>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Đóng"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-2xs transition hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="shrink-0 pt-3 pb-2">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={label === 'Lớp học' ? 'Tìm mã lớp học...' : 'Tìm tuần học...'}
+              aria-label={`Tìm ${label.toLowerCase()}`}
+              className="h-10 w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-8 text-xs text-[#1E293B] shadow-2xs outline-none placeholder:text-slate-400 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Xóa tìm kiếm"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Options Listbox */}
+        <div
+          role="listbox"
+          aria-label="Options"
+          className="flex-1 min-h-0 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-slate-200/80 bg-white p-1.5 [scrollbar-width:thin] [scrollbar-color:#CBD5E1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent"
+        >
+          {filteredOptions.length ? (
+            filteredOptions.map((item) => {
+              const isSelected = draftValue === item.value;
+              return (
+                <button
+                  key={item.value || `${label}-empty`}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => setDraftValue(item.value)}
+                  className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition ${
+                    isSelected
+                      ? 'bg-blue-50/90 font-semibold text-[#1A73E8]'
+                      : 'text-[#1E293B] hover:bg-slate-50 active:bg-blue-50/50'
+                  }`}
+                >
+                  <span className="truncate">{item.label}</span>
+                  {isSelected && (
+                    <span aria-hidden="true" className="shrink-0 text-[#1A73E8] pl-2">
+                      <Check size={15} />
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            <p className="px-4 py-8 text-center text-xs text-slate-400">Không tìm thấy lựa chọn</p>
+          )}
+        </div>
+
+        {/* Action Buttons: Hủy & Xác nhận */}
+        <div className="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200/80 pt-3 mt-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 active:bg-slate-100"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onValueChange(draftValue);
+              setOpen(false);
+            }}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:bg-blue-600 active:bg-blue-700"
+          >
+            <Check size={14} />
+            <span>Xác nhận</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="relative">
       <button
-          type="button"
-          disabled={disabled}
-          role="combobox"
-          aria-label={label === 'Tuần học' ? 'Tuần' : label === 'Lớp học' ? 'Lớp' : label}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          onClick={() => { setDraftValue(value); setQuery(''); setOpen(true); }}
-          className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <span className={value ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
-          <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
-      </button>
-      {open && <div
-        data-mobile-choice-popover="true"
-        className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/20 p-2 backdrop-blur-[2px]"
-        onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+        type="button"
+        disabled={disabled}
+        role="combobox"
+        aria-label={label === 'Tuần học' ? 'Tuần' : label === 'Lớp học' ? 'Lớp' : label}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={handleOpen}
+        className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <div className="w-full max-w-[580px] rounded-2xl border border-white/80 bg-[#F5F7FA]/95 p-4 shadow-2xl backdrop-blur-md" onPointerDown={(event) => event.stopPropagation()}>
-        <div className="space-y-3">
-          <input
-            autoFocus
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={label === 'Lớp học' ? 'Tìm mã lớp học...' : 'Tìm tuần học...'}
-            aria-label={`Tìm ${label.toLowerCase()}`}
-            className="h-14 w-full rounded-2xl border-0 bg-white px-4 text-base text-[#1E293B] shadow-sm outline-none placeholder:text-[#94A3B8] focus:ring-2 focus:ring-[#1A73E8]/30"
-          />
-          <div role="listbox" aria-label="Options" className="max-h-[min(52vh,420px)] overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-1 overscroll-contain">
-            {filteredOptions.length ? filteredOptions.map((item) => (
-              <button
-                key={item.value || `${label}-empty`}
-                type="button"
-                role="option"
-                aria-selected={draftValue === item.value}
-                onClick={() => setDraftValue(item.value)}
-                className={`flex min-h-14 w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm text-[#12355B] transition hover:bg-blue-50 ${draftValue === item.value ? 'bg-blue-50 font-semibold' : ''}`}
-              >
-                <span>{item.label}</span>
-                {draftValue === item.value && <span aria-hidden="true" className="text-[#1A73E8]"><Check size={16} /></span>}
-              </button>
-            )) : (
-              <p className="px-4 py-8 text-center text-sm text-slate-400">Không tìm thấy lựa chọn</p>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 border-t border-slate-200/80 pt-3">
-            <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-500 shadow-sm">Hủy</button>
-            <button type="button" onClick={() => { onValueChange(draftValue); setOpen(false); }} className="h-11 rounded-xl bg-[#0969D8] px-6 text-sm font-bold text-white shadow-md shadow-blue-500/25">✓&nbsp; Xác nhận</button>
-          </div>
-        </div>
-        </div>
-      </div>}
+        <span className={value ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
+        <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
+      </button>
+      {typeof document !== 'undefined' && modalContent ? createPortal(modalContent, document.body) : modalContent}
     </div>
   );
 }
@@ -401,7 +495,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               <DialogTitle className="sr-only">Bộ lọc tra cứu thời khóa biểu</DialogTitle>
               <h2 className="text-sm font-bold text-[#1E293B]">Tra cứu thời khóa biểu</h2>
             </div>
-            <p className="text-[11px] text-[#64748B]">Chọn thông tin để tải lịch học</p>
+            <p className="text-[11px] text-[#64748B]">Chọn tuần và lớp học để tra cứu</p>
             <DialogClose asChild>
               <button type="button" aria-label="Đóng bộ lọc" className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white/60 text-slate-500 hover:bg-white/80">
                 <X size={18} />
@@ -411,8 +505,8 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
           {/* Form Fields inside Fullscreen Popover */}
           <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain py-4 text-xs">
-            {/* Niên học & Học kỳ */}
-            <div className="space-y-3.5">
+            {/* Niên học & Học kỳ (ẩn trên mobile theo yêu cầu) */}
+            <div className="hidden">
               <div className="space-y-1">
                 <span className="font-semibold text-[#1E293B]">Niên học</span>
                 <Select
@@ -466,6 +560,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
             {/* Tuần học */}
             <div className="space-y-1">
+              <span className="font-semibold text-[#1E293B]">Tuần học</span>
               <MobileChoicePopover
                 label="Tuần học"
                 placeholder="Chọn tuần"
@@ -531,6 +626,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
             {/* Lớp học */}
             <div className="space-y-1">
+              <span className="font-semibold text-[#1E293B]">Lớp học</span>
               <MobileChoicePopover
                 label="Lớp học"
                 placeholder="Chọn lớp"
