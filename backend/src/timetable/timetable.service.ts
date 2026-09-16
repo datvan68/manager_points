@@ -21,7 +21,7 @@ export class TimetableService {
   async getOptions(_requester: any, filters: Partial<QueryTimetableDto> = {}): Promise<TimetableOptions> {
     const [state, snapshots] = await Promise.all([
       this.states.findOne({ name: 'default' }).lean().exec(),
-      this.snapshots.find({}, 'year semester week faculty course className syncedAt').lean().exec(),
+      this.snapshots.find({}, 'year semester week faculty course className syncedAt result').lean().exec(),
     ]);
     const catalog = state?.catalog as any;
     if (!snapshots.length) throw new NotFoundException({ reasonCode: 'TIMETABLE_NOT_SYNCED', message: 'Chưa có dữ liệu thời khóa biểu được đồng bộ.' });
@@ -34,6 +34,31 @@ export class TimetableService {
       const catalogValues = (catalog?.[optionFields[index]] || []) as Array<{ value: string; label: string; parent?: Partial<TimetableFilters> }>;
       options[optionFields[index]] = [...values].map((value) => ({ value, label: value ? catalogValues.find((item) => item.value === value)?.label || value : allLabels[field] || 'Tất cả' }));
     });
+    const weekDates = new Map<string, { startDate?: string; endDate?: string }>();
+    for (const week of options.weeks) {
+      const contextRows = uniqueCoverage.filter((item) => item.year === (filters.year || item.year)
+        && item.semester === (filters.semester || item.semester) && item.week === week.value);
+      const catalogRanges = ((catalog?.weeks || []) as any[])
+        .filter((item) => item.value === week.value && (!filters.year || item.parent?.year === filters.year)
+          && (!filters.semester || item.parent?.semester === filters.semester)
+          && (!item.parent || Object.entries(item.parent).every(([field, value]) => (filters as any)[field] === value || !(filters as any)[field])))
+        .map((item) => [item.startDate, item.endDate] as const)
+        .filter(([startDate, endDate]) => startDate && endDate);
+      const snapshotRanges = (snapshots as any[])
+        .filter((item) => contextRows.some((row) => timetableKey(row) === timetableKey(item)))
+        .map((item) => [item.result?.startDate, item.result?.endDate] as const)
+        .filter(([startDate, endDate]) => startDate && endDate);
+      const rollingRanges = ((state?.settings as any)?.rolling?.weekDates || [])
+        .filter((item: any) => item.year === (filters.year || contextRows[0]?.year)
+          && item.semester === (filters.semester || contextRows[0]?.semester) && item.week === week.value)
+        .map((item: any) => [item.startDate, item.endDate] as const);
+      const ranges: Array<readonly [string, string]> = catalogRanges.length ? catalogRanges as Array<readonly [string, string]>
+        : snapshotRanges.length ? snapshotRanges as Array<readonly [string, string]>
+          : rollingRanges as Array<readonly [string, string]>;
+      const distinct = [...new Map(ranges.map(([startDate, endDate]) => [`${startDate}|${endDate}`, { startDate, endDate }])).values()];
+      if (distinct.length === 1) weekDates.set(week.value, distinct[0]);
+    }
+    options.weeks = options.weeks.map((week) => ({ ...week, ...(weekDates.get(week.value) || {}) }));
     return { ...options, availableCoverage: uniqueCoverage };
   }
 

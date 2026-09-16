@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { timetableApi, type TimetableFilters, type TimetableResult } from '@/api/timetable-api';
 import TimetableGrid from './TimetableGrid';
 import TimetableMobileView from './TimetableMobileView';
@@ -57,7 +56,7 @@ function MobileChoicePopover({
   const closePopover = () => {
     setOpen(false);
     onOpenChange?.(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+    setTimeout(() => triggerRef.current?.focus(), 0);
   };
 
   const modalContent = open ? (
@@ -189,7 +188,7 @@ function MobileChoicePopover({
         <span className={value ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
         <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
       </button>
-      {typeof document !== 'undefined' && modalContent ? createPortal(modalContent, document.body) : modalContent}
+      {modalContent}
     </div>
   );
 }
@@ -212,6 +211,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileChoiceOpen, setMobileChoiceOpen] = useState(false);
+  const [classChoiceId, setClassChoiceId] = useState('');
   const mobileOpenerRef = useRef<HTMLButtonElement | null>(null);
   const requestId = useRef(0);
 
@@ -323,6 +323,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   }, [refreshKey]);
 
   const setFilter = (key: keyof TimetableFilters, value: string) => {
+    if (key === 'year' || key === 'semester' || key === 'week') setClassChoiceId('');
     if (key === 'year') {
       try {
         if (typeof window !== 'undefined') localStorage.setItem('timetable_default_year', value);
@@ -340,6 +341,35 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
     setError('');
     if (key === 'className') setState('ready');
     else void loadOptions(next);
+  };
+
+  const classChoices = useMemo(() => {
+    if (!filters.year || !filters.semester || !filters.week) return [];
+    const rows = (options.availableCoverage || []).filter((item) => item.year === filters.year
+      && item.semester === filters.semester && item.week === filters.week && item.className);
+    return [...new Map(rows.map((item) => {
+      const id = selectionKey(item);
+      const classLabel = options.classes.find((choice) => choice.value === item.className)?.label || item.className;
+      const context = [item.faculty, item.course].filter(Boolean).join(' · ');
+      return [id, { value: id, label: context ? `${classLabel} · ${context}` : classLabel, selection: item }];
+    })).values()];
+  }, [filters.year, filters.semester, filters.week, options.availableCoverage, options.classes]);
+
+  const classChoiceOptions = classChoices.map(({ value, label }) => ({ value, label }));
+  const selectClassChoice = (id: string) => {
+    const choice = classChoices.find((item) => item.value === id);
+    if (!choice) {
+      setClassChoiceId('');
+      setFilter('className', '');
+      return;
+    }
+    setClassChoiceId(id);
+    const next = { ...filters, faculty: choice.selection.faculty || '', course: choice.selection.course || '', className: choice.selection.className || '' };
+    requestId.current += 1;
+    setFilters(next);
+    setResult(null);
+    setError('');
+    setState('ready');
   };
 
   const searchFor = async (next: TimetableFilters, id: number) => {
@@ -369,12 +399,13 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   };
 
   const busy = state === 'loading' || state === 'options-loading';
+  const selectedChoice = classChoices.find((item) => item.value === classChoiceId);
   const canSearch = Boolean(
     filters.year &&
     filters.semester &&
     filters.week &&
     filters.className &&
-    options.availableCoverage?.some((item) => selectionKey(item) === selectionKey(filters))
+    selectedChoice && options.availableCoverage?.some((item) => selectionKey(item) === selectionKey(filters))
   );
 
   const yearLabel = options.years.find((y) => y.value === filters.year)?.label || filters.year;
@@ -391,6 +422,14 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
       return a.index - b.index;
     })
     .map(({ item }) => item), [options.weeks]);
+
+  const weekLabel = (item: (typeof options.weeks)[number]) => {
+    const base = item.label.replace(/\s*(?:\(|·)?\s*\d{1,2}\/\d{1,2}\/\d{4}\s*(?:-|–|đến)\s*\d{1,2}\/\d{1,2}\/\d{4}\s*\)?\s*$/, '').trim();
+    const dates = item.startDate && item.endDate
+      ? `${item.startDate.slice(8, 10)}/${item.startDate.slice(5, 7)}/${item.startDate.slice(0, 4)}–${item.endDate.slice(8, 10)}/${item.endDate.slice(5, 7)}/${item.endDate.slice(0, 4)}`
+      : 'Chưa có khoảng thời gian';
+    return `${base || item.label} · ${dates}`;
+  };
 
   const currentWeekIndex = sortedWeeks.findIndex((w) => w.value === filters.week);
   const canPrevWeek = currentWeekIndex > 0;
@@ -436,11 +475,11 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-xs font-bold text-[#1E293B]">
-                {options.classes.find((c) => c.value === filters.className)?.label || filters.className || 'Chọn lớp học'}
+                {classChoices.find((c) => c.value === classChoiceId)?.label || 'Chọn lớp học'}
               </span>
               {filters.week && (
                 <span className="shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-[#1A73E8] border border-blue-200/60">
-                  {options.weeks.find((w) => w.value === filters.week)?.label || `Tuần ${filters.week}`}
+                  {filters.week ? weekLabel(options.weeks.find((w) => w.value === filters.week) || { label: `Tuần ${filters.week}`, value: filters.week }) : ''}
                 </span>
               )}
             </div>
@@ -585,7 +624,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
                 label="Tuần học"
                 placeholder="Chọn tuần"
                 value={filters.week || ''}
-                options={sortedWeeks.some((item) => item.value === '') ? sortedWeeks : [{ label: 'Chọn tuần', value: '' }, ...sortedWeeks]}
+                options={(sortedWeeks.some((item) => item.value === '') ? sortedWeeks : [{ label: 'Chọn tuần', value: '' }, ...sortedWeeks]).map((item) => ({ ...item, label: item.value ? weekLabel(item) : item.label }))}
                 disabled={busy || !filters.year || !filters.semester}
                 onValueChange={(value) => setFilter('week', value)}
                 onOpenChange={setMobileChoiceOpen}
@@ -651,10 +690,10 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               <MobileChoicePopover
                 label="Lớp học"
                 placeholder="Chọn lớp"
-                value={filters.className || ''}
-                options={options.classes.some((item) => item.value === '') ? options.classes : [{ label: 'Chọn lớp', value: '' }, ...options.classes]}
+                value={classChoiceId}
+                options={classChoiceOptions.length ? [{ label: 'Chọn lớp', value: '' }, ...classChoiceOptions] : [{ label: 'Chọn lớp', value: '' }]}
                 disabled={busy || !filters.week}
-                onValueChange={(value) => setFilter('className', value)}
+                onValueChange={selectClassChoice}
                 onOpenChange={setMobileChoiceOpen}
               />
             </div>
@@ -697,8 +736,8 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
                 <SelectItem value="">Chọn tuần</SelectItem>
               )}
               {sortedWeeks.map((item) => (
-                <SelectItem key={item.value || 'week-all'} value={item.value}>
-                  {item.label}
+                  <SelectItem key={item.value || 'week-all'} value={item.value}>
+                    {item.value ? weekLabel(item) : item.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -706,7 +745,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         </div>
 
         {/* Khoa */}
-        <div className="min-w-0 sm:w-[180px]">
+        <div className="hidden min-w-0 sm:w-[180px]">
           <Select
             value={filters.faculty || ''}
             onValueChange={(value: string) => setFilter('faculty', value)}
@@ -732,7 +771,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         </div>
 
         {/* Khóa */}
-        <div className="min-w-0 sm:w-[130px]">
+        <div className="hidden min-w-0 sm:w-[130px]">
           <Select
             value={filters.course || ''}
             onValueChange={(value: string) => setFilter('course', value)}
@@ -760,8 +799,8 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         {/* Lớp */}
         <div className="min-w-0 flex-1 sm:min-w-[180px] sm:max-w-xs">
           <Select
-            value={filters.className || ''}
-            onValueChange={(value: string) => setFilter('className', value)}
+            value={classChoiceId}
+              onValueChange={selectClassChoice}
           >
             <SelectTrigger
               aria-label="Lớp"
@@ -771,10 +810,8 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               <SelectValue placeholder="Chọn lớp" />
             </SelectTrigger>
             <SelectContent className="z-[60]">
-              {!options.classes.some((item) => item.value === '') && (
-                <SelectItem value="">Chọn lớp</SelectItem>
-              )}
-              {options.classes.map((item) => (
+              <SelectItem value="">Chọn lớp</SelectItem>
+              {classChoiceOptions.map((item) => (
                 <SelectItem key={item.value || 'class-all'} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -961,7 +998,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               </div>
 
               <span className="font-semibold text-[#1E293B]">
-                Kết quả: {[yearLabel, semesterLabel, sortedWeeks.find((w) => w.value === result.filters.week)?.label || result.filters.week, options.classes.find((c) => c.value === result.filters.className)?.label || result.filters.className].filter(Boolean).join(' · ')}
+                Kết quả: {[yearLabel, semesterLabel, (() => { const item = sortedWeeks.find((w) => w.value === result.filters.week); return item ? weekLabel(item) : result.filters.week; })(), selectedChoice?.label || result.filters.className].filter(Boolean).join(' · ')}
               </span>
             </div>
 

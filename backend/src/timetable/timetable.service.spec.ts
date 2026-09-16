@@ -55,6 +55,25 @@ describe('TimetableService', () => {
     expect(snapshots.findOne).toHaveBeenCalledTimes(1);
   });
 
+  it('enriches scoped weeks from catalog dates and omits conflicting snapshot ranges', async () => {
+    const catalogWithDates = {
+      ...catalog,
+      weeks: [{ value: 'w2', label: 'Tuần 2 (14/09/2026 - 20/09/2026)', startDate: '2026-09-14', endDate: '2026-09-20', parent: { year: 'y', semester: 's' } }],
+    };
+    const { service } = setup([
+      { ...coverage[1], result: { startDate: '2026-09-14', endDate: '2026-09-20' } },
+      { ...coverage[1], faculty: 'other', course: 'other', result: { startDate: '2026-09-21', endDate: '2026-09-27' } },
+    ] as any, catalogWithDates);
+    const options = await service.getOptions({}, { year: 'y', semester: 's' });
+    expect(options.weeks.find((item) => item.value === 'w2')).toMatchObject({ startDate: '2026-09-14', endDate: '2026-09-20' });
+
+    const conflicting = setup([
+      { ...coverage[1], result: { startDate: '2026-09-14', endDate: '2026-09-20' } },
+      { ...coverage[1], faculty: 'other', course: 'other', result: { startDate: '2026-09-21', endDate: '2026-09-27' } },
+    ] as any, { ...catalog, weeks: [] });
+    expect((await conflicting.service.getOptions({}, { year: 'y', semester: 's' })).weeks.find((item) => item.value === 'w2')).not.toHaveProperty('startDate');
+  });
+
   it('returns a saved snapshot without refreshing it in the background', async () => {
     const { service, snapshots } = setup();
     snapshots.findOne.mockReturnValueOnce(chain({ result: { isEmpty: false, lessons: [] }, syncedAt: '2026-01-01T00:00:00.000Z', coverageKey: 'key' }));

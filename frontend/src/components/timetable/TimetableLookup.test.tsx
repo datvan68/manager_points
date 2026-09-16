@@ -67,12 +67,12 @@ describe('TimetableLookup', () => {
     render(<TimetableLookup />);
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 
-    expect(await weekLabels('Tuần')).toEqual(['Tất cả', 'Tuần 1', 'Tuần 2', 'Tuần 3', '4', 'Tuần 5', 'Tuần 10', 'Ngày 2026-09-15']);
+    expect(await weekLabels('Tuần')).toEqual(['Tất cả', 'Tuần 1 · Chưa có khoảng thời gian', 'Tuần 2 · Chưa có khoảng thời gian', 'Tuần 3 · Chưa có khoảng thời gian', '4 · Chưa có khoảng thời gian', 'Tuần 5 · Chưa có khoảng thời gian', 'Tuần 10 · Chưa có khoảng thời gian', 'Ngày 2026-09-15 · Chưa có khoảng thời gian']);
     fireEvent.keyDown(document, { key: 'Escape' });
     fireEvent.click(screen.getByRole('button', { name: 'Mở bộ lọc tra cứu thời khóa biểu' }));
     const mobileDialog = screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' });
     fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Tuần' }));
-    expect(await visibleWeekLabels()).toEqual(['Tất cả', 'Tuần 1', 'Tuần 2', 'Tuần 3', '4', 'Tuần 5', 'Tuần 10', 'Ngày 2026-09-15']);
+    expect(await visibleWeekLabels()).toEqual(['Tất cả', 'Tuần 1 · Chưa có khoảng thời gian', 'Tuần 2 · Chưa có khoảng thời gian', 'Tuần 3 · Chưa có khoảng thời gian', '4 · Chưa có khoảng thời gian', 'Tuần 5 · Chưa có khoảng thời gian', 'Tuần 10 · Chưa có khoảng thời gian', 'Ngày 2026-09-15 · Chưa có khoảng thời gian']);
     expect(unorderedOptions.weeks).toEqual(unorderedWeeks);
   });
 
@@ -98,6 +98,33 @@ describe('TimetableLookup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Nguồn phản hồi quá lâu.');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
+  });
+
+  it('derives cross-faculty classes from the selected week and preserves the chosen source context', async () => {
+    const multiContext = {
+      ...options,
+      weeks: [{ label: 'Tuần 3', value: 'w', startDate: '2026-09-14', endDate: '2026-09-20' }],
+      availableCoverage: [
+        { year: 'y', semester: 's', week: 'w', faculty: 'f1', course: 'c1', className: 'a' },
+        { year: 'y', semester: 's', week: 'w', faculty: 'f2', course: 'c2', className: 'a' },
+      ],
+      faculties: [{ value: 'f1', label: 'Khoa 1' }, { value: 'f2', label: 'Khoa 2' }],
+      courses: [{ value: 'c1', label: 'Khóa 1' }, { value: 'c2', label: 'Khóa 2' }],
+    };
+    vi.mocked(timetableApi.getOptions).mockResolvedValue(multiContext);
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+    await choose('Tuần', 'w');
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lớp' }));
+    await waitFor(() => expect(screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+      .some((element) => element.className.includes('opacity-100'))).toBe(true));
+    const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
+      .find((element) => element.className.includes('opacity-100')) as HTMLElement;
+    expect(within(listbox).getAllByRole('option')).toHaveLength(3);
+    expect(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' })).toBeInTheDocument();
+    fireEvent.click(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
+    await waitFor(() => expect(timetableApi.getTimetable).toHaveBeenCalledWith({ year: 'y', semester: 's', week: 'w', faculty: 'f2', course: 'c2', className: 'a' }));
   });
 
   it('allows changing year and semester via config popover and resets dependent selections', async () => {
@@ -137,7 +164,6 @@ describe('TimetableLookup', () => {
     await choose('Tuần', 'w');
     await choose('Lớp', 'a');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
-    expect(screen.getByText('Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(timetableApi.getTimetable).not.toHaveBeenCalled();
   });
@@ -181,6 +207,7 @@ describe('TimetableLookup', () => {
       ...options,
       weeks: [...options.weeks, { label: 'Tuần 4', value: 'w4' }],
       classes: [...options.classes, { label: 'Lớp B', value: 'b' }],
+      availableCoverage: [...(options.availableCoverage || []), { ...coverage, className: 'b' }],
     });
     render(<TimetableLookup />);
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
@@ -190,11 +217,11 @@ describe('TimetableLookup', () => {
 
     fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Tuần' }));
     const initialWeekPopover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
-    fireEvent.click(within(initialWeekPopover).getByRole('option', { name: 'Tuần 3' }));
+    fireEvent.click(within(initialWeekPopover).getByRole('option', { name: /^Tuần 3/ }));
     fireEvent.click(within(initialWeekPopover).getByRole('button', { name: 'Xác nhận' }));
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 
-    const cancelChoice = async (label: string, optionLabel: string, selectedLabel: string) => {
+    const cancelChoice = async (label: string, optionLabel: string | RegExp, selectedLabel: string) => {
       const trigger = within(mobileDialog).getByRole('combobox', { name: label });
       fireEvent.click(trigger);
       const popover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
@@ -207,7 +234,7 @@ describe('TimetableLookup', () => {
       expect(document.activeElement).toBe(trigger);
     };
 
-    await cancelChoice('Tuần', 'Tuần 4', 'Tuần 3');
+    await cancelChoice('Tuần', /^Tuần 4/, 'Tuần 3');
     await cancelChoice('Lớp', 'Lớp B', 'Chọn lớp');
 
     fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Lớp' }));
