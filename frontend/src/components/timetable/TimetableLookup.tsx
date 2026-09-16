@@ -415,15 +415,20 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
     })
     .map(({ item }) => item), [options.weeks]);
 
-  const weekLabel = (item: (typeof options.weeks)[number]) => {
-    const base = item.label.replace(/\s*(?:\(|·)?\s*\d{1,2}\/\d{1,2}\/\d{4}\s*(?:-|–|đến)\s*\d{1,2}\/\d{1,2}\/\d{4}\s*\)?\s*$/, '').trim();
-    const dates = item.startDate && item.endDate
+  const weekBaseLabel = (item: (typeof options.weeks)[number]) =>
+    item.label.replace(/\s*(?:\(|·)?\s*\d{1,2}\/\d{1,2}\/\d{4}\s*(?:-|–|đến)\s*\d{1,2}\/\d{1,2}\/\d{4}\s*\)?\s*$/, '').trim() || item.label;
+
+  const weekDateLabel = (item: (typeof options.weeks)[number]) =>
+    item.startDate && item.endDate
       ? `${item.startDate.slice(8, 10)}/${item.startDate.slice(5, 7)}/${item.startDate.slice(0, 4)}–${item.endDate.slice(8, 10)}/${item.endDate.slice(5, 7)}/${item.endDate.slice(0, 4)}`
       : 'Chưa có khoảng thời gian';
-    return `${base || item.label} · ${dates}`;
-  };
+
+  const weekLabel = (item: (typeof options.weeks)[number]) => `${weekBaseLabel(item)} · ${weekDateLabel(item)}`;
 
   const currentWeekIndex = sortedWeeks.findIndex((w) => w.value === filters.week);
+  const currentWeek = currentWeekIndex >= 0 ? sortedWeeks[currentWeekIndex] : undefined;
+  const currentWeekNumber = currentWeek ? weekNumber(currentWeek) : null;
+  const resultWeek = result ? sortedWeeks.find((item) => item.value === result.filters.week) : undefined;
   const canPrevWeek = currentWeekIndex > 0;
   const canNextWeek = currentWeekIndex >= 0 && currentWeekIndex < sortedWeeks.length - 1;
 
@@ -453,66 +458,47 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
     >
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-label="Tra cứu thời khóa biểu">
       {/* Mobile Compact Filter Trigger Bar (Chỉ hiển thị trên Mobile) */}
-      <div className="flex sm:hidden items-center justify-between gap-2 rounded-2xl border border-white/80 bg-white/70 p-2.5 shadow-sm backdrop-blur-md">
+      <div className="flex items-center gap-2 rounded-2xl border border-white/80 bg-white/70 p-2 shadow-sm backdrop-blur-md sm:hidden">
         <DialogTrigger asChild>
         <button
           type="button"
           onClick={rememberMobileOpener}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
+          className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-xl px-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40"
           aria-label="Mở bộ lọc tra cứu thời khóa biểu"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-[#1A73E8]">
-            <Search size={16} />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-[#1A73E8]">
+            <Filter size={17} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-xs font-bold text-[#1E293B]">
-                {classChoices.find((c) => c.value === classChoiceId)?.label || 'Chọn lớp học'}
-              </span>
-              {filters.week && (
-                <span className="shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-[#1A73E8] border border-blue-200/60">
-                  {filters.week ? weekLabel(options.weeks.find((w) => w.value === filters.week) || { label: `Tuần ${filters.week}`, value: filters.week }) : ''}
-                </span>
+            <p className="truncate text-sm font-bold text-[#1E293B]">
+              {classChoices.find((c) => c.value === classChoiceId)?.label || 'Chọn lớp học'}
+            </p>
+            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-[#64748B]">
+              {currentWeek ? (
+                <>
+                  <span>Tuần</span>
+                  <span className="inline-flex min-h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-amber-100 px-1 font-semibold text-amber-900">
+                    {currentWeekNumber ?? weekBaseLabel(currentWeek)}
+                  </span>
+                </>
+              ) : (
+                <span>Chọn tuần học</span>
               )}
             </div>
-            <p className="truncate text-[11px] text-[#64748B]">
-              {[yearLabel, semesterLabel, options.faculties.find((f) => f.value === filters.faculty)?.label, options.courses.find((c) => c.value === filters.course)?.label].filter(Boolean).join(' · ') || 'Chạm để đổi lớp, tuần & học kỳ'}
-            </p>
           </div>
         </button>
         </DialogTrigger>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <DialogTrigger asChild>
-          <button
-            type="button"
-            onClick={rememberMobileOpener}
-            className="inline-flex h-9 items-center gap-1 rounded-xl border border-white/80 bg-white/80 px-2.5 text-xs font-semibold text-[#1A73E8] shadow-2xs hover:bg-white"
-          >
-            <SlidersHorizontal size={13} />
-            <span>Lọc</span>
-          </button>
-          </DialogTrigger>
-          <button
-            type="button"
-            onClick={() => void search()}
-            disabled={!canSearch || busy}
-            aria-label="Tìm kiếm ngay"
-            title="Tìm kiếm ngay"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#1A73E8] text-white shadow-2xs hover:bg-blue-600 disabled:opacity-40"
-          >
-            <Search size={15} />
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={handleRefresh}
-            aria-label="Tải lại lịch học"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/80 bg-white/80 text-[#64748B] shadow-2xs hover:bg-white hover:text-[#1E293B] disabled:opacity-50"
-          >
-            <RotateCw size={14} className={busy ? 'animate-spin' : ''} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void search()}
+          disabled={!canSearch || busy}
+          aria-label="Tra cứu thời khóa biểu"
+          title="Tra cứu thời khóa biểu"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#1A73E8] text-white shadow-sm shadow-blue-500/20 transition-colors hover:bg-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Search size={17} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Mobile floating filter dialog */}
@@ -962,8 +948,40 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
       )}
       {result && (state === 'ready' || state === 'empty') && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-600">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2.5 text-xs text-slate-600 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2.5 sm:space-y-0">
+            <div className="sm:hidden">
+              <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigateWeek(-1)}
+                  disabled={!canPrevWeek || busy}
+                  aria-label="Tuần trước"
+                  title="Chuyển sang tuần trước"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/80 bg-white/70 text-[#1E293B] shadow-2xs backdrop-blur-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={17} aria-hidden="true" />
+                </button>
+
+                <div className="min-w-0 text-center">
+                  <p className="truncate text-xs font-semibold text-[#1E293B]">
+                    {resultWeek ? weekDateLabel(resultWeek) : 'Chưa có khoảng thời gian'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigateWeek(1)}
+                  disabled={!canNextWeek || busy}
+                  aria-label="Tuần sau"
+                  title="Chuyển sang tuần sau"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/80 bg-white/70 text-[#1E293B] shadow-2xs backdrop-blur-sm transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight size={17} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            <div className="hidden flex-wrap items-center gap-2 sm:flex">
               <div className="inline-flex items-center gap-1">
                 <button
                   type="button"
@@ -994,7 +1012,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
               {result.syncedAt && (
                 <span className="hidden lg:inline text-[#64748B]">
                   Cập nhật: {new Date(result.syncedAt).toLocaleString('vi-VN')}
