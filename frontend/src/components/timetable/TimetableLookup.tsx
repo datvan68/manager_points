@@ -9,6 +9,21 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTr
 import { Check, RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
 import { changeFilter, emptyFilters, emptyOptions, selectionKey } from './timetable-filters';
 
+function WeekOptionLabel({ label }: { label: string }) {
+  const parts = label.match(/^(Tuần\s+)?(\d+)(.*)$/i);
+  if (!parts) return <>{label}</>;
+
+  return (
+    <span className="inline-flex min-w-0 items-center">
+      {parts[1]}
+      <span className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 px-1.5 font-semibold text-amber-900">
+        {parts[2]}
+      </span>
+      <span className="truncate whitespace-pre-wrap">{parts[3]}</span>
+    </span>
+  );
+}
+
 function MobileChoicePopover({
   label,
   placeholder,
@@ -111,7 +126,7 @@ function MobileChoicePopover({
                       : 'text-[#1E293B] hover:bg-slate-50 active:bg-blue-50/50'
                   }`}
                 >
-                  <span className="truncate">{item.label}</span>
+                  <span className="min-w-0 truncate">{label === 'Tuần học' && item.value ? <WeekOptionLabel label={item.label} /> : item.label}</span>
                   {isSelected && (
                     <span aria-hidden="true" className="shrink-0 text-[#1A73E8] pl-2">
                       <Check size={15} />
@@ -714,7 +729,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               )}
               {sortedWeeks.map((item) => (
                   <SelectItem key={item.value || 'week-all'} value={item.value}>
-                    {item.value ? weekLabel(item) : item.label}
+                    {item.value ? <WeekOptionLabel label={weekLabel(item)} /> : item.label}
                 </SelectItem>
               ))}
             </SelectContent>
