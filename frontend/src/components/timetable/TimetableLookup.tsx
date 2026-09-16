@@ -6,7 +6,7 @@ import TimetableMobileView from './TimetableMobileView';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Check, RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
+import { Check, RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown, X, Filter } from 'lucide-react';
 import { changeFilter, emptyFilters, emptyOptions, selectionKey } from './timetable-filters';
 
 function WeekOptionLabel({ label }: { label: string }) {
@@ -235,10 +235,15 @@ function DesktopClassPopover({
           aria-label="Lớp"
           aria-expanded={open}
           aria-haspopup="listbox"
-          className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 pr-4 text-left text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className={selectedValues.length ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
-          <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
+          <ChevronDown
+            aria-hidden="true"
+            size={16}
+            strokeWidth={2}
+            className={`shrink-0 text-[#64748B] transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -857,7 +862,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
             <SelectTrigger
               aria-label="Tuần"
               disabled={busy || !filters.year || !filters.semester}
-              className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
+              className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 pr-4 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm [&>svg]:ml-0 [&>svg]:opacity-100 [&>svg]:text-[#64748B] [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:motion-reduce:transition-none [&[data-state=open]>svg]:rotate-180"
             >
               <SelectValue placeholder="Chọn tuần" />
             </SelectTrigger>

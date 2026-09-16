@@ -108,6 +108,52 @@ describe('TimetableLookup', () => {
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
   });
 
+  it('renders the desktop class chevron with the correct open state', async () => {
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+    await choose('Tuần', 'w');
+
+    const trigger = screen.getByRole('combobox', { name: 'Lớp' });
+    const chevron = trigger.querySelector('svg');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(chevron).toHaveAttribute('width', '16');
+    expect(chevron).toHaveAttribute('height', '16');
+    expect(chevron).toHaveClass('text-[#64748B]', 'transition-transform', 'duration-200', 'motion-reduce:transition-none');
+    expect(chevron).not.toHaveClass('rotate-180');
+    expect(trigger).not.toHaveTextContent('⌄');
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(trigger.querySelector('svg')).toHaveClass('rotate-180');
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger.querySelector('svg')).not.toHaveClass('rotate-180');
+
+    const weekInput = screen.getByRole('combobox', { name: 'Tuần' });
+    const weekTrigger = weekInput.parentElement;
+    const weekChevron = weekTrigger?.querySelector('svg');
+    expect(weekTrigger).toHaveAttribute('data-state', 'closed');
+    expect(weekChevron).toHaveClass('h-4', 'w-4', 'text-[#64748B]');
+    expect(weekTrigger).toHaveClass(
+      '[&>svg]:ml-0',
+      '[&>svg]:opacity-100',
+      '[&>svg]:text-[#64748B]',
+      '[&>svg]:transition-transform',
+      '[&>svg]:duration-200',
+      '[&>svg]:motion-reduce:transition-none',
+      '[&[data-state=open]>svg]:rotate-180',
+    );
+    expect(weekChevron).not.toHaveClass('rotate-180');
+
+    fireEvent.click(weekInput);
+    expect(weekTrigger).toHaveAttribute('data-state', 'open');
+
+    fireEvent.keyDown(weekInput, { key: 'Escape' });
+    expect(weekTrigger).toHaveAttribute('data-state', 'closed');
+    expect(weekChevron).not.toHaveClass('rotate-180');
+  });
+
   it('derives cross-faculty classes from the selected week and preserves the chosen source context', async () => {
     const multiContext = {
       ...options,
