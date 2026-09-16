@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetableLookup from './TimetableLookup';
 import { timetableApi, type TimetableOptions } from '@/api/timetable-api';
 
-vi.mock('@/api/timetable-api', () => ({ timetableApi: { getOptions: vi.fn(), getTimetable: vi.fn() } }));
+vi.mock('@/api/timetable-api', () => ({ timetableApi: { getOptions: vi.fn(), getTimetable: vi.fn(), getTimetables: vi.fn() } }));
 const coverage = { year: 'y', semester: 's', week: 'w', faculty: '', course: '', className: 'a' };
 const options: TimetableOptions = {
   years: [{ label: '2026', value: 'y' }], semesters: [{ label: 'Học kỳ 1', value: 's' }],
@@ -35,6 +35,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.mocked(timetableApi.getOptions).mockResolvedValue(options);
   vi.mocked(timetableApi.getTimetable).mockResolvedValue({ filters: coverage, lessons: [], periods: [], isEmpty: true });
+  vi.mocked(timetableApi.getTimetables).mockResolvedValue({ results: [{ filters: coverage, lessons: [], periods: [], isEmpty: true }], missing: [] });
 });
 
 async function choose(label: string, value: string) {
@@ -92,9 +93,9 @@ describe('TimetableLookup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(await screen.findByText('Không có lịch cho bộ lọc đã chọn.')).toBeInTheDocument();
-    expect(timetableApi.getTimetable).toHaveBeenCalledWith(coverage);
+    expect(timetableApi.getTimetables).toHaveBeenCalledWith([coverage]);
 
-    vi.mocked(timetableApi.getTimetable).mockRejectedValueOnce(new Error('Nguồn phản hồi quá lâu.'));
+    vi.mocked(timetableApi.getTimetables).mockRejectedValueOnce(new Error('Nguồn phản hồi quá lâu.'));
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Nguồn phản hồi quá lâu.');
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
@@ -120,11 +121,11 @@ describe('TimetableLookup', () => {
       .some((element) => element.className.includes('opacity-100'))).toBe(true));
     const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
       .find((element) => element.className.includes('opacity-100')) as HTMLElement;
-    expect(within(listbox).getAllByRole('option')).toHaveLength(3);
+    expect(within(listbox).getAllByRole('option')).toHaveLength(2);
     expect(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' })).toBeInTheDocument();
     fireEvent.click(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' }));
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
-    await waitFor(() => expect(timetableApi.getTimetable).toHaveBeenCalledWith({ year: 'y', semester: 's', week: 'w', faculty: 'f2', course: 'c2', className: 'a' }));
+    await waitFor(() => expect(timetableApi.getTimetables).toHaveBeenCalledWith([{ year: 'y', semester: 's', week: 'w', faculty: 'f2', course: 'c2', className: 'a' }]));
   });
 
   it('allows changing year and semester via config popover and resets dependent selections', async () => {
@@ -132,8 +133,6 @@ describe('TimetableLookup', () => {
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 
     await choose('Tuần', 'w');
-    await choose('Lớp', 'a');
-
     openConfig();
     await screen.findByRole('option', { name: '2026' });
     await choose('Niên học', '');
@@ -162,10 +161,9 @@ describe('TimetableLookup', () => {
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 
     await choose('Tuần', 'w');
-    await choose('Lớp', 'a');
+    expect(screen.getByRole('combobox', { name: 'Lớp' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
-    expect(timetableApi.getTimetable).not.toHaveBeenCalled();
+    expect(timetableApi.getTimetables).not.toHaveBeenCalled();
   });
 
   it('handles mobile choice popover selection, search filter, and confirmation', async () => {
@@ -255,7 +253,7 @@ describe('TimetableLookup', () => {
     fireEvent.click(within(reopenedPopover).getByRole('option', { name: 'Lớp B' }));
     fireEvent.click(within(reopenedPopover).getByRole('button', { name: 'Xác nhận' }));
     await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());
-    expect(classTrigger).toHaveTextContent('Lớp B');
+    expect(classTrigger).toHaveTextContent('1 lớp đã chọn');
     expect(screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' })).toBeInTheDocument();
 
     fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Lớp' }));

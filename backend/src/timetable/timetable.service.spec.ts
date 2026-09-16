@@ -16,6 +16,19 @@ const setup = (rows = coverage, savedCatalog: any = catalog) => {
 };
 
 describe('TimetableService', () => {
+  it('loads bulk snapshots with one query, deduplicates keys, and preserves missing selections', async () => {
+    const rows = [
+      { ...coverage[1], key: timetableKey(coverage[1]), result: { filters: coverage[1], periods: ['1'], lessons: [], isEmpty: false }, syncedAt: 'date', coverageKey: 'key' },
+    ];
+    const { service, snapshots } = setup(rows as any);
+    snapshots.find.mockReturnValueOnce(chain(rows));
+    const missing = { ...coverage[1], className: 'missing' };
+    const response = await service.getBulkTimetable({}, { selections: [coverage[1], coverage[1], missing] } as any);
+    expect(snapshots.find).toHaveBeenCalledTimes(1);
+    expect(snapshots.find).toHaveBeenCalledWith({ key: { $in: [timetableKey(coverage[1]), timetableKey(missing)] } });
+    expect(response.results).toHaveLength(1);
+    expect(response.missing).toEqual([missing]);
+  });
   it('offers only synchronized descendants for the selected parents', async () => {
     const { service } = setup();
     const options = await service.getOptions({}, { year: 'y', semester: 's', week: 'w2', faculty: 'f', course: 'c' });

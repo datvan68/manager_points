@@ -31,6 +31,9 @@ function MobileChoicePopover({
   options,
   disabled,
   onValueChange,
+  multiple,
+  selectedValues,
+  onValuesChange,
   onOpenChange,
 }: {
   label: string;
@@ -38,19 +41,26 @@ function MobileChoicePopover({
   value: string;
   options: { label: string; value: string }[];
   disabled?: boolean;
-  onValueChange: (value: string) => void;
+  onValueChange?: (value: string) => void;
+  multiple?: boolean;
+  selectedValues?: string[];
+  onValuesChange?: (values: string[]) => void;
   onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value);
+  const [draftValues, setDraftValues] = useState<string[]>(selectedValues || []);
   const [query, setQuery] = useState('');
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  const selectedLabel = options.find((item) => item.value === value)?.label || placeholder;
+  const selectedLabel = multiple
+    ? (selectedValues?.length ? `${selectedValues.length} lớp đã chọn` : placeholder)
+    : options.find((item) => item.value === value)?.label || placeholder;
   const filteredOptions = options.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
   const handleOpen = () => {
     setDraftValue(value);
+    setDraftValues(selectedValues || []);
     setQuery('');
   };
 
@@ -112,14 +122,16 @@ function MobileChoicePopover({
         >
           {filteredOptions.length ? (
             filteredOptions.map((item) => {
-              const isSelected = draftValue === item.value;
+              const isSelected = multiple ? draftValues.includes(item.value) : draftValue === item.value;
               return (
                 <button
                   key={item.value || `${label}-empty`}
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  onClick={() => setDraftValue(item.value)}
+                  onClick={() => multiple
+                    ? setDraftValues((current) => current.includes(item.value) ? current.filter((entry) => entry !== item.value) : [...current, item.value])
+                    : setDraftValue(item.value)}
                   className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-all duration-150 ${
                     isSelected
                       ? 'bg-blue-50/90 font-semibold text-[#1A73E8]'
@@ -148,7 +160,8 @@ function MobileChoicePopover({
           <button
             type="button"
             onClick={() => {
-              onValueChange(draftValue);
+              if (multiple) onValuesChange?.(draftValues);
+              else onValueChange?.(draftValue);
               handleOpenChange(false);
             }}
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700"
@@ -203,7 +216,8 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [mobileChoiceOpen, setMobileChoiceOpen] = useState(false);
-  const [classChoiceId, setClassChoiceId] = useState('');
+  const [classChoiceIds, setClassChoiceIds] = useState<string[]>([]);
+  const [missingSelections, setMissingSelections] = useState<TimetableFilters[]>([]);
   const mobileOpenerRef = useRef<HTMLButtonElement | null>(null);
   const requestId = useRef(0);
 
@@ -315,7 +329,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   }, [refreshKey]);
 
   const setFilter = (key: keyof TimetableFilters, value: string) => {
-    if (key === 'year' || key === 'semester' || key === 'week') setClassChoiceId('');
+    if (key === 'year' || key === 'semester' || key === 'week') setClassChoiceIds([]);
     if (key === 'year') {
       try {
         if (typeof window !== 'undefined') localStorage.setItem('timetable_default_year', value);
@@ -330,6 +344,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
     requestId.current += 1;
     setFilters(next);
     setResult(null);
+    setMissingSelections([]);
     setError('');
     if (key === 'className') setState('ready');
     else void loadOptions(next);
@@ -348,28 +363,34 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   }, [filters.year, filters.semester, filters.week, options.availableCoverage, options.classes]);
 
   const classChoiceOptions = classChoices.map(({ value, label }) => ({ value, label }));
-  const selectClassChoice = (id: string) => {
-    const choice = classChoices.find((item) => item.value === id);
-    if (!choice) {
-      setClassChoiceId('');
-      setFilter('className', '');
-      return;
-    }
-    setClassChoiceId(id);
-    const next = { ...filters, faculty: choice.selection.faculty || '', course: choice.selection.course || '', className: choice.selection.className || '' };
+  const selectClassChoices = (ids: string[]) => {
+    setClassChoiceIds(ids);
+    const selected = classChoices.filter((item) => ids.includes(item.value));
+    const first = selected[0]?.selection;
+    const next = { ...filters, faculty: first?.faculty || '', course: first?.course || '', className: first?.className || '' };
     requestId.current += 1;
     setFilters(next);
     setResult(null);
+    setMissingSelections([]);
     setError('');
     setState('ready');
   };
 
   const searchFor = async (next: TimetableFilters, id: number) => {
     try {
-      const data = await timetableApi.getTimetable(next);
+      const selections = classChoiceIds
+        .map((key) => classChoices.find((item) => item.value === key)?.selection)
+        .filter((item): item is TimetableFilters => Boolean(item));
+      const data = await timetableApi.getTimetables(selections.length ? selections : [next]);
       if (id !== requestId.current) return;
-      setResult(data);
-      setState(data.isEmpty ? 'empty' : 'ready');
+      const results = data.results;
+      const first = results[0];
+      const merged: TimetableResult = first
+        ? { ...first, filters: { ...first.filters, week: next.week }, periods: [...new Set(results.flatMap((item) => item.periods))].sort((a, b) => Number(a) - Number(b)), lessons: results.flatMap((item) => item.lessons), isEmpty: results.every((item) => item.isEmpty) }
+        : { filters: next, periods: [], lessons: [], isEmpty: true, status: 'missing' };
+      setMissingSelections(data.missing);
+      setResult(merged);
+      setState(merged.isEmpty ? 'empty' : 'ready');
     } catch (e: unknown) {
       if (id === requestId.current) {
         setError(e instanceof Error ? e.message : 'Không thể tải thời khóa biểu.');
@@ -391,13 +412,12 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   };
 
   const busy = state === 'loading' || state === 'options-loading';
-  const selectedChoice = classChoices.find((item) => item.value === classChoiceId);
   const canSearch = Boolean(
     filters.year &&
     filters.semester &&
     filters.week &&
-    filters.className &&
-    selectedChoice && options.availableCoverage?.some((item) => selectionKey(item) === selectionKey(filters))
+    classChoiceIds.length &&
+    classChoiceIds.every((id) => classChoices.some((item) => item.value === id))
   );
 
   const yearLabel = options.years.find((y) => y.value === filters.year)?.label || filters.year;
@@ -441,7 +461,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
     if (targetIndex >= 0 && targetIndex < sortedWeeks.length) {
       const targetWeek = sortedWeeks[targetIndex];
       setFilter('week', targetWeek.value);
-      if (filters.className) {
+      if (classChoiceIds.length) {
         const nextFilters = { ...filters, week: targetWeek.value };
         const id = ++requestId.current;
         setState('loading');
@@ -471,7 +491,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-[#1E293B]">
-              {classChoices.find((c) => c.value === classChoiceId)?.label || 'Chọn lớp học'}
+              {classChoiceIds.length ? `${classChoiceIds.length} lớp đã chọn` : 'Chọn lớp học'}
             </p>
             <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-[#64748B]">
               {currentWeek ? (
@@ -668,10 +688,12 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               <MobileChoicePopover
                 label="Lớp học"
                 placeholder="Chọn lớp"
-                value={classChoiceId}
+                value=""
                 options={classChoiceOptions.length ? [{ label: 'Chọn lớp', value: '' }, ...classChoiceOptions] : [{ label: 'Chọn lớp', value: '' }]}
                 disabled={busy || !filters.week}
-                onValueChange={selectClassChoice}
+                multiple
+                selectedValues={classChoiceIds}
+                onValuesChange={selectClassChoices}
                 onOpenChange={setMobileChoiceOpen}
               />
             </div>
@@ -776,26 +798,21 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
         {/* Lớp */}
         <div className="min-w-0 flex-1 sm:min-w-[180px] sm:max-w-xs">
-          <Select
-            value={classChoiceId}
-              onValueChange={selectClassChoice}
-          >
-            <SelectTrigger
-              aria-label="Lớp"
-              disabled={busy || !filters.week}
-              className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm"
-            >
-              <SelectValue placeholder="Chọn lớp" />
-            </SelectTrigger>
-            <SelectContent className="z-[60]">
-              <SelectItem value="">Chọn lớp</SelectItem>
-              {classChoiceOptions.map((item) => (
-                <SelectItem key={item.value || 'class-all'} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button type="button" role="combobox" aria-label="Lớp" aria-expanded="false" disabled={busy || !filters.week || !classChoiceOptions.length} className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50">
+                <span>{classChoiceIds.length ? `${classChoiceIds.length} lớp đã chọn` : 'Chọn lớp'}</span><span aria-hidden="true">⌄</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="z-[10000] opacity-100 max-h-80 w-[min(92vw,360px)] overflow-y-auto p-2">
+              <div role="listbox" aria-label="Options" className="opacity-100 space-y-1">
+                {classChoiceOptions.map((item) => {
+                  const checked = classChoiceIds.includes(item.value);
+                  return <button key={item.value} type="button" role="option" aria-selected={checked} onClick={() => selectClassChoices(checked ? classChoiceIds.filter((id) => id !== item.value) : [...classChoiceIds, item.value])} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs ${checked ? 'bg-blue-50 font-semibold text-[#1A73E8]' : 'hover:bg-slate-50'}`}><span className="flex h-4 w-4 items-center justify-center rounded border">{checked && <Check size={12} />}</span>{item.label}</button>;
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Nhóm thao tác: Tìm kiếm, Làm mới, Cấu hình mặc định */}
@@ -941,9 +958,19 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
           Chưa có dữ liệu thời khóa biểu đã đồng bộ để tra cứu.
         </p>
       )}
-      {state === 'empty' && (
+      {state === 'empty' && missingSelections.length === 0 && (
         <p role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700">
           Không có lịch cho bộ lọc đã chọn.
+        </p>
+      )}
+      {missingSelections.length > 0 && result && (
+        <p role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700">
+          Chưa có dữ liệu đồng bộ cho {missingSelections.length} lớp; các lớp còn lại vẫn được hiển thị.
+        </p>
+      )}
+      {missingSelections.length > 0 && result && result.isEmpty && (
+        <p role="status" className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700">
+          Chưa có dữ liệu thời khóa biểu được đồng bộ cho các lớp đã chọn.
         </p>
       )}
       {result && (state === 'ready' || state === 'empty') && (
@@ -1008,7 +1035,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               </div>
 
               <span className="font-semibold text-[#1E293B]">
-                Kết quả: {[yearLabel, semesterLabel, (() => { const item = sortedWeeks.find((w) => w.value === result.filters.week); return item ? weekLabel(item) : result.filters.week; })(), selectedChoice?.label || result.filters.className].filter(Boolean).join(' · ')}
+                Kết quả: {[yearLabel, semesterLabel, (() => { const item = sortedWeeks.find((w) => w.value === result.filters.week); return item ? weekLabel(item) : result.filters.week; })(), `${classChoiceIds.length} lớp`].filter(Boolean).join(' · ')}
               </span>
             </div>
 

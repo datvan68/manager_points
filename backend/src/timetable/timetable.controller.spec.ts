@@ -9,6 +9,14 @@ import { TimetableSyncService } from './timetable-sync.service';
 
 describe('TimetableController', () => {
   afterEach(() => jest.restoreAllMocks());
+  it('forwards bulk lookup through the read permission route', async () => {
+    const service = { getBulkTimetable: jest.fn().mockResolvedValue({ results: [], missing: [] }) };
+    const controller = new TimetableController(service as any);
+    const req = { user: { userId: 'viewer-1' } };
+    const body = { selections: [{ year: 'y', semester: 's', week: 'w', className: 'A' }] } as any;
+    await expect(controller.getBulkTimetable(req, body)).resolves.toEqual({ results: [], missing: [] });
+    expect(service.getBulkTimetable).toHaveBeenCalledWith(req.user, body);
+  });
   it('delegates only the authenticated requester context', async () => {
     const service = { getOptions: jest.fn().mockResolvedValue({ years: [] }), getLegacyTimetable: jest.fn() };
     const module = await Test.createTestingModule({ controllers: [TimetableController], providers: [{ provide: TimetableService, useValue: service }] }).compile();

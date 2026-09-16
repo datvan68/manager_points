@@ -5,7 +5,8 @@ import { QueryTimetableDto } from './dto/query-timetable.dto';
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableSnapshot, TimetableSnapshotDocument } from './timetable-snapshot.schema';
 import { TimetableSyncState, TimetableSyncStateDocument } from './timetable-sync-state.schema';
-import { TimetableFilters, TimetableOptions, TimetableResult } from './timetable.types';
+import { TimetableFilters, TimetableOptions, TimetableResult, TimetableBulkResponse } from './timetable.types';
+import { QueryTimetableBulkDto } from './dto/query-timetable-bulk.dto';
 import { timetableFields, timetableKey } from './timetable-selection';
 
 const optionFields = ['years', 'semesters', 'weeks', 'faculties', 'courses', 'classes'] as const;
@@ -147,6 +148,28 @@ export class TimetableService {
     if (!snapshot) throw new NotFoundException({ reasonCode: 'TIMETABLE_NOT_SYNCED', message: 'Dữ liệu thời khóa biểu cho bộ lọc này chưa được đồng bộ.' });
     const syncedAt = snapshot.syncedAt instanceof Date ? snapshot.syncedAt.toISOString() : String(snapshot.syncedAt);
     return { ...snapshot.result, status: 'valid', syncedAt, coverageKey: snapshot.coverageKey } as TimetableResult;
+  }
+
+  async getBulkTimetable(_requester: any, query: QueryTimetableBulkDto): Promise<TimetableBulkResponse> {
+    const unique = [...new Map(query.selections.map((selection) => [timetableKey(selection), selection])).values()];
+    const keys = unique.map((selection) => timetableKey(selection));
+    const snapshots = await this.snapshots.find({ key: { $in: keys } }).lean().exec();
+    const byKey = new Map(snapshots.map((snapshot: any) => [snapshot.key, snapshot]));
+    const results: TimetableResult[] = [];
+    const missing: TimetableFilters[] = [];
+    for (const selection of unique) {
+      const snapshot: any = byKey.get(timetableKey(selection));
+      if (!snapshot) {
+        missing.push(selection);
+        continue;
+      }
+      const syncedAt = snapshot.syncedAt instanceof Date ? snapshot.syncedAt.toISOString() : String(snapshot.syncedAt);
+      const result = { ...snapshot.result, filters: snapshot.result?.filters || selection, status: 'valid', syncedAt, coverageKey: snapshot.coverageKey } as TimetableResult;
+      result.classLabel = result.classLabel || selection.className;
+      result.lessons = (result.lessons || []).map((lesson) => ({ ...lesson, classLabel: lesson.classLabel || result.classLabel }));
+      results.push(result);
+    }
+    return { results, missing };
   }
 
   private todayInHoChiMinh() {

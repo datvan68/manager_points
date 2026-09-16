@@ -120,6 +120,11 @@ export interface TimetableResult {
   refresh?: { pending: boolean; stale: boolean; lastSuccessfulUpdate?: string; failure?: string };
 }
 
+export interface TimetableBulkResponse {
+  results: TimetableResult[];
+  missing: TimetableFilters[];
+}
+
 export interface TimetableSourcePage {
   html: string;
   url: string;

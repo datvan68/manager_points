@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetableMobileView from './TimetableMobileView';
 
 const dummyResult = {
@@ -33,6 +33,9 @@ const dummyResult = {
 };
 
 describe('TimetableMobileView', () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date('2026-09-14T08:00:00Z'));
+  });
   it('renders day strip and defaults to initial day with lessons', () => {
     render(<TimetableMobileView result={dummyResult} />);
     expect(screen.getByTestId('timetable-mobile-view')).toBeInTheDocument();

@@ -148,6 +148,11 @@ function MobileLessonCard({ lesson }: { lesson: TimetableLesson }) {
             <h3 className={`text-sm font-bold leading-snug ${theme.titleColor}`}>
               {lesson.subject}
             </h3>
+            {lesson.classLabel && (
+              <span data-testid="mobile-lesson-class" className="mt-1 inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                Lớp: {lesson.classLabel}
+              </span>
+            )}
             {lesson.subjectCode && (
               <span className="mt-0.5 inline-block rounded-md border border-white/80 bg-white/70 px-1.5 py-0.5 text-[10px] font-medium text-[#64748B]">
                 Mã: {lesson.subjectCode}

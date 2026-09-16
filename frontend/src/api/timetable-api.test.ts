@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { timetableApi } from './timetable-api';
 import { handleResponse, httpClient } from './http-client';
 vi.mock('./http-client', () => ({ httpClient: vi.fn(), handleResponse: vi.fn() }));
 
 describe('timetableApi', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('sends bulk selections in one request', async () => {
+    vi.mocked(httpClient).mockResolvedValue(new Response(JSON.stringify({ results: [], missing: [] }), { status: 200 }));
+    await timetableApi.getTimetables([{ year: 'y', semester: 's', week: 'w', className: 'A' }]);
+    expect(httpClient).toHaveBeenCalledWith(expect.stringContaining('/timetable/bulk'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ selections: [{ year: 'y', semester: 's', week: 'w', className: 'A' }] }) }));
+  });
   it('gets today timetable by system class id using GET only', async () => {
     vi.mocked(httpClient).mockResolvedValue({ ok: true } as Response);
     vi.mocked(handleResponse).mockResolvedValue({ status: 'empty', date: '2026-09-14', lessons: [] });

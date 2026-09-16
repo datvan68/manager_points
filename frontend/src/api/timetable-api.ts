@@ -12,6 +12,7 @@ export interface TimetableOptions { years: TimetableOption[]; semesters: Timetab
 export interface TimetableLesson { classLabel?: string; sessionLabel?: string; day: number; startPeriod: number; endPeriod: number; subject: string; subjectCode?: string; teacher?: string; room?: string; onlineUrl?: string; durationLabel?: string; sourceTime?: string; date?: string }
 export interface TodayTimetableResult { status: 'available' | 'empty' | 'unavailable'; date: string; lessons: TimetableLesson[]; syncedAt?: string; coverageKey?: string }
 export interface TimetableResult { filters: TimetableFilters; classLabel?: string; sessionLabel?: string; periods: string[]; lessons: TimetableLesson[]; isEmpty: boolean; startDate?: string; endDate?: string; syncedAt?: string; coverageKey?: string; status?: 'valid' | 'pending' | 'failed' | 'missing' | 'busy'; pending?: boolean; refresh?: { pending: boolean; stale: boolean; lastSuccessfulUpdate?: string; failure?: string } }
+export interface TimetableBulkResult { results: TimetableResult[]; missing: TimetableFilters[] }
 export interface TimetableSyncJob { id: string; status: string; total?: number; completed?: number; error?: string; coverage?: TimetableFilters[]; selection?: TimetableFilters; failures?: Array<{ coverage: TimetableFilters; reason: string }> }
 export interface TimetableClassSyncStatus { classSelection: TimetableClassSelection; weekCount: number; targetWeeks: string[]; status: string; weeks: Array<{ week: string; label?: string; startDate?: string; endDate?: string; status: string; failure?: string; snapshotExists?: boolean; lastSuccessfulUpdate?: string; isEmpty?: boolean }>; error?: string }
 export type TimetableWeekSyncIntent = 'sync' | 'update';
@@ -49,6 +50,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 export const timetableApi = {
   async getOptions(filters: Partial<TimetableFilters> = {}) { return request<TimetableOptions>(`${API_BASE}/timetable/options?${query(filters)}`); },
   async getTimetable(filters: TimetableFilters) { return request<TimetableResult>(`${API_BASE}/timetable?${query(filters)}`); },
+  async getTimetables(selections: TimetableFilters[]) { return request<TimetableBulkResult>(`${API_BASE}/timetable/bulk`, { method: 'POST', body: JSON.stringify({ selections }), headers: { 'Content-Type': 'application/json' } }); },
   async getTodayForClass(classId: string, signal?: AbortSignal) { return request<TodayTimetableResult>(`${API_BASE}/timetable/today/${encodeURIComponent(classId)}`, { signal }); },
   async getSnapshots(filters: TimetableSnapshotsQuery = {}) { return request<TimetableSnapshotsResponse>(`${API_BASE}/timetable/snapshots?${query(filters)}`); },
   async requestDemand(filters: TimetableFilters) { return request<TimetableResult>(`${API_BASE}/timetable/demand`, { method: 'POST', body: JSON.stringify(filters), headers: { 'Content-Type': 'application/json' } }); },

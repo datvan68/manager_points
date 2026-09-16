@@ -2,6 +2,7 @@ import { BadGatewayException, BadRequestException, CanActivate, Controller, Exec
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { QueryTimetableDto, QueryTimetableOptionsDto } from './dto/query-timetable.dto';
+import { QueryTimetableBulkDto } from './dto/query-timetable-bulk.dto';
 import { QueryTimetableSnapshotsDto } from './dto/query-timetable-snapshots.dto';
 import { TimetableService } from './timetable.service';
 import { TimetableSourceError } from './timetable.types';
@@ -73,6 +74,10 @@ export class TimetableController {
   @Get('today/:classId') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) getToday(@Req() req: any, @Param('classId') classId: string) { return this.service.getTodayForClass(req.user, classId); }
   @Post('demand') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async demand(@Req() req: any, @Body() body: TimetableDemandDto) {
     try { return await this.service.getTimetable(req.user, body); } catch (error) { return mapTimetableSourceError(error); }
+  }
+  @Post('bulk') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ'))
+  async getBulkTimetable(@Req() req: any, @Body() body: QueryTimetableBulkDto) {
+    return this.service.getBulkTimetable(req.user, body);
   }
   @Get('demand/status') @UseGuards(checkPermission('TIMETABLE_PAGE', 'TIMETABLE_READ')) async demandStatus(@Req() req: any, @Query() query: QueryTimetableDto) {
     try { return await this.service.getDemandStatus(req.user, query); } catch (error) { return mapTimetableSourceError(error); }
