@@ -1,12 +1,93 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { timetableApi, type TimetableFilters, type TimetableResult } from '@/api/timetable-api';
 import TimetableGrid from './TimetableGrid';
 import TimetableMobileView from './TimetableMobileView';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Check, RotateCw, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, Filter } from 'lucide-react';
 import { changeFilter, emptyFilters, emptyOptions, selectionKey } from './timetable-filters';
+
+function MobileChoicePopover({
+  label,
+  placeholder,
+  value,
+  options,
+  disabled,
+  onValueChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  options: { label: string; value: string }[];
+  disabled?: boolean;
+  onValueChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(value);
+  const [query, setQuery] = useState('');
+
+  const selectedLabel = options.find((item) => item.value === value)?.label || placeholder;
+  const filteredOptions = options.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
+
+  return (
+    <div className="relative">
+      <button
+          type="button"
+          disabled={disabled}
+          role="combobox"
+          aria-label={label === 'Tuần học' ? 'Tuần' : label === 'Lớp học' ? 'Lớp' : label}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          onClick={() => { setDraftValue(value); setQuery(''); setOpen(true); }}
+          className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={value ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
+          <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
+      </button>
+      {open && <div
+        data-mobile-choice-popover="true"
+        className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/20 p-2 backdrop-blur-[2px]"
+        onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+      >
+        <div className="w-full max-w-[580px] rounded-2xl border border-white/80 bg-[#F5F7FA]/95 p-4 shadow-2xl backdrop-blur-md" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="space-y-3">
+          <input
+            autoFocus
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={label === 'Lớp học' ? 'Tìm mã lớp học...' : 'Tìm tuần học...'}
+            aria-label={`Tìm ${label.toLowerCase()}`}
+            className="h-14 w-full rounded-2xl border-0 bg-white px-4 text-base text-[#1E293B] shadow-sm outline-none placeholder:text-[#94A3B8] focus:ring-2 focus:ring-[#1A73E8]/30"
+          />
+          <div role="listbox" aria-label="Options" className="max-h-[min(52vh,420px)] overflow-y-auto rounded-2xl border border-slate-200/80 bg-white p-1 overscroll-contain">
+            {filteredOptions.length ? filteredOptions.map((item) => (
+              <button
+                key={item.value || `${label}-empty`}
+                type="button"
+                role="option"
+                aria-selected={draftValue === item.value}
+                onClick={() => setDraftValue(item.value)}
+                className={`flex min-h-14 w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm text-[#12355B] transition hover:bg-blue-50 ${draftValue === item.value ? 'bg-blue-50 font-semibold' : ''}`}
+              >
+                <span>{item.label}</span>
+                {draftValue === item.value && <span aria-hidden="true" className="text-[#1A73E8]"><Check size={16} /></span>}
+              </button>
+            )) : (
+              <p className="px-4 py-8 text-center text-sm text-slate-400">Không tìm thấy lựa chọn</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200/80 pt-3">
+            <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-500 shadow-sm">Hủy</button>
+            <button type="button" onClick={() => { onValueChange(draftValue); setOpen(false); }} className="h-11 rounded-xl bg-[#0969D8] px-6 text-sm font-bold text-white shadow-md shadow-blue-500/25">✓&nbsp; Xác nhận</button>
+          </div>
+        </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
 
 function weekNumber(item: { label: string; value: string }): number | null {
   const label = item.label.trim();
@@ -25,6 +106,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const mobileOpenerRef = useRef<HTMLButtonElement | null>(null);
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -208,6 +290,10 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const canPrevWeek = currentWeekIndex > 0;
   const canNextWeek = currentWeekIndex >= 0 && currentWeekIndex < sortedWeeks.length - 1;
 
+  const rememberMobileOpener = (event: MouseEvent<HTMLButtonElement>) => {
+    mobileOpenerRef.current = event.currentTarget;
+  };
+
   const navigateWeek = (direction: -1 | 1) => {
     const targetIndex = currentWeekIndex + direction;
     if (targetIndex >= 0 && targetIndex < sortedWeeks.length) {
@@ -224,12 +310,17 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   };
 
   return (
+    <Dialog
+      open={mobileFilterOpen}
+      onOpenChange={setMobileFilterOpen}
+    >
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-label="Tra cứu thời khóa biểu">
       {/* Mobile Compact Filter Trigger Bar (Chỉ hiển thị trên Mobile) */}
       <div className="flex sm:hidden items-center justify-between gap-2 rounded-2xl border border-white/80 bg-white/70 p-2.5 shadow-sm backdrop-blur-md">
+        <DialogTrigger asChild>
         <button
           type="button"
-          onClick={() => setMobileFilterOpen(true)}
+          onClick={rememberMobileOpener}
           className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
           aria-label="Mở bộ lọc tra cứu thời khóa biểu"
         >
@@ -252,16 +343,19 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
             </p>
           </div>
         </button>
+        </DialogTrigger>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <DialogTrigger asChild>
           <button
             type="button"
-            onClick={() => setMobileFilterOpen(true)}
+            onClick={rememberMobileOpener}
             className="inline-flex h-9 items-center gap-1 rounded-xl border border-white/80 bg-white/80 px-2.5 text-xs font-semibold text-[#1A73E8] shadow-2xs hover:bg-white"
           >
             <SlidersHorizontal size={13} />
             <span>Lọc</span>
           </button>
+          </DialogTrigger>
           <button
             type="button"
             onClick={() => void search()}
@@ -284,39 +378,41 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         </div>
       </div>
 
-      {/* Mobile Fullscreen Filter Popover / Modal */}
-      {mobileFilterOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Bộ lọc tra cứu thời khóa biểu"
-          className="fixed inset-0 z-[100] flex flex-col bg-white/95 backdrop-blur-md p-4 sm:hidden overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-200"
-        >
+      {/* Mobile floating filter dialog */}
+      <DialogContent
+        showCloseButton={false}
+        aria-label="Bộ lọc tra cứu thời khóa biểu"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          mobileOpenerRef.current?.focus();
+        }}
+        onPointerDownOutside={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.closest('[data-select-content="true"], [data-mobile-choice-popover]')) event.preventDefault();
+        }}
+        className="flex w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] max-w-none flex-col overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl sm:hidden"
+      >
           {/* Modal Header */}
-          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+          <DialogHeader className="relative items-center border-b border-white/50 pb-3 pr-8 text-center">
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-[#1A73E8]">
                 <Filter size={16} />
               </span>
-              <div>
-                <h2 className="text-sm font-bold text-[#1E293B]">Tra cứu thời khóa biểu</h2>
-                <p className="text-[11px] text-[#64748B]">Chọn thông tin để tải lịch học</p>
-              </div>
+              <DialogTitle className="sr-only">Bộ lọc tra cứu thời khóa biểu</DialogTitle>
+              <h2 className="text-sm font-bold text-[#1E293B]">Tra cứu thời khóa biểu</h2>
             </div>
-            <button
-              type="button"
-              onClick={() => setMobileFilterOpen(false)}
-              aria-label="Đóng bộ lọc"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
-            >
-              <X size={18} />
-            </button>
-          </div>
+            <p className="text-[11px] text-[#64748B]">Chọn thông tin để tải lịch học</p>
+            <DialogClose asChild>
+              <button type="button" aria-label="Đóng bộ lọc" className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-white/60 text-slate-500 hover:bg-white/80">
+                <X size={18} />
+              </button>
+            </DialogClose>
+          </DialogHeader>
 
           {/* Form Fields inside Fullscreen Popover */}
-          <div className="flex-1 space-y-3.5 py-4 text-xs">
+          <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain py-4 text-xs">
             {/* Niên học & Học kỳ */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-3.5">
               <div className="space-y-1">
                 <span className="font-semibold text-[#1E293B]">Niên học</span>
                 <Select
@@ -370,32 +466,18 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
             {/* Tuần học */}
             <div className="space-y-1">
-              <span className="font-semibold text-[#1E293B]">Tuần học</span>
-              <Select
+              <MobileChoicePopover
+                label="Tuần học"
+                placeholder="Chọn tuần"
                 value={filters.week || ''}
-                onValueChange={(value: string) => setFilter('week', value)}
-              >
-                <SelectTrigger
-                  disabled={busy || !filters.year || !filters.semester}
-                  className="h-10 w-full rounded-xl border border-white/75 bg-white/60 px-3 text-xs font-medium text-[#1E293B] shadow-sm"
-                >
-                  <SelectValue placeholder="Chọn tuần" />
-                </SelectTrigger>
-                <SelectContent className="z-[10002]">
-                  {!options.weeks.some((item) => item.value === '') && (
-                    <SelectItem value="">Chọn tuần</SelectItem>
-                  )}
-                  {sortedWeeks.map((item) => (
-                    <SelectItem key={item.value || 'm-week-all'} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={sortedWeeks.some((item) => item.value === '') ? sortedWeeks : [{ label: 'Chọn tuần', value: '' }, ...sortedWeeks]}
+                disabled={busy || !filters.year || !filters.semester}
+                onValueChange={(value) => setFilter('week', value)}
+              />
             </div>
 
             {/* Khoa & Khóa */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="hidden">
               <div className="space-y-1">
                 <span className="font-semibold text-[#1E293B]">Khoa</span>
                 <Select
@@ -449,33 +531,19 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
             {/* Lớp học */}
             <div className="space-y-1">
-              <span className="font-semibold text-[#1E293B]">Lớp học</span>
-              <Select
+              <MobileChoicePopover
+                label="Lớp học"
+                placeholder="Chọn lớp"
                 value={filters.className || ''}
-                onValueChange={(value: string) => setFilter('className', value)}
-              >
-                <SelectTrigger
-                  disabled={busy || !filters.week}
-                  className="h-10 w-full rounded-xl border border-blue-500/30 bg-blue-50/40 px-3 text-xs font-semibold text-[#1A73E8] shadow-sm"
-                >
-                  <SelectValue placeholder="Chọn lớp" />
-                </SelectTrigger>
-                <SelectContent className="z-[10002]">
-                  {!options.classes.some((item) => item.value === '') && (
-                    <SelectItem value="">Chọn lớp</SelectItem>
-                  )}
-                  {options.classes.map((item) => (
-                    <SelectItem key={item.value || 'm-class-all'} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={options.classes.some((item) => item.value === '') ? options.classes : [{ label: 'Chọn lớp', value: '' }, ...options.classes]}
+                disabled={busy || !filters.week}
+                onValueChange={(value) => setFilter('className', value)}
+              />
             </div>
           </div>
 
           {/* Action Button: Lắng nghe btn tra cứu */}
-          <div className="border-t border-slate-200/80 pt-3">
+          <div className="shrink-0 border-t border-white/50 pt-3">
             <button
               type="button"
               onClick={async () => {
@@ -489,8 +557,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
               <span>Tra cứu thời khóa biểu</span>
             </button>
           </div>
-        </div>
-      )}
+      </DialogContent>
 
       {/* Thanh Menu Tra cứu Lịch học (Desktop / Tablet) */}
       <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:items-center gap-2.5">
@@ -822,5 +889,6 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         </div>
       )}
     </section>
+    </Dialog>
   );
 }
