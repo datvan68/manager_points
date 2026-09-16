@@ -17,6 +17,7 @@ function MobileChoicePopover({
   options,
   disabled,
   onValueChange,
+  onOpenChange,
 }: {
   label: string;
   placeholder: string;
@@ -24,10 +25,12 @@ function MobileChoicePopover({
   options: { label: string; value: string }[];
   disabled?: boolean;
   onValueChange: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value);
   const [query, setQuery] = useState('');
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedLabel = options.find((item) => item.value === value)?.label || placeholder;
   const filteredOptions = options.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
@@ -37,7 +40,7 @@ function MobileChoicePopover({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        setOpen(false);
+        closePopover();
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
@@ -48,6 +51,13 @@ function MobileChoicePopover({
     setDraftValue(value);
     setQuery('');
     setOpen(true);
+    onOpenChange?.(true);
+  };
+
+  const closePopover = () => {
+    setOpen(false);
+    onOpenChange?.(false);
+    requestAnimationFrame(() => triggerRef.current?.focus());
   };
 
   const modalContent = open ? (
@@ -55,11 +65,11 @@ function MobileChoicePopover({
       data-mobile-choice-popover="true"
       className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in-0 duration-150"
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false);
+        if (event.target === event.currentTarget) closePopover();
       }}
     >
       <div
-        className="flex max-h-[85dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border border-white/80 bg-[#F5F7FA] p-4 shadow-2xl backdrop-blur-md animate-in zoom-in-95 duration-150"
+        className="flex max-h-[85dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md animate-in zoom-in-95 duration-150"
         onPointerDown={(event) => event.stopPropagation()}
       >
         {/* Header with Title & Close button */}
@@ -69,9 +79,9 @@ function MobileChoicePopover({
           </h3>
           <button
             type="button"
-            onClick={() => setOpen(false)}
+            onClick={closePopover}
             aria-label="Đóng"
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-2xs transition hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/70 bg-white/50 text-slate-500 shadow-sm transition-all duration-150 hover:bg-white/70 hover:text-slate-700"
           >
             <X size={15} />
           </button>
@@ -87,14 +97,14 @@ function MobileChoicePopover({
               onChange={(event) => setQuery(event.target.value)}
               placeholder={label === 'Lớp học' ? 'Tìm mã lớp học...' : 'Tìm tuần học...'}
               aria-label={`Tìm ${label.toLowerCase()}`}
-              className="h-10 w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-8 text-xs text-[#1E293B] shadow-2xs outline-none placeholder:text-slate-400 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20"
+              className="h-10 w-full rounded-xl border border-white/70 bg-white/50 pl-9 pr-8 text-xs text-[#1E293B] shadow-sm backdrop-blur-sm outline-none placeholder:text-slate-400 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Xóa tìm kiếm"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-xl text-slate-400 hover:text-slate-600"
               >
                 <X size={13} />
               </button>
@@ -106,7 +116,7 @@ function MobileChoicePopover({
         <div
           role="listbox"
           aria-label="Options"
-          className="flex-1 min-h-0 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-slate-200/80 bg-white p-1.5 [scrollbar-width:thin] [scrollbar-color:#CBD5E1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent"
+          className="flex-1 min-h-0 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-white/70 bg-white/45 p-1.5 backdrop-blur-sm [scrollbar-width:thin] [scrollbar-color:#CBD5E1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-xl [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent"
         >
           {filteredOptions.length ? (
             filteredOptions.map((item) => {
@@ -118,7 +128,7 @@ function MobileChoicePopover({
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => setDraftValue(item.value)}
-                  className={`flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-all duration-150 ${
                     isSelected
                       ? 'bg-blue-50/90 font-semibold text-[#1A73E8]'
                       : 'text-[#1E293B] hover:bg-slate-50 active:bg-blue-50/50'
@@ -142,8 +152,8 @@ function MobileChoicePopover({
         <div className="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200/80 pt-3 mt-2">
           <button
             type="button"
-            onClick={() => setOpen(false)}
-            className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 active:bg-slate-100"
+            onClick={closePopover}
+            className="h-9 rounded-xl border border-white/70 bg-white/50 px-4 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-150 hover:bg-white/70 active:bg-white/80"
           >
             Hủy
           </button>
@@ -151,9 +161,9 @@ function MobileChoicePopover({
             type="button"
             onClick={() => {
               onValueChange(draftValue);
-              setOpen(false);
+              closePopover();
             }}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:bg-blue-600 active:bg-blue-700"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700"
           >
             <Check size={14} />
             <span>Xác nhận</span>
@@ -172,6 +182,7 @@ function MobileChoicePopover({
         aria-label={label === 'Tuần học' ? 'Tuần' : label === 'Lớp học' ? 'Lớp' : label}
         aria-expanded={open}
         aria-haspopup="listbox"
+        ref={triggerRef}
         onClick={handleOpen}
         className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -200,6 +211,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'day' | 'week'>('week');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [mobileChoiceOpen, setMobileChoiceOpen] = useState(false);
   const mobileOpenerRef = useRef<HTMLButtonElement | null>(null);
   const requestId = useRef(0);
 
@@ -482,7 +494,15 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
         }}
         onPointerDownOutside={(event) => {
           const target = event.target as HTMLElement;
-          if (target.closest('[data-select-content="true"], [data-mobile-choice-popover]')) event.preventDefault();
+          if (mobileChoiceOpen || target.closest('[data-select-content="true"], [data-mobile-choice-popover]')) event.preventDefault();
+        }}
+        onInteractOutside={(event) => {
+          const target = event.target as HTMLElement;
+          if (mobileChoiceOpen || target.closest('[data-select-content="true"], [data-mobile-choice-popover]')) event.preventDefault();
+        }}
+        onFocusOutside={(event) => {
+          const target = event.target as HTMLElement;
+          if (mobileChoiceOpen || target.closest('[data-select-content="true"], [data-mobile-choice-popover]')) event.preventDefault();
         }}
         className="flex w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] max-w-none flex-col overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-2xl sm:hidden"
       >
@@ -568,6 +588,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
                 options={sortedWeeks.some((item) => item.value === '') ? sortedWeeks : [{ label: 'Chọn tuần', value: '' }, ...sortedWeeks]}
                 disabled={busy || !filters.year || !filters.semester}
                 onValueChange={(value) => setFilter('week', value)}
+                onOpenChange={setMobileChoiceOpen}
               />
             </div>
 
@@ -634,6 +655,7 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
                 options={options.classes.some((item) => item.value === '') ? options.classes : [{ label: 'Chọn lớp', value: '' }, ...options.classes]}
                 disabled={busy || !filters.week}
                 onValueChange={(value) => setFilter('className', value)}
+                onOpenChange={setMobileChoiceOpen}
               />
             </div>
           </div>

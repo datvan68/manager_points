@@ -175,4 +175,44 @@ describe('TimetableLookup', () => {
     // Popover should close
     expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument();
   });
+
+  it('cancels mobile week and class drafts without dismissing the lookup dialog', async () => {
+    vi.mocked(timetableApi.getOptions).mockResolvedValue({
+      ...options,
+      weeks: [...options.weeks, { label: 'Tuần 4', value: 'w4' }],
+      classes: [...options.classes, { label: 'Lớp B', value: 'b' }],
+    });
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mở bộ lọc tra cứu thời khóa biểu' }));
+    const mobileDialog = screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' });
+
+    fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Tuần' }));
+    const initialWeekPopover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
+    fireEvent.click(within(initialWeekPopover).getByRole('option', { name: 'Tuần 3' }));
+    fireEvent.click(within(initialWeekPopover).getByRole('button', { name: 'Xác nhận' }));
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+
+    const cancelChoice = async (label: string, optionLabel: string, selectedLabel: string) => {
+      const trigger = within(mobileDialog).getByRole('combobox', { name: label });
+      fireEvent.click(trigger);
+      const popover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
+      expect(popover).toBeInTheDocument();
+      fireEvent.click(within(popover).getByRole('option', { name: optionLabel }));
+      fireEvent.click(within(popover).getByRole('button', { name: 'Hủy' }));
+      await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());
+      expect(screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' })).toBeInTheDocument();
+      expect(trigger).toHaveTextContent(selectedLabel);
+      expect(document.activeElement).toBe(trigger);
+    };
+
+    await cancelChoice('Tuần', 'Tuần 4', 'Tuần 3');
+    await cancelChoice('Lớp', 'Lớp B', 'Chọn lớp');
+
+    fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Lớp' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());
+    expect(screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' })).toBeInTheDocument();
+  });
 });
