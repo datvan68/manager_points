@@ -237,6 +237,27 @@ describe('TimetableLookup', () => {
     await cancelChoice('Tuần', /^Tuần 4/, 'Tuần 3');
     await cancelChoice('Lớp', 'Lớp B', 'Chọn lớp');
 
+    // X closes only the child and restores the committed draft.
+    const classTrigger = within(mobileDialog).getByRole('combobox', { name: 'Lớp' });
+    fireEvent.click(classTrigger);
+    const closePopover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
+    fireEvent.click(within(closePopover).getByRole('option', { name: 'Lớp B' }));
+    fireEvent.click(within(closePopover).getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());
+    expect(screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' })).toBeInTheDocument();
+    expect(classTrigger).toHaveTextContent('Chọn lớp');
+    expect(document.activeElement).toBe(classTrigger);
+
+    // Reopening resets the query and starts from the committed value.
+    fireEvent.click(classTrigger);
+    const reopenedPopover = document.querySelector('[data-mobile-choice-popover="true"]') as HTMLElement;
+    expect(within(reopenedPopover).getByPlaceholderText('Tìm mã lớp học...')).toHaveValue('');
+    fireEvent.click(within(reopenedPopover).getByRole('option', { name: 'Lớp B' }));
+    fireEvent.click(within(reopenedPopover).getByRole('button', { name: 'Xác nhận' }));
+    await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());
+    expect(classTrigger).toHaveTextContent('Lớp B');
+    expect(screen.getByRole('dialog', { name: 'Bộ lọc tra cứu thời khóa biểu' })).toBeInTheDocument();
+
     fireEvent.click(within(mobileDialog).getByRole('combobox', { name: 'Lớp' }));
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(document.querySelector('[data-mobile-choice-popover="true"]')).not.toBeInTheDocument());

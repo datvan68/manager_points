@@ -34,57 +34,35 @@ function MobileChoicePopover({
   const selectedLabel = options.find((item) => item.value === value)?.label || placeholder;
   const filteredOptions = options.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        closePopover();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [open]);
-
   const handleOpen = () => {
     setDraftValue(value);
     setQuery('');
-    setOpen(true);
-    onOpenChange?.(true);
   };
 
-  const closePopover = () => {
-    setOpen(false);
-    onOpenChange?.(false);
-    setTimeout(() => triggerRef.current?.focus(), 0);
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    onOpenChange?.(nextOpen);
   };
 
   const modalContent = open ? (
-    <div
+    <DialogContent
       data-mobile-choice-popover="true"
-      className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/40 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in-0 duration-150"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) closePopover();
-      }}
+      showCloseButton={false}
+      aria-label={label === 'Tuần học' ? 'Chọn tuần học' : label === 'Lớp học' ? 'Chọn lớp học' : `Chọn ${label.toLowerCase()}`}
+      onPointerDownOutside={(event) => event.preventDefault()}
+      className="z-[10020] flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[460px] flex-col gap-0 overflow-hidden rounded-2xl border border-white/75 bg-gradient-to-br from-[#EBF2FA] to-[#DCE6F1] p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md sm:max-h-[85dvh] sm:w-full"
     >
-      <div
-        className="flex max-h-[85dvh] w-full max-w-[460px] flex-col overflow-hidden rounded-2xl border border-white/75 bg-white/45 p-4 shadow-sm shadow-slate-300/40 backdrop-blur-md animate-in zoom-in-95 duration-150"
-        onPointerDown={(event) => event.stopPropagation()}
-      >
         {/* Header with Title & Close button */}
-        <div className="shrink-0 flex items-center justify-between border-b border-slate-200/80 pb-2.5">
-          <h3 className="text-sm font-bold text-[#1E293B]">
+        <DialogHeader className="flex shrink-0 flex-row items-center justify-between border-b border-white/60 pb-2.5 text-left">
+          <DialogTitle className="text-sm font-bold text-[#1E293B]">
             {label === 'Tuần học' ? 'Chọn tuần học' : label === 'Lớp học' ? 'Chọn lớp học' : `Chọn ${label.toLowerCase()}`}
-          </h3>
-          <button
-            type="button"
-            onClick={closePopover}
-            aria-label="Đóng"
-            className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/70 bg-white/50 text-slate-500 shadow-sm transition-all duration-150 hover:bg-white/70 hover:text-slate-700"
-          >
-            <X size={15} />
-          </button>
-        </div>
+          </DialogTitle>
+          <DialogClose asChild>
+            <button type="button" aria-label="Đóng" className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/70 bg-white/50 text-slate-500 shadow-sm transition-all duration-150 hover:bg-white/70 hover:text-slate-700">
+              <X size={15} />
+            </button>
+          </DialogClose>
+        </DialogHeader>
 
         {/* Search Input */}
         <div className="shrink-0 pt-3 pb-2">
@@ -115,7 +93,7 @@ function MobileChoicePopover({
         <div
           role="listbox"
           aria-label="Options"
-          className="flex-1 min-h-0 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-white/70 bg-white/45 p-1.5 backdrop-blur-sm [scrollbar-width:thin] [scrollbar-color:#CBD5E1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-xl [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent"
+          className="flex-1 min-h-0 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-white/70 bg-white/45 p-1.5 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {filteredOptions.length ? (
             filteredOptions.map((item) => {
@@ -148,19 +126,15 @@ function MobileChoicePopover({
         </div>
 
         {/* Action Buttons: Hủy & Xác nhận */}
-        <div className="shrink-0 flex items-center justify-end gap-2 border-t border-slate-200/80 pt-3 mt-2">
-          <button
-            type="button"
-            onClick={closePopover}
-            className="h-9 rounded-xl border border-white/70 bg-white/50 px-4 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-150 hover:bg-white/70 active:bg-white/80"
-          >
-            Hủy
-          </button>
+        <div className="mt-2 flex shrink-0 items-center justify-end gap-2 border-t border-white/60 pt-3">
+          <DialogClose asChild>
+            <button type="button" className="h-9 rounded-xl border border-white/70 bg-white/50 px-4 text-xs font-semibold text-slate-600 shadow-sm transition-all duration-150 hover:bg-white/70 active:bg-white/80">Hủy</button>
+          </DialogClose>
           <button
             type="button"
             onClick={() => {
               onValueChange(draftValue);
-              closePopover();
+              handleOpenChange(false);
             }}
             className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700"
           >
@@ -168,13 +142,14 @@ function MobileChoicePopover({
             <span>Xác nhận</span>
           </button>
         </div>
-      </div>
-    </div>
+    </DialogContent>
   ) : null;
 
   return (
-    <div className="relative">
-      <button
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <div className="relative">
+      <DialogTrigger asChild>
+        <button
         type="button"
         disabled={disabled}
         role="combobox"
@@ -187,9 +162,11 @@ function MobileChoicePopover({
       >
         <span className={value ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
         <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
-      </button>
+        </button>
+      </DialogTrigger>
       {modalContent}
-    </div>
+      </div>
+    </Dialog>
   );
 }
 
