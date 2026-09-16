@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TimetableSyncPanel from './TimetableSyncPanel';
 import { classApi } from '@/api/class-api';
 import { timetableApi, type TimetableOptions } from '@/api/timetable-api';
+import { toast } from 'sonner';
 
 vi.mock('@/providers/auth-provider', () => ({ useAuth: () => ({ user: { roleCode: 'ADMIN' }, hasPermission: () => true }) }));
 vi.mock('@/api/class-api', () => ({ classApi: { getClasses: vi.fn() } }));
 vi.mock('@/api/timetable-api', () => ({ timetableApi: { getSyncStatus: vi.fn(), getSyncSettings: vi.fn(), getSavedClassWeekStatus: vi.fn(), getSavedClassWeeksStatus: vi.fn(), loadCatalog: vi.fn(), updateSyncSettings: vi.fn(), syncSavedClassWeek: vi.fn(), syncSavedClassWeeks: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn() } }));
 const catalog: TimetableOptions = { years: [{ value: '2026', label: '2026' }], semesters: [{ value: '1', label: 'Học kỳ 1' }], weeks: [{ value: 'w1', label: 'Tuần 1' }], faculties: [{ value: 'f1', label: 'Khoa 1' }], courses: [{ value: 'c1', label: 'Khóa 1' }], classes: [{ value: 'A', label: '  Lớp A  ', parent: { year: '2026', semester: '1', faculty: 'f1', course: 'c1' } }, { value: 'B', label: 'Lớp B', parent: { year: '2026', semester: '1', faculty: 'f1', course: 'c1' } }] };
 const settings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const openSourceConfig = () => fireEvent.click(screen.getByRole('button', { name: 'Mở cấu hình nâng cao' }));
@@ -94,6 +96,16 @@ describe('TimetableSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' }));
     await waitFor(() => expect(timetableApi.updateSyncSettings).toHaveBeenCalledWith(expect.objectContaining({ classLinks: [] })));
     expect(screen.getByText('Unverified')).toBeInTheDocument();
+  });
+
+  it('shows a success toast instead of an inline message after saving links', async () => {
+    render(<TimetableSyncPanel />);
+    await screen.findByText('Lớp A');
+    openSourceConfig();
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu liên kết' }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Đã lưu liên kết và cấu hình.'));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('supports source-only view and retains draft after a failed save', async () => {

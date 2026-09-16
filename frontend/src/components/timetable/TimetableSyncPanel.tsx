@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, CheckCircle2, Loader2, Search, SlidersHorizontal } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TimetableWeekPopover from './TimetableWeekPopover';
+import { toast } from 'sonner';
 
 const emptySettings: TimetableSyncSettings = { enabled: false, intervalMinutes: 60, coverage: [], selectedClasses: [], classLinks: [] };
 const normalize = (value: unknown) => String(value || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
@@ -396,7 +397,7 @@ export default function TimetableSyncPanel({
       };
       setSettings(normalized);
       setSavedLinks(normalized.classLinks || []);
-      setMessage('Đã lưu liên kết và cấu hình.');
+      toast.success('Đã lưu liên kết và cấu hình.');
       await refreshStatuses();
     } catch (e: unknown) {
       if (mounted.current)
