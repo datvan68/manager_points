@@ -51,6 +51,13 @@ async function choose(label: string, value: string) {
   await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
 }
 
+function chooseDesktopClasses(...labels: string[]) {
+  fireEvent.click(screen.getByRole('combobox', { name: 'Lớp' }));
+  const popover = document.querySelector('[data-desktop-class-popover="true"]') as HTMLElement;
+  labels.forEach((label) => fireEvent.click(within(popover).getByRole('option', { name: label })));
+  fireEvent.click(within(popover).getByRole('button', { name: 'Xác nhận' }));
+}
+
 describe('TimetableLookup', () => {
   it('sorts both week selectors by displayed week number without mutating API options', async () => {
     const unorderedWeeks = [
@@ -87,7 +94,7 @@ describe('TimetableLookup', () => {
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeDisabled();
 
     const count = vi.mocked(timetableApi.getOptions).mock.calls.length;
-    await choose('Lớp', 'a');
+    chooseDesktopClasses('Lớp A');
     expect(timetableApi.getOptions).toHaveBeenCalledTimes(count);
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toBeEnabled();
 
@@ -117,13 +124,12 @@ describe('TimetableLookup', () => {
     await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
     await choose('Tuần', 'w');
     fireEvent.click(screen.getByRole('combobox', { name: 'Lớp' }));
-    await waitFor(() => expect(screen.getAllByRole('listbox', { name: 'Options', hidden: true })
-      .some((element) => element.className.includes('opacity-100'))).toBe(true));
-    const listbox = screen.getAllByRole('listbox', { name: 'Options', hidden: true })
-      .find((element) => element.className.includes('opacity-100')) as HTMLElement;
+    const classPopover = document.querySelector('[data-desktop-class-popover="true"]') as HTMLElement;
+    const listbox = within(classPopover).getByRole('listbox', { name: 'Danh sách lớp học' });
     expect(within(listbox).getAllByRole('option')).toHaveLength(2);
     expect(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' })).toBeInTheDocument();
     fireEvent.click(within(listbox).getByRole('option', { name: 'Lớp A · f2 · c2' }));
+    fireEvent.click(within(classPopover).getByRole('button', { name: 'Xác nhận' }));
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     await waitFor(() => expect(timetableApi.getTimetables).toHaveBeenCalledWith([{ year: 'y', semester: 's', week: 'w', faculty: 'f2', course: 'c2', className: 'a' }]));
   });

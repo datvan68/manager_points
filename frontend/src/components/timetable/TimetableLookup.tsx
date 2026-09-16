@@ -198,6 +198,136 @@ function MobileChoicePopover({
   );
 }
 
+function DesktopClassPopover({
+  options,
+  disabled,
+  selectedValues,
+  onValuesChange,
+}: {
+  options: { label: string; value: string }[];
+  disabled?: boolean;
+  selectedValues: string[];
+  onValuesChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftValues, setDraftValues] = useState<string[]>(selectedValues);
+  const [query, setQuery] = useState('');
+  const selectedLabel = selectedValues.length ? `${selectedValues.length} lớp đã chọn` : 'Chọn lớp';
+  const filteredOptions = options
+    .filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((left, right) => Number(draftValues.includes(right.value)) - Number(draftValues.includes(left.value)));
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setDraftValues(selectedValues);
+      setQuery('');
+    }
+    setOpen(nextOpen);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          role="combobox"
+          aria-label="Lớp"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={selectedValues.length ? '' : 'text-[#64748B]/60'}>{selectedLabel}</span>
+          <span aria-hidden="true" className="text-sm text-[#64748B]">⌄</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        data-desktop-class-popover="true"
+        align="start"
+        sideOffset={8}
+        className="z-[60] flex max-h-[min(560px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] flex-col gap-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
+      >
+        <div className="shrink-0 pb-2">
+          <div className="relative">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Tìm mã lớp học..."
+              aria-label="Tìm lớp học"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-xs text-[#1E293B] outline-none placeholder:text-slate-400 focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Xóa tìm kiếm"
+                className="absolute right-2.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 hover:text-slate-600"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          role="listbox"
+          aria-label="Danh sách lớp học"
+          aria-multiselectable="true"
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-1.5"
+        >
+          {filteredOptions.length ? filteredOptions.map((item) => {
+            const isSelected = draftValues.includes(item.value);
+            return (
+              <button
+                key={item.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => setDraftValues((current) => current.includes(item.value)
+                  ? current.filter((entry) => entry !== item.value)
+                  : [...current, item.value])}
+                className={`flex min-h-10 w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs transition-colors ${
+                  isSelected
+                    ? 'bg-blue-50 font-semibold text-[#1A73E8]'
+                    : 'text-[#1E293B] hover:bg-slate-50'
+                }`}
+              >
+                <span className="min-w-0 truncate">{item.label}</span>
+                {isSelected && <Check aria-hidden="true" size={15} className="shrink-0 text-[#1A73E8]" />}
+              </button>
+            );
+          }) : (
+            <p className="px-4 py-8 text-center text-xs text-slate-400">Không tìm thấy lựa chọn</p>
+          )}
+        </div>
+
+        <div className="mt-2 flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="h-9 rounded-xl px-4 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onValuesChange(draftValues);
+              setOpen(false);
+            }}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#1A73E8] px-5 text-xs font-bold text-white shadow-sm shadow-blue-500/25 transition-colors hover:bg-blue-600"
+          >
+            <Check size={14} />
+            Xác nhận
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function weekNumber(item: { label: string; value: string }): number | null {
   const label = item.label.trim();
   const weekLabel = label.match(/^Tuần\s+(\d+)(?:\D|$)/i);
@@ -798,21 +928,12 @@ export default function TimetableLookup({ refreshKey = 0 }: { refreshKey?: numbe
 
         {/* Lớp */}
         <div className="min-w-0 flex-1 sm:min-w-[180px] sm:max-w-xs">
-          <Popover>
-            <PopoverTrigger asChild>
-              <button type="button" role="combobox" aria-label="Lớp" aria-expanded="false" disabled={busy || !filters.week || !classChoiceOptions.length} className="flex h-10 w-full items-center justify-between rounded-xl border border-white/75 bg-white/60 px-3 text-left text-xs font-medium text-[#1E293B] shadow-sm backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50">
-                <span>{classChoiceIds.length ? `${classChoiceIds.length} lớp đã chọn` : 'Chọn lớp'}</span><span aria-hidden="true">⌄</span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="z-[10000] opacity-100 max-h-80 w-[min(92vw,360px)] overflow-y-auto p-2">
-              <div role="listbox" aria-label="Options" className="opacity-100 space-y-1">
-                {classChoiceOptions.map((item) => {
-                  const checked = classChoiceIds.includes(item.value);
-                  return <button key={item.value} type="button" role="option" aria-selected={checked} onClick={() => selectClassChoices(checked ? classChoiceIds.filter((id) => id !== item.value) : [...classChoiceIds, item.value])} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs ${checked ? 'bg-blue-50 font-semibold text-[#1A73E8]' : 'hover:bg-slate-50'}`}><span className="flex h-4 w-4 items-center justify-center rounded border">{checked && <Check size={12} />}</span>{item.label}</button>;
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
+          <DesktopClassPopover
+            options={classChoiceOptions}
+            disabled={busy || !filters.week || !classChoiceOptions.length}
+            selectedValues={classChoiceIds}
+            onValuesChange={selectClassChoices}
+          />
         </div>
 
         {/* Nhóm thao tác: Tìm kiếm, Làm mới, Cấu hình mặc định */}
