@@ -43,6 +43,7 @@ export default function QrScannerModal({ open, onClose, onScanned, checkinStatus
   const scanningRef = useRef(false);
   const cameraRequestRef = useRef(0);
   const scannerRef = useRef<QrScanner | null>(null);
+  const retryAfterResetRef = useRef(false);
 
   const stopCamera = useCallback(() => {
     cameraRequestRef.current += 1;
@@ -80,7 +81,7 @@ export default function QrScannerModal({ open, onClose, onScanned, checkinStatus
   }, [stopCamera]);
 
   const requestCamera = useCallback(async () => {
-    if (cameraState === 'requesting' || cameraState === 'active') return;
+    if (cameraState === 'requesting' || scannerRef.current || streamRef.current) return;
     stopCamera();
     const requestId = ++cameraRequestRef.current;
     setCameraState('requesting');
@@ -126,6 +127,12 @@ export default function QrScannerModal({ open, onClose, onScanned, checkinStatus
     if (!open) { stopCamera(); setCameraState('idle'); setManualToken(''); }
   }, [open, stopCamera]);
   useEffect(() => {
+    if (open && isMobile && checkinStatus === 'idle' && retryAfterResetRef.current) {
+      retryAfterResetRef.current = false;
+      void requestCamera();
+    }
+  }, [checkinStatus, isMobile, open, requestCamera]);
+  useEffect(() => {
     if (checkinStatus === 'success') {
       stopCamera();
       const timer = setTimeout(close, 2500);
@@ -135,6 +142,10 @@ export default function QrScannerModal({ open, onClose, onScanned, checkinStatus
 
   const handleManualSubmit = () => {
     if (normalizeAttendanceToken(manualToken) && canSubmitRef.current) handleQrDetected(manualToken);
+  };
+  const handleRetry = () => {
+    retryAfterResetRef.current = true;
+    onReset?.();
   };
   if (!open || !isMobile) return null;
   const showFallback = cameraState === 'denied' || cameraState === 'unavailable' || cameraState === 'unsupported';
@@ -150,7 +161,7 @@ export default function QrScannerModal({ open, onClose, onScanned, checkinStatus
           <DialogDescription className="text-sm leading-relaxed text-[#64748B]">Camera chỉ được dùng để quét mã QR điểm danh trên màn hình này.</DialogDescription>
           {checkinStatus === 'success' && <div className="flex flex-col items-center gap-4 rounded-xl border border-purple-500/20 bg-purple-500/10 py-10 text-center"><CheckCircle2 className="h-12 w-12 text-purple-700" aria-hidden="true" /><div><h4 className="text-lg font-bold text-purple-700">Điểm danh thành công!</h4><p className="mt-1 text-sm text-[#64748B]">Bạn đã được ghi nhận điểm danh.</p></div></div>}
           {checkinStatus === 'checking' && <div className="flex flex-col items-center gap-4 rounded-xl border border-blue-500/20 bg-blue-500/10 py-10"><div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500/20 border-t-[#1A73E8]" /><p className="text-sm text-[#64748B]">Đang xử lý điểm danh...</p></div>}
-          {checkinStatus === 'error' && <div className="flex flex-col items-center gap-4 rounded-xl border border-rose-500/20 bg-rose-500/10 py-8 text-center"><XCircle className="h-12 w-12 text-rose-700" aria-hidden="true" /><div><h4 className="text-lg font-bold text-rose-700">Điểm danh thất bại</h4><p className="mt-1 text-sm text-[#64748B]">{checkinError || 'Đã xảy ra lỗi. Vui lòng thử lại.'}</p></div><button type="button" onClick={onReset} className="flex items-center gap-2 rounded-xl border border-white/70 bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/30"><RefreshCw className="h-4 w-4" aria-hidden="true" />Thử lại</button></div>}
+          {checkinStatus === 'error' && <div className="flex flex-col items-center gap-4 rounded-xl border border-rose-500/20 bg-rose-500/10 py-8 text-center"><XCircle className="h-12 w-12 text-rose-700" aria-hidden="true" /><div><h4 className="text-lg font-bold text-rose-700">Điểm danh thất bại</h4><p className="mt-1 text-sm text-[#64748B]">{checkinError || 'Đã xảy ra lỗi. Vui lòng thử lại.'}</p></div><button type="button" onClick={handleRetry} className="flex items-center gap-2 rounded-xl border border-white/70 bg-[#1A73E8] px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1A73E8]/30"><RefreshCw className="h-4 w-4" aria-hidden="true" />Thử lại</button></div>}
           {checkinStatus === 'idle' && <>
             <div
               role="region"

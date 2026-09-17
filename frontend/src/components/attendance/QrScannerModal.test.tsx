@@ -53,6 +53,31 @@ describe('QrScannerModal', () => {
     expect(scanners[0].destroy).toHaveBeenCalled();
   });
 
+  it('restarts a fresh scanner after a failed check-in retry', async () => {
+    function Harness() {
+      const [status, setStatus] = React.useState<'idle' | 'checking' | 'error'>('idle');
+      const onScanned = async () => {
+        setStatus('checking');
+        await Promise.resolve();
+        setStatus('error');
+      };
+      return <QrScannerModal open onClose={vi.fn()} onScanned={onScanned} checkinStatus={status} onReset={() => setStatus('idle')} />;
+    }
+
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cho phép camera' }));
+    await waitFor(() => expect(screen.getByText(/Hướng camera/i)).toBeInTheDocument());
+    act(() => { scanners[0].emit({ data: 'attendance: failed' }); });
+    await waitFor(() => expect(screen.getByText('Điểm danh thất bại')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(screen.getByText(/Hướng camera/i)).toBeInTheDocument());
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
+    expect(scanners).toHaveLength(2);
+    expect(scanners[0].stop).toHaveBeenCalled();
+    expect(scanners[0].destroy).toHaveBeenCalled();
+  });
+
   it('renders a compact camera preview that fills its QR frame', async () => {
     render(<QrScannerModal open onClose={vi.fn()} onScanned={vi.fn()} checkinStatus="idle" />);
     fireEvent.click(screen.getByRole('button', { name: 'Cho phép camera' }));
