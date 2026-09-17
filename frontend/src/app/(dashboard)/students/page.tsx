@@ -379,7 +379,7 @@ function StudentsPageContent() {
     <div
       key={cls.id}
       onClick={() => handleClassClick(cls.id)}
-      className="group bg-white/55 backdrop-blur-md border border-white/80 rounded-xl p-3.5 md:p-4 flex flex-col justify-between shadow-xs shadow-slate-200/50 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/75 relative cursor-pointer min-h-[125px]"
+      className="group bg-white/60 backdrop-blur-md border border-white/80 rounded-2xl p-3.5 md:p-4 flex flex-col justify-between shadow-xs shadow-slate-200/50 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/75 relative cursor-pointer min-h-[125px]"
     >
       {/* Action overlay: visible on hover (desktop) or always visible on touch/mobile */}
       {(permissions.canUpdateClass || permissions.canDeleteClass) && (
@@ -592,23 +592,17 @@ function StudentsPageContent() {
             </div>
 
             {/* Right Column: Class List */}
-            <div className={`flex-1 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 flex-col min-w-0 overflow-hidden relative ${isMobileViewClasses ? "flex" : "hidden xl:flex"}`}>
+            <div
+              className={`flex-1 flex-col min-w-0 overflow-hidden relative ${
+                isMobileViewClasses ? "flex" : "hidden xl:flex"
+              } xl:bg-white/40 xl:backdrop-blur-md xl:rounded-2xl xl:border xl:border-white/70 xl:shadow-sm xl:shadow-slate-300/40`}
+            >
               {/* Header */}
-              <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/50 shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    {/* Hàng tiêu đề có nút Quay lại trên mobile */}
+              <div className="px-0 py-1.5 xl:px-6 xl:py-4 xl:border-b xl:border-white/50 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 md:gap-4">
+                  {/* Desktop Title & Subtitle: hidden on mobile */}
+                  <div className="hidden xl:flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <button
-                        onClick={() => {
-                          setIsMobileViewClasses(false);
-                          updateStudentsListUrl({ view: "" });
-                        }}
-                        className="xl:hidden p-1.5 hover:bg-white/60 active:bg-white/80 rounded-xl text-blue-600 transition-colors -ml-1 border border-transparent hover:border-white/50 shadow-sm flex items-center justify-center shrink-0"
-                        title="Quay lại danh sách khoa"
-                      >
-                        <ArrowLeft size={18} />
-                      </button>
                       <h2 className="text-[18px] md:text-[22px] font-bold text-[#1f2937] tracking-tight flex items-center gap-2 truncate">
                         <span className="truncate">Danh sách lớp</span>
                         <span className="text-[11px] md:text-[12px] font-bold text-[#4f46e5] bg-[#eef2ff] px-2 py-0.5 md:px-[10px] md:py-[2px] rounded-full shrink-0">
@@ -623,7 +617,18 @@ function StudentsPageContent() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  {/* Toolbar: Search + 2 Buttons (+ Back button on mobile) */}
+                  <div className="flex items-center gap-2 w-full xl:w-auto shrink-0">
+                    <button
+                      onClick={() => {
+                        setIsMobileViewClasses(false);
+                        updateStudentsListUrl({ view: "" });
+                      }}
+                      className="xl:hidden p-2 hover:bg-white/80 active:bg-white rounded-xl text-slate-700 transition-colors border border-white/80 bg-white/60 backdrop-blur-sm shadow-xs flex items-center justify-center shrink-0 h-9 w-9"
+                      title="Quay lại danh sách khoa"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
                     <Research
                       placeholder="Tìm tên lớp..."
                       value={searchTerm}
@@ -638,7 +643,7 @@ function StudentsPageContent() {
                         <Button
                           variant="outline"
                           onClick={() => setIsImportClassPopupOpen(true)}
-                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-8.5 sm:h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-9 border border-white/80 bg-white/60 backdrop-blur-sm hover:bg-white/80 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                           title="Import lớp"
                         >
                           <Upload size={13} />
@@ -650,7 +655,7 @@ function StudentsPageContent() {
                             setEditingClass({ departmentId: selectedDept });
                             setIsClassPopupOpen(true);
                           }}
-                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-8.5 sm:h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-9 border border-white/80 bg-white/60 backdrop-blur-sm hover:bg-white/80 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
                           title="Thêm lớp"
                         >
                           <Plus size={13} />
@@ -665,7 +670,7 @@ function StudentsPageContent() {
               {/* Class cards container */}
               <div
                 ref={classListScrollRef}
-                className="flex-1 overflow-y-auto px-3.5 sm:px-6 md:px-8 py-3.5 sm:py-4 bg-transparent scrollbar-hover pb-24 md:pb-6"
+                className="flex-1 overflow-y-auto px-0 xl:px-8 py-2 xl:py-4 bg-transparent scrollbar-hover pb-24 md:pb-6"
               >
                 <div className="flex flex-col gap-3.5 w-full">
                   {isLoading || isDataLoading ? (
@@ -673,7 +678,7 @@ function StudentsPageContent() {
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div
                           key={i}
-                          className="bg-white/60 rounded-xl border border-white/70 p-3.5 md:p-4 flex flex-col justify-between h-[125px]"
+                          className="bg-white/60 rounded-2xl border border-white/70 p-3.5 md:p-4 flex flex-col justify-between h-[125px]"
                         >
                           <div>
                             <Skeleton className="w-14 h-4 mb-2" />
@@ -694,9 +699,24 @@ function StudentsPageContent() {
                     <>
                       {/* Cao đẳng Section */}
                       <div className="flex flex-col gap-2.5 w-full">
-                        <div className="flex items-center justify-between w-full py-0.5">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setIsCaoDangExpanded(!isCaoDangExpanded);
+                            scrollClassListToTop();
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setIsCaoDangExpanded(!isCaoDangExpanded);
+                              scrollClassListToTop();
+                            }
+                          }}
+                          className="flex items-center justify-between w-full py-1 cursor-pointer select-none group/accordion"
+                        >
                           <div className="flex flex-1 items-center gap-2">
-                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase">
+                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase group-hover/accordion:text-blue-600 transition-colors">
                               Hệ Cao đẳng
                             </span>
                             <span className="text-[11px] font-semibold text-slate-400">
@@ -704,19 +724,15 @@ function StudentsPageContent() {
                             </span>
                             <div className="flex-1 h-px bg-slate-200/60 ml-2" />
                           </div>
-                          <button
-                            onClick={() => {
-                              setIsCaoDangExpanded(!isCaoDangExpanded);
-                              scrollClassListToTop();
-                            }}
-                            className="p-1 hover:bg-white/60 active:bg-white/80 rounded-lg text-slate-400 hover:text-slate-650 transition-colors ml-2"
+                          <div
+                            className="p-1 group-hover/accordion:bg-white/80 rounded-lg text-slate-400 group-hover/accordion:text-slate-600 transition-colors ml-2"
                             title={isCaoDangExpanded ? "Thu gọn" : "Mở rộng"}
                           >
                             <ChevronDown
                               size={16}
                               className={`transition-transform duration-200 ${isCaoDangExpanded ? "" : "rotate-180"}`}
                             />
-                          </button>
+                          </div>
                         </div>
 
                         {isCaoDangExpanded && (
@@ -735,7 +751,7 @@ function StudentsPageContent() {
                                   });
                                   setIsClassPopupOpen(true);
                                 }}
-                                className="border-2 border-dashed border-white/80 bg-white/30 backdrop-blur-md hover:border-white hover:bg-white/50 rounded-xl flex flex-col items-center justify-center p-3.5 py-4 cursor-pointer hover:scale-[1.01] transition-all duration-150 ease-out group min-h-[125px]"
+                                className="border-2 border-dashed border-white/80 bg-white/30 backdrop-blur-md hover:border-white hover:bg-white/50 rounded-2xl flex flex-col items-center justify-center p-3.5 py-4 cursor-pointer hover:scale-[1.01] transition-all duration-150 ease-out group min-h-[125px]"
                               >
                                 <div className="w-9 h-9 rounded-full bg-white border border-[#f3f4f6] group-hover:border-[#5519f0]/20 flex items-center justify-center text-gray-400 group-hover:text-[#5519f0] shadow-xs transition-all group-hover:scale-110">
                                   <Plus size={16} strokeWidth={2.5} />
@@ -751,9 +767,24 @@ function StudentsPageContent() {
 
                       {/* Trung cấp Section */}
                       <div className="flex flex-col gap-2.5 w-full mt-1">
-                        <div className="flex items-center justify-between w-full py-0.5">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setIsTrungCapExpanded(!isTrungCapExpanded);
+                            scrollClassListToTop();
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setIsTrungCapExpanded(!isTrungCapExpanded);
+                              scrollClassListToTop();
+                            }
+                          }}
+                          className="flex items-center justify-between w-full py-1 cursor-pointer select-none group/accordion"
+                        >
                           <div className="flex flex-1 items-center gap-2">
-                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase">
+                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase group-hover/accordion:text-blue-600 transition-colors">
                               Hệ Trung cấp
                             </span>
                             <span className="text-[11px] font-semibold text-slate-400">
@@ -761,19 +792,15 @@ function StudentsPageContent() {
                             </span>
                             <div className="flex-1 h-px bg-slate-200/60 ml-2" />
                           </div>
-                          <button
-                            onClick={() => {
-                              setIsTrungCapExpanded(!isTrungCapExpanded);
-                              scrollClassListToTop();
-                            }}
-                            className="p-1 hover:bg-white/60 active:bg-white/80 rounded-lg text-slate-400 hover:text-slate-650 transition-colors ml-2"
+                          <div
+                            className="p-1 group-hover/accordion:bg-white/80 rounded-lg text-slate-400 group-hover/accordion:text-slate-600 transition-colors ml-2"
                             title={isTrungCapExpanded ? "Thu gọn" : "Mở rộng"}
                           >
                             <ChevronDown
                               size={16}
                               className={`transition-transform duration-200 ${isTrungCapExpanded ? "" : "rotate-180"}`}
                             />
-                          </button>
+                          </div>
                         </div>
 
                         {isTrungCapExpanded && (
