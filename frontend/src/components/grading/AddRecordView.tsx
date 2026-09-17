@@ -154,6 +154,13 @@ export function toggleStudentSelectionState(
   };
 }
 
+export function getMobileStudentSelectionSearchProps(
+  searchValue: string,
+  onSearchChange: (value: string) => void,
+) {
+  return { searchValue, onSearchChange };
+}
+
 interface AddRecordViewProps {
   onBack: () => void;
   onSuccess?: () => void;
@@ -1101,6 +1108,7 @@ export default function AddRecordView({ onBack, onSuccess, recordToEdit, taskId 
                 loading={isStudentsLoading}
                 hasMore={classIds.some(id => hasMoreStudents[id])}
                 onLoadMore={handleLoadMoreStudents}
+                {...getMobileStudentSelectionSearchProps(studentsSearch, handleStudentSearch)}
               />
             )}
 

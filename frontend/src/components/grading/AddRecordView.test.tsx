@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { orderCriteriaByUsage, readCriterionUsage } from './criterion-usage';
-import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, consumeClassHydrationMarker, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft, shouldResetClassDependentState } from './AddRecordView';
+import { buildStudentRecordDraft, buildViolationItems, clearPendingQuickViolations, consumeClassHydrationMarker, getMobileStudentSelectionSearchProps, mergeStudentsById, toggleStudentSelectionState, isStudentRecordDraft, shouldResetClassDependentState } from './AddRecordView';
 
 describe('AddRecordView draft contract', () => {
   it('refetches hydrated classes without resetting hydrated state', () => {
@@ -118,6 +118,17 @@ describe('AddRecordView multi-student staging', () => {
   it('clears only pending quick rows when the criterion changes', () => {
     const other = buildViolationItems(students, ['student-b'], criterion, '', []);
     expect(clearPendingQuickViolations([...existingRows(), ...other], new Set(['student-a:criterion-a'])).map(item => item.student_id)).toEqual(['student-b']);
+  });
+});
+
+describe('AddRecordView mobile student search wiring', () => {
+  it('passes the controlled search value and handler to the mobile dialog', () => {
+    const onSearchChange = vi.fn();
+    const props = getMobileStudentSelectionSearchProps('SV002', onSearchChange);
+
+    expect(props).toEqual({ searchValue: 'SV002', onSearchChange });
+    props.onSearchChange('SV003');
+    expect(onSearchChange).toHaveBeenCalledWith('SV003');
   });
 });
 
