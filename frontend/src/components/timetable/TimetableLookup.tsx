@@ -250,7 +250,7 @@ function DesktopClassPopover({
         data-desktop-class-popover="true"
         align="start"
         sideOffset={8}
-        className="z-[60] flex max-h-[min(560px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2rem))] flex-col gap-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
+        className="z-[60] flex h-[min(560px,var(--radix-popover-content-available-height))] min-h-0 w-[min(420px,calc(100vw-2rem))] flex-col gap-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
       >
         <div className="shrink-0 pb-2">
           <div className="relative">

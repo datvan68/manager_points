@@ -154,6 +154,22 @@ describe('TimetableLookup', () => {
     expect(weekChevron).not.toHaveClass('rotate-180');
   });
 
+  it('bounds the desktop class popover and keeps the list as its only scroll owner', async () => {
+    render(<TimetableLookup />);
+    await waitFor(() => expect(screen.queryByText('Đang tải bộ lọc...')).not.toBeInTheDocument());
+    await choose('Tuần', 'w');
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lớp' }));
+    const popover = document.querySelector('[data-desktop-class-popover="true"]') as HTMLElement;
+    const listbox = within(popover).getByRole('listbox', { name: 'Danh sách lớp học' });
+    const footer = within(popover).getByRole('button', { name: 'Hủy' }).parentElement;
+
+    expect(popover).toHaveClass('h-[min(560px,var(--radix-popover-content-available-height))]', 'min-h-0', 'overflow-hidden');
+    expect(popover).not.toHaveClass('max-h-[min(560px,calc(100vh-7rem))]');
+    expect(listbox).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto');
+    expect(footer).toHaveClass('shrink-0');
+  });
+
   it('derives cross-faculty classes from the selected week and preserves the chosen source context', async () => {
     const multiContext = {
       ...options,
