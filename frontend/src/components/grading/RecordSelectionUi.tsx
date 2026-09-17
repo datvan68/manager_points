@@ -152,7 +152,7 @@ export function RecordSelectionDialog({
         {loading && <div className="flex items-center justify-center gap-2 p-4 text-xs text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Đang tải...</div>}
         {hasMore && <Button type="button" variant="outline" onClick={onLoadMore} disabled={loading} className="mx-auto mt-3 flex h-11 md:h-9 min-h-[44px] md:min-h-0 text-sm md:text-xs">Tải thêm</Button>}
       </div>
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 sm:pt-4">
+      <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 pt-3 sm:pt-4">
         <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-11 md:h-9 min-h-[44px] md:min-h-0 px-4 text-sm md:text-xs">Hủy</Button>
         <Button type="button" onClick={handleConfirm} className="h-11 md:h-9 min-h-[44px] md:min-h-0 px-4 text-sm md:text-xs bg-[#005bbf] text-white hover:bg-[#004ca0]"><Check className="h-4 w-4" />Xác nhận</Button>
       </div>
@@ -201,7 +201,7 @@ export function RecordSelectionDialog({
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="h-[min(26rem,calc(100vh-3rem))] max-h-[calc(100vh-3rem)] w-[min(24rem,calc(100vw-2rem))] overflow-hidden border-0 bg-slate-50/95 p-3">
+          <PopoverContent align="start" className="h-[min(26rem,var(--radix-popover-content-available-height))] w-[min(24rem,calc(100vw-2rem))] overflow-hidden border-0 bg-slate-50/95 p-3">
             {selectionContent}
           </PopoverContent>
         </Popover>

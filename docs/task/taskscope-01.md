@@ -2,10 +2,10 @@ slot_id: "taskscope-01"
 generation: 1
 task_id: "20260917-080209-fix-class-selection-overflow"
 scope_file: "docs/task/taskscope-01.md"
-status: ready
-scope_revision: 1
+status: completed
+scope_revision: 3
 created_at: "2026-09-17T08:02:09+07:00"
-updated_at: "2026-09-17T08:02:09+07:00"
+updated_at: "2026-09-17T08:24:00+07:00"
 base_commit: "14c53f25b0ca18d5079ce6aedd108f1b533c400f"
 task: "Constrain the class-selection popover to the visible viewport"
 pipeline: bug_fix
@@ -16,11 +16,19 @@ coordination:
   warnings:
     - "frontend/src/components/grading/RecordSelectionUi.tsx and its test currently contain uncommitted student-search and draft-selection fixes; execution must preserve those changes and review only the task-specific diff."
 completion:
-  completed_at: null
-  outcome: null
-  final_commit_or_state: null
-  changed_paths: []
-  checks_passed: []
+  completed_at: "2026-09-17T08:24:00+07:00"
+  outcome: "completed"
+  final_commit_or_state: "main @ 377acdafae9b82538e529831431644aed6a7aa49; scoped working-tree changes retained"
+  changed_paths:
+    - "frontend/src/components/grading/RecordSelectionUi.tsx"
+    - "frontend/src/components/grading/RecordSelectionUi.test.tsx"
+    - "docs/task/taskscope-01.md"
+  checks_passed:
+    - "V-01: 2 focused Vitest suites passed; 25 tests passed"
+    - "V-02: frontend typecheck exited 0"
+    - "V-03: authenticated dev UI desktop compact bounds/list/footer plus Cancel/Confirm verified"
+    - "V-04: authenticated dev UI mobile 375x667 Dialog bounds and close verified"
+    - "git diff --check: passed for scoped files"
   cleanup_pending: []
 evidence:
   current_behavior: "frontend/src/components/grading/RecordSelectionUi.tsx:RecordSelectionDialog gives the desktop PopoverContent an explicit viewport-based height/max-height, which suppresses the shared PopoverContent fallback to --radix-popover-content-available-height; in the supplied compact-height screenshot the list remains visible while the action footer extends below the visible window."

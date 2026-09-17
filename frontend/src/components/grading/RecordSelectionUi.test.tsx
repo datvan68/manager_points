@@ -45,6 +45,27 @@ describe('RecordSelectionUi', () => {
     expect(toggleSelectionValue(['a', 'b'], 'a')).toEqual(['b']);
   });
 
+  it('keeps the desktop popover collision-aware with a persistent action footer', () => {
+    render(
+      <RecordSelectionDialog
+        label="Lớp học"
+        title="Chọn lớp học"
+        value=""
+        placeholder="Chọn lớp"
+        onConfirm={vi.fn()}
+      >
+        {() => <div className="h-full">Danh sách lớp</div>}
+      </RecordSelectionDialog>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn lớp' }));
+
+    const popover = screen.getByRole('dialog');
+    expect(popover.className).toContain('h-[min(26rem,var(--radix-popover-content-available-height))]');
+    expect(popover.className).toContain('max-h-[var(--radix-popover-content-available-height)]');
+    expect(screen.getByRole('button', { name: 'Hủy' }).parentElement?.className).toContain('shrink-0');
+  });
+
   it('only enables the six-card viewport from the seventh item', () => {
     expect(quickGridClass(6)).toContain('overflow-visible');
     expect(quickGridClass(7)).toContain('overflow-y-auto');
