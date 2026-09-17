@@ -379,6 +379,9 @@ export interface MobileStudentSelectionDialogProps {
   loading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  searchPlaceholder?: string;
 }
 
 export function MobileStudentSelectionDialog({
@@ -393,13 +396,18 @@ export function MobileStudentSelectionDialog({
   loading = false,
   hasMore = false,
   onLoadMore,
+  searchValue = '',
+  onSearchChange,
+  searchPlaceholder = 'Tìm tên hoặc mã sinh viên...',
 }: MobileStudentSelectionDialogProps) {
   const [draftSelectedIds, setDraftSelectedIds] = useState<string[]>(selectedStudentIds);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpenRef.current) {
       setDraftSelectedIds(selectedStudentIds);
     }
+    wasOpenRef.current = open;
   }, [open, selectedStudentIds]);
 
   const toggleStudent = (id: string) => {
@@ -429,6 +437,18 @@ export function MobileStudentSelectionDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </div>
+
+          {onSearchChange ? (
+            <Input
+              type="search"
+              role="combobox"
+              aria-label="Tìm sinh viên"
+              value={searchValue}
+              onChange={event => onSearchChange(event.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-11 min-h-[44px] shrink-0 rounded-xl border-slate-200 bg-white text-sm placeholder:text-[#64748B]/60 focus-visible:!border-slate-300 focus-visible:!ring-0"
+            />
+          ) : null}
 
           <VirtualizedStudentGrid
             students={students}

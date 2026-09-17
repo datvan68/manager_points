@@ -447,6 +447,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const [hasMoreStudents, setHasMoreStudents] = useState<Record<string, boolean>>({});
   const [classStudentTotals, setClassStudentTotals] = useState<Record<string, number>>({});
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
+  const studentSnapshotCacheRef = React.useRef<Map<string, Student>>(new Map());
+  const latestStudentsSearchRef = React.useRef('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -476,8 +478,9 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       }));
       const total = (!Array.isArray(res) && res?.meta?.total) ? res.meta.total : newStudents.length;
 
-      if (!classIdsRef.current.includes(classId)) return;
-      if (page === 1) {
+      if (!classIdsRef.current.includes(classId) || latestStudentsSearchRef.current !== searchVal) return;
+      newStudents.forEach((student: Student) => studentSnapshotCacheRef.current.set(student._id, student));
+      if (page === 1 && !searchVal.trim()) {
         setClassStudentTotals(prev => ({ ...prev, [classId]: total }));
       }
 
@@ -508,6 +511,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     editHydrationPendingRef.current = false;
     restoringDraftRef.current = false;
     classIdsRef.current = classIds;
+    latestStudentsSearchRef.current = '';
     setStudentsSearch("");
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, false])));
@@ -538,6 +542,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   
   const handleStudentSearch = (query: string) => {
+    latestStudentsSearchRef.current = query;
     setStudentsSearch(query);
     setStudentsPages(Object.fromEntries(classIds.map(id => [id, 1])));
     setHasMoreStudents(Object.fromEntries(classIds.map(id => [id, false])));
@@ -643,7 +648,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
     const newViolations = confirmedStudentIds.map(studentId => {
       const existing = addedViolations.find(v => v.student_id === studentId && v.criterion_id === selectedCriterionId);
       if (existing) return existing;
-      const student = classStudents.find(s => s._id === studentId);
+      const student = studentSnapshotCacheRef.current.get(studentId) || classStudents.find(s => s._id === studentId);
       if (!student) return null;
       return createViolationItem(student, criterion, violationNote);
     }).filter(Boolean) as ViolationItem[];
@@ -1114,6 +1119,8 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                 loading={isStudentsLoading}
                 hasMore={classIds.some(id => hasMoreStudents[id])}
                 onLoadMore={handleLoadMoreStudents}
+                searchValue={studentsSearch}
+                onSearchChange={handleStudentSearch}
               />
             )}
 

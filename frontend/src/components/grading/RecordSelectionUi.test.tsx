@@ -202,4 +202,48 @@ describe('RecordSelectionUi', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onConfirm).toHaveBeenCalledWith(['st-1', 'st-2']);
   });
+
+  it('searches mobile students without dropping draft selections during parent rerenders', () => {
+    const onConfirm = vi.fn();
+    const onSearchChange = vi.fn();
+    const students = [
+      { _id: 'st-1', full_name: 'Nguyễn Văn A', student_code: 'SV001' },
+      { _id: 'st-2', full_name: 'Trần Thị B', student_code: 'SV002' },
+    ];
+
+    const { rerender } = render(
+      <MobileStudentSelectionDialog
+        open
+        onOpenChange={vi.fn()}
+        students={students}
+        selectedStudentIds={['st-1']}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+        searchValue=""
+        onSearchChange={onSearchChange}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Tìm sinh viên' }), { target: { value: 'SV002' } });
+    expect(onSearchChange).toHaveBeenCalledWith('SV002');
+
+    fireEvent.click(screen.getByRole('option', { name: /Trần Thị B/i }));
+    rerender(
+      <MobileStudentSelectionDialog
+        open
+        onOpenChange={vi.fn()}
+        students={[students[1]]}
+        selectedStudentIds={['st-1']}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+        loading
+        searchValue="SV002"
+        onSearchChange={onSearchChange}
+      />
+    );
+
+    expect(screen.getByRole('option', { name: /Trần Thị B/i })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận' }));
+    expect(onConfirm).toHaveBeenCalledWith(['st-1', 'st-2']);
+  });
 });
