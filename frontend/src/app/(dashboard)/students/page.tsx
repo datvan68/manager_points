@@ -372,6 +372,115 @@ function StudentsPageContent() {
     });
   }, [isLoading, isDataLoading, selectedDept, searchTerm, filteredClasses.length]);
 
+  const renderClassCard = (
+    cls: (typeof filteredClasses)[0],
+    degreeLevel: "Cao đẳng" | "Trung cấp",
+  ) => (
+    <div
+      key={cls.id}
+      onClick={() => handleClassClick(cls.id)}
+      className="group bg-white/55 backdrop-blur-md border border-white/80 rounded-xl p-3.5 md:p-4 flex flex-col justify-between shadow-xs shadow-slate-200/50 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] hover:bg-white/75 relative cursor-pointer min-h-[125px]"
+    >
+      {/* Action overlay: visible on hover (desktop) or always visible on touch/mobile */}
+      {(permissions.canUpdateClass || permissions.canDeleteClass) && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 xl:opacity-0 xl:group-hover:opacity-100 max-xl:opacity-100 transition-opacity duration-150 z-10 bg-white/90 backdrop-blur-sm p-1 rounded-lg shadow-xs"
+        >
+          <Action
+            permissionEdit="CLASS_UPDATE"
+            permissionDelete="CLASS_DELETE"
+            onEdit={() => {
+              if (!permissions.canUpdateClass) return;
+              setEditingClass({
+                _id: cls.id,
+                name: cls.name,
+                year: cls.year,
+                departmentId: selectedDept,
+                degreeLevel,
+                headquarters: cls.headquarters,
+                teacherId: cls.user_id,
+              });
+              setIsClassPopupOpen(true);
+            }}
+            onDelete={() => {
+              if (!permissions.canDeleteClass) return;
+              setClassToDelete(cls);
+              setIsClassDeleteModalOpen(true);
+            }}
+          />
+        </div>
+      )}
+
+      <div>
+        {/* Row 1: Status badge + Headquarters tag */}
+        <div className="flex items-center justify-between gap-2 pr-6">
+          <div
+            className={`px-2 py-0.5 rounded-md text-[9px] md:text-[10px] font-bold uppercase tracking-wider ${
+              cls.status === "Đang học"
+                ? "bg-[#f0fdf4] text-[#16a34a]"
+                : cls.status === "Sắp tốt nghiệp"
+                  ? "bg-[#fff7ed] text-[#ea580c]"
+                  : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
+            }`}
+          >
+            {cls.status}
+          </div>
+          {cls.headquarters && (
+            <span className="bg-slate-100/90 text-slate-600 px-1.5 py-0.5 rounded text-[9px] md:text-[10px] font-semibold truncate max-w-[110px]">
+              {cls.headquarters}
+            </span>
+          )}
+        </div>
+
+        {/* Row 2: Class Name */}
+        <h4
+          className="text-[15px] md:text-[16px] font-bold text-[#1f2937] leading-snug line-clamp-1 group-hover:text-[#5519f0] transition-colors mt-1.5"
+          title={cls.name}
+        >
+          {cls.name}
+        </h4>
+
+        {/* Row 3: School Year */}
+        <div className="flex items-center gap-1.5 text-[11px] md:text-[12px] text-slate-500 mt-1 font-normal">
+          <CalendarIcon size={12} className="text-slate-400 shrink-0" />
+          <span>{cls.year}</span>
+        </div>
+      </div>
+
+      {/* Row 4 (Footer): Student Count & Avatars */}
+      <div className="pt-2.5 border-t border-slate-100/80 flex items-center justify-between mt-2.5">
+        <div className="bg-[#eef2ff] px-2 py-1 rounded-md flex items-center gap-1.5 text-[11px] md:text-[12px] font-bold text-[#4f46e5]">
+          <Users size={13} className="text-[#4f46e5] shrink-0" />
+          <span>
+            {cls.students}{" "}
+            <span className="text-slate-500 text-[10px] font-normal">
+              học viên
+            </span>
+          </span>
+        </div>
+
+        {cls.avatars.length > 0 && (
+          <div className="flex -space-x-1.5 pl-2 items-center">
+            {cls.avatars.slice(0, 3).map((avatar, idx) => (
+              <StudentAvatar
+                key={avatar._id || idx}
+                fullName={avatar.full_name}
+                sizeClass="w-[22px] h-[22px] md:w-[24px] md:h-[24px] border-1.5 border-white shadow-xs"
+                textClassName="text-[8px] md:text-[9px]"
+              />
+            ))}
+            {cls.extraStudents > 0 && (
+              <div className="w-[22px] h-[22px] md:w-[24px] md:h-[24px] rounded-full border-1.5 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-600 shadow-xs shrink-0">
+                +{cls.extraStudents}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <HeaderCustomMappings mappings={{ students: "Danh sách sinh viên" }} />
@@ -485,11 +594,11 @@ function StudentsPageContent() {
             {/* Right Column: Class List */}
             <div className={`flex-1 bg-white/40 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 flex-col min-w-0 overflow-hidden relative ${isMobileViewClasses ? "flex" : "hidden xl:flex"}`}>
               {/* Header */}
-              <div className="px-4 py-4 md:px-8 md:py-6 border-b border-white/50 shrink-0">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex flex-col gap-1.5">
+              <div className="px-4 py-3 md:px-6 md:py-4 border-b border-white/50 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
+                  <div className="flex flex-col gap-1 min-w-0">
                     {/* Hàng tiêu đề có nút Quay lại trên mobile */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <button
                         onClick={() => {
                           setIsMobileViewClasses(false);
@@ -500,21 +609,21 @@ function StudentsPageContent() {
                       >
                         <ArrowLeft size={18} />
                       </button>
-                      <h2 className="text-[20px] md:text-[24px] font-bold text-[#1f2937] tracking-tight flex items-center gap-2">
-                        Danh sách lớp
-                        <span className="text-[11px] md:text-[12px] font-bold text-[#4f46e5] bg-[#eef2ff] px-2 py-0.5 md:px-[12px] md:py-[4px] rounded-full">
+                      <h2 className="text-[18px] md:text-[22px] font-bold text-[#1f2937] tracking-tight flex items-center gap-2 truncate">
+                        <span className="truncate">Danh sách lớp</span>
+                        <span className="text-[11px] md:text-[12px] font-bold text-[#4f46e5] bg-[#eef2ff] px-2 py-0.5 md:px-[10px] md:py-[2px] rounded-full shrink-0">
                           {filteredClasses.length} lớp
                         </span>
                       </h2>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[13px] md:text-[14px] text-[#1f2937] font-bold leading-tight flex-wrap mt-0.5">
-                      <School size={15} className="text-[#6b7280] shrink-0" />
-                      <span>{currentDeptName}</span>
+                    <div className="flex items-center gap-1.5 text-[12px] md:text-[13px] text-slate-600 font-medium leading-tight truncate">
+                      <School size={14} className="text-slate-400 shrink-0" />
+                      <span className="truncate">{currentDeptName}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full lg:w-auto mt-3 lg:mt-0">
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                     <Research
                       placeholder="Tìm tên lớp..."
                       value={searchTerm}
@@ -522,17 +631,18 @@ function StudentsPageContent() {
                         setSearchTerm(e.target.value);
                         scrollClassListToTop();
                       }}
-                      containerClassName="flex-1 max-w-none lg:max-w-[231px]"
+                      containerClassName="flex-1 max-w-none sm:w-[170px] lg:w-[210px]"
                     />
                     {permissions.canCreateClass && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <Button
                           variant="outline"
                           onClick={() => setIsImportClassPopupOpen(true)}
-                          className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-8.5 sm:h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          title="Import lớp"
                         >
                           <Upload size={13} />
-                          <span>Import lớp</span>
+                          <span className="hidden sm:inline">Import lớp</span>
                         </Button>
                         <Button
                           variant="outline"
@@ -540,10 +650,11 @@ function StudentsPageContent() {
                             setEditingClass({ departmentId: selectedDept });
                             setIsClassPopupOpen(true);
                           }}
-                          className="flex items-center gap-1.5 px-4 h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 h-8.5 sm:h-9 border border-white/80 bg-white/50 backdrop-blur-sm hover:bg-white/70 hover:scale-[1.01] rounded-xl cursor-pointer text-xs font-semibold text-slate-700 shadow-xs shrink-0 transition-all duration-150 ease-out focus:outline-none"
+                          title="Thêm lớp"
                         >
                           <Plus size={13} />
-                          <span>Thêm lớp</span>
+                          <span className="hidden sm:inline">Thêm lớp</span>
                         </Button>
                       </div>
                     )}
@@ -554,24 +665,26 @@ function StudentsPageContent() {
               {/* Class cards container */}
               <div
                 ref={classListScrollRef}
-                className="flex-1 overflow-y-auto px-4 md:px-8 py-4 bg-transparent scrollbar-hover"
+                className="flex-1 overflow-y-auto px-3.5 sm:px-6 md:px-8 py-3.5 sm:py-4 bg-transparent scrollbar-hover pb-24 md:pb-6"
               >
-                <div className="flex flex-col gap-4 w-full">
+                <div className="flex flex-col gap-3.5 w-full">
                   {isLoading || isDataLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {Array.from({ length: 6 }).map((_, i) => (
                         <div
                           key={i}
-                          className="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col h-[180px]"
+                          className="bg-white/60 rounded-xl border border-white/70 p-3.5 md:p-4 flex flex-col justify-between h-[125px]"
                         >
-                          <Skeleton className="w-16 h-5 mb-3" />
-                          <Skeleton className="w-3/4 h-6 mb-2" />
-                          <Skeleton className="w-1/2 h-4 mb-4" />
-                          <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
-                            <Skeleton className="w-20 h-4" />
-                            <div className="flex -space-x-1.5 pl-2">
-                              <Skeleton className="w-6 h-6 rounded-full" />
-                              <Skeleton className="w-6 h-6 rounded-full" />
+                          <div>
+                            <Skeleton className="w-14 h-4 mb-2" />
+                            <Skeleton className="w-3/4 h-5 mb-1.5" />
+                            <Skeleton className="w-1/2 h-3.5" />
+                          </div>
+                          <div className="pt-2.5 border-t border-slate-100/80 flex items-center justify-between">
+                            <Skeleton className="w-16 h-4" />
+                            <div className="flex -space-x-1 pl-2">
+                              <Skeleton className="w-5 h-5 rounded-full" />
+                              <Skeleton className="w-5 h-5 rounded-full" />
                             </div>
                           </div>
                         </div>
@@ -580,292 +693,100 @@ function StudentsPageContent() {
                   ) : (
                     <>
                       {/* Cao đẳng Section */}
-                      <div className="flex flex-col gap-4 w-full">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-1 items-center">
-                            <span className="text-[14px] font-medium text-[#6b7280] tracking-wide">
+                      <div className="flex flex-col gap-2.5 w-full">
+                        <div className="flex items-center justify-between w-full py-0.5">
+                          <div className="flex flex-1 items-center gap-2">
+                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase">
                               Hệ Cao đẳng
                             </span>
-                            <div className="flex-1 h-px bg-[#f3f4f6] ml-4" />
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              ({caoDangClasses.length})
+                            </span>
+                            <div className="flex-1 h-px bg-slate-200/60 ml-2" />
                           </div>
                           <button
                             onClick={() => {
                               setIsCaoDangExpanded(!isCaoDangExpanded);
                               scrollClassListToTop();
                             }}
-                            className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-650 transition-colors"
+                            className="p-1 hover:bg-white/60 active:bg-white/80 rounded-lg text-slate-400 hover:text-slate-650 transition-colors ml-2"
+                            title={isCaoDangExpanded ? "Thu gọn" : "Mở rộng"}
                           >
                             <ChevronDown
-                              size={18}
-                              className={`transition-transform duration-250 ${isCaoDangExpanded ? "" : "rotate-180"}`}
+                              size={16}
+                              className={`transition-transform duration-200 ${isCaoDangExpanded ? "" : "rotate-180"}`}
                             />
                           </button>
                         </div>
 
                         {isCaoDangExpanded && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {caoDangClasses.map((cls) => (
-                              <div
-                                key={cls.id}
-                                onClick={() => handleClassClick(cls.id)}
-                                className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
-                              >
-                                {/* Action Hover overlay */}
-                                {(permissions.canUpdateClass || permissions.canDeleteClass) && <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
-                                  <Action
-                                    permissionEdit="CLASS_UPDATE"
-                                    permissionDelete="CLASS_DELETE"
-                                    onEdit={() => {
-                                      if (!permissions.canUpdateClass) return;
-                                      setEditingClass({
-                                        _id: cls.id,
-                                        name: cls.name,
-                                        year: cls.year,
-                                        departmentId: selectedDept,
-                                        degreeLevel: "Cao đẳng",
-                                        headquarters: cls.headquarters,
-                                        teacherId: cls.user_id,
-                                      });
-                                      setIsClassPopupOpen(true);
-                                    }}
-                                    onDelete={() => {
-                                      if (!permissions.canDeleteClass) return;
-                                      setClassToDelete(cls);
-                                      setIsClassDeleteModalOpen(true);
-                                    }}
-                                  />
-                                </div>}
-
-                                <div className="flex items-start justify-between">
-                                  <div
-                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
-                                      cls.status === "Đang học"
-                                        ? "bg-[#f0fdf4] text-[#16a34a]"
-                                        : cls.status === "Sắp tốt nghiệp"
-                                          ? "bg-[#fff7ed] text-[#ea580c]"
-                                          : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                    }`}
-                                  >
-                                    {cls.status}
-                                  </div>
-                                </div>
-
-                                <div className="flex-1 mt-2">
-                                  <h4
-                                    className="text-[18px] font-bold text-[#1f2937] leading-[28px] line-clamp-1 group-hover:text-[#5519f0] transition-colors"
-                                    title={cls.name}
-                                  >
-                                    {cls.name}
-                                  </h4>
-                                  <div className="flex items-center gap-[12px] text-[12px] text-[#9ca3af] mt-1 font-normal flex-wrap">
-                                    <div className="flex items-center gap-[6px]">
-                                      <CalendarIcon
-                                        size={14}
-                                        className="text-[#9ca3af]"
-                                      />
-                                      <span>{cls.year}</span>
-                                    </div>
-                                    {cls.headquarters && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                                          {cls.headquarters}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-4">
-                                  <div className="bg-[#eef2ff] px-[8px] py-[6px] rounded-[8px] flex items-center gap-[8px] text-[12px] font-bold text-[#4f46e5]">
-                                    <Users
-                                      size={14}
-                                      className="text-[#4f46e5]"
-                                    />
-                                    <span>
-                                      {cls.students}{" "}
-                                      <span className="text-[#9ca3af] text-[10px] font-normal">
-                                        học viên
-                                      </span>
-                                    </span>
-                                  </div>
-
-                                  {cls.avatars.length > 0 && (
-                                    <div className="flex -space-x-2 pl-2">
-                                      {cls.avatars.map((avatar, idx) => (
-                                        <StudentAvatar
-                                          key={avatar._id || idx}
-                                          fullName={avatar.full_name}
-                                          sizeClass="w-[28px] h-[28px] border-2 border-white shadow-sm hover:translate-y-[-2px] transition-transform cursor-pointer"
-                                          textClassName="text-[10px]"
-                                        />
-                                      ))}
-                                      {cls.extraStudents > 0 && (
-                                        <div className="w-[28px] h-[28px] rounded-full border-2 border-white bg-[#f9fafb] flex items-center justify-center text-[8px] font-bold text-[#6b7280] shadow-sm shrink-0">
-                                          +{cls.extraStudents}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {caoDangClasses.map((cls) =>
+                              renderClassCard(cls, "Cao đẳng"),
+                            )}
 
                             {/* Add new Class card inside Cao đẳng */}
                             {permissions.canCreateClass && (
-                            <div
-                              onClick={() => {
-                                setEditingClass({
-                                  departmentId: selectedDept,
-                                  degreeLevel: "Cao đẳng",
-                                });
-                                setIsClassPopupOpen(true);
-                              }}
-                              className="border-2 border-dashed border-white/80 bg-white/30 backdrop-blur-md hover:border-white hover:bg-white/50 rounded-2xl flex flex-col items-center justify-center p-[22px] py-[50px] cursor-pointer hover:scale-[1.01] transition-all duration-150 ease-out group min-h-[190px]"
-                            >
-                              <div className="w-12 h-12 rounded-full bg-white border border-[#f3f4f6] group-hover:border-[#5519f0]/20 flex items-center justify-center text-gray-400 group-hover:text-[#5519f0] shadow-[0px_1px_1px_rgba(0,0,0,0.05)] transition-all group-hover:scale-110">
-                                <Plus size={20} strokeWidth={2.5} />
+                              <div
+                                onClick={() => {
+                                  setEditingClass({
+                                    departmentId: selectedDept,
+                                    degreeLevel: "Cao đẳng",
+                                  });
+                                  setIsClassPopupOpen(true);
+                                }}
+                                className="border-2 border-dashed border-white/80 bg-white/30 backdrop-blur-md hover:border-white hover:bg-white/50 rounded-xl flex flex-col items-center justify-center p-3.5 py-4 cursor-pointer hover:scale-[1.01] transition-all duration-150 ease-out group min-h-[125px]"
+                              >
+                                <div className="w-9 h-9 rounded-full bg-white border border-[#f3f4f6] group-hover:border-[#5519f0]/20 flex items-center justify-center text-gray-400 group-hover:text-[#5519f0] shadow-xs transition-all group-hover:scale-110">
+                                  <Plus size={16} strokeWidth={2.5} />
+                                </div>
+                                <span className="text-[12px] md:text-[13px] font-bold text-[#6b7280] group-hover:text-[#5519f0] transition-colors mt-2">
+                                  Thêm lớp học mới
+                                </span>
                               </div>
-                              <span className="text-[14px] font-bold text-[#6b7280] group-hover:text-[#5519f0] transition-colors mt-3">
-                                Thêm lớp học mới
-                              </span>
-                            </div>
                             )}
                           </div>
                         )}
                       </div>
 
                       {/* Trung cấp Section */}
-                      <div className="flex flex-col gap-4 w-full">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-1 items-center">
-                            <span className="text-[14px] font-medium text-[#6b7280] tracking-wide">
+                      <div className="flex flex-col gap-2.5 w-full mt-1">
+                        <div className="flex items-center justify-between w-full py-0.5">
+                          <div className="flex flex-1 items-center gap-2">
+                            <span className="text-[12px] md:text-[13px] font-bold text-slate-600 tracking-wide uppercase">
                               Hệ Trung cấp
                             </span>
-                            <div className="flex-1 h-px bg-[#f3f4f6] ml-4" />
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              ({trungCapClasses.length})
+                            </span>
+                            <div className="flex-1 h-px bg-slate-200/60 ml-2" />
                           </div>
                           <button
                             onClick={() => {
                               setIsTrungCapExpanded(!isTrungCapExpanded);
                               scrollClassListToTop();
                             }}
-                            className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-650 transition-colors"
+                            className="p-1 hover:bg-white/60 active:bg-white/80 rounded-lg text-slate-400 hover:text-slate-650 transition-colors ml-2"
+                            title={isTrungCapExpanded ? "Thu gọn" : "Mở rộng"}
                           >
                             <ChevronDown
-                              size={18}
-                              className={`transition-transform duration-250 ${isTrungCapExpanded ? "" : "rotate-180"}`}
+                              size={16}
+                              className={`transition-transform duration-200 ${isTrungCapExpanded ? "" : "rotate-180"}`}
                             />
                           </button>
                         </div>
 
                         {isTrungCapExpanded && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {trungCapClasses.map((cls) => (
-                              <div
-                                key={cls.id}
-                                onClick={() => handleClassClick(cls.id)}
-                                className="group bg-white/50 backdrop-blur-md border border-white/70 rounded-2xl p-[21px] flex flex-col gap-[8px] h-full shadow-sm shadow-slate-300/40 hover:shadow-md transition-all duration-150 ease-out hover:scale-[1.01] relative cursor-pointer"
-                              >
-                                {/* Action Hover overlay */}
-                                {(permissions.canUpdateClass || permissions.canDeleteClass) && <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 bg-white/95 backdrop-blur-sm p-1.5 rounded-xl">
-                                  <Action
-                                    permissionEdit="CLASS_UPDATE"
-                                    permissionDelete="CLASS_DELETE"
-                                    onEdit={() => {
-                                      if (!permissions.canUpdateClass) return;
-                                      setEditingClass({
-                                        _id: cls.id,
-                                        name: cls.name,
-                                        year: cls.year,
-                                        departmentId: selectedDept,
-                                        degreeLevel: "Trung cấp",
-                                        headquarters: cls.headquarters,
-                                        teacherId: cls.user_id,
-                                      });
-                                      setIsClassPopupOpen(true);
-                                    }}
-                                    onDelete={() => {
-                                      if (!permissions.canDeleteClass) return;
-                                      setClassToDelete(cls);
-                                      setIsClassDeleteModalOpen(true);
-                                    }}
-                                  />
-                                </div>}
-
-                                <div className="flex items-start justify-between">
-                                  <div
-                                    className={`px-[10px] py-[4px] rounded-[8px] text-[10px] font-bold uppercase tracking-wider ${
-                                      cls.status === "Đang học"
-                                        ? "bg-[#f0fdf4] text-[#16a34a]"
-                                        : cls.status === "Sắp tốt nghiệp"
-                                          ? "bg-[#fff7ed] text-[#ea580c]"
-                                          : "bg-[#f9fafb] border border-[#e5e7eb] text-[#6b7280]"
-                                    }`}
-                                  >
-                                    {cls.status}
-                                  </div>
-                                </div>
-
-                                <div className="flex-1 mt-2">
-                                  <h4
-                                    className="text-[18px] font-bold text-[#1f2937] leading-[28px] line-clamp-1 group-hover:text-[#5519f0] transition-colors"
-                                    title={cls.name}
-                                  >
-                                    {cls.name}
-                                  </h4>
-                                  <div className="flex items-center gap-[12px] text-[12px] text-[#9ca3af] mt-1 font-normal flex-wrap">
-                                    <div className="flex items-center gap-[6px]">
-                                      <CalendarIcon
-                                        size={14}
-                                        className="text-[#9ca3af]"
-                                      />
-                                      <span>{cls.year}</span>
-                                    </div>
-                                    {cls.headquarters && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                                          {cls.headquarters}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="pt-6 border-t border-gray-50 flex items-center justify-between mt-4">
-                                  <div className="bg-[#eef2ff] px-[8px] py-[6px] rounded-[8px] flex items-center gap-[8px] text-[12px] font-bold text-[#4f46e5]">
-                                    <Users
-                                      size={14}
-                                      className="text-[#4f46e5]"
-                                    />
-                                    <span>
-                                      {cls.students}{" "}
-                                      <span className="text-[#9ca3af] text-[10px] font-normal">
-                                        học viên
-                                      </span>
-                                    </span>
-                                  </div>
-
-                                  {cls.avatars.length > 0 && (
-                                    <div className="flex -space-x-2 pl-2">
-                                      {cls.avatars.map((avatar, idx) => (
-                                        <StudentAvatar
-                                          key={avatar._id || idx}
-                                          fullName={avatar.full_name}
-                                          sizeClass="w-[28px] h-[28px] border-2 border-white shadow-sm hover:translate-y-[-2px] transition-transform cursor-pointer"
-                                          textClassName="text-[10px]"
-                                        />
-                                      ))}
-                                      {cls.extraStudents > 0 && (
-                                        <div className="w-[28px] h-[28px] rounded-full border-2 border-white bg-[#f9fafb] flex items-center justify-center text-[8px] font-bold text-[#6b7280] shadow-sm shrink-0">
-                                          +{cls.extraStudents}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {trungCapClasses.length === 0 ? (
+                              <p className="col-span-full py-3 text-center text-xs text-slate-400 italic">
+                                Chưa có lớp Trung cấp nào trong khoa này
+                              </p>
+                            ) : (
+                              trungCapClasses.map((cls) =>
+                                renderClassCard(cls, "Trung cấp"),
+                              )
+                            )}
                           </div>
                         )}
                       </div>
