@@ -671,25 +671,154 @@ function ClassStudentsPageContent() {
         }
     ];
 
+    const renderStudentCard = (student: Student) => {
+        const isSelected = selectedStudentIds.includes(student._id);
+        const resolvedScore = resolveDrlScore(summaryMap.get(student._id)) ?? resolveDrlScore(student.training_point_id);
+        const vScore = resolvedScore !== null ? `${resolvedScore}` : 'N/A';
+        const vStatus = getVietnameseStatus(student.status);
+        const genderStr = student.sex === 'Male' ? 'Nam' : student.sex === 'Female' ? 'Nữ' : 'Khác';
+        const dobStr = formatDob(student.date_bir);
+        const accountStatus = student.account_status;
+        const accountLabel = accountStatus === 'active' ? 'Đã kích hoạt' : accountStatus === 'locked' ? 'Đang khóa' : 'Chưa active';
+
+        return (
+            <div
+                key={student._id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setOpenDrawerId(student._id)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setOpenDrawerId(student._id);
+                    }
+                }}
+                className={`p-3 rounded-2xl border transition-all duration-150 cursor-pointer select-none bg-white/70 backdrop-blur-md hover:bg-white/90 shadow-xs active:scale-[0.99] ${
+                    isSelected
+                        ? 'border-blue-500/50 bg-blue-50/50 shadow-blue-500/10'
+                        : 'border-white/80 hover:border-white'
+                }`}
+            >
+                <div className="flex items-center justify-between gap-2.5">
+                    {/* Checkbox + Avatar + Info */}
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleStudentSelection(student._id);
+                            }}
+                            className="p-1 -m-1 cursor-pointer flex items-center justify-center shrink-0"
+                            title={isSelected ? 'Bỏ chọn' : 'Chọn sinh viên'}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer pointer-events-none"
+                            />
+                        </div>
+
+                        <StudentAvatar
+                            fullName={student.full_name}
+                            sizeClass="w-9 h-9 shrink-0 shadow-xs"
+                            textClassName="text-xs font-semibold"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                            {/* Line 1: Name + Student Code */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-[13.5px] text-[#1E293B] truncate leading-tight">
+                                    {student.full_name}
+                                </span>
+                                <span className="font-mono text-[11px] text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded font-medium shrink-0">
+                                    {student.student_code}
+                                </span>
+                            </div>
+
+                            {/* Line 2: Dob • Gender • ĐRL */}
+                            <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500 mt-0.5 leading-tight">
+                                {dobStr && <span>{dobStr}</span>}
+                                {dobStr && <span className="text-slate-300">•</span>}
+                                <span>{genderStr}</span>
+                                <span className="text-slate-300">•</span>
+                                <span className="font-medium text-slate-700">
+                                    ĐRL: <span className="font-bold text-blue-600">{vScore}</span>{vScore !== 'N/A' && <span className="text-[10px] text-slate-400 font-normal">/100</span>}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <Action
+                            onView={() => setOpenDrawerId(student._id)}
+                            onEdit={() => handleEditStudent(student)}
+                            onDelete={() => handleDeleteSingle(student._id, student.full_name)}
+                            permissionView="STUDENT_READ"
+                            permissionEdit="STUDENT_UPDATE"
+                            permissionDelete="STUDENT_DELETE"
+                        />
+                    </div>
+                </div>
+
+                {/* Badges footer */}
+                <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100/80 text-[11px]">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[11px] border ${
+                            vStatus === 'Đang học'
+                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                                : vStatus === 'Bảo lưu'
+                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                                    : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
+                        }`}>
+                            {vStatus}
+                        </span>
+
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-semibold text-[11px] border ${
+                            accountStatus === 'active'
+                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                                : accountStatus === 'locked'
+                                    ? 'bg-rose-500/10 text-rose-700 border-rose-500/20'
+                                    : 'bg-slate-500/10 text-[#64748B] border-slate-500/20'
+                        }`}>
+                            {accountLabel}
+                        </span>
+                    </div>
+
+                    <span className="text-[11px] font-semibold text-[#1A73E8] flex items-center gap-0.5 shrink-0">
+                        Chi tiết &rarr;
+                    </span>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <>
             <HeaderCustomMappings mappings={{ [classId]: selectedClass ? selectedClass.class_name : classId }} />
-            <main className="flex-1 p-4 overflow-hidden flex flex-col bg-transparent relative">
+            <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
-                        className="flex-1 flex flex-col h-full bg-white/45 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm shadow-slate-300/40 overflow-hidden"
+                        className="flex-1 flex flex-col h-full bg-transparent md:bg-white/45 md:backdrop-blur-md md:rounded-2xl md:border md:border-white/70 md:shadow-sm md:shadow-slate-300/40 overflow-hidden"
                     >
-                        <div className="px-6 py-4 bg-transparent border-b border-white/60 flex items-center justify-between shrink-0 relative overflow-hidden">
+                        <div className="px-0 py-1.5 md:px-6 md:py-4 bg-transparent border-b-0 md:border-b md:border-white/60 flex items-center justify-between shrink-0 relative overflow-hidden">
                             <div className="absolute top-0 right-0 bottom-0 w-64 bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
-                            <div className="flex flex-col lg:flex-row lg:items-center gap-4 z-10 w-full max-w-screen-2xl mx-auto">
-                                <div className="flex items-center gap-4 flex-1">
+                            <div className="flex items-center justify-between gap-2.5 z-10 w-full max-w-screen-2xl mx-auto">
+                                <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
                                     <button
                                         onClick={() => router.push(getStudentsBackUrl())}
-                                        className="flex items-center gap-1.5 text-gray-900 hover:text-primary transition-colors font-bold text-[16px] shrink-0"
+                                        className="flex items-center gap-1.5 text-gray-900 hover:text-primary transition-colors font-bold text-[15px] md:text-[16px] shrink-0 truncate cursor-pointer"
                                     >
-                                        <ArrowLeft className="w-5 h-5" /> {selectedClass ? selectedClass.class_name : 'Lớp học'}
+                                        <ArrowLeft className="w-5 h-5 shrink-0" />
+                                        <span className="truncate">{selectedClass ? selectedClass.class_name : 'Lớp học'}</span>
                                     </button>
 
+                                    {/* Sĩ số badge on mobile */}
+                                    <span className="md:hidden text-[11px] font-bold text-[#1A73E8] bg-blue-500/10 px-2 py-0.5 rounded-full shrink-0 border border-blue-500/20">
+                                        {totalStudents} SV
+                                    </span>
+
+                                    {/* Desktop badges */}
                                     <div className="hidden md:flex items-center gap-3">
                                          <div className="flex items-center gap-1.5 px-[10px] py-[4.5px] bg-blue-500/10 text-[#1A73E8] border border-blue-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider shrink-0 select-none">
                                              <Users className="w-3.5 h-3.5 text-[#1A73E8]" />
@@ -708,37 +837,42 @@ function ClassStudentsPageContent() {
                                     </div>
                                 </div>
 
-                                <div className="flex-1" />
-                                {permissions.canImportStudent && (
-                                <button
-                                    onClick={() => setIsImportPopupOpen(true)}
-                                    className={`${controlBase} ${controlHover} flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-semibold shadow-sm z-10 whitespace-nowrap cursor-pointer`}
-                                >
-                                    <Download className="w-4 h-4" /> Import sinh viên
-                                </button>
-                                )}
-                                {permissions.canCreateStudent && (
-                                <button
-                                    onClick={() => { setEditingStudent(null); setIsStudentPopupOpen(true); }}
-                                    className={`${controlBase} ${controlHover} flex items-center gap-2 px-3 py-1.5 text-[12.5px] font-semibold shadow-sm z-10 whitespace-nowrap cursor-pointer`}
-                                >
-                                    <Plus className="w-4 h-4" /> Thêm sinh viên
-                                </button>
-                                )}
+                                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                                    {permissions.canImportStudent && (
+                                    <button
+                                        onClick={() => setIsImportPopupOpen(true)}
+                                        className={`${controlBase} ${controlHover} flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[12.5px] font-semibold shadow-xs z-10 whitespace-nowrap cursor-pointer`}
+                                        title="Import sinh viên"
+                                    >
+                                        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        <span className="hidden sm:inline">Import sinh viên</span>
+                                    </button>
+                                    )}
+                                    {permissions.canCreateStudent && (
+                                    <button
+                                        onClick={() => { setEditingStudent(null); setIsStudentPopupOpen(true); }}
+                                        className={`${controlBase} ${controlHover} flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[12px] sm:text-[12.5px] font-semibold shadow-xs z-10 whitespace-nowrap cursor-pointer text-primary`}
+                                        title="Thêm sinh viên"
+                                    >
+                                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        <span className="hidden sm:inline">Thêm sinh viên</span>
+                                    </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         {/* Filter Bar */}
-                        <div className="px-6 py-2.5 bg-white/30 backdrop-blur-sm border border-white/60 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 rounded-xl my-1.5 w-full max-w-screen-2xl mx-auto">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                                <div className="relative w-full sm:w-80">
+                        <div className="px-0 md:px-6 py-1 md:py-2.5 bg-transparent md:bg-white/30 md:backdrop-blur-sm border-0 md:border md:border-white/60 flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-4 shrink-0 rounded-xl my-1 md:my-1.5 w-full max-w-screen-2xl mx-auto">
+                            <div className="flex items-center gap-2 flex-1 w-full">
+                                <div className="relative flex-1 sm:w-80 sm:flex-initial">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B] w-[14px] h-[14px]" />
                                     <input
                                         type="text"
                                         placeholder="Tìm theo tên hoặc mã SV..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-4 py-1.5 bg-white/50 border border-white/80 backdrop-blur-sm rounded-xl text-[12.5px] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:bg-white/80 transition-all h-[33px] font-semibold text-[#1E293B] placeholder-[#64748B]"
+                                        className="w-full pl-9 pr-4 py-1.5 bg-white/60 md:bg-white/50 border border-white/80 backdrop-blur-sm rounded-xl text-[12.5px] focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/20 focus:bg-white/80 transition-all h-[34px] font-semibold text-[#1E293B] placeholder-[#64748B] shadow-xs"
                                     />
                                 </div>
 
@@ -746,23 +880,23 @@ function ClassStudentsPageContent() {
                                     <button
                                         onClick={handleDelete}
                                         disabled={isDataLoading}
-                                        className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-lg hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none h-[33px] cursor-pointer"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#ef4444] bg-[#fef2f2] border border-[#ef4444]/30 rounded-xl hover:bg-red-100/50 hover:border-[#ef4444] transition-all disabled:opacity-50 shrink-0 select-none h-[34px] cursor-pointer shadow-xs"
                                     >
                                         {isDataLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                        Xóa ({selectedStudentIds.length})
+                                        <span className="hidden xs:inline">Xóa</span> ({selectedStudentIds.length})
                                     </button>
                                 )}
                             </div>
 
-                            <div className="flex flex-wrap gap-2 items-center min-h-[41px]">
-                                <span className="text-[12px] font-semibold text-[#64748B]">Trạng thái:</span>
-                                <div className="flex flex-wrap gap-1 items-center bg-transparent">
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none shrink-0">
+                                <span className="text-[12px] font-semibold text-[#64748B] hidden md:inline">Trạng thái:</span>
+                                <div className="flex items-center gap-1 bg-transparent">
                                     {['Tất cả', 'Đang học', 'Bảo lưu', 'Thôi học'].map((status) => (
                                         <button
                                             key={status}
                                             onClick={() => setActiveTab(status)}
-                                            className={`px-3 py-1.5 text-[12px] transition-all rounded-xl ${activeTab === status
-                                                ? 'bg-white/70 text-[#1A73E8] border border-white/80 shadow-sm font-bold cursor-pointer'
+                                            className={`px-2.5 py-1 md:px-3 md:py-1.5 text-[11.5px] md:text-[12px] transition-all rounded-xl whitespace-nowrap shrink-0 ${activeTab === status
+                                                ? 'bg-white/80 text-[#1A73E8] border border-white/90 shadow-xs font-bold cursor-pointer'
                                                 : 'text-[#64748B] border border-transparent font-medium hover:text-[#1E293B] hover:bg-white/40 cursor-pointer'
                                                 }`}
                                         >
@@ -774,11 +908,13 @@ function ClassStudentsPageContent() {
                         </div>
 
                         {/* Student Table */}
-                        <div className="flex-1 overflow-hidden bg-transparent max-w-screen-2xl w-full mx-auto relative flex flex-col mb-4">
+                        <div className="flex-1 overflow-hidden bg-transparent max-w-screen-2xl w-full mx-auto relative flex flex-col mb-0 md:mb-4">
                             <ResponsiveDataView
                                 data={paginatedStudents}
                                 columns={studentsColumns}
                                 isLoading={isLoading || (isDataLoading && !isLoadingMoreStudents)}
+                                renderCard={renderStudentCard}
+                                mobileClassName="px-0 py-1 pb-24 md:pb-6"
                                 mobileScrollRef={mobileScrollRootRef}
                                 mobileFooter={paginatedStudents.length > 0 ? (
                                     <div ref={studentsObserverTargetRef} className="py-4 text-center text-xs text-slate-500">
