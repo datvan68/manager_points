@@ -485,7 +485,7 @@ function StudentsPageContent() {
     <>
       <HeaderCustomMappings mappings={{ students: "Danh sách sinh viên" }} />
         <StudentSectionTabs activeTab="Danh sách" />
-        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
+        <main className="flex-1 p-3 md:p-4 pb-0 md:pb-4 overflow-hidden flex flex-col bg-transparent relative main-bleed">
           <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0 w-full overflow-y-auto xl:overflow-hidden">
             {/* Left Column: Departments */}
             <div className={`w-full xl:w-80 flex-col gap-4 shrink-0 overflow-hidden xl:max-h-full ${isMobileViewClasses ? "hidden xl:flex" : "flex"}`}>
@@ -670,7 +670,7 @@ function StudentsPageContent() {
               {/* Class cards container */}
               <div
                 ref={classListScrollRef}
-                className="flex-1 overflow-y-auto px-0 xl:px-8 py-2 xl:py-4 bg-transparent scrollbar-hover pb-24 md:pb-6"
+                className="flex-1 overflow-y-auto px-0 xl:px-8 py-2 xl:py-4 bg-transparent scrollbar-hover pb-28 md:pb-6"
               >
                 <div className="flex flex-col gap-3.5 w-full">
                   {isLoading || isDataLoading ? (

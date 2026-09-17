@@ -61,6 +61,7 @@ interface ResponsiveDataViewProps<T> {
   // Desktop infinite scroll support
   desktopFooter?: React.ReactNode;
   desktopScrollRef?: React.Ref<HTMLDivElement>;
+  desktopScrollClassName?: string;
 }
 
 export default function ResponsiveDataView<T>({
@@ -84,7 +85,8 @@ export default function ResponsiveDataView<T>({
   mobileClassName = '',
   hideMobileSelection = false,
   desktopFooter,
-  desktopScrollRef
+  desktopScrollRef,
+  desktopScrollClassName = ''
 }: ResponsiveDataViewProps<T>) {
   const internalMobileScrollRef = React.useRef<HTMLDivElement>(null);
   const setMobileScrollElement = React.useCallback((node: HTMLDivElement | null) => {
@@ -211,7 +213,7 @@ export default function ResponsiveDataView<T>({
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden">
       {/* 1. Cards View (Mobile/Tablet) */}
-      <div ref={setMobileScrollElement} className={`${bpClasses.cards} flex-1 overflow-y-auto ${mobileClassName || 'p-4'}`}>
+      <div ref={setMobileScrollElement} className={`${bpClasses.cards} flex-1 overflow-y-auto scrollbar-hover ${mobileClassName || 'p-4'}`}>
         {isLoading ? (
           // Skeleton Cards
           <div className="flex flex-col gap-3">
@@ -258,7 +260,7 @@ export default function ResponsiveDataView<T>({
       </div>
 
       {/* 2. Table View (Desktop) */}
-      <div ref={desktopScrollRef} className={`${bpClasses.table} flex-1 overflow-auto`}>
+      <div ref={desktopScrollRef} className={`${bpClasses.table} flex-1 overflow-auto scrollbar-hover ${desktopScrollClassName}`.trimEnd()}>
         <table className={`w-full border-collapse ${tableClassName}`}>
           <thead className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-white/80 shadow-[0_1px_0_0_rgba(255,255,255,0.8)]">
             <tr>
