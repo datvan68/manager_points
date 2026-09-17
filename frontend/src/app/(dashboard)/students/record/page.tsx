@@ -2640,7 +2640,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
             {/* Table Content student record */}
             <div className="flex-1 overflow-hidden lg:overflow-y-auto w-full max-w-full bg-transparent flex flex-col min-h-0">
             {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ tinh giản và ẩn trên desktop) */}
-            <div ref={scrollContainerRef} className="px-0 py-1 pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
+            <div ref={scrollContainerRef} className="px-0 py-1 pb-28 md:pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
               {isLoading ? (
                 <div className="flex flex-col gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -3835,7 +3835,7 @@ function GhiNhanTab({ activeSubTab, setActiveSubTab }: GhiNhanTabProps) {
           {/* Table Content class record */}
           <div className="flex-1 overflow-hidden lg:overflow-y-auto w-full max-w-full bg-transparent flex flex-col min-h-0">
             {/* Mobile/Tablet View (Luôn hiển thị dạng thẻ và ẩn trên desktop) */}
-            <div className="px-0 py-1 pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
+            <div className="px-0 py-1 pb-28 md:pb-6 bg-transparent lg:hidden flex-1 overflow-y-auto min-h-0">
               {isClassLoading ? (
                 <div className="flex flex-col gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -5577,7 +5577,7 @@ function StudentRecordPageContent() {
     <>
       <HeaderCustomMappings mappings={{ record: "Ghi nhận" }} />
         <StudentSectionTabs activeTab="Ghi nhận" />
-        <main className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col bg-transparent relative">
+        <main className="flex-1 p-3 md:p-4 pb-0 md:pb-4 overflow-hidden flex flex-col bg-transparent relative main-bleed">
           <GhiNhanTab activeSubTab={activeSubTab} setActiveSubTab={setActiveSubTab} />
         </main>
     </>
