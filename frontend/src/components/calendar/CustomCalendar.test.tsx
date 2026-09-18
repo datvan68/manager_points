@@ -104,5 +104,8 @@ describe('CustomCalendar component', () => {
 
     // In mobile view, container should have w-full and bg-transparent
     expect(container.firstChild).toHaveClass('w-full', 'bg-transparent');
+    expect(screen.getByText('Ngày đã chọn:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xác nhận' })).toHaveClass('h-11');
+    expect(screen.getByRole('button', { name: 'Huỷ' })).toHaveClass('h-11');
   });
 });

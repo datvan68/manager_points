@@ -265,19 +265,33 @@ export function CustomCalendar({
     <div className={containerClasses}>
       {/* Quick Presets for Single Date Mode */}
       {shouldShowPresets && view === 'days' && (
-        <div className="flex items-center gap-2 px-3.5 pt-3 pb-1 border-b border-slate-100/80 bg-slate-50/70 sm:bg-white/50">
-          <span className="text-[11px] font-semibold text-slate-400">Chọn nhanh:</span>
+        <div
+          className={`flex items-center gap-2 border-b border-slate-100/80 bg-slate-50/70 sm:bg-white/50 ${
+            isMobileView ? 'px-4 py-2.5' : 'px-3.5 pt-3 pb-1'
+          }`}
+        >
+          <span className={`${isMobileView ? 'text-xs' : 'text-[11px]'} font-semibold text-slate-400`}>
+            Chọn nhanh:
+          </span>
           <button
             type="button"
             onClick={handleSelectToday}
-            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-slate-200/80 text-slate-700 hover:border-[#1A73E8] hover:text-[#1A73E8] hover:bg-blue-50/50 transition-all shadow-2xs active:scale-95"
+            className={`${
+              isMobileView
+                ? 'px-3.5 py-1.5 text-xs min-h-[36px] rounded-xl'
+                : 'px-2.5 py-1 text-[11px] rounded-lg'
+            } font-semibold bg-white border border-slate-200/80 text-slate-700 hover:border-[#1A73E8] hover:text-[#1A73E8] hover:bg-blue-50/50 transition-all shadow-2xs active:scale-95`}
           >
             Hôm nay
           </button>
           <button
             type="button"
             onClick={handleSelectYesterday}
-            className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-slate-200/80 text-slate-700 hover:border-[#1A73E8] hover:text-[#1A73E8] hover:bg-blue-50/50 transition-all shadow-2xs active:scale-95"
+            className={`${
+              isMobileView
+                ? 'px-3.5 py-1.5 text-xs min-h-[36px] rounded-xl'
+                : 'px-2.5 py-1 text-[11px] rounded-lg'
+            } font-semibold bg-white border border-slate-200/80 text-slate-700 hover:border-[#1A73E8] hover:text-[#1A73E8] hover:bg-blue-50/50 transition-all shadow-2xs active:scale-95`}
           >
             Hôm qua
           </button>
@@ -285,12 +299,18 @@ export function CustomCalendar({
       )}
 
       {/* Header */}
-      <div className="flex justify-between items-center p-3.5 pb-2.5 border-b border-slate-100/80 bg-white">
+      <div
+        className={`flex justify-between items-center border-b border-slate-100/80 bg-white ${
+          isMobileView ? 'p-4 pb-3' : 'p-3.5 pb-2.5'
+        }`}
+      >
         {monthOnly ? (
           <div className="flex items-center gap-1">
             <button
               onClick={() => setYearGridStart(currentYear - 4)}
-              className="text-[14px] font-bold text-slate-900 px-2 py-0.5 rounded-lg hover:bg-slate-100"
+              className={`${
+                isMobileView ? 'text-[15px] px-3 py-1.5 rounded-xl' : 'text-[14px] px-2 py-0.5 rounded-lg'
+              } font-bold text-slate-900 hover:bg-slate-100`}
             >
               {currentYear}
             </button>
@@ -299,7 +319,11 @@ export function CustomCalendar({
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setView('months')}
-              className="flex items-center gap-1 text-[14px] font-bold text-slate-900 hover:text-[#1A73E8] hover:bg-slate-100/80 px-2 py-0.5 rounded-lg transition-colors focus:outline-none"
+              className={`flex items-center gap-1 font-bold text-slate-900 hover:text-[#1A73E8] hover:bg-slate-100/80 transition-colors focus:outline-none ${
+                isMobileView
+                  ? 'text-[15px] px-2.5 py-1.5 min-h-[40px] rounded-xl'
+                  : 'text-[14px] px-2 py-0.5 rounded-lg'
+              }`}
               title="Chọn tháng"
             >
               <span>Tháng {currentMonth + 1}</span>
@@ -310,7 +334,11 @@ export function CustomCalendar({
                 setYearGridStart(currentYear - 4);
                 setView('years');
               }}
-              className="flex items-center gap-1 text-[14px] font-bold text-slate-900 hover:text-[#1A73E8] hover:bg-slate-100/80 px-2 py-0.5 rounded-lg transition-colors focus:outline-none"
+              className={`flex items-center gap-1 font-bold text-slate-900 hover:text-[#1A73E8] hover:bg-slate-100/80 transition-colors focus:outline-none ${
+                isMobileView
+                  ? 'text-[15px] px-2.5 py-1.5 min-h-[40px] rounded-xl'
+                  : 'text-[14px] px-2 py-0.5 rounded-lg'
+              }`}
               title="Chọn năm"
             >
               <span>{currentYear}</span>
@@ -318,26 +346,36 @@ export function CustomCalendar({
             </button>
           </div>
         ) : view === 'months' ? (
-          <h3 className="text-[14px] font-bold text-slate-900 pl-2">Chọn tháng</h3>
+          <h3 className={`${isMobileView ? 'text-[15px]' : 'text-[14px]'} font-bold text-slate-900 pl-2`}>
+            Chọn tháng
+          </h3>
         ) : (
-          <h3 className="text-[14px] font-bold text-slate-900 pl-2">
+          <h3 className={`${isMobileView ? 'text-[15px]' : 'text-[14px]'} font-bold text-slate-900 pl-2`}>
             {yearGridStart} - {yearGridStart + 11}
           </h3>
         )}
 
-        <div className="flex items-center gap-1 text-slate-600">
+        <div className={`flex items-center text-slate-600 ${isMobileView ? 'gap-2' : 'gap-1'}`}>
           {monthOnly ? (
             <>
               <button
                 onClick={() => setCurrentDate(new Date(currentYear - 1, currentMonth, 1))}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors flex items-center justify-center`}
                 aria-label="Năm trước"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setCurrentDate(new Date(currentYear + 1, currentMonth, 1))}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors flex items-center justify-center`}
                 aria-label="Năm sau"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -347,23 +385,33 @@ export function CustomCalendar({
             <>
               <button
                 onClick={handlePrevMonth}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors focus:outline-none flex items-center justify-center`}
                 aria-label="Tháng trước"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className={`${isMobileView ? 'w-4.5 h-4.5' : 'w-4 h-4'}`} />
               </button>
               <button
                 onClick={handleNextMonth}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors focus:outline-none flex items-center justify-center`}
                 aria-label="Tháng sau"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className={`${isMobileView ? 'w-4.5 h-4.5' : 'w-4 h-4'}`} />
               </button>
             </>
           ) : view === 'months' ? (
             <button
               onClick={() => setView('days')}
-              className="text-xs text-[#1A73E8] hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg focus:outline-none"
+              className={`${
+                isMobileView ? 'text-sm px-3.5 py-1.5 min-h-[40px]' : 'text-xs px-2.5 py-1'
+              } text-[#1A73E8] hover:text-blue-800 font-bold transition hover:bg-blue-50 rounded-xl focus:outline-none`}
             >
               Quay lại
             </button>
@@ -371,21 +419,31 @@ export function CustomCalendar({
             <>
               <button
                 onClick={() => setYearGridStart(prev => prev - 12)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors focus:outline-none flex items-center justify-center`}
                 aria-label="Nhóm năm trước"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setYearGridStart(prev => prev + 12)}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none"
+                className={`${
+                  isMobileView
+                    ? 'p-2.5 min-w-[40px] min-h-[40px] rounded-xl'
+                    : 'p-1.5 rounded-lg'
+                } hover:bg-slate-100 transition-colors focus:outline-none flex items-center justify-center`}
                 aria-label="Nhóm năm sau"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setView('days')}
-                className="text-xs text-[#1A73E8] hover:text-blue-800 font-bold transition px-2.5 py-1 hover:bg-blue-50 rounded-lg ml-1 focus:outline-none"
+                className={`${
+                  isMobileView ? 'text-sm px-3.5 py-1.5 min-h-[40px]' : 'text-xs px-2.5 py-1'
+                } text-[#1A73E8] hover:text-blue-800 font-bold transition hover:bg-blue-50 rounded-xl ml-1 focus:outline-none`}
               >
                 Quay lại
               </button>
@@ -395,14 +453,20 @@ export function CustomCalendar({
       </div>
 
       {/* Grid */}
-      <div className="relative min-h-0 max-h-[calc(100dvh-140px)] overflow-y-auto p-3 pt-2">
+      <div
+        className={`relative min-h-0 max-h-[calc(100dvh-140px)] overflow-y-auto ${
+          isMobileView ? 'p-3.5 pt-2.5' : 'p-3 pt-2'
+        }`}
+      >
         {monthOnly ? (
           <div className="grid grid-cols-3 gap-2 pt-1">
             {Array.from({ length: 12 }).map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => handleMonthClick(idx)}
-                className={`py-2.5 text-[11px] font-semibold rounded-lg transition-all ${
+                className={`${
+                  isMobileView ? 'py-3 text-[13px] min-h-[44px]' : 'py-2.5 text-[11px]'
+                } font-semibold rounded-xl transition-all ${
                   currentMonth === idx
                     ? 'bg-[#1A73E8] text-white shadow-sm'
                     : 'text-slate-700 hover:bg-slate-100 bg-white border border-slate-100'
@@ -418,16 +482,16 @@ export function CustomCalendar({
               {daysOfWeek.map(d => (
                 <div
                   key={d.label}
-                  className={`text-[10.5px] font-bold py-0.5 ${
-                    d.isWeekend ? 'text-amber-600/80' : 'text-slate-400'
-                  }`}
+                  className={`${
+                    isMobileView ? 'text-xs py-1' : 'text-[10.5px] py-0.5'
+                  } font-bold ${d.isWeekend ? 'text-amber-600/80' : 'text-slate-400'}`}
                 >
                   {d.label}
                 </div>
               ))}
             </div>
 
-            <div className={`relative w-full ${isMobileView ? 'min-h-[240px]' : 'min-h-[190px]'}`}>
+            <div className={`relative w-full ${isMobileView ? 'min-h-[270px]' : 'min-h-[190px]'}`}>
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
                   key={`${currentYear}-${currentMonth}`}
@@ -440,7 +504,9 @@ export function CustomCalendar({
                     x: { type: 'spring', stiffness: 320, damping: 32 },
                     opacity: { duration: 0.15 },
                   }}
-                  className="grid grid-cols-7 gap-y-1 absolute left-0 right-0"
+                  className={`grid grid-cols-7 absolute left-0 right-0 ${
+                    isMobileView ? 'gap-y-1.5' : 'gap-y-1'
+                  }`}
                 >
                   {generateDays().map((item, idx) => {
                     const isOutside = item.monthOffset !== 0;
@@ -492,7 +558,7 @@ export function CustomCalendar({
                     }
 
                     const cellButtonSize = isMobileView
-                      ? 'w-full max-w-[42px] h-[38px] text-[13px]'
+                      ? 'w-full max-w-[44px] h-[44px] text-[13.5px]'
                       : 'w-full max-w-[36px] h-[32px] text-[12px]';
 
                     return (
@@ -522,7 +588,7 @@ export function CustomCalendar({
             </div>
           </>
         ) : view === 'months' ? (
-          <div className="grid grid-cols-3 gap-2 pt-1">
+          <div className="grid grid-cols-3 gap-2.5 pt-1">
             {[
               'Tháng 1',
               'Tháng 2',
@@ -546,7 +612,9 @@ export function CustomCalendar({
                     setCurrentDate(new Date(currentYear, idx, 1));
                     setView('days');
                   }}
-                  className={`py-2.5 text-[11px] font-semibold rounded-xl text-center transition-all focus:outline-none ${
+                  className={`${
+                    isMobileView ? 'py-3 text-[13px] min-h-[44px]' : 'py-2.5 text-[11px]'
+                  } font-semibold rounded-xl text-center transition-all focus:outline-none ${
                     isActive
                       ? 'bg-[#1A73E8] text-white shadow-md shadow-blue-100'
                       : 'text-slate-700 hover:bg-slate-100 bg-white border border-slate-100'
@@ -558,7 +626,7 @@ export function CustomCalendar({
             })}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 pt-1">
+          <div className="grid grid-cols-3 gap-2.5 pt-1">
             {Array.from({ length: 12 }).map((_, idx) => {
               const y = yearGridStart + idx;
               const isActive = currentYear === y;
@@ -570,7 +638,9 @@ export function CustomCalendar({
                     setCurrentDate(new Date(y, currentMonth, 1));
                     setView('months');
                   }}
-                  className={`py-2.5 text-[11px] font-semibold rounded-xl text-center transition-all focus:outline-none ${
+                  className={`${
+                    isMobileView ? 'py-3 text-[13px] min-h-[44px]' : 'py-2.5 text-[11px]'
+                  } font-semibold rounded-xl text-center transition-all focus:outline-none ${
                     isActive
                       ? 'bg-[#1A73E8] text-white shadow-md shadow-blue-100'
                       : 'text-slate-700 hover:bg-slate-100 bg-white border border-slate-100'
@@ -585,47 +655,94 @@ export function CustomCalendar({
       </div>
 
       {/* Footer */}
-      <div className="z-10 flex shrink-0 items-center justify-between border-t border-slate-100 bg-[#f8fafb] px-4 py-3 sm:px-3.5 sm:py-2.5">
-        <span className="text-[12px] sm:text-[11.5px] font-semibold text-slate-600 truncate max-w-[170px]">
-          {monthOnly
-            ? `${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`
-            : mode === 'single'
-            ? tempStart
-              ? formatFullDate(tempStart)
-              : 'Chưa chọn ngày'
-            : `${tempStart ? formatFullDate(tempStart) : ''} ${
-                tempEnd && tempEnd.getTime() !== tempStart?.getTime()
-                  ? `- ${formatFullDate(tempEnd)}`
-                  : ''
-              }`}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 transition-colors focus:outline-none"
-          >
-            Huỷ
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (tempStart) {
-                if (onRangeConfirm) {
-                  onRangeConfirm(tempStart, mode === 'single' ? null : tempEnd);
-                } else {
-                  onRangeSelect(tempStart, mode === 'single' ? tempStart : tempEnd || tempStart);
+      {isMobileView ? (
+        <div className="z-10 flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-[#f8fafb] px-4 pt-3.5 pb-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Ngày đã chọn:</span>
+            <span className="text-sm font-bold text-slate-900 font-mono">
+              {monthOnly
+                ? `${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`
+                : mode === 'single'
+                ? tempStart
+                  ? formatFullDate(tempStart)
+                  : 'Chưa chọn ngày'
+                : `${tempStart ? formatFullDate(tempStart) : ''} ${
+                    tempEnd && tempEnd.getTime() !== tempStart?.getTime()
+                      ? `- ${formatFullDate(tempEnd)}`
+                      : ''
+                  }`}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-11 w-full rounded-xl border border-slate-200/90 bg-white text-sm font-bold text-slate-700 hover:bg-slate-100 active:scale-[0.98] transition-all flex items-center justify-center focus:outline-none shadow-2xs"
+            >
+              Huỷ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (tempStart) {
+                  if (onRangeConfirm) {
+                    onRangeConfirm(tempStart, mode === 'single' ? null : tempEnd);
+                  } else {
+                    onRangeSelect(tempStart, mode === 'single' ? tempStart : tempEnd || tempStart);
+                  }
+                  onConfirm();
                 }
-                onConfirm();
-              }
-            }}
-            disabled={!tempStart}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1557b0] disabled:opacity-50 transition-all shadow-xs active:scale-95 focus:outline-none"
-          >
-            Xác nhận
-          </button>
+              }}
+              disabled={!tempStart}
+              className="h-11 w-full rounded-xl bg-[#1A73E8] hover:bg-[#1557b0] text-white text-sm font-bold shadow-sm active:scale-[0.98] disabled:opacity-50 transition-all flex items-center justify-center focus:outline-none"
+            >
+              Xác nhận
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="z-10 flex shrink-0 items-center justify-between border-t border-slate-100 bg-[#f8fafb] px-4 py-3 sm:px-3.5 sm:py-2.5">
+          <span className="text-[12px] sm:text-[11.5px] font-semibold text-slate-600 truncate max-w-[170px]">
+            {monthOnly
+              ? `${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`
+              : mode === 'single'
+              ? tempStart
+                ? formatFullDate(tempStart)
+                : 'Chưa chọn ngày'
+              : `${tempStart ? formatFullDate(tempStart) : ''} ${
+                  tempEnd && tempEnd.getTime() !== tempStart?.getTime()
+                    ? `- ${formatFullDate(tempEnd)}`
+                    : ''
+                }`}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 transition-colors focus:outline-none"
+            >
+              Huỷ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (tempStart) {
+                  if (onRangeConfirm) {
+                    onRangeConfirm(tempStart, mode === 'single' ? null : tempEnd);
+                  } else {
+                    onRangeSelect(tempStart, mode === 'single' ? tempStart : tempEnd || tempStart);
+                  }
+                  onConfirm();
+                }
+              }}
+              disabled={!tempStart}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#1557b0] disabled:opacity-50 transition-all shadow-xs active:scale-95 focus:outline-none"
+            >
+              Xác nhận
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
