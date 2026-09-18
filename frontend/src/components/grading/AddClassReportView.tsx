@@ -23,6 +23,7 @@ import { evaluationDetailApi, EvaluationDetail } from '@/api/evaluation-detail-a
 import { incrementCriterionUsage, orderCriteriaByUsage, readCriterionUsage, CriterionUsage } from './criterion-usage';
 import { RecordSelectionDialog, toggleSelectionValue, MobileStudentSelectionDialog, VirtualizedStudentGrid } from './RecordSelectionUi';
 import { useRecordDraft } from '@/hooks/useRecordDraft';
+import { HideMobileBottomNav } from '@/providers/header-provider';
 
 const getDisplayClassName = (className?: string) =>
   String(className || '').replace(/\s*\(\d{4}\s*-\s*\d{4}\)\s*$/, '').trim();
@@ -802,11 +803,12 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-y-auto"
+      className="flex flex-col h-full from-[#F4F7FC] to-[#E2EAF4] font-sans w-full overflow-hidden"
     >
-      <div className="flex flex-col gap-3.5 sm:gap-4 mx-auto w-full md:flex-1 md:min-h-0">
+      <HideMobileBottomNav />
+      <div className="flex flex-col gap-2.5 sm:gap-3.5 mx-auto w-full flex-1 min-h-0">
         {/* Page Header Section */}
-        <div className="flex items-center justify-between gap-3 w-full">
+        <div className="flex items-center justify-between gap-3 w-full shrink-0">
           <Button
             type="button"
             variant="ghost"
@@ -825,14 +827,16 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
 
         {/* Loading Spinner */}
         {isLoadingData ? (
-          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-8 shadow-xs shadow-slate-300/30 flex flex-col items-center justify-center min-h-[220px] gap-2.5">
+          <div className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-8 shadow-xs shadow-slate-300/30 flex flex-col items-center justify-center flex-1 min-h-[220px] gap-2.5">
             <Loader2 className="w-7 h-7 text-blue-600 animate-spin" />
             <span className="text-[#005bbf] font-semibold text-xs">Đang nạp dữ liệu rèn luyện...</span>
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-2 md:flex-1 md:min-h-0">
-            {/* Main Grid Layout (12 Columns) */}
-            <div className="grid grid-cols-12 gap-3 sm:gap-3.5 w-full md:flex-1 md:min-h-0">
+          <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0">
+            {/* Scrollable Form Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 sm:pr-1 custom-scrollbar">
+              {/* Main Grid Layout (12 Columns) */}
+              <div className="grid grid-cols-12 gap-3 sm:gap-3.5 w-full md:h-full md:min-h-0 pb-1">
 
               {/* Left Column: Core Info (col-span-12 md:col-span-5 lg:col-span-4) */}
               <div className="col-span-12 md:col-span-5 lg:col-span-4 flex flex-col gap-3.5 sm:gap-4 md:min-h-0">
@@ -1138,6 +1142,7 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                   <p className="text-[11px] text-slate-400">Chọn tiêu chí trước, sau đó nhấn vào thẻ sinh viên để thêm hoặc bỏ ghi nhận.</p>
                 </div>
               </div>
+              </div>
             </div>
 
             {/* Mobile Student Selection Overlay (AC-05, AC-06) */}
@@ -1157,40 +1162,42 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
               />
             )}
 
-            {/* Footer Actions Panel */}
-            <div className="bg-white/45 backdrop-blur-md border border-white/70 shadow-xs shadow-slate-300/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 w-full md:w-[calc(66.666%-0.5rem)] md:ml-[calc(33.333%+0.5rem)] shrink-0">
-              <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
-                Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
-              </div>
+            {/* Footer Actions Panel - Ghim cố định ở đáy */}
+            <div className="shrink-0 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+              <div className="bg-white/65 backdrop-blur-md border border-white/80 shadow-xs shadow-slate-300/30 rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-3 w-full md:w-[calc(66.666%-0.5rem)] md:ml-[calc(33.333%+0.5rem)]">
+                <div className="hidden sm:flex items-center text-xs text-[#414754] font-medium italic">
+                  Hãy kiểm tra kỹ thông tin chuyên cần & kỷ luật trước khi lưu.
+                </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2.5 items-center justify-end w-full sm:w-auto ml-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
-                  className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#005bbf] font-bold text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
-                >
-                  Hủy bỏ
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex gap-2.5 items-center justify-end w-full sm:w-auto ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancel}
+                    className="border border-[rgba(0,91,191,0.3)] bg-white/40 hover:bg-white/70 rounded-xl px-5 sm:px-7 py-2 text-[#005bbf] font-bold text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 hover:scale-[1.01] transition-all duration-150 ease-out"
+                  >
+                    Hủy bỏ
+                  </Button>
 
-                <Button
-                  type="submit"
-                  disabled={isSaving}
-                  className="relative bg-[#005bbf] text-white font-bold px-6 sm:px-8 py-2 rounded-xl shadow-xs hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-1.5 border-none outline-none cursor-pointer text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 disabled:opacity-75 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang lưu...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Lưu ghi nhận</span>
-                    </>
-                  )}
-                </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSaving}
+                    className="relative bg-[#005bbf] text-white font-bold px-6 sm:px-8 py-2 rounded-xl shadow-xs hover:bg-[#004ca0] focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-center gap-1.5 border-none outline-none cursor-pointer text-sm md:text-xs md:sm:text-[13px] min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-9.5 disabled:opacity-75 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang lưu...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Lưu ghi nhận</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 

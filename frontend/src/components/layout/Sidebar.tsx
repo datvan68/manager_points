@@ -23,6 +23,7 @@ import { dormitoryApi } from "@/api/dormitory-api";
 import { toast } from "sonner";
 import SubsystemPopup from "@/components/popups/SubsystemPopup";
 import { appIconUrl, useAppBranding } from "@/providers/app-branding-provider";
+import { useHeader } from "@/providers/header-provider";
 import { activeControl } from "@/components/ui/controlStyles";
 
 // Cache (shared with RouteGuard via same API)
@@ -76,6 +77,8 @@ const skeletonWidths = ["w-2/3", "w-1/2", "w-3/4"];
 const Sidebar = () => {
   const branding = useAppBranding();
   const router = useRouter();
+  const headerContext = useHeader();
+  const isBottomNavHidden = Boolean(headerContext?.isBottomNavHidden);
   const [isCollapsed, setIsCollapsed] = React.useState(globalIsCollapsed);
 
   const handleCompactClick = () => {
@@ -405,8 +408,9 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* Mobile Bottom Navigation Bar (Hidden on desktop) */}
-      <nav className="mobile-bottom-nav fixed md:hidden" aria-label="Điều hướng chính">
+      {/* Mobile Bottom Navigation Bar (Hidden on desktop or when explicitly hidden by active view) */}
+      {!isBottomNavHidden && (
+        <nav className="mobile-bottom-nav fixed md:hidden" aria-label="Điều hướng chính">
         {isSidebarLoading ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} aria-hidden="true" className="mobile-bottom-nav-skeleton animate-pulse" />
@@ -472,6 +476,7 @@ const Sidebar = () => {
           })
         )}
       </nav>
+      )}
 
       {/* Mobile Search Surface (Positioned at top for mobile layout and keyboard visibility) */}
       {canSearchStudents && isMobileSearchOpen && (

@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Sidebar from './Sidebar';
+import { HeaderProvider, HideMobileBottomNav } from '@/providers/header-provider';
 import { useAuth, isAdminUser } from '@/providers/auth-provider';
 import { authApi } from '@/api/auth-api';
 import { isStudentRole, isTeacherRole } from '@/utils/role.util';
@@ -529,5 +530,21 @@ describe('Sidebar Component', () => {
     const source = await import('node:fs').then((fs) => fs.readFileSync(require('node:path').resolve(__dirname, './Sidebar.tsx'), 'utf8'));
     expect(source).not.toContain('Thời khóa biểu');
     expect(source).not.toContain('href: "/timetable"');
+  });
+
+  it('hides mobile bottom nav when HideMobileBottomNav is active within HeaderProvider', async () => {
+    const TestComponent = ({ hide }: { hide: boolean }) => (
+      <HeaderProvider>
+        <Sidebar />
+        {hide && <HideMobileBottomNav />}
+      </HeaderProvider>
+    );
+
+    const { rerender } = render(<TestComponent hide={false} />);
+    await waitForSidebarItems();
+    expect(document.querySelector('.mobile-bottom-nav')).toBeInTheDocument();
+
+    rerender(<TestComponent hide={true} />);
+    expect(document.querySelector('.mobile-bottom-nav')).not.toBeInTheDocument();
   });
 });
