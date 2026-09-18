@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Calendar as CalendarIcon, ChevronDown, Loader2, Plus, Trash2, AlertTriangle, FileText, Check, Save, Settings, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { Button } from '@/components/ui/button';
@@ -1044,32 +1045,64 @@ export default function AddClassReportView({ onBack, reportToEdit, onSuccess }: 
                     {/* Ngày báo cáo */}
                     <div className="flex flex-col w-full">
                       <label className="text-[11px] md:text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5 ml-1">Ngày báo cáo</label>
-                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                        <PopoverTrigger asChild>
+                      {!isMobile ? (
+                        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="bg-white/40 border border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[13px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
+                            >
+                              <span>{format(reportDate, 'dd/MM/yyyy')}</span>
+                              <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
+                            align="start"
+                            side="bottom"
+                            sideOffset={6}
+                          >
+                            <CustomCalendar
+                              mode="single"
+                              startDate={reportDate}
+                              endDate={null}
+                              onRangeSelect={(start) => { if (start) setReportDate(start); }}
+                              onCancel={() => setIsCalendarOpen(false)}
+                              onConfirm={() => setIsCalendarOpen(false)}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Drawer open={isCalendarOpen} onOpenChange={setIsCalendarOpen} direction="bottom">
                           <Button
                             type="button"
                             variant="ghost"
-                            className="bg-white/40 border border-white/70 backdrop-blur-sm min-h-[44px] md:min-h-0 h-11 md:h-9 md:sm:h-10 rounded-xl px-3.5 text-sm md:text-xs md:sm:text-[13px] text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
+                            onClick={() => setIsCalendarOpen(true)}
+                            className="bg-white/40 border border-white/70 backdrop-blur-sm min-h-[44px] h-11 rounded-xl px-3.5 text-sm text-[#1E293B] font-semibold outline-none flex items-center justify-between hover:bg-white/60 active:scale-[0.99] transition-all duration-150 ease-out w-full shadow-xs text-left font-sans"
                           >
                             <span>{format(reportDate, 'dd/MM/yyyy')}</span>
                             <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0" />
                           </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-auto p-0 z-[100] bg-transparent border-none shadow-none overflow-hidden"
-                          align="start"
-                          side="bottom"
-                          sideOffset={6}
-                        >
-                          <CustomCalendar
-                            startDate={reportDate}
-                            endDate={null}
-                            onRangeSelect={(start) => { if (start) setReportDate(start); }}
-                            onCancel={() => setIsCalendarOpen(false)}
-                            onConfirm={() => setIsCalendarOpen(false)}
-                          />
-                        </PopoverContent>
-                      </Popover>
+                          <DrawerContent direction="bottom" className="p-4 pb-8 rounded-t-[24px] border-t border-slate-200/80 bg-white">
+                            <DrawerHeader className="text-center pb-2 pt-1 px-0">
+                              <DrawerTitle className="text-base font-bold text-slate-800">Chọn ngày báo cáo</DrawerTitle>
+                              <DrawerDescription className="sr-only">Lựa chọn ngày áp dụng ghi nhận báo cáo cho lớp.</DrawerDescription>
+                            </DrawerHeader>
+                            <div className="flex justify-center w-full max-w-sm mx-auto">
+                              <CustomCalendar
+                                mode="single"
+                                isMobileView={true}
+                                startDate={reportDate}
+                                endDate={null}
+                                onRangeSelect={(start) => { if (start) setReportDate(start); }}
+                                onCancel={() => setIsCalendarOpen(false)}
+                                onConfirm={() => setIsCalendarOpen(false)}
+                              />
+                            </div>
+                          </DrawerContent>
+                        </Drawer>
+                      )}
                     </div>
                   </div>
                 </div>
