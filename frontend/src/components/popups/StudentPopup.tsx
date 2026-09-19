@@ -209,8 +209,8 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
 
     return (
         <>
-            <Popup isOpen={isOpen} onClose={onClose} className="max-w-fit bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-6">
-                <form onSubmit={handleSubmit(handleFormSubmit)} className="flex flex-col w-[600px] max-w-[95vw] bg-transparent">
+            <Popup isOpen={isOpen} onClose={onClose} className="w-full max-w-[620px] bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40" contentClassName="p-6 overflow-y-auto custom-scrollbar">
+                <form onSubmit={handleSubmit(handleFormSubmit)} className="flex flex-col w-full bg-transparent">
                 {/* Header Custom as per Figma */}
                 <div className="flex items-center justify-between pb-6 border-b border-white/60">
                     <div className="flex flex-col gap-1">
@@ -223,7 +223,7 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                     </div>
                 </div>
 
-                <div className="py-6 gap-x-6 gap-y-5 grid grid-cols-2">
+                <div className="py-6 gap-x-5 gap-y-4 grid grid-cols-1 sm:grid-cols-2">
                     {/* Mã sinh viên */}
                     <Input
                         label="Mã sinh viên"
@@ -299,8 +299,8 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                     {/* Giới tính */}
                     <div className="col-span-1 space-y-1.5 flex flex-col justify-start">
                         <label className="text-[13px] font-bold text-[#1E293B] px-1">Giới tính</label>
-                        <div className="flex gap-4 h-10 items-center">
-                            <label className={`flex-1 flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nam' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
+                        <div className="grid grid-cols-2 gap-3 h-10 items-center">
+                            <label className={`flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nam' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
                                 <input
                                     type="radio"
                                     name="gender"
@@ -312,7 +312,7 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                 <span className="text-[13px] font-bold">Nam</span>
                             </label>
 
-                            <label className={`flex-1 flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nữ' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
+                            <label className={`flex items-center justify-center gap-2 h-10 border rounded-xl cursor-pointer transition-all duration-150 ease-out hover:scale-[1.01] ${genderValue === 'Nữ' ? 'bg-[#1A73E8]/10 border-[#1A73E8]/30 text-[#1A73E8]' : 'bg-white/50 backdrop-blur-sm border-white/80 text-[#64748B] hover:bg-white/70'}`}>
                                 <input
                                     type="radio"
                                     name="gender"
@@ -329,14 +329,16 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                     {/* Email */}
                     <Input
                         label="Email"
-                        placeholder="Nhập email sinh viên (nếu có)"
+                        placeholder="Nhập email sinh viên"
                         {...register('email')}
                         error={errors.email?.message}
                     />
 
                     {/* Lớp */}
                     <div className="col-span-1 space-y-1.5">
-                        <label className="text-[13px] font-bold text-[#1E293B] px-1">Lớp</label>
+                        <label className="text-[13px] font-bold text-[#1E293B] px-1">
+                            Lớp <span className="text-red-500">*</span>
+                        </label>
                         {isLoadingData ? (
                             <div className="flex items-center gap-2 h-10 px-3 bg-white/40 border border-white/80 rounded-xl text-sm text-[#64748B] backdrop-blur-sm">
                                 <Loader2 className="w-4 h-4 animate-spin text-[#1A73E8]" />
