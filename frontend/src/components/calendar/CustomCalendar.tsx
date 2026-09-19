@@ -11,6 +11,8 @@ interface CustomCalendarProps {
   onCancel: () => void;
   onConfirm: () => void;
   minDate?: Date;
+  maxDate?: Date;
+  defaultViewDate?: Date;
   monthOnly?: boolean;
   monthValue?: string;
   onMonthSelect?: (month: string) => void;
@@ -33,6 +35,8 @@ export function CustomCalendar({
   onCancel,
   onConfirm,
   minDate,
+  maxDate,
+  defaultViewDate,
   monthOnly = false,
   monthValue,
   onMonthSelect,
@@ -40,12 +44,13 @@ export function CustomCalendar({
   showPresets,
   isMobileView = false,
 }: CustomCalendarProps) {
-  const [currentDate, setCurrentDate] = React.useState(startDate || new Date());
+  const initialViewDate = startDate || defaultViewDate || new Date();
+  const [currentDate, setCurrentDate] = React.useState(initialViewDate);
   const [tempStart, setTempStart] = React.useState<Date | null>(startDate);
   const [tempEnd, setTempEnd] = React.useState<Date | null>(mode === 'single' ? null : endDate);
   const [direction, setDirection] = React.useState(0);
   const [view, setView] = React.useState<'days' | 'months' | 'years'>('days');
-  const [yearGridStart, setYearGridStart] = React.useState((startDate || new Date()).getFullYear() - 4);
+  const [yearGridStart, setYearGridStart] = React.useState(initialViewDate.getFullYear() - 4);
 
   // Sync date when startDate/endDate prop changes
   React.useEffect(() => {
@@ -63,6 +68,9 @@ export function CustomCalendar({
       setYearGridStart(startDate.getFullYear() - 4);
     } else {
       setTempStart(null);
+      const fallback = defaultViewDate || new Date();
+      setCurrentDate(fallback);
+      setYearGridStart(fallback.getFullYear() - 4);
     }
     if (mode === 'single') {
       setTempEnd(null);
@@ -71,7 +79,7 @@ export function CustomCalendar({
     } else {
       setTempEnd(null);
     }
-  }, [startDate, endDate, monthOnly, monthValue, mode]);
+  }, [startDate, endDate, monthOnly, monthValue, mode, defaultViewDate]);
 
   const daysOfWeek = [
     { label: 'T2', isWeekend: false },
@@ -137,12 +145,19 @@ export function CustomCalendar({
   };
 
   const isDateDisabled = (date: Date) => {
-    if (!minDate) return false;
     const target = new Date(date);
     target.setHours(0, 0, 0, 0);
-    const min = new Date(minDate);
-    min.setHours(0, 0, 0, 0);
-    return target < min;
+    if (minDate) {
+      const min = new Date(minDate);
+      min.setHours(0, 0, 0, 0);
+      if (target < min) return true;
+    }
+    if (maxDate) {
+      const max = new Date(maxDate);
+      max.setHours(0, 0, 0, 0);
+      if (target > max) return true;
+    }
+    return false;
   };
 
   const handleDayClick = (dayItem: CalendarDayItem) => {

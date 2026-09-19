@@ -39,15 +39,16 @@ interface DrawerContentProps
   direction?: 'right' | 'bottom' | 'left' | 'top';
   showHandle?: boolean;
   className?: string;
+  overlayClassName?: string;
   children?: React.ReactNode;
 }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
->(({ className, children, direction = 'right', showHandle = true, ...props }, ref) => (
+>(({ className, overlayClassName, children, direction = 'right', showHandle = true, ...props }, ref) => (
   <DrawerPortal>
-    <DrawerOverlay />
+    <DrawerOverlay className={overlayClassName} />
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(

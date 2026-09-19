@@ -16,6 +16,7 @@ import { studentApi } from '@/api/student-api';
 import { classApi, Class } from '@/api/class-api';
 import { departmentApi, Department } from '@/api/department-api';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
 import { CustomCalendar } from '@/components/calendar/CustomCalendar';
 import { format } from 'date-fns';
 import ImportStudentPopup from './ImportStudentPopup';
@@ -60,6 +61,18 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [pendingData, setPendingData] = useState<FormValues | null>(null);
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const updateMobile = () => {
+            setIsMobile(mediaQuery.matches);
+        };
+        updateMobile();
+        mediaQuery.addEventListener?.('change', updateMobile);
+        return () => mediaQuery.removeEventListener?.('change', updateMobile);
+    }, []);
 
     const {
         register,
@@ -253,28 +266,41 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                             control={control}
                             render={({ field }) => {
                                 const selectedDate = field.value ? new Date(field.value) : null;
-                                return (
+                                const defaultBirthYear = new Date().getFullYear() - 18;
+                                const defaultBirthDate = new Date(defaultBirthYear, 0, 1);
+
+                                const triggerButtonContent = (
+                                    <>
+                                        <span className={selectedDate && !isNaN(selectedDate.getTime()) ? 'text-[#1E293B] font-medium' : 'text-[#64748B]/60'}>
+                                            {selectedDate && !isNaN(selectedDate.getTime())
+                                                ? format(selectedDate, 'dd/MM/yyyy')
+                                                : 'Chọn ngày sinh'}
+                                        </span>
+                                        <Calendar className="w-4 h-4 text-[#64748B]" />
+                                    </>
+                                );
+
+                                return !isMobile ? (
                                     <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                                         <PopoverTrigger asChild>
                                             <button
                                                 type="button"
                                                 className={`w-full h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[14px] transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none ${errors.dob ? 'border-red-500' : ''}`}
                                             >
-                                                <span className={selectedDate && !isNaN(selectedDate.getTime()) ? 'text-[#1E293B] font-medium' : 'text-[#64748B]/60'}>
-                                                    {selectedDate && !isNaN(selectedDate.getTime())
-                                                        ? format(selectedDate, 'dd/MM/yyyy')
-                                                        : 'Chọn ngày sinh'}
-                                                </span>
-                                                <Calendar className="w-4 h-4 text-[#64748B]" />
+                                                {triggerButtonContent}
                                             </button>
                                         </PopoverTrigger>
                                         <PopoverContent
-                                            className="w-auto p-0.5 z-[110] bg-white/80 backdrop-blur-xl border border-white/80 rounded-2xl shadow-lg shadow-slate-300/40 overflow-hidden"
+                                            className="w-auto p-0 z-[110] bg-transparent border-none shadow-none overflow-hidden"
                                             align="start"
                                             side="bottom"
                                             sideOffset={6}
                                         >
                                             <CustomCalendar
+                                                mode="single"
+                                                showPresets={false}
+                                                defaultViewDate={defaultBirthDate}
+                                                maxDate={new Date()}
                                                 startDate={selectedDate && !isNaN(selectedDate.getTime()) ? selectedDate : null}
                                                 endDate={null}
                                                 onRangeSelect={(start) => {
@@ -290,6 +316,47 @@ export default function StudentPopup({ isOpen, onClose, initialData, defaultClas
                                             />
                                         </PopoverContent>
                                     </Popover>
+                                ) : (
+                                    <Drawer open={isCalendarOpen} onOpenChange={setIsCalendarOpen} direction="bottom">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCalendarOpen(true)}
+                                            className={`w-full h-10 px-3 bg-white/50 backdrop-blur-sm border border-white/80 rounded-xl text-[14px] transition-all duration-150 ease-out hover:scale-[1.01] flex items-center justify-between hover:bg-white/70 focus:ring-2 focus:ring-[#1A73E8]/30 focus:outline-none ${errors.dob ? 'border-red-500' : ''}`}
+                                        >
+                                            {triggerButtonContent}
+                                        </button>
+                                        <DrawerContent
+                                            direction="bottom"
+                                            className="p-4 pb-8 rounded-t-[24px] border-t border-slate-200/80 bg-white z-[120]"
+                                            overlayClassName="z-[115]"
+                                        >
+                                            <DrawerHeader className="text-center pb-2 pt-1 px-0">
+                                                <DrawerTitle className="text-base font-bold text-slate-800">Chọn ngày sinh</DrawerTitle>
+                                                <DrawerDescription className="sr-only">Lựa chọn ngày sinh cho sinh viên</DrawerDescription>
+                                            </DrawerHeader>
+                                            <div className="flex justify-center w-full max-w-sm mx-auto">
+                                                <CustomCalendar
+                                                    mode="single"
+                                                    isMobileView={true}
+                                                    showPresets={false}
+                                                    defaultViewDate={defaultBirthDate}
+                                                    maxDate={new Date()}
+                                                    startDate={selectedDate && !isNaN(selectedDate.getTime()) ? selectedDate : null}
+                                                    endDate={null}
+                                                    onRangeSelect={(start) => {
+                                                        if (start) {
+                                                            const yyyy = start.getFullYear();
+                                                            const mm = String(start.getMonth() + 1).padStart(2, '0');
+                                                            const dd = String(start.getDate()).padStart(2, '0');
+                                                            field.onChange(`${yyyy}-${mm}-${dd}`);
+                                                        }
+                                                    }}
+                                                    onCancel={() => setIsCalendarOpen(false)}
+                                                    onConfirm={() => setIsCalendarOpen(false)}
+                                                />
+                                            </div>
+                                        </DrawerContent>
+                                    </Drawer>
                                 );
                             }}
                         />

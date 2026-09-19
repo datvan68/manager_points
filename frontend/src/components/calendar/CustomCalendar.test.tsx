@@ -108,4 +108,43 @@ describe('CustomCalendar component', () => {
     expect(screen.getByRole('button', { name: 'Xác nhận' })).toHaveClass('h-11');
     expect(screen.getByRole('button', { name: 'Huỷ' })).toHaveClass('h-11');
   });
+
+  it('initializes to defaultViewDate when startDate is null', () => {
+    render(
+      <CustomCalendar
+        mode="single"
+        startDate={null}
+        endDate={null}
+        defaultViewDate={new Date(2008, 0, 1)}
+        onRangeSelect={vi.fn()}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Tháng 1')).toBeInTheDocument();
+    expect(screen.getByText('2008')).toBeInTheDocument();
+  });
+
+  it('disables dates after maxDate', () => {
+    render(
+      <CustomCalendar
+        mode="single"
+        startDate={new Date(2026, 8, 10)}
+        endDate={null}
+        maxDate={new Date(2026, 8, 15)}
+        onRangeSelect={vi.fn()}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />
+    );
+
+    // Day 10 should be enabled
+    const day10 = screen.getByRole('button', { name: '10' });
+    expect(day10).not.toBeDisabled();
+
+    // Day 20 should be disabled
+    const day20 = screen.getByRole('button', { name: '20' });
+    expect(day20).toBeDisabled();
+  });
 });
