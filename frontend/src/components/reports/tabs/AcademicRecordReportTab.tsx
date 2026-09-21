@@ -8,6 +8,7 @@ import ReportTable, { TableColumn } from '../ReportTable';
 import { AcademicRecordStudentSummaryRow } from '../report-types';
 import FloatingActionBar from '@/components/ui/FloatingActionBar';
 import ConfirmModal from '@/components/modals/ConfirmModal';
+import FollowUpProgressDialog, { FollowUpProgress } from '../FollowUpProgressDialog';
 
 type RecordCategory = 'khen_thuong' | 'cong_diem' | 'ky_luat';
 
@@ -97,6 +98,8 @@ export default function AcademicRecordReportTab({
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [singleConfirmRow, setSingleConfirmRow] = useState<AcademicRecordStudentSummaryRow | null>(null);
+  const [followUpProgress, setFollowUpProgress] = useState<FollowUpProgress | null>(null);
+  const [followUpProgressOpen, setFollowUpProgressOpen] = useState(false);
   const requestIdRef = useRef(0);
   const detailSemesterId = detailQuery?.semesterId;
   const detailClassId = detailQuery?.classId;
@@ -134,18 +137,26 @@ export default function AcademicRecordReportTab({
     setSelection({ row, category });
   };
 
-  const handleFollowUp = async (row: AcademicRecordStudentSummaryRow) => {
-    if (!semesterId || handlingStudentId) return;
+  const handleFollowUp = (row: AcademicRecordStudentSummaryRow) => {
+    if (!semesterId || handlingStudentId || bulkSubmitting) return;
     setFollowUpError('');
     setHandlingStudentId(row._id);
-    try {
-      await academicRecordApi.markFollowUp(row._id, semesterId);
-      await onRefresh?.();
-    } catch {
-      setFollowUpError('Không thể cập nhật trạng thái xử lý. Vui lòng thử lại.');
-    } finally {
-      setHandlingStudentId(null);
-    }
+    setSingleConfirmRow(null);
+    setFollowUpProgress({ phase: 'processing', processed: 0, total: 1, succeeded: 0, failed: 0, unconfirmed: 0, unsent: 0 });
+    setFollowUpProgressOpen(true);
+    void (async () => {
+      try {
+        await academicRecordApi.markFollowUp(row._id, semesterId);
+        setSelectedIds(ids => ids.filter(id => id !== row._id));
+        setFollowUpProgress({ phase: 'completed', processed: 1, total: 1, succeeded: 1, failed: 0, unconfirmed: 0, unsent: 0 });
+        await onRefresh?.();
+      } catch {
+        setSelectedIds(ids => ids.includes(row._id) ? ids : [...ids, row._id]);
+        setFollowUpProgress({ phase: 'interrupted', processed: 0, total: 1, succeeded: 0, failed: 0, unconfirmed: 1, unsent: 0, message: 'Không thể xác nhận kết quả từ máy chủ. Sinh viên này vẫn được giữ lại để thử lại.' });
+      } finally {
+        setHandlingStudentId(null);
+      }
+    })();
   };
 
   const isFollowUpApplicable = (row: AcademicRecordStudentSummaryRow) => row.discipline_count > 0;
@@ -158,29 +169,70 @@ export default function AcademicRecordReportTab({
     setConfirmIds([...selectedIds]);
     setBulkConfirmOpen(true);
   };
-  const confirmBulkFollowUp = async () => {
+  const confirmBulkFollowUp = () => {
     if (bulkSubmitting || !semesterId || !confirmIds.length) return;
+    const operationIds = [...confirmIds];
     setBulkSubmitting(true);
     setFollowUpError('');
-    try {
-      const result = await academicRecordApi.bulkMarkFollowUp({
-        semesterId,
-        studentIds: confirmIds,
-      });
-      const failedIds = result.failed.map(item => item.studentId);
-      if (result.succeededCount > 0) await onRefresh?.();
-      setSelectedIds(failedIds);
-      if (result.failedCount > 0) {
-        const firstError = result.failed[0]?.message;
-        setFollowUpError(`Không thể cập nhật trạng thái xử lý cho ${result.failedCount} sinh viên${firstError ? `: ${firstError}` : '. Vui lòng thử lại.'}`);
+    setBulkConfirmOpen(false);
+    setFollowUpProgress({ phase: 'processing', processed: 0, total: operationIds.length, succeeded: 0, failed: 0, unconfirmed: 0, unsent: operationIds.length });
+    setFollowUpProgressOpen(true);
+    void (async () => {
+      const succeededIds = new Set<string>();
+      let failedCount = 0;
+      let processed = 0;
+      let interrupted = false;
+      let interruptionMessage = '';
+      let interruptedUnconfirmed = 0;
+      let interruptedUnsent = 0;
+
+      for (let offset = 0; offset < operationIds.length; offset += 50) {
+        const batch = operationIds.slice(offset, offset + 50);
+        try {
+          const result = await academicRecordApi.bulkMarkFollowUp({ semesterId, studentIds: batch });
+          const batchSet = new Set(batch);
+          const batchSucceeded = result.succeeded.filter(id => batchSet.has(id));
+          const batchFailed = result.failed.filter(item => batchSet.has(item.studentId));
+          const acknowledged = new Set([...batchSucceeded, ...batchFailed.map(item => item.studentId)]);
+          batchSucceeded.forEach(id => succeededIds.add(id));
+          failedCount += batchFailed.length;
+          processed += acknowledged.size;
+          const missing = batch.filter(id => !acknowledged.has(id));
+          if (missing.length) {
+            interrupted = true;
+            interruptedUnconfirmed = missing.length;
+            interruptedUnsent = operationIds.length - offset - batch.length;
+            interruptionMessage = `Máy chủ không trả kết quả cho ${missing.length} sinh viên trong batch hiện tại.`;
+            break;
+          }
+          setFollowUpProgress({ phase: 'processing', processed, total: operationIds.length, succeeded: succeededIds.size, failed: failedCount, unconfirmed: 0, unsent: operationIds.length - processed });
+        } catch {
+          interrupted = true;
+          interruptedUnconfirmed = batch.length;
+          interruptedUnsent = operationIds.length - offset - batch.length;
+          setFollowUpProgress({ phase: 'interrupted', processed, total: operationIds.length, succeeded: succeededIds.size, failed: failedCount, unconfirmed: interruptedUnconfirmed, unsent: interruptedUnsent, message: 'Kết nối bị gián đoạn. Batch hiện tại chưa được xác nhận; các batch sau chưa được gửi.' });
+          break;
+        }
       }
-    } catch {
-      setFollowUpError('Không thể cập nhật trạng thái xử lý hàng loạt. Các sinh viên vẫn được giữ lại để thử lại.');
-    } finally {
+
+      const retryIds = operationIds.filter(id => !succeededIds.has(id));
+      setSelectedIds(retryIds);
+      if (!interrupted) {
+        const phase = failedCount > 0 ? 'partial' : 'completed';
+        setFollowUpProgress({ phase, processed: operationIds.length, total: operationIds.length, succeeded: succeededIds.size, failed: failedCount, unconfirmed: 0, unsent: 0, message: failedCount > 0 ? `${failedCount} sinh viên chưa được cập nhật và vẫn được giữ lại để thử lại.` : undefined });
+      } else if (processed < operationIds.length) {
+        setFollowUpProgress(previous => previous ? { ...previous, phase: 'interrupted', unconfirmed: interruptedUnconfirmed, unsent: interruptedUnsent, message: interruptionMessage || previous.message } : previous);
+      }
+      if (succeededIds.size > 0) {
+        try {
+          await onRefresh?.();
+        } catch {
+          // The operation result remains truthful even when refreshing the report fails.
+        }
+      }
       setBulkSubmitting(false);
       setConfirmIds([]);
-      setBulkConfirmOpen(false);
-    }
+    })();
   };
 
   useEffect(() => {
@@ -319,6 +371,13 @@ export default function AcademicRecordReportTab({
         variant="success"
         disabled={Boolean(handlingStudentId)}
       />
+      {followUpProgress && (
+        <FollowUpProgressDialog
+          open={followUpProgressOpen}
+          progress={followUpProgress}
+          onOpenChange={setFollowUpProgressOpen}
+        />
+      )}
 
       <Dialog open={Boolean(selection)} onOpenChange={open => {
         if (!open) {

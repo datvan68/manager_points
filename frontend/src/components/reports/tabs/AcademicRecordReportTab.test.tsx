@@ -136,34 +136,37 @@ describe('AcademicRecordReportTab', () => {
     expect(screen.queryByRole('button', { name: 'Xử lý đã chọn' })).not.toBeInTheDocument();
   });
 
-  it('refreshes only after a successful confirmation and prevents duplicate handling', async () => {
-    markFollowUp.mockResolvedValueOnce({ success: true });
+  it('opens server-confirmed single progress at 0/1, prevents duplicate handling, then refreshes once', async () => {
+    let resolveFollowUp!: (value: { success: boolean }) => void;
+    markFollowUp.mockImplementationOnce(() => new Promise(resolve => { resolveFollowUp = resolve; }));
     const onRefresh = vi.fn().mockResolvedValue(undefined);
-    const { rerender } = render(
-      <AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />,
-    );
-    expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
-    rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'settled', new_record_count: 0 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
-    expect(screen.getAllByText('Đã xử lý').length).toBeGreaterThan(0);
-    rerender(<AcademicRecordReportTab data={[{ ...row, follow_up_status: 'new', new_record_count: 1 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
-    expect(screen.getAllByText('1 ghi nhận mới').length).toBeGreaterThan(0);
+    render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
     fireEvent.click(await screen.findByRole('button', { name: 'OK', exact: true }));
-    const pendingActions = screen.getAllByRole('button', { name: 'Đang xử lý...' });
-    expect(pendingActions[0]).toBeDisabled();
-    fireEvent.click(pendingActions[0]);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByText('0/1 · 0%')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Đang xử lý…' })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    resolveFollowUp({ success: true });
     await waitFor(() => expect(markFollowUp).toHaveBeenCalledWith('student-1', 'semester-1'));
     expect(markFollowUp).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.getByText('1/1 · 100%')).toBeInTheDocument();
   });
 
-  it('retains the row state and shows an error when handling fails', async () => {
+  it('shows an interrupted single operation and retains the student for retry', async () => {
     markFollowUp.mockRejectedValueOnce(new Error('stale'));
     render(<AcademicRecordReportTab data={[row]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Xử lý' }).find(button => !button.hasAttribute('disabled'))!);
     fireEvent.click(await screen.findByRole('button', { name: 'OK', exact: true }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Không thể cập nhật trạng thái xử lý');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không thể xác nhận kết quả');
+    expect(screen.getByText('Chưa xác nhận')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
     expect(screen.getAllByText('Chưa xử lý').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
+    expect(screen.getAllByRole('checkbox', { name: /Nguyễn Văn A/ }).some(input => (input as HTMLInputElement).checked)).toBe(true);
   });
 
   it('does not submit or refresh when the action is cancelled', async () => {
@@ -217,7 +220,41 @@ describe('AcademicRecordReportTab', () => {
     await waitFor(() => expect(bulkMarkFollowUp).toHaveBeenCalledTimes(1));
     expect(bulkMarkFollowUp).toHaveBeenCalledWith({ semesterId: 'semester-1', studentIds: ['student-1', 'student-2'] });
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole('alert')).toHaveTextContent('cho 1 sinh viên: stale');
+    expect(await screen.findByRole('alert')).toHaveTextContent('vẫn được giữ lại');
+    expect(screen.getByText('Thành công')).toBeInTheDocument();
+    expect(screen.getByText('Thất bại')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
     expect(screen.getByRole('button', { name: 'Xử lý đã chọn' })).toBeInTheDocument();
+  });
+
+  it('sends bulk follow-up in sequential chunks of 50 and advances only after each response', async () => {
+    const rows = Array.from({ length: 51 }, (_, index) => ({
+      ...row,
+      key: `student-${index + 1}`,
+      _id: `student-${index + 1}`,
+      student_code: `SV${String(index + 1).padStart(3, '0')}`,
+      full_name: `Student ${index + 1}`,
+    }));
+    let resolveFirst!: (value: { requested: number; succeeded: string[]; failed: never[]; succeededCount: number; failedCount: number }) => void;
+    bulkMarkFollowUp
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockResolvedValueOnce({ requested: 1, succeeded: ['student-51'], failed: [], succeededCount: 1, failedCount: 0 });
+    render(<AcademicRecordReportTab data={rows} isLoading={false} onExport={vi.fn()} semesterId="semester-1" serverSide totalItems={51} currentPage={1} pageSize={200} />);
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: /Chọn Student/ });
+    const firstCheckboxByStudent = new Map<string, HTMLElement>();
+    rowCheckboxes.forEach(input => {
+      const studentName = input.getAttribute('aria-label')!;
+      if (!firstCheckboxByStudent.has(studentName)) firstCheckboxByStudent.set(studentName, input);
+    });
+    firstCheckboxByStudent.forEach(input => fireEvent.click(input));
+    fireEvent.click(screen.getByRole('button', { name: 'Xử lý đã chọn' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Xử lý', exact: true })).at(-1)!);
+    await waitFor(() => expect(bulkMarkFollowUp).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    expect(bulkMarkFollowUp.mock.calls[0][0].studentIds).toHaveLength(50);
+    resolveFirst({ requested: 50, succeeded: rows.slice(0, 50).map(item => item._id), failed: [], succeededCount: 50, failedCount: 0 });
+    await waitFor(() => expect(bulkMarkFollowUp).toHaveBeenCalledTimes(2));
+    expect(bulkMarkFollowUp.mock.calls[1][0].studentIds).toEqual(['student-51']);
+    expect(screen.getByText('51/51 · 100%')).toBeInTheDocument();
   });
 });
