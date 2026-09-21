@@ -163,7 +163,7 @@ html {
 @media (max-width: 767px) {
   .mobile-bottom-nav {
     position: fixed;
-    bottom: calc(var(--safe-area-bottom) + 0.25rem);
+    bottom: max(0.25rem, calc(var(--safe-area-bottom) - 0.5rem));
     left: 50%;
     right: auto;
     transform: translateX(-50%);
