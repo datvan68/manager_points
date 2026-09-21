@@ -40,6 +40,7 @@ describe('AcademicRecordController - Import Flow', () => {
   };
   const mockFollowUpService = {
     markHandled: jest.fn(),
+    bulkMarkHandled: jest.fn(),
     reset: jest.fn(),
   };
 
@@ -77,6 +78,28 @@ describe('AcademicRecordController - Import Flow', () => {
     await controller.resetFollowUp('student-1', 'semester-1', req);
     expect(mockFollowUpService.markHandled).toHaveBeenCalledWith('student-1', 'semester-1', dto, req.user);
     expect(mockFollowUpService.reset).toHaveBeenCalledWith('student-1', 'semester-1', req.user);
+  });
+
+  it('forwards bulk follow-up requests and protects the route with UPDATE_STUDENT_RECORD', async () => {
+    const dto = { semesterId: 'semester-1', studentIds: ['student-1', 'student-2'] };
+    const req = { user: { userId: 'user-1' } };
+    const expected = { requested: 2, succeeded: dto.studentIds, failed: [], succeededCount: 2, failedCount: 0 };
+    mockFollowUpService.bulkMarkHandled.mockResolvedValue(expected);
+
+    await expect(controller.bulkMarkFollowUp(dto, req)).resolves.toEqual(expected);
+    expect(mockFollowUpService.bulkMarkHandled).toHaveBeenCalledWith(dto, req.user);
+
+    const Guard = guardsFor('bulkMarkFollowUp')[0];
+    expect(Guard).not.toBe(JwtAuthGuard);
+    const original = JwtAuthGuard.prototype.canActivate;
+    jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ user: { roleName: 'Records Reviewer', permissions: ['READ_STUDENT_RECORD'] } }),
+      }),
+    } as any;
+    await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+    JwtAuthGuard.prototype.canActivate = original;
   });
 
   describe('importPreview', () => {

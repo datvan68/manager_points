@@ -122,6 +122,14 @@ export interface BulkDeleteAcademicRecordsResult {
   failedCount: number;
 }
 
+export interface BulkMarkFollowUpResult {
+  requested: number;
+  succeeded: string[];
+  failed: Array<{ studentId: string; message: string }>;
+  succeededCount: number;
+  failedCount: number;
+}
+
 export interface AcademicRecordDeletePreviewRequest {
   studentIds: string[];
   classId?: string;
@@ -315,6 +323,23 @@ export const academicRecordApi = {
       body: JSON.stringify(note ? { note } : {}),
     });
     return handleResponse<any>(res);
+  },
+
+  async bulkMarkFollowUp(request: {
+    semesterId: string;
+    studentIds: string[];
+    note?: string;
+  }): Promise<BulkMarkFollowUpResult> {
+    const token = tokenStorage.getAccessToken() || '';
+    const res = await fetch(`${API_BASE}/academic-records/follow-up/bulk`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(request),
+    });
+    return handleResponse<BulkMarkFollowUpResult>(res);
   },
 
   async resetFollowUp(studentId: string, semesterId: string): Promise<any> {

@@ -50,4 +50,21 @@ describe('academic record purge API', () => {
       }),
     );
   });
+
+  it('sends 40 selected students in one authenticated bulk follow-up request', async () => {
+    const studentIds = Array.from({ length: 40 }, (_, index) => `student-${index}`);
+    const result = { requested: 40, succeeded: studentIds, failed: [], succeededCount: 40, failedCount: 0 };
+    mockFetch.mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(result) });
+
+    await expect(academicRecordApi.bulkMarkFollowUp({ semesterId: 'semester-1', studentIds })).resolves.toEqual(result);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/academic-records/follow-up/bulk'),
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({ Authorization: 'Bearer admin-token' }),
+        body: JSON.stringify({ semesterId: 'semester-1', studentIds }),
+      }),
+    );
+  });
 });

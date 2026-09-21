@@ -4,10 +4,12 @@ import AcademicRecordReportTab from './AcademicRecordReportTab';
 
 const getAcademicRecords = vi.fn();
 const markFollowUp = vi.fn();
+const bulkMarkFollowUp = vi.fn();
 vi.mock('@/api/academic-record-api', () => ({
   academicRecordApi: {
     getAcademicRecords: (...args: unknown[]) => getAcademicRecords(...args),
     markFollowUp: (...args: unknown[]) => markFollowUp(...args),
+    bulkMarkFollowUp: (...args: unknown[]) => bulkMarkFollowUp(...args),
   },
 }));
 
@@ -23,6 +25,7 @@ describe('AcademicRecordReportTab', () => {
   beforeEach(() => {
     getAcademicRecords.mockReset();
     markFollowUp.mockReset();
+    bulkMarkFollowUp.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -175,7 +178,7 @@ describe('AcademicRecordReportTab', () => {
   });
 
   it('selects only actionable rows, opens a frozen bulk confirmation, and prevents duplicate submit', async () => {
-    markFollowUp.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ success: true }), 10)));
+    bulkMarkFollowUp.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ requested: 1, succeeded: ['student-1'], failed: [], succeededCount: 1, failedCount: 0 }), 10)));
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<AcademicRecordReportTab data={[row, { ...row, key: 'student-2', _id: 'student-2', follow_up_status: 'settled', new_record_count: 0 }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
 
@@ -189,13 +192,19 @@ describe('AcademicRecordReportTab', () => {
     const confirm = screen.getAllByRole('button', { name: 'Xử lý', exact: true }).at(-1)!;
     fireEvent.click(confirm);
     fireEvent.click(confirm);
-    await waitFor(() => expect(markFollowUp).toHaveBeenCalledTimes(1));
-    expect(markFollowUp).toHaveBeenCalledWith('student-1', 'semester-1');
+    await waitFor(() => expect(bulkMarkFollowUp).toHaveBeenCalledTimes(1));
+    expect(bulkMarkFollowUp).toHaveBeenCalledWith({ semesterId: 'semester-1', studentIds: ['student-1'] });
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
   });
 
   it('refreshes successful rows once and retains failed rows for retry', async () => {
-    markFollowUp.mockImplementation((studentId: string) => studentId === 'student-2' ? Promise.reject(new Error('stale')) : Promise.resolve({ success: true }));
+    bulkMarkFollowUp.mockResolvedValueOnce({
+      requested: 2,
+      succeeded: ['student-1'],
+      failed: [{ studentId: 'student-2', message: 'stale' }],
+      succeededCount: 1,
+      failedCount: 1,
+    });
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<AcademicRecordReportTab data={[row, { ...row, key: 'student-2', _id: 'student-2' }]} isLoading={false} onExport={vi.fn()} semesterId="semester-1" onRefresh={onRefresh} />);
 
@@ -205,9 +214,10 @@ describe('AcademicRecordReportTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Xử lý đã chọn' }));
     fireEvent.click((await screen.findAllByRole('button', { name: 'Xử lý', exact: true })).at(-1)!);
 
-    await waitFor(() => expect(markFollowUp).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bulkMarkFollowUp).toHaveBeenCalledTimes(1));
+    expect(bulkMarkFollowUp).toHaveBeenCalledWith({ semesterId: 'semester-1', studentIds: ['student-1', 'student-2'] });
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole('alert')).toHaveTextContent('một số sinh viên');
+    expect(await screen.findByRole('alert')).toHaveTextContent('cho 1 sinh viên: stale');
     expect(screen.getByRole('button', { name: 'Xử lý đã chọn' })).toBeInTheDocument();
   });
 });

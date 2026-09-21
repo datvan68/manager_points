@@ -162,14 +162,25 @@ export default function AcademicRecordReportTab({
     if (bulkSubmitting || !semesterId || !confirmIds.length) return;
     setBulkSubmitting(true);
     setFollowUpError('');
-    const results = await Promise.allSettled(confirmIds.map(studentId => academicRecordApi.markFollowUp(studentId, semesterId)));
-    const failedIds = confirmIds.filter((_, index) => results[index].status === 'rejected');
-    const successfulCount = confirmIds.length - failedIds.length;
-    if (successfulCount > 0) await onRefresh?.();
-    setSelectedIds(failedIds);
-    if (failedIds.length > 0) setFollowUpError('Không thể cập nhật trạng thái xử lý cho một số sinh viên. Vui lòng thử lại.');
-    setBulkSubmitting(false);
-    setConfirmIds([]);
+    try {
+      const result = await academicRecordApi.bulkMarkFollowUp({
+        semesterId,
+        studentIds: confirmIds,
+      });
+      const failedIds = result.failed.map(item => item.studentId);
+      if (result.succeededCount > 0) await onRefresh?.();
+      setSelectedIds(failedIds);
+      if (result.failedCount > 0) {
+        const firstError = result.failed[0]?.message;
+        setFollowUpError(`Không thể cập nhật trạng thái xử lý cho ${result.failedCount} sinh viên${firstError ? `: ${firstError}` : '. Vui lòng thử lại.'}`);
+      }
+    } catch {
+      setFollowUpError('Không thể cập nhật trạng thái xử lý hàng loạt. Các sinh viên vẫn được giữ lại để thử lại.');
+    } finally {
+      setBulkSubmitting(false);
+      setConfirmIds([]);
+      setBulkConfirmOpen(false);
+    }
   };
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { AcademicRecordFollowUpService } from './academic-record-follow-up.service';
 
@@ -99,5 +99,32 @@ describe('AcademicRecordFollowUpService', () => {
       criterion_id: { $in: expect.any(Array) },
       status: 'active',
     }));
+  });
+
+  it('processes unique students sequentially and isolates permission/not-found failures', async () => {
+    const service = new AcademicRecordFollowUpService(followUpModel, academicRecordModel, criterionModel, {}, {});
+    const order: string[] = [];
+    jest.spyOn(service, 'markHandled')
+      .mockImplementation(async (id) => {
+        order.push(id);
+        if (id === 'blocked') throw new ForbiddenException('Ngoài phạm vi lớp phụ trách');
+        if (id === 'missing') throw new NotFoundException('Không có ghi nhận đang hoạt động để xử lý');
+        return { success: true } as any;
+      });
+
+    await expect(service.bulkMarkHandled({
+      semesterId,
+      studentIds: ['ok', 'blocked', 'ok', 'missing'],
+    }, requester)).resolves.toEqual({
+      requested: 3,
+      succeeded: ['ok'],
+      failed: [
+        { studentId: 'blocked', message: 'Ngoài phạm vi lớp phụ trách' },
+        { studentId: 'missing', message: 'Không có ghi nhận đang hoạt động để xử lý' },
+      ],
+      succeededCount: 1,
+      failedCount: 2,
+    });
+    expect(order).toEqual(['ok', 'blocked', 'missing']);
   });
 });

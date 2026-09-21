@@ -11,6 +11,7 @@ import { Class } from '../classes/schemas/class.schema';
 import { Criterion } from '../criteria/schemas/criterion.schema';
 import { assertCanAccessStudent } from '../auth/utils/grading-access.util';
 import { MarkAcademicRecordFollowUpDto } from './dto/mark-academic-record-follow-up.dto';
+import { BulkMarkAcademicRecordFollowUpDto } from './dto/bulk-mark-academic-record-follow-up.dto';
 
 @Injectable()
 export class AcademicRecordFollowUpService {
@@ -29,6 +30,18 @@ export class AcademicRecordFollowUpService {
     if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(semesterId)) {
       throw new BadRequestException('studentId hoặc semesterId không hợp lệ');
     }
+  }
+
+  private getSafeErrorMessage(error: any): string {
+    const response = error?.getResponse?.();
+    const message = typeof response === 'string'
+      ? response
+      : response?.message;
+    return Array.isArray(message)
+      ? message.join(', ')
+      : typeof message === 'string' && message.trim()
+        ? message
+        : 'Không thể cập nhật trạng thái xử lý';
   }
 
   async markHandled(
@@ -82,6 +95,32 @@ export class AcademicRecordFollowUpService {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean().exec();
     return { success: true, followUp: checkpoint };
+  }
+
+  async bulkMarkHandled(
+    dto: BulkMarkAcademicRecordFollowUpDto,
+    requester: any,
+  ) {
+    const requested = Array.from(new Set(dto.studentIds));
+    const succeeded: string[] = [];
+    const failed: Array<{ studentId: string; message: string }> = [];
+
+    for (const studentId of requested) {
+      try {
+        await this.markHandled(studentId, dto.semesterId, dto, requester);
+        succeeded.push(studentId);
+      } catch (error: any) {
+        failed.push({ studentId, message: this.getSafeErrorMessage(error) });
+      }
+    }
+
+    return {
+      requested: requested.length,
+      succeeded,
+      failed,
+      succeededCount: succeeded.length,
+      failedCount: failed.length,
+    };
   }
 
   async reset(studentId: string, semesterId: string, requester: any) {

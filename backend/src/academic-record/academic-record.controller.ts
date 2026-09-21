@@ -38,6 +38,7 @@ import { BulkDeleteAcademicRecordDto } from './dto/bulk-delete-academic-record.d
 import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
 import { AcademicRecordFollowUpService } from './academic-record-follow-up.service';
 import { MarkAcademicRecordFollowUpDto } from './dto/mark-academic-record-follow-up.dto';
+import { BulkMarkAcademicRecordFollowUpDto } from './dto/bulk-mark-academic-record-follow-up.dto';
 
 function checkAcademicRecordReadAccess(): Type<CanActivate> {
   @Injectable()
@@ -99,6 +100,17 @@ export class AcademicRecordController {
     private readonly academicRecordService: AcademicRecordService,
     private readonly followUpService: AcademicRecordFollowUpService,
   ) {}
+
+  @Put('follow-up/bulk')
+  @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đánh dấu đã xử lý ghi nhận cho nhiều sinh viên' })
+  bulkMarkFollowUp(
+    @Body() dto: BulkMarkAcademicRecordFollowUpDto,
+    @Request() req: any,
+  ) {
+    return this.followUpService.bulkMarkHandled(dto, req.user);
+  }
 
   @Put('follow-up/:studentId')
   @UseGuards(checkPermission('UPDATE_STUDENT_RECORD'))
