@@ -95,4 +95,27 @@ describe('useGradingScoreAccess', () => {
     expect(result.current.canModifyScoreByRole).toBe(false);
     expect(result.current.backendDeniedReason).toContain('Chưa đến');
   });
+
+  it('uses explicit grading capability for a custom role', async () => {
+    const customGrader = {
+      id: 'custom-1',
+      roleName: 'Custom Reviewer',
+      permissions: ['GRADING_PAGE', 'GRADING_SCORE_GRADE'],
+    };
+    mocks.useAuth.mockReturnValue({ user: customGrader, isLoading: false });
+    mocks.getUser.mockReturnValue(customGrader);
+    mocks.getGradingAccess.mockResolvedValue({
+      role: 'custom',
+      canModifyScore: true,
+      canApproveSummary: false,
+      canReadSummary: true,
+    });
+
+    const { result } = renderHook(() => useGradingScoreAccess(context));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.role).toBe('custom');
+    expect(result.current.canModifyScoreByRole).toBe(true);
+    expect(result.current.canApproveSummary).toBe(false);
+  });
 });

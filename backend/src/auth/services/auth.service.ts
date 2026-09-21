@@ -664,6 +664,8 @@ export class AuthService implements OnModuleInit {
         route_path: '/grading',
         access_permissions: ['GRADING_PAGE'],
         action_permissions: [
+          'GRADING_SCORE_GRADE',
+          'GRADING_SCORE_APPROVE',
           'GRADING_SEMESTER_MANAGE',
           'CONFIG_RECORD',
         ],
@@ -1437,6 +1439,7 @@ export class AuthService implements OnModuleInit {
         permissions: [
           createdPerms['STUDENT_READ'],
           createdPerms['GRADING_PAGE'],
+          createdPerms['GRADING_SCORE_GRADE'],
           createdPerms['STUDENT_PAGE'],
           createdPerms['TIMETABLE_PAGE'],
           createdPerms['TIMETABLE_READ'],
@@ -1447,6 +1450,8 @@ export class AuthService implements OnModuleInit {
         role_code: 'SUPERVISOR',
         description: 'Quản sinh và giám sát rèn luyện',
         permissions: [
+          createdPerms['GRADING_SCORE_GRADE'],
+          createdPerms['GRADING_SCORE_APPROVE'],
           createdPerms['GRADING_SEMESTER_MANAGE'],
           createdPerms['GRADING_PAGE'],
           createdPerms['READ_STUDENT_TASK'],
@@ -1613,6 +1618,8 @@ export class AuthService implements OnModuleInit {
         permissions: [
           createdPerms['GRADING_PAGE'],
           createdPerms['GRADING_SEMESTER_MANAGE'],
+          createdPerms['GRADING_SCORE_GRADE'],
+          createdPerms['GRADING_SCORE_APPROVE'],
           createdPerms['CONFIG_RECORD'],
         ],
       },

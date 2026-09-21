@@ -25,6 +25,7 @@ import {
 import * as express from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { checkRole } from '../auth/guards/check-role.guard';
+import { checkGradingCapability } from '../auth/guards/grading-capability.guard';
 import { checkAnyPermission } from '../auth/guards/check-permission.guard';
 import { GradingRealtimeService } from './grading-realtime.service';
 
@@ -233,7 +234,7 @@ export class SummariesPointController {
   }
 
   @Patch('cancel-approval/bulk')
-  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @UseGuards(checkGradingCapability('approve'))
   @ApiOperation({ summary: 'Hủy duyệt điểm rèn luyện hàng loạt' })
   @ApiResponse({ status: 200, description: 'Hủy duyệt hàng loạt thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền.' })
@@ -272,7 +273,7 @@ export class SummariesPointController {
   }
 
   @Patch(':id/approve')
-  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @UseGuards(checkGradingCapability('approve'))
   @ApiOperation({ summary: 'Phê duyệt điểm rèn luyện' })
   @ApiResponse({ status: 200, description: 'Phê duyệt điểm thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền.' })
@@ -282,7 +283,7 @@ export class SummariesPointController {
 
   // Keep finalize endpoint as a temporary alias (deprecated)
   @Patch(':id/finalize')
-  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @UseGuards(checkGradingCapability('approve'))
   @ApiOperation({ summary: 'Chốt điểm rèn luyện (Đã lỗi thời, dùng /approve)' })
   @ApiResponse({ status: 200, description: 'Chốt điểm thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền.' })
@@ -291,7 +292,7 @@ export class SummariesPointController {
   }
 
   @Patch(':id/cancel-approval')
-  @UseGuards(checkRole('Admin', 'Supervisor'))
+  @UseGuards(checkGradingCapability('approve'))
   @ApiOperation({ summary: 'Hủy duyệt điểm rèn luyện' })
   @ApiResponse({ status: 200, description: 'Hủy duyệt thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền.' })

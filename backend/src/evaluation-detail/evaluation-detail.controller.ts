@@ -19,11 +19,11 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { checkRole } from '../auth/guards/check-role.guard';
+import { checkGradingCapability } from '../auth/guards/grading-capability.guard';
 
 @ApiTags('evaluation-detail')
 @Controller('evaluation-detail')
-@UseGuards(checkRole('Admin', 'Teacher', 'Supervisor', 'Student'))
+@UseGuards(checkGradingCapability('read'))
 @ApiBearerAuth()
 export class EvaluationDetailController {
   constructor(
@@ -31,6 +31,7 @@ export class EvaluationDetailController {
   ) {}
 
   @Post()
+  @UseGuards(checkGradingCapability('grade'))
   @ApiOperation({ summary: 'Tạo mới chi tiết chấm điểm' })
   @ApiResponse({
     status: 201,
@@ -48,6 +49,7 @@ export class EvaluationDetailController {
   }
 
   @Post('bulk-upsert')
+  @UseGuards(checkGradingCapability('grade'))
   @ApiOperation({
     summary: 'Lưu hàng loạt (Tạo mới hoặc Cập nhật) chi tiết chấm điểm',
   })
@@ -165,6 +167,7 @@ export class EvaluationDetailController {
   }
 
   @Patch(':id')
+  @UseGuards(checkGradingCapability('grade'))
   @ApiOperation({ summary: 'Cập nhật chi tiết chấm điểm bằng ID' })
   @ApiResponse({ status: 200, description: 'Cập nhật thông tin thành công.' })
   @ApiResponse({
@@ -184,6 +187,7 @@ export class EvaluationDetailController {
   }
 
   @Delete(':id')
+  @UseGuards(checkGradingCapability('grade'))
   @ApiOperation({ summary: 'Xóa chi tiết chấm điểm bằng ID' })
   @ApiResponse({
     status: 200,

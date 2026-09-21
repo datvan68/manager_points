@@ -739,6 +739,8 @@ describe('AuthService', () => {
         (scope) => scope.route_path === '/grading',
       );
       expect(gradingRoute?.action_permissions).toEqual([
+        'GRADING_SCORE_GRADE',
+        'GRADING_SCORE_APPROVE',
         'GRADING_SEMESTER_MANAGE',
         'CONFIG_RECORD',
       ]);

@@ -3,7 +3,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { tokenStorage } from '@/api/auth-api';
 import { summariesPointApi } from '@/api/summaries-point-api';
 
-export type GradingRoleKey = 'admin' | 'supervisor' | 'teacher' | 'student' | 'unknown';
+export type GradingRoleKey = 'admin' | 'supervisor' | 'teacher' | 'student' | 'custom' | 'unknown';
 
 export interface GradingAccessState {
   role: GradingRoleKey;
@@ -17,6 +17,7 @@ export interface GradingAccessState {
   canDeleteSummaryByRole: boolean;
   canDeleteHistoryByRole: boolean;
   canManageEvaluationPeriod: boolean;
+  canApproveSummary: boolean;
   backendDeniedReason?: string;
   backendReasonCode?: string;
   backendError?: string;
@@ -53,6 +54,14 @@ function getClientGradingRole(user: any): GradingRoleKey {
   }
   if (roleStr.includes('student') || roleCode === 'STUDENT') {
     return 'student';
+  }
+
+  if (
+    permissions.includes('GRADING_PAGE') &&
+    (permissions.includes('GRADING_SCORE_GRADE') ||
+      permissions.includes('GRADING_SCORE_APPROVE'))
+  ) {
+    return 'custom';
   }
 
   return 'unknown';
@@ -101,6 +110,8 @@ export function useGradingScoreAccess(context?: {
   const canDeleteSummaryByRole = isAdminOrSupervisor;
   const canDeleteHistoryByRole = isAdminOrSupervisor;
   const canManageEvaluationPeriod = isAdmin;
+  const canApproveSummary = isAdminOrSupervisor ||
+    (activeUser?.permissions || []).includes('GRADING_SCORE_APPROVE');
 
   // Sync access state from backend when parameters are provided
   useEffect(() => {
@@ -165,6 +176,7 @@ export function useGradingScoreAccess(context?: {
     canDeleteSummaryByRole: resolvedBackendAccess ? resolvedBackendAccess.canDeleteSummary : canDeleteSummaryByRole,
     canDeleteHistoryByRole: resolvedBackendAccess ? resolvedBackendAccess.canDeleteHistory : canDeleteHistoryByRole,
     canManageEvaluationPeriod: resolvedBackendAccess ? resolvedBackendAccess.canManageEvaluationPeriod : canManageEvaluationPeriod,
+    canApproveSummary: resolvedBackendAccess ? !!resolvedBackendAccess.canApproveSummary : canApproveSummary,
     backendDeniedReason: resolvedBackendAccess?.reason || backendError,
     backendReasonCode: resolvedBackendAccess?.reasonCode || (backendError ? 'GRADING_ACCESS_UNAVAILABLE' : undefined),
     backendError,

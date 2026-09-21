@@ -6,7 +6,33 @@ export type GradingRoleKey =
   | 'supervisor'
   | 'teacher'
   | 'student'
+  | 'custom'
   | 'unknown';
+
+export const GRADING_SCORE_GRADE_PERMISSION = 'GRADING_SCORE_GRADE';
+export const GRADING_SCORE_APPROVE_PERMISSION = 'GRADING_SCORE_APPROVE';
+
+function getRequesterPermissions(requester?: any): string[] {
+  return Array.isArray(requester?.permissions)
+    ? requester.permissions
+        .map((permission: any) =>
+          typeof permission === 'string' ? permission : permission?.code,
+        )
+        .filter(Boolean)
+    : [];
+}
+
+export function hasGradingCapability(
+  requester: any,
+  capability: 'grade' | 'approve',
+): boolean {
+  const permissions = getRequesterPermissions(requester);
+  const required =
+    capability === 'grade'
+      ? GRADING_SCORE_GRADE_PERMISSION
+      : GRADING_SCORE_APPROVE_PERMISSION;
+  return permissions.includes('GRADING_PAGE') && permissions.includes(required);
+}
 
 export interface GradingAccessDecision {
   role: GradingRoleKey;
@@ -84,6 +110,13 @@ export function getGradingRole(requester?: any): GradingRoleKey {
     return 'student';
   }
 
+  if (
+    hasGradingCapability(requester, 'grade') ||
+    hasGradingCapability(requester, 'approve')
+  ) {
+    return 'custom';
+  }
+
   return 'unknown';
 }
 
@@ -156,6 +189,20 @@ export function evaluateGradingAccess(requester?: any): GradingAccessDecision {
     decision.canDeleteHistory = false;
     decision.canApproveSummary = false;
     decision.canManageEvaluationPeriod = false;
+  } else if (role === 'custom') {
+    const canGrade = hasGradingCapability(requester, 'grade');
+    const canApprove = hasGradingCapability(requester, 'approve');
+    decision.scope = 'all';
+    decision.canAccessPage = true;
+    decision.canReadRoster = canGrade || canApprove;
+    decision.canReadStudent = canGrade || canApprove;
+    decision.canReadSummary = canGrade || canApprove;
+    decision.canModifyScore = canGrade;
+    decision.canCopyScore = canGrade;
+    decision.canApproveSummary = canApprove;
+    decision.canDeleteSummary = canApprove;
+    decision.canDeleteHistory = canGrade;
+    decision.canManageEvaluationPeriod = false;
   }
 
   return decision;
@@ -171,7 +218,13 @@ export async function assertCanAccessStudent(
   studentModel: any,
 ): Promise<void> {
   const role = getGradingRole(requester);
-  if (role === 'admin' || role === 'supervisor') {
+  if (
+    role === 'admin' ||
+    role === 'supervisor' ||
+    (role === 'custom' &&
+      (hasGradingCapability(requester, 'grade') ||
+        hasGradingCapability(requester, 'approve')))
+  ) {
     return;
   }
 
@@ -233,7 +286,13 @@ export async function assertCanAccessClass(
   classModel: any,
 ): Promise<void> {
   const role = getGradingRole(requester);
-  if (role === 'admin' || role === 'supervisor') {
+  if (
+    role === 'admin' ||
+    role === 'supervisor' ||
+    (role === 'custom' &&
+      (hasGradingCapability(requester, 'grade') ||
+        hasGradingCapability(requester, 'approve')))
+  ) {
     return;
   }
 

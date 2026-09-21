@@ -944,6 +944,10 @@ function GradingScoreContent() {
       return activePeriod.status === "sv_phase" && summaryStatus === "draft";
     }
 
+    if (currentUserRole === "custom") {
+      return ["gv_phase", "admin_phase"].includes(activePeriod.status);
+    }
+
     return false;
   })();
 

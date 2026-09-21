@@ -41,6 +41,22 @@ describe('canonical permission policy registry', () => {
       routePath: '/activities/attendance',
       owners: expect.arrayContaining(['GET /activity-attendance']),
     });
+    expect(getPermissionPolicy('GRADING_SCORE_GRADE')).toMatchObject({
+      kind: 'action',
+      requires: ['GRADING_PAGE'],
+      routePath: '/grading/score',
+    });
+    expect(getPermissionPolicy('GRADING_SCORE_APPROVE')).toMatchObject({
+      kind: 'action',
+      requires: ['GRADING_PAGE'],
+      owners: expect.arrayContaining([
+        'PATCH /summaries-points/:id/approve',
+        'PATCH /summaries-points/:id/cancel-approval',
+      ]),
+    });
+    expect(getPermissionPolicy('CREATE_STUDENT_RECORD')?.owners).not.toContain(
+      'POST/PATCH/DELETE /evaluation-detail',
+    );
   });
 
   it('does not label backend-only capabilities as visible UI actions', () => {

@@ -3,6 +3,7 @@ import {
   evaluateGradingAccess,
   assertCanAccessStudent,
   assertCanAccessClass,
+  hasGradingCapability,
 } from '../utils/grading-access.util';
 import { getRequesterRoleName, isAdminUser } from '../utils/role.util';
 import { ForbiddenException } from '@nestjs/common';
@@ -79,6 +80,38 @@ describe('Grading Access and Role Normalization', () => {
       expect(teacherAccess.canModifyScore).toBe(true);
       expect(teacherAccess.canDeleteSummary).toBe(false);
       expect(teacherAccess.canManageEvaluationPeriod).toBe(false);
+    });
+
+    it('should grant custom grading only from explicit capability permissions', () => {
+      const grader = {
+        roleName: 'Custom Reviewer',
+        permissions: ['GRADING_PAGE', 'GRADING_SCORE_GRADE'],
+      };
+      const approver = {
+        roleName: 'Custom Approver',
+        permissions: ['GRADING_PAGE', 'GRADING_SCORE_APPROVE'],
+      };
+
+      expect(hasGradingCapability(grader, 'grade')).toBe(true);
+      expect(hasGradingCapability(grader, 'approve')).toBe(false);
+      expect(evaluateGradingAccess(grader)).toMatchObject({
+        role: 'custom',
+        canModifyScore: true,
+        canApproveSummary: false,
+      });
+      expect(evaluateGradingAccess(approver)).toMatchObject({
+        role: 'custom',
+        canModifyScore: false,
+        canApproveSummary: true,
+      });
+      expect(evaluateGradingAccess({
+        roleName: 'Custom Reviewer',
+        permissions: ['GRADING_PAGE'],
+      }).canModifyScore).toBe(false);
+      expect(evaluateGradingAccess({
+        roleName: 'Custom Reviewer',
+        permissions: ['CREATE_STUDENT_RECORD'],
+      }).canModifyScore).toBe(false);
     });
 
     it('should validate assertCanAccessStudent for student self scope', async () => {

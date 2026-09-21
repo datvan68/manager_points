@@ -50,6 +50,7 @@ import {
   evaluateGradingAccess,
   assertCanAccessClass,
   assertCanAccessStudent,
+  hasGradingCapability,
 } from '../auth/utils/grading-access.util';
 import { EvaluationPeriod } from '../evaluation-periods/schemas/evaluation-period.schema';
 
@@ -187,9 +188,17 @@ export class SummariesPointService {
   private async assertCanAccessStudent(studentId: string, requester?: any) {
     if (!requester) return;
     const role = getGradingRole(requester);
-    if (role === 'admin' || role === 'supervisor') return;
+    if (
+      role === 'admin' ||
+      role === 'supervisor' ||
+      (role === 'custom' &&
+        (hasGradingCapability(requester, 'grade') ||
+          hasGradingCapability(requester, 'approve')))
+    ) {
+      return;
+    }
 
-    if (role === 'student' || role === 'unknown') {
+    if (role === 'student') {
       const student = await this.studentModel
         .findById(studentId)
         .select('user_id')
@@ -201,6 +210,12 @@ export class SummariesPointService {
         );
       }
       return;
+    }
+
+    if (role === 'unknown') {
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác bảng điểm của sinh viên khác.',
+      );
     }
 
     const teacherClassIds = await this.getTeacherClassIds(requester);
@@ -222,9 +237,17 @@ export class SummariesPointService {
   private async assertCanAccessSummary(summaryId: string, requester?: any) {
     if (!requester) return;
     const role = getGradingRole(requester);
-    if (role === 'admin' || role === 'supervisor') return;
+    if (
+      role === 'admin' ||
+      role === 'supervisor' ||
+      (role === 'custom' &&
+        (hasGradingCapability(requester, 'grade') ||
+          hasGradingCapability(requester, 'approve')))
+    ) {
+      return;
+    }
 
-    if (role === 'student' || role === 'unknown') {
+    if (role === 'student') {
       const summary = await this.summaryPointModel
         .findById(summaryId)
         .select('student_id')
@@ -233,6 +256,12 @@ export class SummariesPointService {
       if (!summary) return;
       await this.assertCanAccessStudent(summary.student_id.toString(), requester);
       return;
+    }
+
+    if (role === 'unknown') {
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác chi tiết điểm.',
+      );
     }
 
     const teacherStudentIds = await this.getTeacherStudentIds(requester);
@@ -532,6 +561,14 @@ export class SummariesPointService {
     createSummaryPointDto: CreateSummaryPointDto,
     requester?: any,
   ): Promise<SummaryPoint> {
+    if (
+      getGradingRole(requester) === 'custom' &&
+      !hasGradingCapability(requester, 'grade')
+    ) {
+      throw new ForbiddenException(
+        'Capability hiện tại không cho phép tạo bảng điểm rèn luyện.',
+      );
+    }
     await this.assertCanAccessStudent(
       createSummaryPointDto.student_id,
       requester,
@@ -931,6 +968,14 @@ export class SummariesPointService {
     updateSummaryPointDto: UpdateSummaryPointDto,
     requester?: any,
   ): Promise<SummaryPoint> {
+    if (
+      getGradingRole(requester) === 'custom' &&
+      !hasGradingCapability(requester, 'grade')
+    ) {
+      throw new ForbiddenException(
+        'Capability hiện tại không cho phép cập nhật bảng điểm rèn luyện.',
+      );
+    }
     await this.assertCanAccessSummary(id, requester);
 
     const existingSummary = await this.summaryPointModel.findById(id).exec();
@@ -1401,7 +1446,10 @@ export class SummariesPointService {
     requester: any,
   ): Promise<SummaryPointDocument> {
     const role = getGradingRole(requester);
-    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
+    const isAdminOrSupervisor =
+      role === 'admin' ||
+      role === 'supervisor' ||
+      hasGradingCapability(requester, 'approve');
 
     if (!isAdminOrSupervisor) {
       throw new ForbiddenException(
@@ -1646,7 +1694,10 @@ export class SummariesPointService {
   ): Promise<SummaryPointDocument> {
     // 1. Kiểm tra quyền Admin/Supervisor
     const role = getGradingRole(requester);
-    const isAdminOrSupervisor = role === 'admin' || role === 'supervisor';
+    const isAdminOrSupervisor =
+      role === 'admin' ||
+      role === 'supervisor' ||
+      hasGradingCapability(requester, 'approve');
 
     if (!isAdminOrSupervisor) {
       throw new ForbiddenException(
@@ -1844,6 +1895,11 @@ export class SummariesPointService {
   }
 
   async remove(id: string, requester?: any): Promise<SummaryPoint> {
+    if (getGradingRole(requester) === 'custom') {
+      throw new ForbiddenException(
+        'Capability hiện tại không cho phép xóa bảng điểm rèn luyện.',
+      );
+    }
     await this.assertCanAccessSummary(id, requester);
 
     const existingSummary = await this.summaryPointModel.findById(id).exec();

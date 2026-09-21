@@ -32,7 +32,10 @@ import { Student, StudentDocument } from '../students/schemas/student.schema';
 import { Class, ClassDocument } from '../classes/schemas/class.schema';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
 import { calculateCriterionScoreHelper } from '../academic-record/academic-record.utils';
-import { getGradingRole } from '../auth/utils/grading-access.util';
+import {
+  getGradingRole,
+  hasGradingCapability,
+} from '../auth/utils/grading-access.util';
 
 @Injectable()
 export class EvaluationDetailService {
@@ -93,7 +96,14 @@ export class EvaluationDetailService {
       const student = await this.studentModel.findOne({ user_id: requester?.userId }).select('_id').lean().exec();
       return { student_id: student?._id || new Types.ObjectId() } as any;
     }
-    return {};
+    if (
+      getGradingRole(requester) === 'custom' &&
+      (hasGradingCapability(requester, 'grade') ||
+        hasGradingCapability(requester, 'approve'))
+    ) {
+      return {};
+    }
+    return { student_id: { $in: [] } } as any;
   }
 
   private async assertCanAccessSummary(summaryId: string, requester?: any) {
@@ -103,7 +113,20 @@ export class EvaluationDetailService {
       const ownStudent = await this.studentModel.findOne({ user_id: requester?.userId }).select('_id').lean().exec();
       allowedStudentIds = ownStudent ? [ownStudent._id] : [];
     }
-    if (!allowedStudentIds) return;
+    if (!allowedStudentIds) {
+      if (
+        getGradingRole(requester) === 'admin' ||
+        getGradingRole(requester) === 'supervisor' ||
+        (getGradingRole(requester) === 'custom' &&
+          (hasGradingCapability(requester, 'grade') ||
+            hasGradingCapability(requester, 'approve')))
+      ) {
+        return;
+      }
+      throw new ForbiddenException(
+        'Bạn không có quyền thao tác chi tiết điểm.',
+      );
+    }
 
     const summary = await this.summaryPointModel
       .findOne({

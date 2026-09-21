@@ -261,6 +261,18 @@ export const DECLARED_PERMISSION_SEEDS: PermissionSeed[] = [
       'Cho phép truy cập menu và giao diện quản lý rèn luyện sinh viên.',
   },
   {
+    code: 'GRADING_SCORE_GRADE',
+    name: 'Chấm điểm rèn luyện',
+    module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép tạo và cập nhật chi tiết chấm điểm trong phạm vi được phép.',
+  },
+  {
+    code: 'GRADING_SCORE_APPROVE',
+    name: 'Phê duyệt điểm rèn luyện',
+    module: GRADING_MANAGER_GROUP.name,
+    description: 'Cho phép phê duyệt, chốt và hủy phê duyệt điểm rèn luyện.',
+  },
+  {
     code: 'GRADING_SEMESTER_MANAGE',
     name: 'Quản lý học kỳ rèn luyện',
     module: GRADING_MANAGER_GROUP.name,
@@ -959,6 +971,8 @@ const POLICY_OVERRIDES: Record<
   STUDENT_PAGE: { kind: 'page/module access', owners: ['/students'], routePath: '/students' },
   STUDENT_READ: { kind: 'read', requires: ['STUDENT_PAGE'], owners: ['/students'], routePath: '/students' },
   GRADING_PAGE: { kind: 'page/module access', owners: ['/grading'], routePath: '/grading' },
+  GRADING_SCORE_GRADE: { kind: 'action', requires: ['GRADING_PAGE'], owners: ['POST/PATCH/DELETE /evaluation-detail'], routePath: '/grading/score' },
+  GRADING_SCORE_APPROVE: { kind: 'action', requires: ['GRADING_PAGE'], owners: ['PATCH /summaries-points/:id/approve', 'PATCH /summaries-points/:id/finalize', 'PATCH /summaries-points/:id/cancel-approval', 'PATCH /summaries-points/cancel-approval/bulk'], routePath: '/grading' },
   READ_STUDENT_RECORD: { kind: 'read', requires: [], owners: ['/students/record', 'GET /academic-records'], routePath: '/students/record' },
   CREATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['POST /academic-records'], routePath: '/students/record' },
   UPDATE_STUDENT_RECORD: { kind: 'action', requires: ['READ_STUDENT_RECORD'], owners: ['PATCH /academic-records/:id'], routePath: '/students/record' },
