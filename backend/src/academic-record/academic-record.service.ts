@@ -33,6 +33,7 @@ import {
 } from '../auth/utils/role.util';
 import {
   assertCanAccessStudent,
+  hasGradingCapability,
   getGradingRole,
 } from '../auth/utils/grading-access.util';
 import { SummariesPointService } from '../summaries-point/summaries-point.service';
@@ -997,6 +998,11 @@ export class AcademicRecordService {
     // Preflight check: check if the summary is locked
     await this.checkSummaryLocked(student_id, semester_id);
 
+    const gradingRole = getGradingRole(requester);
+    if (gradingRole === 'custom' && !hasGradingCapability(requester, 'grade')) {
+      throw new ForbiddenException('Bạn không có quyền nhập hoặc sửa điểm.');
+    }
+
     // Verify permissions for the requester
     if (requester) {
       await assertCanAccessStudent(
@@ -1552,6 +1558,7 @@ export class AcademicRecordService {
       : undefined;
     const permissions = typeof roleOrRequester === 'object' ? roleOrRequester?.permissions || [] : [];
     if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) return 4;
+    if (hasGradingCapability(roleOrRequester, 'grade')) return 2;
     const roleName = typeof roleOrRequester === 'string'
       ? roleOrRequester
       : roleOrRequester?.roleName || roleOrRequester?.role?.name;
@@ -1588,6 +1595,7 @@ export class AcademicRecordService {
       : undefined;
     const permissions = typeof roleOrRequester === 'object' ? roleOrRequester?.permissions || [] : [];
     if (roleCode === 'ADMIN' || permissions.includes('ADMIN_FULL')) return 'admin';
+    if (hasGradingCapability(roleOrRequester, 'grade')) return 'teacher';
     const roleName = typeof roleOrRequester === 'string'
       ? roleOrRequester
       : roleOrRequester?.roleName || roleOrRequester?.role?.name;

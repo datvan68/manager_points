@@ -179,7 +179,6 @@ describe('AcademicRecordController - Import Flow', () => {
 
     it.each([
       ['create', 'CREATE_STUDENT_RECORD'],
-      ['handleIntent', 'CREATE_STUDENT_RECORD'],
       ['bulkCreate', 'CREATE_STUDENT_RECORD'],
       ['importPreview', 'CREATE_STUDENT_RECORD'],
       ['importCommit', 'CREATE_STUDENT_RECORD'],
@@ -211,6 +210,47 @@ describe('AcademicRecordController - Import Flow', () => {
         }),
       } as any;
       await expect(new Guard().canActivate(allowedContext)).resolves.toBe(true);
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it.each([
+      ['grade-only', ['GRADING_PAGE', 'GRADING_SCORE_GRADE'], true],
+      ['approve-only', ['GRADING_PAGE', 'GRADING_SCORE_APPROVE'], false],
+      ['page-only', ['GRADING_PAGE'], false],
+      ['grade-without-page', ['GRADING_SCORE_GRADE'], false],
+    ])('handles %s access for the scoring intent route', async (_label, permissions, allowed) => {
+      const Guard = guardsFor('handleIntent')[0];
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { roleName: 'Custom Grader', permissions } }),
+        }),
+      } as any;
+
+      if (allowed) {
+        await expect(new Guard().canActivate(context)).resolves.toBe(true);
+      } else {
+        await expect(new Guard().canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+      }
+      JwtAuthGuard.prototype.canActivate = original;
+    });
+
+    it('does not open academic-record management routes to grade-only access', async () => {
+      const original = JwtAuthGuard.prototype.canActivate;
+      jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+      const gradeOnly = {
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { roleName: 'Custom Grader', permissions: ['GRADING_PAGE', 'GRADING_SCORE_GRADE'] },
+          }),
+        }),
+      } as any;
+
+      for (const method of ['create', 'bulkCreate', 'importPreview', 'importCommit', 'update', 'remove']) {
+        const Guard = guardsFor(method)[0];
+        await expect(new Guard().canActivate(gradeOnly)).rejects.toBeInstanceOf(ForbiddenException);
+      }
       JwtAuthGuard.prototype.canActivate = original;
     });
 

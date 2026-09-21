@@ -1545,6 +1545,54 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(service.syncStudentCriterionScore).not.toHaveBeenCalled();
     });
 
+    it('does not mutate records for an approve-only custom requester', async () => {
+      const requester = {
+        userId: 'approver-1',
+        roleName: 'Custom Approver',
+        permissions: ['GRADING_PAGE', 'GRADING_SCORE_APPROVE'],
+      };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
+      await expect(service.handleScoreIntent(intentDto, requester)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockAcademicRecordModel.insertMany).not.toHaveBeenCalled();
+      expect(mockAcademicRecordModel.deleteOne).not.toHaveBeenCalled();
+    });
+
+    it('records a grade-only custom intent with teacher semantics', async () => {
+      const requester = {
+        userId: 'grader-1',
+        roleName: 'Custom Grader',
+        permissions: ['GRADING_PAGE', 'GRADING_SCORE_GRADE'],
+      };
+      const intentDto: any = {
+        student_id: studentId,
+        semester_id: semesterId,
+        criterion_id: criterionId,
+        intent_type: 'increase',
+      };
+
+      mockAcademicRecordModel.find.mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+      mockAcademicRecordModel.insertMany = jest
+        .fn()
+        .mockResolvedValue([{ _id: new Types.ObjectId() }]);
+
+      await service.handleScoreIntent(intentDto, requester);
+
+      expect(mockAcademicRecordModel.insertMany.mock.calls[0][0][0]).toEqual(
+        expect.objectContaining({ recorded_by_role: 'teacher' }),
+      );
+    });
+
     it('should handle increase intent and create 1 record when current count = 0', async () => {
       const requester = { userId: studentId, roleName: 'Student' };
       const intentDto: any = {
@@ -2244,6 +2292,33 @@ describe('AcademicRecordService - Import Flow', () => {
       expect(mockSummary.details[0].gv_score).toBe(2); // Updated
       expect(mockSummary.details[0].sv_score).toBe(3); // Preserved
       expect(mockSummary.details[0].final_score).toBeNull(); // Untouched
+    });
+
+    it('should treat a grade-only custom requester as a teacher when syncing evaluation detail', async () => {
+      mockSummary.details[0].sv_score = 3;
+      mockSummary.details[0].gv_score = null;
+      mockSummary.details[0].final_score = null;
+
+      mockAcademicRecordModel.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{}]),
+      });
+
+      const graderRequester = {
+        userId: 'grader-1',
+        roleName: 'Custom Grader',
+        permissions: ['GRADING_PAGE', 'GRADING_SCORE_GRADE'],
+      };
+      await service.syncStudentCriterionScore(
+        studentId,
+        semesterId,
+        criterionId,
+        graderRequester,
+      );
+
+      expect(mockSummary.details[0].gv_score).toBe(2);
+      expect(mockSummary.details[0].sv_score).toBe(3);
+      expect(mockSummary.details[0].final_score).toBeNull();
     });
 
     it('should only update final_score when admin or supervisor grades', async () => {

@@ -33,6 +33,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { checkPermission } from '../auth/guards/check-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { isAdminUser, isStudent } from '../auth/utils/role.util';
+import { hasGradingCapability } from '../auth/utils/grading-access.util';
 import { PurgeAcademicRecordsDto } from './dto/purge-academic-records.dto';
 import { BulkDeleteAcademicRecordDto } from './dto/bulk-delete-academic-record.dto';
 import { DeletePreviewAcademicRecordDto } from './dto/delete-preview-academic-record.dto';
@@ -77,7 +78,17 @@ function checkAcademicRecordSelfServiceOrPermission(
       const user = context.switchToHttp().getRequest().user;
       if (!user) throw new ForbiddenException('Không thể xác thực người dùng');
       if (isAdminUser(user) || isStudent(user)) return true;
-      if (requiredPermissions.some((permission) => (user.permissions || []).includes(permission))) {
+      if (
+        requiredPermissions.includes('GRADING_SCORE_GRADE') &&
+        hasGradingCapability(user, 'grade')
+      ) {
+        return true;
+      }
+      if (
+        requiredPermissions
+          .filter((permission) => permission !== 'GRADING_SCORE_GRADE')
+          .some((permission) => (user.permissions || []).includes(permission))
+      ) {
         return true;
       }
 
@@ -154,7 +165,11 @@ export class AcademicRecordController {
   }
 
   @Post('intent')
-  @UseGuards(checkAcademicRecordSelfServiceOrPermission('CREATE_STUDENT_RECORD', 'UPDATE_STUDENT_RECORD'))
+  @UseGuards(checkAcademicRecordSelfServiceOrPermission(
+    'CREATE_STUDENT_RECORD',
+    'UPDATE_STUDENT_RECORD',
+    'GRADING_SCORE_GRADE',
+  ))
   @ApiBearerAuth()
   @ApiOperation({
     summary:

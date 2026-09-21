@@ -45,6 +45,7 @@ describe('canonical permission policy registry', () => {
       kind: 'action',
       requires: ['GRADING_PAGE'],
       routePath: '/grading/score',
+      owners: expect.arrayContaining(['POST /academic-records/intent']),
     });
     expect(getPermissionPolicy('GRADING_SCORE_APPROVE')).toMatchObject({
       kind: 'action',
@@ -56,6 +57,15 @@ describe('canonical permission policy registry', () => {
     });
     expect(getPermissionPolicy('CREATE_STUDENT_RECORD')?.owners).not.toContain(
       'POST/PATCH/DELETE /evaluation-detail',
+    );
+    expect(getPermissionPolicy('GRADING_SCORE_GRADE')?.owners).not.toEqual(
+      expect.arrayContaining([
+        'POST /academic-records',
+        'POST /academic-records/bulk',
+        'POST /academic-records/import/commit',
+        'PATCH /academic-records/:id',
+        'DELETE /academic-records/:id',
+      ]),
     );
   });
 
