@@ -8,13 +8,14 @@ import GroupModal from '@/components/modals/GroupModal';
 import PermissionModal from '@/components/modals/PermissionModal';
 import RoleModal from '@/components/modals/RoleModal';
 import RoutePermissionModal from '@/components/modals/RoutePermissionModal';
-import { Search, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2, X } from 'lucide-react';
+import { Search, Settings, Plus, Mail, Phone, Pencil, Trash2, ChevronLeft, ChevronRight, Save, Route, Globe, Cpu, Zap, Shield, ToggleLeft, ToggleRight, LayoutDashboard, Users, GraduationCap, Lock, Unlock, Eye, EyeOff, Check, LogIn, Loader2, X, Filter, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CustomPagination } from '@/components/ui/pagination';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import Action from '@/components/ui/Action';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { authApi, tokenStorage } from '@/api/auth-api';
@@ -175,6 +176,7 @@ function PermissionsPageContent() {
   const [userCurrentPage, setUserCurrentPage] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [mobileVisibleCount, setMobileVisibleCount] = useState(20);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileSentinelRef = useRef<HTMLDivElement>(null);
@@ -1437,6 +1439,7 @@ function PermissionsPageContent() {
           onTabChange={(id) => {
             setActiveTab(id);
             setIsMobileSearchOpen(false);
+            setIsMobileFilterOpen(false);
             setMobileRoleView('list');
           }}
           responsiveScrollable
@@ -1459,10 +1462,10 @@ function PermissionsPageContent() {
           {/* Content Area */}
           <div className="flex-1 flex flex-col min-h-0 bg-transparent overflow-hidden">
             {activeTab === 'Người dùng' && (
-              <div className="flex-1 min-h-0 flex flex-col bg-white/45 backdrop-blur-md rounded-2xl shadow-sm shadow-slate-300/40 border border-white/70 overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col bg-transparent md:bg-white/45 md:backdrop-blur-md md:rounded-2xl md:shadow-sm md:shadow-slate-300/40 border-0 md:border md:border-white/70 overflow-hidden">
                 {/* Toolbar */}
                 {isMobileSearchOpen ? (
-                  <div className="flex md:hidden w-full items-center gap-2 px-4 py-3 border-b border-white/50 bg-white/20 shrink-0">
+                  <div className="flex md:hidden w-full items-center gap-2 px-1 py-2 shrink-0">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
@@ -1471,7 +1474,7 @@ function PermissionsPageContent() {
                         placeholder="Tìm kiếm..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-8.5 pr-8 h-9 text-xs font-semibold text-[#1E293B] bg-white/50 backdrop-blur-sm border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
+                        className="w-full pl-8.5 pr-8 h-9 text-xs font-semibold text-[#1E293B] bg-white/80 backdrop-blur-sm border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
                       />
                       {searchTerm && (
                         <button
@@ -1487,7 +1490,7 @@ function PermissionsPageContent() {
                     <button
                       type="button"
                       onClick={() => setIsMobileSearchOpen(false)}
-                      className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-white/80 bg-white/50 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-xs"
+                      className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-white/80 bg-white/70 text-[#64748B] hover:text-[#1E293B] hover:bg-white transition-all duration-150 ease-out shadow-xs"
                       title="Đóng tìm kiếm"
                       aria-label="Đóng tìm kiếm"
                     >
@@ -1495,17 +1498,111 @@ function PermissionsPageContent() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center justify-between px-4 sm:px-5 py-3 border-b border-white/50 bg-white/20 shrink-0 gap-2.5">
-                    {/* Mobile search icon trigger */}
-                    <button
-                      type="button"
-                      onClick={() => setIsMobileSearchOpen(true)}
-                      className="flex md:hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/50 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 transition-all duration-150 ease-out shadow-xs"
-                      title="Tìm kiếm"
-                      aria-label="Mở tìm kiếm"
-                    >
-                      <Search className="w-4 h-4" />
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between px-1 md:px-5 py-2 md:py-3 border-b-0 md:border-b border-white/50 bg-transparent md:bg-white/20 shrink-0 gap-2.5">
+                    {/* Mobile search & filter buttons */}
+                    <div className="flex md:hidden items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsMobileSearchOpen(true)}
+                        className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl border border-white/80 bg-white/70 text-[#64748B] hover:text-[#1E293B] hover:bg-white transition-all duration-150 ease-out shadow-xs"
+                        title="Tìm kiếm"
+                        aria-label="Mở tìm kiếm"
+                      >
+                        <Search className="w-4 h-4" />
+                      </button>
+
+                      <Popover open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className={`h-9 flex items-center gap-1.5 px-3 rounded-xl border transition-all duration-150 ease-out shadow-xs ${
+                              (filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả'))
+                                ? 'border-[#1A73E8]/40 bg-[#1A73E8]/10 text-[#1A73E8] font-bold'
+                                : 'border-white/80 bg-white/70 text-[#64748B] hover:text-[#1E293B] hover:bg-white'
+                            }`}
+                            title="Bộ lọc người dùng"
+                            aria-label="Mở bộ lọc"
+                          >
+                            <Filter className="w-3.5 h-3.5" />
+                            <span className="text-xs font-semibold">Lọc</span>
+                            {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#1A73E8]" />
+                            )}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="z-50 w-72 p-3.5 bg-white/95 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Bộ lọc người dùng</span>
+                            {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilterRole('Tất cả');
+                                  setFilterStatuses(['Tất cả']);
+                                }}
+                                className="text-[11px] font-semibold text-[#1A73E8] hover:underline"
+                              >
+                                Đặt lại
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Vai trò */}
+                          <div className="space-y-1.5">
+                            <span className="text-[11px] font-bold text-[#64748B]">Vai trò</span>
+                            <Select value={filterRole} onValueChange={setFilterRole}>
+                              <SelectTrigger aria-label="Vai trò" className="h-9 w-full bg-white/80 border border-slate-200 rounded-xl text-xs font-semibold text-[#1E293B]">
+                                <SelectValue placeholder="Tất cả" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl shadow-md">
+                                {['Tất cả', ...orderedRoles.map((r: any) => r.name).filter(Boolean)].map((role) => (
+                                  <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Trạng thái */}
+                          <div className="space-y-1.5">
+                            <span className="text-[11px] font-bold text-[#64748B]">Trạng thái</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => {
+                                const isSelected = status === 'Tất cả'
+                                  ? filterStatuses.includes('Tất cả')
+                                  : filterStatuses.includes(status);
+                                return (
+                                  <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => handleToggleStatus(status)}
+                                    className={`px-2.5 py-1 text-xs rounded-lg border transition-all duration-150 ${
+                                      isSelected
+                                        ? 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/30 font-bold'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 font-medium'
+                                    }`}
+                                  >
+                                    {status}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-medium text-slate-500">
+                              {filteredUsers.length} người dùng
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsMobileFilterOpen(false)}
+                              className="px-3 py-1.5 bg-[#1A73E8] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#155cb4] transition-all"
+                            >
+                              Áp dụng
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
 
                     {/* Desktop search & filters */}
                     <div className="hidden md:flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
@@ -1576,6 +1673,42 @@ function PermissionsPageContent() {
                   </div>
                 )}
 
+                {/* Mobile Active Filters Bar */}
+                {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả') || searchTerm) && (
+                  <div className="flex md:hidden items-center gap-1.5 px-1 py-1.5 mb-1 overflow-x-auto scrollbar-none text-xs">
+                    <span className="text-[11px] text-[#64748B] font-bold shrink-0">Lọc:</span>
+                    {searchTerm && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20 rounded-lg text-[11px] font-bold shrink-0">
+                        &quot;{searchTerm}&quot;
+                        <button type="button" onClick={() => setSearchTerm('')} aria-label="Xóa từ khóa"><X className="w-3 h-3" /></button>
+                      </span>
+                    )}
+                    {filterRole !== 'Tất cả' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 text-purple-700 border border-purple-500/20 rounded-lg text-[11px] font-bold shrink-0">
+                        Vai trò: {filterRole}
+                        <button type="button" onClick={() => setFilterRole('Tất cả')} aria-label="Xóa lọc vai trò"><X className="w-3 h-3" /></button>
+                      </span>
+                    )}
+                    {!filterStatuses.includes('Tất cả') && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 rounded-lg text-[11px] font-bold shrink-0">
+                        TT: {filterStatuses.join(', ')}
+                        <button type="button" onClick={() => setFilterStatuses(['Tất cả'])} aria-label="Xóa lọc trạng thái"><X className="w-3 h-3" /></button>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setFilterRole('Tất cả');
+                        setFilterStatuses(['Tất cả']);
+                      }}
+                      className="text-[11px] text-[#1A73E8] font-bold underline ml-auto shrink-0"
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
+                )}
+
                 <ResponsiveDataView
                   data={isMobile ? mobileUsers : paginatedUsers}
                   columns={userColumns}
@@ -1584,78 +1717,168 @@ function PermissionsPageContent() {
                   mobileScrollRef={mobileScrollRef}
                   mobileVirtualization
                   hidePaginationOnMobile
-                  mobileClassName="p-3 pb-28"
-                  renderCard={(u) => (
-                    <div
-                      key={u._id || u.id}
-                      className="bg-white/45 backdrop-blur-md border border-white/70 rounded-2xl p-3.5 shadow-sm flex flex-col gap-2.5 transition-all duration-150 ease-out hover:bg-white/60"
-                    >
-                      {/* Top: Name & Actions */}
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <span className="font-bold text-sm text-[#1E293B] truncate" title={getUserDisplayName(u)}>
-                          {getUserDisplayName(u)}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          {hasPersistedAdminRole(authUser) ? (
-                            <button
-                              type="button"
-                              onClick={() => handleAccessUser(u)}
-                              disabled={accessingUserId !== null}
-                              className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                                u.is_under_impersonation
-                                  ? 'border-red-200/70 bg-red-50/70 text-red-700 hover:bg-red-100'
-                                  : 'border-blue-200/70 bg-blue-50/70 text-blue-700 hover:bg-blue-100'
-                              }`}
-                              aria-label={`${u.is_under_impersonation ? 'Kết thúc truy cập' : 'Truy cập tài khoản'} ${getUserDisplayName(u)}`}
-                              title={u.is_under_impersonation ? 'Kết thúc truy cập' : `Truy cập tài khoản ${getUserDisplayName(u)}`}
-                            >
-                              {accessingUserId === (u._id || u.id) ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : u.is_under_impersonation ? (
-                                <span aria-hidden="true" className="text-base leading-none font-black">×</span>
-                              ) : (
-                                <LogIn className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          ) : null}
-                          <Action
-                            onView={() => router.push(`/permissions/${u._id || u.id}`)}
-                            onEdit={() => handleOpenEditModal(u)}
-                            onDelete={() => handleDeleteUser(u)}
-                          />
-                        </div>
-                      </div>
+                  mobileClassName="px-0.5 py-1 pb-28"
+                  renderCard={(u) => {
+                    const userId = u._id || u.id;
+                    const isChecked = selectedUserIds.includes(userId);
+                    const displayName = getUserDisplayName(u);
+                    const initials = displayName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join('').toUpperCase() || displayName.substring(0, 2).toUpperCase();
+                    const subtitle = u.email || (u.user_name ? `@${u.user_name}` : (u.username ? `@${u.username}` : ''));
+                    const studentCode = u.student_profile?.student_code;
+                    const idShort = userId ? String(userId).substring(String(userId).length - 6) : '';
 
-                      {/* Bottom: Vai trò & Trạng thái */}
-                      <div className="flex items-center justify-between pt-2 border-t border-white/40 text-xs">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Vai trò:</span>
-                          {u.role ? (
-                            <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border truncate ${
-                              u.role.name === 'Admin'
-                                ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
-                                : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
-                            }`}>
-                              {u.role.name}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 font-medium">Chưa gán</span>
-                          )}
+                    return (
+                      <div
+                        key={userId}
+                        className={`bg-white/75 md:bg-white/45 backdrop-blur-md border rounded-2xl p-3.5 shadow-sm flex flex-col gap-2.5 transition-all duration-150 ease-out hover:bg-white/85 ${
+                          isChecked ? 'border-[#1A73E8]/50 bg-blue-50/40' : 'border-white/80 md:border-white/70'
+                        }`}
+                      >
+                        {/* Top: Checkbox, Avatar, Name & Info, Action Cluster */}
+                        <div className="flex items-center justify-between gap-2.5 min-w-0">
+                          {/* Left: Checkbox + Avatar + User Info */}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleSelectUser(userId);
+                              }}
+                              aria-label={`Chọn ${displayName}`}
+                              className="w-4 h-4 rounded border-slate-300 text-[#1A73E8] focus:ring-[#1A73E8]/30 cursor-pointer shrink-0"
+                            />
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-50 to-blue-100/90 border border-blue-200/60 flex items-center justify-center text-xs font-bold text-[#1A73E8] shadow-xs shrink-0">
+                              {initials}
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span
+                                onClick={() => router.push(`/permissions/${userId}`)}
+                                className="font-bold text-xs sm:text-sm text-[#1E293B] truncate hover:text-[#1A73E8] cursor-pointer"
+                                title={displayName}
+                              >
+                                {displayName}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#64748B] truncate mt-0.5">
+                                {subtitle && <span className="truncate">{subtitle}</span>}
+                                {studentCode && (
+                                  <>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="shrink-0 font-semibold text-slate-600">MSSV: {studentCode}</span>
+                                  </>
+                                )}
+                                {!studentCode && idShort && (
+                                  <>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="shrink-0 text-slate-400">ID: {idShort}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Impersonate + More Actions Popover */}
+                          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {hasPersistedAdminRole(authUser) ? (
+                              <button
+                                type="button"
+                                onClick={() => handleAccessUser(u)}
+                                disabled={accessingUserId !== null}
+                                className={`h-8 w-8 inline-flex items-center justify-center rounded-xl border text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  u.is_under_impersonation
+                                    ? 'border-red-200/70 bg-red-50/70 text-red-700 hover:bg-red-100'
+                                    : 'border-blue-200/70 bg-blue-50/70 text-blue-700 hover:bg-blue-100'
+                                }`}
+                                aria-label={`${u.is_under_impersonation ? 'Kết thúc truy cập' : 'Truy cập tài khoản'} ${displayName}`}
+                                title={u.is_under_impersonation ? 'Kết thúc truy cập' : `Truy cập tài khoản ${displayName}`}
+                              >
+                                {accessingUserId === userId ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : u.is_under_impersonation ? (
+                                  <span aria-hidden="true" className="text-base leading-none font-black">×</span>
+                                ) : (
+                                  <LogIn className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            ) : null}
+
+                            {/* Menu popover for View, Edit, Delete */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="h-8 w-8 inline-flex items-center justify-center rounded-xl border border-white/80 bg-white/50 text-[#64748B] hover:text-[#1E293B] hover:bg-white/70 transition-all shadow-xs"
+                                  title="Thao tác khác"
+                                  aria-label={`Thao tác với ${displayName}`}
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="z-50 w-44 p-1 bg-white/95 backdrop-blur-md border border-white/80 rounded-xl shadow-lg space-y-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => router.push(`/permissions/${userId}`)}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-[#1A73E8] hover:bg-blue-50/80 rounded-lg transition-all"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Xem chi tiết</span>
+                                </button>
+                                {canAdminPermission('USER_UPDATE') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditModal(u)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Chỉnh sửa</span>
+                                  </button>
+                                )}
+                                {canAdminPermission('USER_DELETE') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteUser(u)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Xóa tài khoản</span>
+                                  </button>
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Trạng thái:</span>
-                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${
-                            u.status === 'active'
-                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
-                              : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
-                          }`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                            <span className="text-[10px] font-bold">{getUserStatusLabel(u.status)}</span>
+
+                        {/* Bottom: Vai trò & Trạng thái */}
+                        <div className="flex items-center justify-between pt-2 border-t border-white/40 text-xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Vai trò:</span>
+                            {u.role ? (
+                              <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-xl border truncate ${
+                                u.role.name === 'Admin'
+                                  ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                  : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
+                              }`}>
+                                {u.role.name}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-medium">Chưa gán</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] text-[#64748B] font-semibold shrink-0">Trạng thái:</span>
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-xl border ${
+                              u.status === 'active'
+                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-700 border-rose-500/20'
+                            }`}>
+                              <div className={`w-1.5 h-1.5 rounded-full ${u.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                              <span className="text-[10px] font-bold">{getUserStatusLabel(u.status)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  }}
                   mobileFooter={
                     <div ref={mobileSentinelRef} className="h-8 flex items-center justify-center text-[11px] text-slate-400">
                       {isMobile && mobileVisibleCount < filteredUsers.length ? 'Đang tải thêm...' : null}
