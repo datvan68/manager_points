@@ -1441,7 +1441,7 @@ function PermissionsPageContent() {
           }}
           responsiveScrollable
         />
-        <main className="flex-1 min-h-0 p-4 md:p-5 overflow-hidden flex flex-col bg-transparent relative">
+        <main className="flex-1 min-h-0 p-3 md:p-4 pb-0 md:pb-4 overflow-hidden flex flex-col bg-transparent relative main-bleed">
           <AnimatePresence>
             {isRefreshing && (
               <motion.div
@@ -1457,9 +1457,9 @@ function PermissionsPageContent() {
           </AnimatePresence>
 
           {/* Content Area */}
-          <div className="flex-1 flex flex-col min-h-0 bg-white/45 backdrop-blur-md rounded-2xl shadow-sm shadow-slate-300/40 border border-white/70 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 bg-transparent overflow-hidden">
             {activeTab === 'Người dùng' && (
-              <>
+              <div className="flex-1 min-h-0 flex flex-col bg-white/45 backdrop-blur-md rounded-2xl shadow-sm shadow-slate-300/40 border border-white/70 overflow-hidden">
                 {/* Toolbar */}
                 {isMobileSearchOpen ? (
                   <div className="flex md:hidden w-full items-center gap-2 px-4 py-3 border-b border-white/50 bg-white/20 shrink-0">
@@ -1584,6 +1584,7 @@ function PermissionsPageContent() {
                   mobileScrollRef={mobileScrollRef}
                   mobileVirtualization
                   hidePaginationOnMobile
+                  mobileClassName="p-3 pb-28"
                   renderCard={(u) => (
                     <div
                       key={u._id || u.id}
@@ -1678,14 +1679,14 @@ function PermissionsPageContent() {
                     />
                   }
                 />
-              </>
+              </div>
             )}
 
             {/* --- TAB QUYỀN HẠN --- */}
             {activeTab === 'Quyền hạn' && (
-              <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden lg:gap-4">
                 {/* Left Sidebar: Groups */}
-                <div className="w-full lg:w-[320px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
+                <div className="w-full lg:w-[320px] h-full min-h-0 bg-white/45 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm flex flex-col shrink-0 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách Nhóm quyền</h2>
                     {canAdminPermission('PERMISSION_GROUP_CREATE') && <button
@@ -1705,7 +1706,7 @@ function PermissionsPageContent() {
                       />
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                  <div className="flex-1 overflow-y-auto p-3 pb-28 lg:pb-3 space-y-2.5">
                     {isInitialLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="w-full h-24 rounded-xl" />
@@ -1763,7 +1764,7 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Right Panel: Permissions List */}
-                <div className="flex-1 bg-transparent flex flex-col min-w-0 min-h-[400px] lg:min-h-0">
+                <div className="flex-1 h-full min-h-0 bg-white/45 backdrop-blur-md rounded-2xl border border-white/70 shadow-sm flex flex-col min-w-0 overflow-hidden">
                   {/* Header / Tabs right panel */}
                   <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                     {/* Inner Tabs */}
@@ -1827,29 +1828,34 @@ function PermissionsPageContent() {
 
             {/* --- TAB VAI TRÒ --- */}
             {activeTab === 'Vai trò' && (
-              <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden lg:gap-4">
                 {/* Left Sidebar: Roles */}
-                <div className={`w-full lg:w-[340px] h-full min-h-0 bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0 ${mobileRoleView === 'matrix' ? 'hidden lg:flex' : 'flex'}`}>
-                  <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between shrink-0">
+                <div className={`w-full lg:w-[340px] h-full min-h-0 flex flex-col shrink-0 lg:bg-white/45 lg:backdrop-blur-md lg:rounded-2xl lg:border lg:border-white/70 lg:shadow-sm lg:overflow-hidden ${mobileRoleView === 'matrix' ? 'hidden lg:flex' : 'flex'}`}>
+                  {/* Desktop Header: Title + Add Button */}
+                  <div className="hidden lg:flex px-4 py-3 bg-white/20 border-b border-white/50 items-center justify-between shrink-0">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách vai trò</h2>
-                    {canAdminPermission('ROLE_CREATE') && <button
-                      onClick={handleOpenAddRoleModal}
-                      className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
-                      title="Thêm vai trò mới"
-                      aria-label="Thêm vai trò mới"
-                    >
-                      <Plus className="w-4 h-4" strokeWidth={2.5} />
-                    </button>}
+                    {canAdminPermission('ROLE_CREATE') && (
+                      <button
+                        onClick={handleOpenAddRoleModal}
+                        className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                        title="Thêm vai trò mới"
+                        aria-label="Thêm vai trò mới"
+                      >
+                        <Plus className="w-4 h-4" strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
-                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5 shrink-0">
-                    <div className="relative">
+
+                  {/* Toolbar: Unified 1-row [Search + Add button] on Mobile, Search only on Desktop */}
+                  <div className="flex items-center gap-2 mb-2.5 lg:mb-0 lg:p-3 lg:border-b lg:border-white/50 lg:bg-white/5 shrink-0">
+                    <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm kiếm vai trò..."
                         value={roleSearchTerm}
                         onChange={(e) => setRoleSearchTerm(e.target.value)}
-                        className="w-full pl-8.5 pr-8 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
+                        className="w-full pl-8.5 pr-8 h-9 text-xs font-semibold text-[#1E293B] bg-white/60 backdrop-blur-md lg:bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-xs"
                       />
                       {roleSearchTerm && (
                         <button
@@ -1863,11 +1869,23 @@ function PermissionsPageContent() {
                         </button>
                       )}
                     </div>
+
+                    {/* Mobile-only Add button in same row */}
+                    {canAdminPermission('ROLE_CREATE') && (
+                      <button
+                        onClick={handleOpenAddRoleModal}
+                        className="flex lg:hidden h-9 w-9 shrink-0 items-center justify-center text-[#1A73E8] hover:text-[#155cb4] bg-white/60 backdrop-blur-md border border-white/80 rounded-xl shadow-xs hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                        title="Thêm vai trò mới"
+                        aria-label="Thêm vai trò mới"
+                      >
+                        <Plus className="w-4 h-4" strokeWidth={2.5} />
+                      </button>
+                    )}
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-28 lg:pb-3 space-y-2.5 overscroll-contain">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-0.5 lg:p-3 pb-28 lg:pb-3 space-y-2.5 overscroll-contain">
                     {isInitialLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="w-full h-24 rounded-xl" />
+                        <Skeleton key={i} className="w-full h-24 rounded-2xl" />
                       ))
                     ) : (
                       filteredRoles.map((role) => {
@@ -1882,10 +1900,10 @@ function PermissionsPageContent() {
                               setSelectedRole(role._id);
                               if (isMobile) setMobileRoleView('matrix');
                             }}
-                            className={`p-3 rounded-xl cursor-pointer transition-all border-l-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
+                            className={`p-3.5 rounded-2xl cursor-pointer transition-all border shadow-xs hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
                               isSelected
-                                ? 'bg-white/70 border-[#1A73E8] shadow-[#1A73E8]/5'
-                                : 'bg-white/30 border-transparent hover:bg-white/50'
+                                ? 'bg-white/85 border-[#1A73E8] shadow-[#1A73E8]/10 ring-1 ring-[#1A73E8]/30'
+                                : 'bg-white/60 border-white/80 hover:bg-white/80'
                             }`}
                           >
                             <div className="flex items-start justify-between mb-1 gap-2">
@@ -1943,9 +1961,9 @@ function PermissionsPageContent() {
                 </div>
 
                 {/* Right Panel: Permission Matrix */}
-                <div className={`flex-1 h-full min-h-0 bg-transparent flex flex-col min-w-0 ${mobileRoleView === 'list' ? 'hidden lg:flex' : 'flex'}`}>
+                <div className={`flex-1 h-full min-h-0 flex flex-col min-w-0 lg:bg-white/45 lg:backdrop-blur-md lg:rounded-2xl lg:border lg:border-white/70 lg:shadow-sm lg:overflow-hidden ${mobileRoleView === 'list' ? 'hidden lg:flex' : 'flex'}`}>
                   {/* Mobile Subheader to return to Role List */}
-                  <div className="lg:hidden px-4 py-2.5 bg-white/40 border-b border-white/50 flex items-center justify-between shrink-0">
+                  <div className="lg:hidden px-4 py-2.5 bg-white/60 backdrop-blur-md rounded-2xl border border-white/70 shadow-xs flex items-center justify-between shrink-0 mb-2.5">
                     <button
                       type="button"
                       onClick={() => setMobileRoleView('list')}
@@ -1960,7 +1978,7 @@ function PermissionsPageContent() {
                   </div>
 
                   {/* Header / Tabs right panel */}
-                  <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
+                  <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between bg-white/60 backdrop-blur-md rounded-2xl lg:rounded-none lg:bg-white/10 border border-white/70 lg:border-0 lg:border-b shadow-xs lg:shadow-none shrink-0 gap-4 mb-2.5 lg:mb-0">
                     <div className="flex items-center gap-6">
                       {['Ma trận quyền', 'Lịch sử Audit'].map(tab => (
                         <button
@@ -2000,7 +2018,7 @@ function PermissionsPageContent() {
                   </div>
 
                   {/* Matrix Content Area */}
-                  <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-5 pb-28 lg:pb-5 bg-transparent overscroll-contain">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-0.5 lg:p-5 pb-28 lg:pb-5 bg-transparent overscroll-contain space-y-4">
                     <div className="max-w-5xl mx-auto space-y-5">
                       {isInitialLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
