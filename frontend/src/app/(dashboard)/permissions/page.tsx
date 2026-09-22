@@ -16,6 +16,14 @@ import { CustomPagination } from '@/components/ui/pagination';
 import TabNavigation from '@/components/ui/TabNavigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import Action from '@/components/ui/Action';
 import ResponsiveDataView, { ResponsiveColumn } from '@/components/ui/ResponsiveDataView';
 import { authApi, tokenStorage } from '@/api/auth-api';
@@ -1511,11 +1519,11 @@ function PermissionsPageContent() {
                         <Search className="w-4 h-4" />
                       </button>
 
-                      <Popover open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
-                        <PopoverTrigger asChild>
+                      <Drawer open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen} shouldScaleBackground={false}>
+                        <DrawerTrigger asChild>
                           <button
                             type="button"
-                            className={`h-9 flex items-center gap-1.5 px-3 rounded-xl border transition-all duration-150 ease-out shadow-xs ${
+                            className={`h-9 flex items-center gap-1.5 px-3 rounded-xl border transition-all duration-150 ease-out shadow-xs cursor-pointer ${
                               (filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả'))
                                 ? 'border-[#1A73E8]/40 bg-[#1A73E8]/10 text-[#1A73E8] font-bold'
                                 : 'border-white/80 bg-white/70 text-[#64748B] hover:text-[#1E293B] hover:bg-white'
@@ -1529,79 +1537,139 @@ function PermissionsPageContent() {
                               <span className="w-1.5 h-1.5 rounded-full bg-[#1A73E8]" />
                             )}
                           </button>
-                        </PopoverTrigger>
-                        <PopoverContent align="start" className="z-50 w-72 p-3.5 bg-white/95 backdrop-blur-md border border-white/80 rounded-2xl shadow-xl space-y-3">
-                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Bộ lọc người dùng</span>
-                            {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFilterRole('Tất cả');
-                                  setFilterStatuses(['Tất cả']);
-                                }}
-                                className="text-[11px] font-semibold text-[#1A73E8] hover:underline"
-                              >
-                                Đặt lại
-                              </button>
-                            )}
-                          </div>
-                          
-                          {/* Vai trò */}
-                          <div className="space-y-1.5">
-                            <span className="text-[11px] font-bold text-[#64748B]">Vai trò</span>
-                            <Select value={filterRole} onValueChange={setFilterRole}>
-                              <SelectTrigger aria-label="Vai trò" className="h-9 w-full bg-white/80 border border-slate-200 rounded-xl text-xs font-semibold text-[#1E293B]">
-                                <SelectValue placeholder="Tất cả" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white/95 backdrop-blur-md border border-slate-200 rounded-xl shadow-md">
-                                {['Tất cả', ...orderedRoles.map((r: any) => r.name).filter(Boolean)].map((role) => (
-                                  <SelectItem key={role} value={role} className="text-xs rounded-lg font-medium">{role}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Trạng thái */}
-                          <div className="space-y-1.5">
-                            <span className="text-[11px] font-bold text-[#64748B]">Trạng thái</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {['Tất cả', 'Hoạt động', 'Chưa kích hoạt', 'Bị khóa'].map((status) => {
-                                const isSelected = status === 'Tất cả'
-                                  ? filterStatuses.includes('Tất cả')
-                                  : filterStatuses.includes(status);
-                                return (
-                                  <button
-                                    key={status}
-                                    type="button"
-                                    onClick={() => handleToggleStatus(status)}
-                                    className={`px-2.5 py-1 text-xs rounded-lg border transition-all duration-150 ${
-                                      isSelected
-                                        ? 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/30 font-bold'
-                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 font-medium'
-                                    }`}
-                                  >
-                                    {status}
-                                  </button>
-                                );
-                              })}
+                        </DrawerTrigger>
+                        <DrawerContent direction="bottom" className="bg-white/95 backdrop-blur-xl border-t border-white/80 shadow-2xl rounded-t-[28px] max-h-[85vh] flex flex-col outline-none">
+                          {/* Drawer Header */}
+                          <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-slate-100 shrink-0">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-[#1A73E8]/10 text-[#1A73E8] flex items-center justify-center shrink-0">
+                                <Filter className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <DrawerTitle className="text-sm font-bold text-[#1E293B]">Bộ lọc người dùng</DrawerTitle>
+                                <DrawerDescription className="text-[11px] text-[#64748B]">Lọc danh sách theo vai trò và trạng thái</DrawerDescription>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {(filterRole !== 'Tất cả' || !filterStatuses.includes('Tất cả')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFilterRole('Tất cả');
+                                    setFilterStatuses(['Tất cả']);
+                                  }}
+                                  className="px-2.5 py-1 text-xs font-semibold text-[#1A73E8] hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Đặt lại
+                                </button>
+                              )}
+                              <DrawerClose asChild>
+                                <button
+                                  type="button"
+                                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                                  aria-label="Đóng bộ lọc"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </DrawerClose>
                             </div>
                           </div>
 
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                            <span className="text-[11px] font-medium text-slate-500">
-                              {filteredUsers.length} người dùng
-                            </span>
+                          {/* Scrollable Body */}
+                          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+                            {/* Section 1: Vai trò (Roles) */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2.5">
+                                <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Vai trò</span>
+                                <span className="text-[11px] font-semibold text-[#1A73E8]">
+                                  {filterRole === 'Tất cả' ? 'Tất cả' : filterRole}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {['Tất cả', ...orderedRoles.map((r: any) => r.name).filter(Boolean)].map((role) => {
+                                  const isSelected = filterRole === role;
+                                  return (
+                                    <button
+                                      key={role}
+                                      type="button"
+                                      onClick={() => setFilterRole(role)}
+                                      className={`px-3 py-2 text-xs rounded-xl border transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-[#1A73E8] text-white border-[#1A73E8] font-bold shadow-sm shadow-blue-500/25 scale-[1.02]'
+                                          : 'bg-slate-50/90 hover:bg-slate-100 text-slate-700 border-slate-200/80 font-medium'
+                                      }`}
+                                    >
+                                      {isSelected && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                                      <span>{role}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Section 2: Trạng thái (Status) */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2.5">
+                                <span className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Trạng thái hoạt động</span>
+                                <span className="text-[11px] font-semibold text-slate-500">
+                                  {filterStatuses.includes('Tất cả') ? 'Tất cả' : `${filterStatuses.length} trạng thái`}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { id: 'Tất cả', label: 'Tất cả', dotColor: 'bg-slate-400' },
+                                  { id: 'Hoạt động', label: 'Hoạt động', dotColor: 'bg-emerald-500' },
+                                  { id: 'Chưa kích hoạt', label: 'Chưa kích hoạt', dotColor: 'bg-amber-500' },
+                                  { id: 'Bị khóa', label: 'Bị khóa', dotColor: 'bg-rose-500' }
+                                ].map(({ id, label, dotColor }) => {
+                                  const isSelected = id === 'Tất cả'
+                                    ? filterStatuses.includes('Tất cả')
+                                    : filterStatuses.includes(id);
+                                  return (
+                                    <button
+                                      key={id}
+                                      type="button"
+                                      onClick={() => handleToggleStatus(id)}
+                                      className={`px-3 py-2.5 text-xs rounded-xl border transition-all duration-150 flex items-center justify-between cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/40 font-bold shadow-xs'
+                                          : 'bg-slate-50/90 hover:bg-slate-100 text-slate-700 border-slate-200/80 font-medium'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 truncate">
+                                        <div className={`w-2 h-2 rounded-full ${dotColor} shrink-0`} />
+                                        <span className="truncate">{label}</span>
+                                      </div>
+                                      {isSelected && <Check className="w-3.5 h-3.5 text-[#1A73E8] shrink-0" strokeWidth={2.5} />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Sticky Footer */}
+                          <div className="p-4 border-t border-slate-100/90 bg-white/90 backdrop-blur-md shrink-0 flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilterRole('Tất cả');
+                                setFilterStatuses(['Tất cả']);
+                              }}
+                              className="flex-1 py-2.5 px-4 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl transition-colors text-center cursor-pointer"
+                            >
+                              Đặt lại
+                            </button>
                             <button
                               type="button"
                               onClick={() => setIsMobileFilterOpen(false)}
-                              className="px-3 py-1.5 bg-[#1A73E8] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#155cb4] transition-all"
+                              className="flex-[2] py-2.5 px-4 text-xs font-bold text-white bg-[#1A73E8] hover:bg-[#155cb4] active:scale-[0.99] rounded-xl shadow-md shadow-blue-500/25 transition-all text-center cursor-pointer flex items-center justify-center gap-1.5"
                             >
-                              Áp dụng
+                              <span>Áp dụng ({filteredUsers.length} người)</span>
                             </button>
                           </div>
-                        </PopoverContent>
-                      </Popover>
+                        </DrawerContent>
+                      </Drawer>
                     </div>
 
                     {/* Desktop search & filters */}
