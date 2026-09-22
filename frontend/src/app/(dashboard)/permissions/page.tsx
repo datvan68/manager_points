@@ -51,7 +51,7 @@ import {
   type PreviewSubject,
   type PreviewPermissionItem,
 } from './preview-permissions';
-import { sortRolesByPriority, sortUsersByRolePriority } from './user-role-priority';
+import { sortRolesByPriority, sortUsersByRolePriority, normalizeRoleCode } from './user-role-priority';
 import { sortPermissionGroups, sortPermissions } from './permission-order';
 
 const getUserDisplayName = (user: any) =>
@@ -862,8 +862,44 @@ function PermissionsPageContent() {
   // Roles Tabs state
   const [selectedRole, setSelectedRole] = useState('');
   const [roleFilter, setRoleFilter] = useState('Tất cả');
+  const [roleSearchTerm, setRoleSearchTerm] = useState('');
+  const [mobileRoleView, setMobileRoleView] = useState<'list' | 'matrix'>('list');
   const [checkedPerms, setCheckedPerms] = useState<string[]>([]);
   const [isRoleSaving, setIsRoleSaving] = useState(false);
+
+  const roleUserCountMap = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    (users || []).forEach((u) => {
+      const userRoles = (u.roles?.length ? u.roles : [u.role]).filter(Boolean);
+      userRoles.forEach((r: any) => {
+        const id = r?._id || r?.id;
+        const name = (r?.name || r || '').toLowerCase();
+        const code = normalizeRoleCode(r);
+        if (id) map[id] = (map[id] || 0) + 1;
+        if (name) map[name] = (map[name] || 0) + 1;
+        if (code) map[code] = (map[code] || 0) + 1;
+      });
+    });
+    return map;
+  }, [users]);
+
+  const getRoleUserCount = React.useCallback((role: any) => {
+    const id = role?._id || role?.id;
+    const name = (role?.name || '').toLowerCase();
+    const code = normalizeRoleCode(role);
+    return (id && roleUserCountMap[id]) || (code && roleUserCountMap[code]) || (name && roleUserCountMap[name]) || 0;
+  }, [roleUserCountMap]);
+
+  const filteredRoles = React.useMemo(() => {
+    const sorted = sortRolesByPriority(roles || []);
+    const query = roleSearchTerm.trim().toLowerCase();
+    if (!query) return sorted;
+    return sorted.filter((r: any) =>
+      (r.name || '').toLowerCase().includes(query) ||
+      (r.description || '').toLowerCase().includes(query) ||
+      (r.code || '').toLowerCase().includes(query)
+    );
+  }, [roles, roleSearchTerm]);
 
   // Update checked perms when selectedRole changes
   React.useEffect(() => {
@@ -1401,10 +1437,11 @@ function PermissionsPageContent() {
           onTabChange={(id) => {
             setActiveTab(id);
             setIsMobileSearchOpen(false);
+            setMobileRoleView('list');
           }}
           responsiveScrollable
         />
-        <main className="flex-1 p-4 md:p-5 overflow-hidden flex flex-col bg-transparent relative">
+        <main className="flex-1 min-h-0 p-4 md:p-5 overflow-hidden flex flex-col bg-transparent relative">
           <AnimatePresence>
             {isRefreshing && (
               <motion.div
@@ -1790,85 +1827,138 @@ function PermissionsPageContent() {
 
             {/* --- TAB VAI TRÒ --- */}
             {activeTab === 'Vai trò' && (
-              <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
                 {/* Left Sidebar: Roles */}
-                <div className="w-full lg:w-[340px] bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0">
-                  <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between">
+                <div className={`w-full lg:w-[340px] h-full min-h-0 bg-white/10 border-b lg:border-b-0 lg:border-r border-white/50 flex flex-col shrink-0 ${mobileRoleView === 'matrix' ? 'hidden lg:flex' : 'flex'}`}>
+                  <div className="px-4 py-3 border-b border-white/50 bg-white/10 flex items-center justify-between shrink-0">
                     <h2 className="text-xs font-bold text-[#1E293B] uppercase tracking-wider">Danh sách vai trò</h2>
                     {canAdminPermission('ROLE_CREATE') && <button
                       onClick={handleOpenAddRoleModal}
                       className="text-[#1A73E8] hover:text-[#155cb4] p-1.5 bg-[#1A73E8]/10 border border-[#1A73E8]/20 rounded-xl hover:scale-[1.05] active:scale-[0.95] transition-all duration-150 ease-out"
+                      title="Thêm vai trò mới"
+                      aria-label="Thêm vai trò mới"
                     >
                       <Plus className="w-4 h-4" strokeWidth={2.5} />
                     </button>}
                   </div>
-                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5">
+                  <div className="px-4 py-3 flex flex-col gap-3 border-b border-white/50 bg-white/5 shrink-0">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]/70" />
                       <input
                         type="text"
                         placeholder="Tìm kiếm vai trò..."
-                        className="w-full pl-8.5 pr-3 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
+                        value={roleSearchTerm}
+                        onChange={(e) => setRoleSearchTerm(e.target.value)}
+                        className="w-full pl-8.5 pr-8 py-1.5 text-xs font-semibold text-[#1E293B] bg-white/50 border border-white/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8]/50 transition-all duration-150 ease-out placeholder:text-[#64748B]/70 shadow-sm"
                       />
+                      {roleSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setRoleSearchTerm('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#1E293B] p-0.5"
+                          title="Xóa tìm kiếm"
+                          aria-label="Xóa tìm kiếm"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-28 lg:pb-3 space-y-2.5 overscroll-contain">
                     {isInitialLoading ? (
                       Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="w-full h-24 rounded-xl" />
                       ))
                     ) : (
-                      roles.map((role) => (
-                        <div
-                          key={role._id}
-                          onClick={() => setSelectedRole(role._id)}
-                          className={`p-3 rounded-xl cursor-pointer transition-all border-l-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
-                            selectedRole === role._id
-                              ? 'bg-white/70 border-[#1A73E8] shadow-[#1A73E8]/5'
-                              : 'bg-white/30 border-transparent hover:bg-white/50'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-1">
-                            <h3 className={`text-xs font-bold ${selectedRole === role._id ? 'text-[#1A73E8]' : 'text-[#1E293B]'}`}>
-                              {role.name}
-                            </h3>
-                            <span
-                              className={`px-2 py-0.5 text-[9.5px] font-bold rounded-xl border ${
-                                role.name === 'Admin'
-                                  ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
-                                  : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
-                              }`}
-                            >
-                              {role.name}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-[#64748B] font-medium leading-relaxed mt-1">{role.description || 'Chưa cấu hình mô tả'}</p>
-                          <div className="flex items-center justify-between mt-3.5 pt-2.5 border-t border-white/20">
-                            <span className="text-[10px] text-[#64748B] font-bold">
-                              {role.permissions ? role.permissions.length : 0} Quyền hạn
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              {canAdminPermission('ROLE_UPDATE') && <button
-                                onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }}
-                                className="p-1 bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                      filteredRoles.map((role) => {
+                        const isAdmin = role.name === 'Admin' || normalizeRoleCode(role) === 'ADMIN';
+                        const userCount = getRoleUserCount(role);
+                        const isSelected = selectedRole === role._id || selectedRole === role.id;
+
+                        return (
+                          <div
+                            key={role._id}
+                            onClick={() => {
+                              setSelectedRole(role._id);
+                              if (isMobile) setMobileRoleView('matrix');
+                            }}
+                            className={`p-3 rounded-xl cursor-pointer transition-all border-l-2 shadow-sm hover:scale-[1.01] active:scale-[0.99] duration-150 ease-out ${
+                              isSelected
+                                ? 'bg-white/70 border-[#1A73E8] shadow-[#1A73E8]/5'
+                                : 'bg-white/30 border-transparent hover:bg-white/50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-1 gap-2">
+                              <h3 className={`text-xs font-bold truncate ${isSelected ? 'text-[#1A73E8]' : 'text-[#1E293B]'}`}>
+                                {role.name}
+                              </h3>
+                              <span
+                                className={`px-2 py-0.5 text-[9.5px] font-bold rounded-xl border shrink-0 ${
+                                  isAdmin
+                                    ? 'bg-purple-500/10 text-purple-700 border-purple-500/20'
+                                    : 'bg-blue-500/10 text-[#1A73E8] border-blue-500/20'
+                                }`}
                               >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>}
-                              {canAdminPermission('ROLE_DELETE') && <button
-                                onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }}
-                                className="p-1 bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
-                              >
-                              </button>}
+                                {isAdmin ? 'Hệ thống' : `${userCount} người dùng`}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#64748B] font-medium leading-relaxed mt-1 line-clamp-2">
+                              {role.description || 'Chưa cấu hình mô tả'}
+                            </p>
+                            <div className="flex items-center justify-between mt-3.5 pt-2.5 border-t border-white/20">
+                              <span className="text-[10px] text-[#64748B] font-bold">
+                                {role.permissions ? role.permissions.length : 0} Quyền hạn
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {canAdminPermission('ROLE_UPDATE') && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleOpenEditRoleModal(role); }}
+                                    className="w-7 h-7 flex items-center justify-center bg-white/60 hover:bg-[#1A73E8]/10 text-[#64748B] hover:text-[#1A73E8] rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                    title={`Chỉnh sửa vai trò ${role.name}`}
+                                    aria-label={`Chỉnh sửa vai trò ${role.name}`}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {canAdminPermission('ROLE_DELETE') && !isAdmin && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleRoleDelete(role); }}
+                                    className="w-7 h-7 flex items-center justify-center bg-white/60 hover:bg-rose-500/10 text-[#64748B] hover:text-rose-700 rounded-lg border border-white/80 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                    title={`Xóa vai trò ${role.name}`}
+                                    aria-label={`Xóa vai trò ${role.name}`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <div className="lg:hidden text-[#1A73E8] pl-1">
+                                  <ChevronRight className="w-4 h-4 opacity-70" />
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
 
                 {/* Right Panel: Permission Matrix */}
-                <div className="flex-1 bg-transparent flex flex-col min-w-0">
+                <div className={`flex-1 h-full min-h-0 bg-transparent flex flex-col min-w-0 ${mobileRoleView === 'list' ? 'hidden lg:flex' : 'flex'}`}>
+                  {/* Mobile Subheader to return to Role List */}
+                  <div className="lg:hidden px-4 py-2.5 bg-white/40 border-b border-white/50 flex items-center justify-between shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setMobileRoleView('list')}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1A73E8] hover:text-[#155cb4] active:scale-95 transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Danh sách vai trò</span>
+                    </button>
+                    <span className="text-xs font-bold text-[#1E293B] truncate max-w-[170px]">
+                      {roles.find(r => r._id === selectedRole || r.id === selectedRole)?.name || 'Ma trận quyền'}
+                    </span>
+                  </div>
+
                   {/* Header / Tabs right panel */}
                   <div className="px-5 py-2 flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/50 bg-white/10 shrink-0 gap-4">
                     <div className="flex items-center gap-6">
@@ -1910,7 +2000,7 @@ function PermissionsPageContent() {
                   </div>
 
                   {/* Matrix Content Area */}
-                  <div className="flex-1 overflow-y-auto p-5 bg-transparent">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-5 pb-28 lg:pb-5 bg-transparent overscroll-contain">
                     <div className="max-w-5xl mx-auto space-y-5">
                       {isInitialLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
