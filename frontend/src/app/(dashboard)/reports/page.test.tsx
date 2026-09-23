@@ -31,4 +31,28 @@ describe('reports loading contract', () => {
     expect(source.match(/attentionStudentCount: Number\(/g)).toHaveLength(2);
     expect(source.match(/if \(currentSeq !== requestSeqRef\.current\) return;/g)?.length).toBeGreaterThanOrEqual(5);
   });
+
+  it('exports follow-up state and handler fields in the record summary sheet', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'page.tsx'), 'utf8');
+
+    expect(source).toContain("header: 'Trạng thái xử lý'");
+    expect(source).toContain("header: 'Số ghi nhận mới'");
+    expect(source).toContain("header: 'Thời điểm xử lý'");
+    expect(source).toContain("header: 'Người xử lý'");
+    expect(source).toContain("new_record_count: Number(row.new_record_count || 0)");
+    expect(source).toContain("handled_by_label: row.handled_by || 'Chưa xác định'");
+  });
+
+  it('exports only discipline records with the active record filters and recorded_by', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'page.tsx'), 'utf8');
+
+    expect(source).toContain("fullRecords = await fetchAllPagesForExport<any>(");
+    expect(source).toContain("const criterionType = record?.criterion_id?.criterion_type;");
+    expect(source).toContain("return criterionType === 'ky_luat';");
+    expect(source).toContain("header: 'Người ghi nhận'");
+    expect(source).toContain("'Chi tiết kỷ luật'");
+    expect(source).toContain("followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus");
+    expect(source).toContain("filter(record => followUpStudentIds.has(getEntityId(record.student_id)))");
+    expect(source).toContain("recorded_by: row?.recorded_by || 'Chưa xác định'");
+  });
 });

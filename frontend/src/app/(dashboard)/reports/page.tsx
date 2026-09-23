@@ -25,7 +25,7 @@ import { criteriaApi } from '@/api/criteria-api';
 
 // Types & Helpers
 import { ReportFilterState, ReportsDataset } from '@/components/reports/report-types';
-import { processReportsData, getEntityId, translateStatus } from '@/components/reports/report-helpers';
+import { processReportsData, getEntityId, safeFormatDate, translateStatus } from '@/components/reports/report-helpers';
 import { reportExportHelper, ColumnConfig } from '@/components/reports/report-export';
 
 // Components
@@ -696,24 +696,21 @@ export default function ReportsPage() {
 
       if (target === 'record' || target === 'all') {
         toast.info('Đang tải đầy đủ dữ liệu ghi nhận...');
-        if (target === 'all') {
-          fullRecords = await fetchAllPagesForExport<any>(
-            academicRecordApi.getAcademicRecords,
-            {
-              semesterId: filters.semesterId,
-              classId: filters.classId,
-              search: filters.searchQuery,
-              startDate: filters.startDate,
-              endDate: filters.endDate,
-              departmentId: filters.departmentId,
-              status: filters.status,
-              followUpStatus: followUpStatus === 'all' ? undefined : followUpStatus
-            },
-            EXPORT_PAGE_SIZE,
-            MAX_EXPORT_ROWS_PER_SHEET,
-            'Ghi nhận chi tiết'
-          );
-        }
+        fullRecords = await fetchAllPagesForExport<any>(
+          academicRecordApi.getAcademicRecords,
+          {
+            semesterId: filters.semesterId,
+            classId: filters.classId,
+            search: filters.searchQuery,
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            departmentId: filters.departmentId,
+            status: filters.status
+          },
+          EXPORT_PAGE_SIZE,
+          MAX_EXPORT_ROWS_PER_SHEET,
+          'Ghi nhận chi tiết'
+        );
         fullRecordGroups = await fetchAllPagesForExport<any>(
           academicRecordApi.getAcademicRecords,
           {
@@ -937,8 +934,38 @@ export default function ReportsPage() {
     { key: 'reward_count', header: 'Khen thưởng', type: 'number', width: 15 },
     { key: 'bonus_count', header: 'Cộng điểm', type: 'number', width: 12 },
     { key: 'discipline_count', header: 'Kỷ luật', type: 'number', width: 12 },
-    { key: 'total_points', header: 'Tổng điểm tác động', type: 'number', width: 18 }
+    { key: 'total_points', header: 'Tổng điểm tác động', type: 'number', width: 18 },
+    { key: 'follow_up_status_label', header: 'Trạng thái xử lý', width: 20 },
+    { key: 'new_record_count', header: 'Số ghi nhận mới', type: 'number', width: 18 },
+    { key: 'handled_at_label', header: 'Thời điểm xử lý', width: 20 },
+    { key: 'handled_by_label', header: 'Người xử lý', width: 20 }
   ];
+
+  const recordDetailCols: ColumnConfig[] = [
+    { key: 'student_code', header: 'Mã SV', width: 15 },
+    { key: 'full_name', header: 'Họ tên', width: 25 },
+    { key: 'class_name', header: 'Lớp', width: 15 },
+    { key: 'department_name', header: 'Khoa', width: 20 },
+    { key: 'recorded_at', header: 'Ngày ghi nhận', width: 18 },
+    { key: 'criterion_name', header: 'Tiêu chí kỷ luật', width: 30 },
+    { key: 'record_title', header: 'Nội dung', width: 35 },
+    { key: 'description', header: 'Mô tả', width: 40 },
+    { key: 'recorded_by', header: 'Người ghi nhận', width: 22 },
+    { key: 'status', header: 'Trạng thái bản ghi', width: 20 }
+  ];
+
+  const followUpStatusLabels: Record<string, string> = {
+    unhandled: 'Chưa xử lý',
+    settled: 'Đã xử lý',
+    new: 'Có ghi nhận mới'
+  };
+
+  const isDisciplineRecord = (record: any) => {
+    const criterionType = record?.criterion_id?.criterion_type;
+    if (criterionType) return criterionType === 'ky_luat';
+    const title = String(record?.record_title || '').toLowerCase();
+    return title.includes('kỷ luật') || title.includes('vi phạm') || title.includes('cảnh cáo') || Number(record?.points_effect || 0) < 0;
+  };
 
   const buildCriterionExport = (rows: any[], criteria: Array<{ id: string; name: string }>) => ({
     rows: rows.map(row => Object.fromEntries([
@@ -1066,10 +1093,39 @@ export default function ReportsPage() {
       await reportExportHelper.writeWorkbook(workbook, `Bao_cao_Chi_tiet_tieu_chi_${timestamp}.xlsx`);
     } else if (tab === 'record') {
       if (exportProcessed.tables.recordSummaries.length === 0) return toast.warning('Không có dữ liệu để xuất Excel');
-      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhận rèn luyện', exportProcessed.tables.recordSummaries, recordCols);
+      const summaryRows = exportProcessed.tables.recordSummaries.map(row => ({
+        ...row,
+        follow_up_status_label: followUpStatusLabels[row.follow_up_status] || 'Không xác định',
+        new_record_count: Number(row.new_record_count || 0),
+        handled_at_label: row.handled_at ? safeFormatDate(row.handled_at, 'dd/MM/yyyy HH:mm') : 'Chưa xác định',
+        handled_by_label: row.handled_by || 'Chưa xác định'
+      }));
+      await reportExportHelper.appendJsonSheet(workbook, 'Ghi nhận rèn luyện', summaryRows, recordCols);
       const criterionExport = buildCriterionExport(exportProcessed.tables.recordSummaries, exportDataset.activeCriteria);
       if (criterionExport.rows.length > 0 && criterionExport.columns.length > 4) {
         await reportExportHelper.appendJsonSheet(workbook, 'Theo tiêu chí', criterionExport.rows, criterionExport.columns);
+      }
+      const followUpStudentIds = new Set(
+        exportProcessed.tables.recordSummaries.map(row => row._id)
+      );
+      const detailRows = exportDataset.academicRecords
+        .filter(isDisciplineRecord)
+        .filter(record => followUpStudentIds.has(getEntityId(record.student_id)))
+        .map(record => {
+          const row = exportProcessed.tables.records.find(item => item._id === record._id);
+          const criterion = record.criterion_id && typeof record.criterion_id === 'object' ? record.criterion_id : undefined;
+          return {
+            ...(row || {}),
+            criterion_name: criterion?.criterion_name || criterion?.criterion_code || 'Chưa xác định',
+            recorded_at: row?.recorded_at || safeFormatDate(record.recorded_at || record.date_record),
+            record_title: row?.record_title || record.record_title || 'Ghi nhận kỷ luật',
+            description: row?.description || record.description || 'Không có mô tả',
+            recorded_by: row?.recorded_by || 'Chưa xác định',
+            status: row?.status || translateStatus(record.status || 'active')
+          };
+        });
+      if (detailRows.length > 0) {
+        await reportExportHelper.appendJsonSheet(workbook, 'Chi tiết kỷ luật', detailRows, recordDetailCols);
       }
       await reportExportHelper.writeWorkbook(workbook, `Bao_cao_Ghi_nhan_${timestamp}.xlsx`);
     } else if (tab === 'attendance') {

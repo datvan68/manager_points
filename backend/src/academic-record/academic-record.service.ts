@@ -2212,6 +2212,8 @@ export class AcademicRecordService {
         (this.followUpModel as any).collection?.name || 'academicrecordfollowups';
       const academicRecordCollection =
         (this.academicRecordModel as any).collection?.name || 'academicrecords';
+      const userCollection =
+        (this.academicRecordModel.db.model('User') as any).collection?.name || 'users';
       const groupedResult = await this.academicRecordModel
         .aggregate([
           { $match: filter },
@@ -2356,7 +2358,34 @@ export class AcademicRecordService {
                     },
                     { $unwind: '$handledCriterion' },
                     { $match: { 'handledCriterion.criterion_type': 'ky_luat' } },
-                    { $project: { handledRecord: 0, handledCriterion: 0 } },
+                    {
+                      $lookup: {
+                        from: userCollection,
+                        let: { handlerId: '$handled_by' },
+                        pipeline: [
+                          {
+                            $match: {
+                              $expr: { $eq: ['$_id', '$$handlerId'] },
+                            },
+                          },
+                          {
+                            $project: {
+                              _id: 1,
+                              user_name: 1,
+                              full_name: 1,
+                              display_name: 1,
+                            },
+                          },
+                        ],
+                        as: 'handler',
+                      },
+                    },
+                    {
+                      $set: {
+                        handled_by: { $arrayElemAt: ['$handler', 0] },
+                      },
+                    },
+                    { $project: { handledRecord: 0, handledCriterion: 0, handler: 0 } },
                   ]
                 : [{ $match: { _id: { $exists: false } } }],
               as: 'followUp',
